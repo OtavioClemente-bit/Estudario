@@ -64,7 +64,9 @@ if (Deno.args.includes("--montar")) {
     Deno.writeTextFileSync(destino(id)!, JSON.stringify(m, null, 2) + "\n");
   }
   if (ok.length) {
-    const o = new Deno.Command("deno", { args: ["run", "-A", `${ROOT}scripts/codex/ligar-decisoes.ts`, `--ids=${ok.join(",")}`], stdout: "piped", stderr: "piped" }).outputSync();
+    // Com centenas de ids a linha de comando passava do limite do Windows (07/11): a lista vai num arquivo.
+    Deno.writeTextFileSync(`${ROOT}work/amostra-codex-ok-ids.txt`, ok.join("\n") + "\n");
+    const o = new Deno.Command("deno", { args: ["run", "-A", `${ROOT}scripts/codex/ligar-decisoes.ts`, `--ids=@${ROOT}work/amostra-codex-ok-ids.txt`], stdout: "piped", stderr: "piped" }).outputSync();
     console.log(new TextDecoder().decode(o.stdout).trim().split("\n").slice(-3).join("\n"));
   }
   console.log(`${ok.length} matérias copiadas para conteudo/materias`);

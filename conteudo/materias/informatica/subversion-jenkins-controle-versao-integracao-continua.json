@@ -1,0 +1,1805 @@
+{
+  "id": "informatica.subversion-jenkins-controle-versao-integracao-continua",
+  "subject": "Informática",
+  "title": "Subversion (SVN) e Jenkins: controle de versão e integração contínua",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conhecimentos básicos das ferramentas: SVN (Subversion) e Jenkins",
+    "Subversion e Jenkins para desenvolvimento de software",
+    "SVN e Jenkins: controle de versão e CI",
+    "Apache Subversion: repositório e cópia de trabalho",
+    "Jenkins: automação de builds e testes",
+    "Integração contínua com Jenkins e Subversion",
+    "Controle de versão centralizado com SVN",
+    "Pipeline como código com Jenkinsfile",
+    "Comandos básicos do cliente svn",
+    "Revisões, commits e atualizações no Subversion",
+    "Branches e tags no repositório SVN",
+    "Jobs, agentes e executores do Jenkins"
+  ],
+  "scope": {
+    "covers": "Conhecimentos básicos de Apache Subversion (SVN) e Jenkins: modelo cliente-servidor, repositório, revisão e cópia de trabalho; checkout, status, update, diff, add, delete, revert, resolve e commit; conflitos, histórico, branches, tags, trunk e merge; conceitos de integração contínua; Jenkins controller, agentes, executores, jobs, builds, workspace e plugins; Pipeline declarativo e Jenkinsfile; sequência de checkout, build, testes e publicação; gatilhos, resultados e práticas básicas de segurança.",
+    "excludes": "Administração avançada de repositórios SVN, configuração detalhada de servidores, linguagem Groovy avançada, desenvolvimento de plugins Jenkins, administração de infraestrutura CI/CD, implantação em nuvem e particularidades de versões específicas."
+  },
+  "theoryTitle": "Do repositório Subversion à esteira Jenkins",
+  "chapters": [
+    {
+      "title": "1. Modelo do Subversion e organização do repositório",
+      "markdown": "### O problema que este assunto resolve\n\nO Subversion, conhecido pela sigla **SVN**, registra versões de arquivos e diretórios em um repositório central. A equipe consulta o histórico e compartilha mudanças por meio de clientes SVN. Cada commit aceito cria uma nova **revisão global** do repositório; não é uma versão isolada de um arquivo.\n\n> **Siglas e termos deste capítulo**\n> - **Repositório**: armazenamento central que conserva o histórico versionado.\n> - **Cópia de trabalho (working copy)**: diretório local ligado ao repositório, no qual a pessoa edita arquivos.\n> - **Revisão**: estado identificado por número, resultante de uma transação confirmada no repositório.\n> - **Trunk, branches, tags**: convenção de diretórios para linha principal, linhas paralelas e marcos nomeados.\n\nNo SVN, o repositório normalmente funciona como serviço central: os clientes obtêm dados dele e enviam commits para ele. Uma cópia de trabalho é local e pode conter edições ainda não enviadas. Salvar um arquivo no editor **não** cria revisão; a mudança só passa a integrar o histórico compartilhado após commit bem-sucedido.\n\nÉ comum organizar o projeto com `trunk/`, `branches/` e `tags/`. São diretórios convencionais, não palavras reservadas que o servidor obrigatoriamente cria. `trunk` costuma representar a linha principal; um branch permite trabalho paralelo; uma tag dá nome a um ponto de referência, como uma versão publicada. No Subversion, cópias baratas dentro do repositório permitem criar branches e tags sem duplicar fisicamente todos os dados.\n\n### Como cai na prova\n\nA revisão SVN identifica o estado global do repositório após uma confirmação. A cópia de trabalho pode divergir desse estado por conter modificações locais ou estar desatualizada. Não confunda a convenção de pastas com uma exigência do protocolo, nem branch/tag com cópia manual independente."
+    },
+    {
+      "title": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "markdown": "### O problema que este assunto resolve\n\nO fluxo básico do cliente começa com `svn checkout URL`, que materializa uma cópia de trabalho a partir do repositório. Durante o trabalho, `svn status` resume estados locais, `svn diff` exibe diferenças, `svn update` traz revisões alheias e `svn commit` envia alterações selecionadas.\n\n> **Siglas e termos deste capítulo**\n> - **Checkout**: cria uma cópia de trabalho inicial a partir de uma URL.\n> - **Update**: sincroniza a cópia local com mudanças já existentes no repositório.\n> - **Commit**: transmite as alterações locais selecionadas e, se aceitas, cria uma revisão.\n> - **Revert**: descarta alterações locais ainda não confirmadas, conforme o alvo indicado.\n\nArquivos novos precisam ser adicionados ao controle com `svn add`; arquivos rastreados para remoção podem ser marcados com `svn delete`. Essas operações marcam alterações para o próximo commit. `svn status` usa códigos para indicar situações: `M` indica modificação, `A` agendamento de adição, `D` agendamento de exclusão e `?` item não versionado. A saída exata pode incluir outros indicadores.\n\nAntes do commit, revise `svn diff` e o status para evitar enviar arquivos temporários ou mudanças acidentais. O `svn update` pode combinar mudanças remotas com edições locais; se ambas alterarem as mesmas linhas de forma incompatível, pode haver conflito. `svn revert` é para desfazer trabalho local; não é uma operação de desfazer um commit já publicado.\n\n### Como cai na prova\n\nA sequência conceitual é atualizar, inspecionar e testar, depois confirmar. `update` recebe mudanças; `commit` publica as próprias. Um arquivo que aparece como `?` ainda não está versionado, mesmo que exista no disco. `revert` descarta alterações locais selecionadas e exige atenção antes de ser executado."
+    },
+    {
+      "title": "3. Histórico, conflitos e trabalho em branches",
+      "markdown": "### O problema que este assunto resolve\n\nQuando mudanças concorrentes atingem a mesma cópia, o SVN tenta integrá-las. Se não puder decidir com segurança, marca um conflito para resolução humana. O cliente pode preservar versões envolvidas e sinalizar o arquivo; resolver significa editar o conteúdo final, conferir a diferença e marcar o conflito como resolvido com `svn resolve`.\n\n> **Siglas e termos deste capítulo**\n> - **Conflito**: alterações incompatíveis que a ferramenta não consegue combinar automaticamente.\n> - **Merge**: incorporação de mudanças de uma linha de desenvolvimento em outra cópia de trabalho.\n> - **Log**: histórico de revisões e mensagens de commit.\n> - **Blame/annotate**: associação de linhas do arquivo às revisões que as alteraram.\n\n`svn log` mostra histórico; `svn diff` compara conteúdo entre estados; `svn cat` pode exibir o conteúdo de um arquivo em uma revisão; `svn blame` (também chamado annotate) atribui linhas a revisões. Para um conflito, não basta apagar os marcadores e presumir que terminou: é preciso compor o resultado correto, revisar e informar a ferramenta de que o conflito foi resolvido.\n\nBranches são linhas de desenvolvimento paralelas. O padrão de diretórios `branches/nome` é convenção habitual. Um branch pode ser criado por cópia no repositório e atualizado com mudanças da linha principal por merge. Um merge não é mera cópia de arquivos: ele aplica mudanças selecionadas e a equipe deve revisar e confirmar o resultado na linha de destino. Tags são referências nomeadas para um estado; não são proteção imutável imposta pelo SVN, pois permissões e políticas do repositório governam alterações.\n\n### Como cai na prova\n\nConflito não significa perda automática das duas versões nem resolução automática garantida. `svn resolve` registra que o conflito foi tratado; não escolhe sozinho a lógica correta. Branch e tag são usados para propósitos diferentes, embora ambos possam ser implementados como cópias no repositório."
+    },
+    {
+      "title": "4. Jenkins: automação, jobs e execução distribuída",
+      "markdown": "### O problema que este assunto resolve\n\nJenkins automatiza etapas repetíveis do desenvolvimento, como obter o código, compilar, executar testes e arquivar resultados. Um **job** (ou projeto) configura uma tarefa; um **build** é uma execução concreta dela. Plugins adicionam integrações e passos, por isso as capacidades disponíveis dependem do que está instalado e configurado.\n\n> **Siglas e termos deste capítulo**\n> - **Controller**: serviço central que configura Jenkins, agenda trabalhos e monitora agentes.\n> - **Agente**: máquina ou ambiente conectado ao controller que executa trabalho.\n> - **Executor**: capacidade de execução concorrente atribuída a um nó.\n> - **Workspace**: diretório de trabalho usado por uma execução.\n> - **CI**: integração contínua; integrar mudanças frequentemente e validá-las por automação.\n\nO controller coordena e agenda; os agentes fornecem executores para rodar builds. Rótulos como `linux` ou `windows` permitem selecionar agentes com capacidades apropriadas. Mais executores podem permitir mais tarefas simultâneas, limitadas pelos recursos disponíveis. O workspace contém arquivos da execução, inclusive o checkout; ele não é, por si só, o repositório de controle de versão nem um armazenamento durável de artefatos.\n\nUm job pode ser configurado pela interface ou definido como Pipeline. A compilação automatizada não garante que o software esteja correto: o resultado dos testes, os logs e os critérios de qualidade precisam ser interpretados. Jenkins executa ferramentas e passos configurados; ele não substitui o sistema de controle de versão.\n\n### Como cai na prova\n\nController agenda e monitora; agente executa; executor representa capacidade concorrente; build é uma execução de job. Um job pode ser disparado manualmente ou por mecanismos configurados, como agenda ou evento do repositório, conforme plugins e configuração."
+    },
+    {
+      "title": "5. Pipeline como código e integração com Subversion",
+      "markdown": "### O problema que este assunto resolve\n\nO Jenkins Pipeline descreve em código uma sequência de etapas de entrega. Na sintaxe Declarative, `pipeline` envolve a definição, `agent` seleciona onde executar, `stages` agrupa fases, cada `stage` nomeia uma fase e `steps` contém tarefas. O arquivo convencional é `Jenkinsfile`, versionado junto ao projeto.\n\n> **Siglas e termos deste capítulo**\n> - **Pipeline**: modelo automatizado de etapas de build, teste e entrega.\n> - **Jenkinsfile**: arquivo de texto com a definição do Pipeline.\n> - **Stage**: fase visível e conceitualmente distinta, como Build ou Test.\n> - **Step**: ação executada dentro de uma fase.\n> - **SCM**: sistema de gerenciamento de código-fonte, como Subversion.\n\nExemplo Declarative mínimo: `pipeline { agent any; stages { stage('Test') { steps { echo 'validar' } } } }`. Em um Pipeline real, o checkout obtém uma revisão do SCM no workspace e os passos subsequentes compilam e testam esse conteúdo. A integração com SVN depende da configuração do job e do plugin de SCM correspondente; Jenkins não inclui, por mágica, credenciais ou acesso ao repositório.\n\nUma esteira típica recebe uma mudança, obtém o código, compila, executa testes e, se os critérios forem satisfeitos, prepara entrega ou implantação. A CI busca feedback frequente; o disparo automático pode ocorrer por polling, agenda ou notificações/eventos configurados. Uma falha em etapa deve deixar resultado visível e impedir etapas posteriores quando a política do Pipeline assim determinar.\n\n### Como cai na prova\n\nPipeline como código permite revisar e versionar também a definição da esteira. `stage` organiza a execução; `steps` contém ações; `agent` indica o ambiente de execução. O `Jenkinsfile` fica no SCM e pode ser obtido pelo próprio Jenkins. CI não significa publicar automaticamente toda mudança em produção."
+    }
+  ],
+  "summary": "Subversion (SVN) é um sistema de controle de versão centralizado: mantém revisões no repositório e permite trabalhar numa cópia local. Checkout cria a cópia, status e diff ajudam a inspecionar, update recebe mudanças do repositório, add/delete agendam operações, revert descarta alterações locais e commit publica mudanças numa revisão nova. Log, blame e diff consultam histórico; conflitos exigem resolução e branches suportam trabalho paralelo. Jenkins automatiza builds e testes. Seu controller agenda trabalhos, agentes os executam por meio de executores, e jobs produzem builds em workspaces. Pipeline e Jenkinsfile descrevem como código as fases e passos da integração contínua, inclusive checkout do SVN, build e testes, desde que SCM, plugins e credenciais estejam configurados.",
+  "flashcards": [
+    {
+      "front": "O que guarda o repositório SVN?",
+      "back": "Árvore de arquivos e diretórios versionados, preservando revisões e histórico."
+    },
+    {
+      "front": "O que é uma cópia de trabalho SVN?",
+      "back": "Diretório local associado ao repositório, usado para editar e sincronizar arquivos."
+    },
+    {
+      "front": "O que identifica uma revisão SVN?",
+      "back": "Um estado global do repositório após uma transação confirmada."
+    },
+    {
+      "front": "Qual comando cria uma cópia de trabalho inicial?",
+      "back": "`svn checkout URL`."
+    },
+    {
+      "front": "O que faz `svn update`?",
+      "back": "Traz mudanças do repositório para atualizar a cópia de trabalho."
+    },
+    {
+      "front": "O que faz `svn commit`?",
+      "back": "Envia alterações locais selecionadas ao repositório e, se aceitas, cria nova revisão."
+    },
+    {
+      "front": "O que indica `?` em `svn status`?",
+      "back": "Item não versionado, ainda não adicionado ao controle."
+    },
+    {
+      "front": "Como incluir arquivo novo no próximo commit?",
+      "back": "Marcar sua adição com `svn add` e depois confirmar."
+    },
+    {
+      "front": "Para que serve `svn diff`?",
+      "back": "Exibir diferenças entre arquivos ou revisões."
+    },
+    {
+      "front": "O que descarta `svn revert`?",
+      "back": "Alterações locais não confirmadas no alvo indicado."
+    },
+    {
+      "front": "Qual é o papel de `svn log`?",
+      "back": "Consultar mensagens e revisões do histórico."
+    },
+    {
+      "front": "O que mostra `svn blame`?",
+      "back": "A revisão associada a cada linha de um arquivo."
+    },
+    {
+      "front": "O que é um conflito SVN?",
+      "back": "Mudanças incompatíveis que o cliente não pode combinar com segurança."
+    },
+    {
+      "front": "Para que serve `svn resolve`?",
+      "back": "Marcar um conflito tratado após compor e revisar o resultado."
+    },
+    {
+      "front": "Qual uso convencional de `trunk`?",
+      "back": "Linha principal de desenvolvimento do projeto."
+    },
+    {
+      "front": "O que é um branch?",
+      "back": "Linha paralela de desenvolvimento que pode receber merges."
+    },
+    {
+      "front": "O que é um tag em SVN?",
+      "back": "Nome convencional para um estado de referência, frequentemente uma versão."
+    },
+    {
+      "front": "O que faz o controller Jenkins?",
+      "back": "Administra agentes, agenda trabalhos e monitora sua execução."
+    },
+    {
+      "front": "O que executa trabalho no Jenkins?",
+      "back": "Agente conectado ao controller, usando executores disponíveis."
+    },
+    {
+      "front": "O que representa um executor?",
+      "back": "Capacidade para executar uma tarefa concorrente num nó Jenkins."
+    },
+    {
+      "front": "O que é um build Jenkins?",
+      "back": "Uma execução concreta de um job ou Pipeline."
+    },
+    {
+      "front": "O que é workspace Jenkins?",
+      "back": "Diretório de trabalho da execução, usado para checkout e arquivos de build."
+    },
+    {
+      "front": "O que é Jenkinsfile?",
+      "back": "Arquivo versionável que define um Pipeline Jenkins."
+    },
+    {
+      "front": "Para que serve `stage`?",
+      "back": "Agrupar uma fase nomeada do Pipeline, como Build ou Test."
+    },
+    {
+      "front": "Para que serve `steps`?",
+      "back": "Declarar as ações a executar dentro de uma fase Declarative."
+    }
+  ],
+  "tips": [
+    "Memorize o fluxo: checkout cria a cópia, update recebe, commit envia.",
+    "Inspecione status e diff antes de confirmar alterações no SVN.",
+    "`?` no status é arquivo não versionado; marque com add se ele deve entrar no repositório.",
+    "No Jenkins, controller coordena e agente executa o trabalho agendado.",
+    "Leia a estrutura Declarative como pipeline → agent/stages → stage → steps.",
+    "Pipeline como código põe o Jenkinsfile sob revisão e histórico do SCM."
+  ],
+  "traps": [
+    "Confundir update com commit: um traz mudanças e o outro envia as próprias.",
+    "Achar que salvar no editor já registra uma revisão no repositório.",
+    "Tratar revert como desfazer um commit já publicado; ele atua na cópia local.",
+    "Supor que o SVN impõe nomes especiais trunk, branches e tags; são convenções de organização.",
+    "Confundir controller com agente: o primeiro coordena, o segundo executa trabalho.",
+    "Supor que Jenkins publica em produção automaticamente só por executar CI."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o percurso de um arquivo novo até ficar registrado no SVN.",
+      "answer": "Obter uma cópia de trabalho, criar o arquivo, marcá-lo com svn add, revisar status e diff e executar commit."
+    },
+    {
+      "question": "Como distinguir update de commit?",
+      "answer": "Update incorpora revisões do repositório à cópia local; commit transmite mudanças locais selecionadas ao repositório."
+    },
+    {
+      "question": "O que significa uma linha M em svn status?",
+      "answer": "O arquivo versionado foi modificado localmente."
+    },
+    {
+      "question": "Como agir diante de conflito em arquivo atualizado?",
+      "answer": "Examinar as versões e diferenças, editar o resultado correto, revisar e marcar como resolvido."
+    },
+    {
+      "question": "Qual diferença usual entre trunk, branch e tag?",
+      "answer": "Trunk é linha principal; branch é linha paralela de trabalho; tag nomeia um marco de referência."
+    },
+    {
+      "question": "Descreva a arquitetura básica de Jenkins.",
+      "answer": "O controller agenda e monitora; agentes oferecem executores que realizam builds e passos."
+    },
+    {
+      "question": "Como um Jenkinsfile Declarative organiza o trabalho?",
+      "answer": "Um bloco pipeline define agente, stages, fases stage e ações steps."
+    },
+    {
+      "question": "Como SVN participa de Pipeline Jenkins?",
+      "answer": "O SCM configurado permite checkout no workspace; os passos seguintes constroem e testam a revisão obtida."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Update e commit invertidos",
+      "summary": "Update recebe revisões do servidor para a cópia de trabalho; commit envia mudanças locais e pode criar nova revisão."
+    },
+    {
+      "key": "e2",
+      "title": "Estado local confundido com histórico publicado",
+      "summary": "Editar ou marcar add/delete ainda não publica mudanças. A revisão só surge após commit aceito."
+    },
+    {
+      "key": "e3",
+      "title": "Conflito presumido como resolvido automaticamente",
+      "summary": "O cliente sinaliza conflitos não combináveis; a pessoa compõe o resultado, revisa e marca resolução."
+    },
+    {
+      "key": "e4",
+      "title": "Papéis do Jenkins confundidos",
+      "summary": "Controller coordena e agenda; agente executa; executor é capacidade de concorrência; build é uma execução."
+    },
+    {
+      "key": "e5",
+      "title": "Pipeline confundido com implantação obrigatória",
+      "summary": "Pipeline automatiza etapas definidas. Build, teste e deploy são fases configuráveis; CI não implica publicação incondicional."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual componente do Subversion mantém o histórico de versões compartilhado pela equipe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cópia de trabalho local de cada usuário, que guarda todas as revisões globais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O repositório central, que conserva estados versionados e aceita operações dos clientes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O editor de texto, que registra automaticamente cada salvamento como revisão compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O workspace Jenkins, que centraliza alterações locais de todos os desenvolvedores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A pasta trunk, que o protocolo SVN exige como banco único de histórico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O repositório é o armazenamento central e mantém revisões. A cópia de trabalho é local; salvar no editor não publica commit; workspace Jenkins é área de execução e trunk é convenção de organização, não o mecanismo de histórico.",
+      "section": "1. Modelo do Subversion e organização do repositório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo normal do SVN, uma revisão numerada corresponde ao estado do repositório após uma confirmação aceita, e não somente à versão de um arquivo isolado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O número da revisão identifica o estado global do repositório após uma transação confirmada, ainda que essa transação tenha alterado apenas um arquivo.",
+      "section": "1. Modelo do Subversion e organização do repositório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição melhor diferencia repositório e cópia de trabalho no Subversion?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repositório é o histórico central; cópia de trabalho é o diretório local para editar e sincronizar arquivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repositório contém apenas arquivos bloqueados; cópia de trabalho mantém todas as revisões globais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repositório é uma pasta temporária do Jenkins; cópia de trabalho é uma tag imutável publicada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repositório só existe após checkout; cópia de trabalho é o servidor que aceita commits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repositório armazena apenas branches; cópia de trabalho é o log imutável das confirmações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O repositório central mantém o conteúdo versionado e seu histórico. A cópia de trabalho é uma versão local editável ligada a ele; não é o servidor, uma tag nem o log.",
+      "section": "1. Modelo do Subversion e organização do repositório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As pastas trunk, branches e tags são convenções comuns de organização, mas não nomes obrigatórios impostos pelo protocolo Subversion.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa estrutura é amplamente usada para linha principal, linhas paralelas e marcos nomeados, mas o repositório pode adotar outros nomes e layouts.",
+      "section": "1. Modelo do Subversion e organização do repositório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa deseja iniciar o trabalho local a partir de uma URL do repositório SVN. Qual comando atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`svn commit URL`, que baixa todo o conteúdo e cria uma cópia local inicial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`svn update URL`, que sempre cria uma nova cópia sem vínculo anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`svn checkout URL`, que materializa uma cópia de trabalho inicial.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`svn resolve URL`, que importa uma árvore ainda não versionada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`svn revert URL`, que clona o repositório e define sua revisão inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Checkout cria a cópia de trabalho inicial a partir do repositório. Update pressupõe uma cópia existente; commit envia alterações; resolve trata conflitos e revert descarta mudanças locais.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando traz para a cópia de trabalho as mudanças já confirmadas por outras pessoas no repositório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`svn add`, que incorpora revisões remotas ao conteúdo local antes do commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`svn update`, que sincroniza a cópia local com revisões do repositório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`svn commit`, que baixa alterações remotas e as guarda sem criar revisão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`svn revert`, que combina as alterações remotas com edições locais pendentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`svn blame`, que atualiza o arquivo local com as linhas mais recentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Update obtém mudanças do repositório para a cópia de trabalho. Add agenda adição; commit transmite mudanças locais; revert descarta mudanças e blame consulta autoria por linha.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de revisar as alterações locais, qual comando envia as mudanças selecionadas ao repositório SVN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`svn checkout`, que publica o diretório local como nova revisão central.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`svn status`, que transmite mudanças e fecha a cópia de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`svn update`, que envia os arquivos locais e cria sua revisão no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`svn commit`, que envia as alterações aceitas e cria uma nova revisão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`svn diff`, que aplica automaticamente as diferenças ao repositório remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Commit publica as alterações locais selecionadas e, se aceitas, cria nova revisão. Os demais comandos consultam, obtêm ou comparam dados, mas não confirmam as mudanças locais no histórico.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma saída de `svn status`, o código `?` indica normalmente um item presente na pasta local que ainda não está sob controle de versão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O ponto de interrogação marca item não versionado. Para incluí-lo no controle, pode-se agendar a adição com `svn add` e depois confirmar.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe criou um arquivo novo e deseja que ele faça parte do próximo commit. O que deve fazer antes de confirmar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `svn blame`, para converter o arquivo desconhecido em item versionado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `svn update`, que agenda automaticamente todos os arquivos locais novos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar `svn revert`, que adiciona o arquivo e preserva seu conteúdo para o servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `svn log`, que registra o arquivo atual no histórico do repositório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar `svn add` no arquivo e depois revisar e confirmar as alterações.",
+          "correct": true
+        }
+      ],
+      "explanation": "Add agenda o novo arquivo para versionamento. O commit posterior publica essa adição. Blame e log consultam histórico, update obtém dados e revert descarta alterações locais.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta de linha de comando exibe as diferenças entre o arquivo local e a base versionada, ajudando na revisão antes do commit?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`svn diff`, que mostra diferenças entre conteúdo ou revisões comparadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`svn resolve`, que apresenta o histórico integral de cada alteração confirmada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`svn checkout`, que compara arquivos antes de materializar a cópia local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`svn add`, que imprime linhas alteradas sem marcar inclusão de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`svn commit`, que lista toda diferença calculada antes de enviar os arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diff é usado para inspecionar diferenças. Resolve trata conflitos, checkout obtém uma cópia, add agenda adição e commit publica mudanças; não são substitutos de uma comparação explícita.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`svn revert` atua sobre alterações locais não confirmadas no alvo indicado e não remove do histórico uma revisão que já foi publicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Revert descarta modificações locais pendentes no alvo. Para corrigir mudança já confirmada, o fluxo precisa criar outra alteração, por exemplo uma reversão incorporada e confirmada, preservando o histórico.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando costuma mostrar mensagens e números das confirmações feitas no repositório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`svn add`, que enumera comentários de commits ainda não enviados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`svn log`, que consulta o histórico de revisões e suas mensagens.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`svn status`, que lista integralmente as mensagens de todas as revisões antigas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`svn resolve`, que exibe a sequência de autores por arquivo confirmado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`svn revert`, que abre o registro de commits e seleciona uma mensagem para apagar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Log consulta o histórico e as mensagens de revisão. Status resume estados locais atuais; os outros comandos tratam de alterações, conflitos ou descarte local.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `svn blame` (ou annotate) pode associar linhas de um arquivo às revisões que as alteraram.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Blame apresenta atribuição linha a linha, incluindo revisão associada, o que ajuda a investigar quando uma parte do arquivo mudou.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um update, alterações concorrentes não puderam ser combinadas. Qual é o tratamento adequado para o arquivo conflitante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir commit até que o SVN escolha uma das versões e apague a outra sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar revert no repositório central para reconstruir as duas versões automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Editar o resultado correto, revisar as diferenças e marcar o conflito resolvido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renomear o workspace Jenkins, pois conflitos são armazenados fora da cópia SVN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar checkout sobre a mesma pasta, que substitui o conflito pela revisão mais antiga.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ferramenta sinaliza mudanças incompatíveis; a pessoa deve examinar o conteúdo e compor o resultado desejado. Depois de revisar, marca a resolução com `svn resolve`. Repetir operações não escolhe corretamente a lógica do arquivo.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o papel de `svn resolve`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apaga do repositório a revisão que originou o conflito e refaz o merge sem intervenção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolhe automaticamente as linhas corretas de cada lado e confirma a revisão resultante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cria um branch temporário e transfere para ele as versões incompatíveis do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Marca como tratado um conflito depois que o conteúdo final foi composto e revisado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Atualiza a cópia de trabalho ignorando alterações locais e mantém o conflito registrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Resolve informa ao cliente que o conflito foi tratado; a decisão sobre o conteúdo correto cabe à pessoa. O comando não apaga revisão, não escolhe automaticamente a lógica e não publica por si só uma solução.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na organização convencional do SVN, qual diretório costuma representar a linha principal de desenvolvimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`tags`, que concentra obrigatoriamente todas as edições ainda não revisadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`workspace`, que é o nome do diretório global usado por todo repositório SVN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`branches`, que mantém sempre a única linha principal do projeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`revisions`, que o servidor cria como diretório fixo para a versão atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`trunk`, usado com frequência como linha principal do projeto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Trunk é a convenção comum para a linha principal. Tags nomeiam marcos e branches sustentam linhas paralelas; a estrutura em diretórios é convencional, não obrigatória.",
+      "section": "1. Modelo do Subversion e organização do repositório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma branch permite manter uma linha paralela de desenvolvimento que pode depois receber ou fornecer mudanças por merge.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A branch separa uma linha de trabalho para mudanças paralelas, que podem ser integradas com merge conforme a política e o fluxo da equipe.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o uso convencional mais comum de um diretório chamado `tags` em um repositório SVN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar referências nomeadas a estados do projeto, como uma versão publicada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar exclusivamente conflitos não resolvidos de todas as cópias de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter arquivos temporários que o Jenkins remove após cada execução de build.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o histórico de revisões por uma cópia local sem controle central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concentrar o código em desenvolvimento paralelo que ainda não chegou à linha principal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tags são referências nomeadas a estados, frequentemente usadas para identificar releases. O diretório branches é convencional para desenvolvimento paralelo; tags não substituem o histórico central.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao integrar mudanças de uma branch no trunk, o merge deve ser revisado e seu resultado confirmado na linha de destino conforme o fluxo adotado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Merge aplica mudanças numa cópia de trabalho de destino; a equipe revisa e testa o resultado e o confirma no repositório quando adequado.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual função corresponde ao controller de uma instalação Jenkins?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compilar obrigatoriamente todo projeto no computador do desenvolvedor que criou o commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Administrar agentes, orquestrar a agenda e acompanhar a execução dos trabalhos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazenar todas as cópias locais SVN e substituir o repositório de código-fonte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar apenas testes manuais, sem controlar configurações de jobs ou Pipeline.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter toda configuração de job em plugin e impedir execução distribuída.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controller administra agentes, agenda trabalhos e monitora execução. Builds podem ser executados em agentes; Jenkins não substitui o repositório SCM nem obriga compilação no computador do autor.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Jenkins, agentes podem executar etapas de Pipeline ou outros jobs quando o controller agenda trabalho para eles.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Agentes oferecem ambientes e executores para rodar tarefas solicitadas pelo controller, podendo ser máquinas locais, virtuais ou outros ambientes conectados.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa executar jobs somente em agentes com sistema operacional Linux. Qual recurso do Jenkins pode direcionar essa alocação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma mensagem de commit SVN, que seleciona automaticamente o sistema operacional de cada executor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um arquivo de log no workspace, que transforma qualquer agente em máquina Linux.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um rótulo de agente, como `linux`, referenciado pela configuração do job ou Pipeline.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A revisão global do repositório, que determina a máquina em que o build deve rodar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número do build, que faz o controller instalar o sistema operacional necessário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rótulos permitem classificar capacidades dos agentes e selecionar quais podem executar determinada tarefa. A revisão SVN e o número do build não descrevem os recursos computacionais disponíveis.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O número de executores configurado num nó Jenkins influencia quantas tarefas podem ser executadas simultaneamente nesse nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Executores representam capacidade concorrente de execução. A configuração prática deve considerar CPU, memória e demais recursos do nó.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que representa um build no Jenkins?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma execução concreta de um job ou Pipeline com seus registros e resultado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O repositório central que mantém todas as revisões do projeto Subversion.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma máquina agente permanente que agenda tarefas de outras instalações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma fase obrigatória de implantação em produção ao final de cada commit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma cópia de trabalho local que substitui o histórico compartilhado do SCM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Build é uma execução de job, com logs, resultados e artefatos quando configurados. Não é o repositório, o agente nem uma implantação obrigatória.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O workspace Jenkins serve como diretório de trabalho de uma execução e não deve ser confundido com o repositório permanente de controle de versão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O workspace recebe arquivos de trabalho e checkout para executar passos. A fonte versionada permanece no SCM; retenção de artefatos requer configuração apropriada.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na sintaxe Declarative do Jenkins Pipeline, qual elemento agrupa ações executáveis dentro de uma fase?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`trunk`, que define o repositório remoto e a ordem dos arquivos versionados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`revisions`, que lista todos os números de build antes do checkout.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`agent`, que contém diretamente todas as instruções de compilação como histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`steps`, que declara as tarefas a executar dentro de um stage.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`workspace`, que é uma diretiva para confirmar mudanças no Subversion.",
+          "correct": false
+        }
+      ],
+      "explanation": "Steps contém as ações em cada stage. Agent seleciona o ambiente de execução; trunk e revisions pertencem a conceitos de controle de versão, e workspace não confirma mudanças SCM.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Pipeline Declarative, `stage('Test')` nomeia uma fase conceitualmente distinta, cujos passos podem executar testes automatizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um stage dá nome e forma visual a uma fase distinta do Pipeline, como Build ou Test. Ele organiza o fluxo; não executa o teste sozinho, pois as ações concretas são declaradas nos steps incluídos nessa fase.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função do `Jenkinsfile` num projeto que usa Pipeline como código?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar cópias binárias das revisões SVN e substituir o histórico do repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir o Pipeline num arquivo que pode ser versionado junto ao código-fonte.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar senhas em texto aberto para que cada agente configure seu próprio controller.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar revisões automaticamente no SVN sem executar um commit de código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter scripts de build em plugins instalados sem configuração do Jenkins.",
+          "correct": false
+        }
+      ],
+      "explanation": "Jenkinsfile contém a definição do Pipeline e, versionado no SCM, permite revisão e histórico da própria esteira. Ele não substitui SCM nem deve servir para guardar segredos em texto aberto.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num Pipeline Declarative, `agent any` expressa que a execução pode usar qualquer agente disponível compatível com a configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A diretiva agent define onde a Pipeline ou fase executa; `any` permite alocar qualquer agente disponível que possa atender ao trabalho.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa um fluxo básico de CI com Jenkins e repositório SVN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma tag de produção, apagar o histórico, compilar no controller e ignorar testes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reverter toda revisão, pedir que Jenkins escreva o código e publicar sem checkout.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Obter uma revisão do SCM, compilar, executar testes e avaliar o resultado antes de avançar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar deploy antes do checkout, obter arquivos depois e omitir logs de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar o workspace em cada branch e considerar cada diretório um repositório central.",
+          "correct": false
+        }
+      ],
+      "explanation": "A esteira típica obtém o código versionado, constrói e testa esse conteúdo; a política define o que ocorre após sucesso ou falha. Jenkins precisa de SCM e tarefas configurados e não substitui o repositório.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A integração Jenkins-SVN exige configuração de acesso ao repositório, SCM e, quando necessário, plugins e credenciais; o nome Jenkins por si só não concede acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Jenkins precisa estar configurado para obter código e autenticar conforme o repositório. Integrações disponíveis dependem dos plugins e credenciais configurados na instalação.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é integração contínua no contexto de uma esteira de desenvolvimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Integrar mudanças frequentemente e validá-las por processos automatizados de build e teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar automaticamente toda alteração em produção, sem condições nem validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter apenas uma cópia local do código e evitar comunicação com repositórios centrais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar uma compilação anual depois de congelar todas as mudanças da equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o controle de versão por uma sequência de tarefas manuais no controller.",
+          "correct": false
+        }
+      ],
+      "explanation": "CI integra mudanças com frequência e fornece feedback automatizado, normalmente por build e testes. Entrega ou implantação contínua são práticas relacionadas, mas CI não significa publicação irrestrita em produção.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Pipeline Jenkins pode conter fases de build e teste sem ter uma fase de deploy em produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As fases dependem do processo definido pela equipe. Pipeline automatiza as etapas configuradas e não exige que toda execução faça implantação produtiva.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma compilação deve rodar apenas em agentes que possuam ferramenta de build instalada. Como a equipe pode expressar esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar o nome da ferramenta apenas na mensagem de commit, sem configurar o agente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma tag SVN com o nome do compilador e deixar Jenkins inferir a capacidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número da revisão para que o controller instale a ferramenta no workspace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar rótulo ou configuração de agente que selecione ambiente com a ferramenta necessária.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Renomear o build para o nome do sistema operacional, sem alterar o agendamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agentes podem ser identificados por rótulos de capacidades e selecionados pelo Pipeline ou job. A revisão e a mensagem de commit não instalam ferramentas nem alteram recursos da máquina.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os plugins Jenkins podem fornecer integrações e passos adicionais, de modo que os recursos disponíveis variam conforme os plugins instalados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Jenkins é extensível por plugins, que acrescentam SCM, passos e integrações; a documentação local também reflete os recursos instalados.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar disparo periódico por polling do SCM, o que Jenkins faz?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consulta o repositório conforme a agenda configurada para verificar mudanças relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirma no SVN qualquer arquivo local que ainda não tenha sido adicionado ao controle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Instala o controller no servidor Subversion e altera a numeração das revisões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executa cada etapa de deploy antes de verificar se há código novo no repositório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte todo commit em tag imutável sem consultar o conteúdo do repositório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Polling consulta o SCM segundo a configuração para detectar alterações e pode disparar build conforme as regras do job. Ele não modifica revisões nem substitui a confirmação feita pelos desenvolvedores.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estado bem-sucedido de uma etapa de teste garante, por si só, que o código não contém defeitos e pode sempre ser publicado sem análise adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Testes automatizados verificam cenários previstos, mas não provam ausência de todos os defeitos. Políticas de revisão, qualidade e liberação podem exigir outras verificações antes da publicação.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deseja isolar o controller para coordenação e reservar executores nos agentes. Essa configuração está alinhada à recomendação da documentação Jenkins para controllers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; o controller precisa executar todos os builds para manter agentes conectados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; configurar zero executores no controller evita disputa por recursos e deixa execução aos agentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Não; executores só podem existir no controller, nunca em agentes distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; mas isso obriga cada job a usar o workspace do servidor SVN como diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; a configuração correta é um executor global compartilhado por todos os nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Jenkins recomenda zero executores no controller para dedicá-lo à coordenação e agendar trabalho nos agentes. A decisão operacional considera a instalação; os workspaces permanecem nos ambientes de execução, não precisam ser o servidor SVN.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Jenkinsfile versionado permite que alterações na definição do Pipeline também sejam revisadas e tenham histórico no SCM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como o Jenkinsfile é texto armazenado no controle de versão, a definição da esteira pode passar por revisão e manter trilha de alterações junto ao projeto.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma execução, o checkout trouxe uma revisão SVN diferente daquela que o desenvolvedor esperava. Qual evidência ajuda a investigar a origem do conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar logs e configuração de SCM do build, identificando URL e revisão efetivamente obtida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar revert no controller, pois esse comando revela automaticamente a revisão do checkout.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o nome do stage para a revisão esperada e considerar o workspace corrigido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o log de build e confiar que todo checkout sempre obtém a última revisão global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma tag com o número do build sem verificar a URL ou os parâmetros do SCM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logs e configuração do checkout permitem verificar qual repositório e revisão foram usados. O conteúdo não deve ser inferido pelo nome do stage ou número de build; revisar parâmetros e gatilhos esclarece a seleção obtida.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um commit SVN já foi aceito no repositório, apagar as mudanças da cópia local com `svn revert` remove também essa revisão compartilhada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Revert atua nas modificações locais não confirmadas da cópia de trabalho. Uma revisão publicada permanece no histórico; uma correção é registrada por uma nova mudança conforme o fluxo da equipe.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job sem agente compatível pode aguardar na fila mesmo que o controller esteja funcionando normalmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O controller agenda tarefas para executores disponíveis. Se rótulos, restrições ou recursos impedirem encontrar agente compatível, o trabalho pode permanecer aguardando executor.",
+      "section": "4. Jenkins: automação, jobs e execução distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática reduz risco de expor segredo numa esteira Jenkins?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar a senha diretamente no Jenkinsfile para que permaneça visível no histórico do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar o token na mensagem de commit e restringir o acesso ao branch principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar credenciais gerenciadas no Jenkins e referenciá-las pelas facilidades apropriadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Imprimir a chave privada nos logs para facilitar a auditoria de cada build executado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar a senha no nome do agente e confiar que o workspace será removido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Jenkins oferece armazenamento e vinculação de credenciais para uso controlado em etapas. Segredos não devem ser versionados no Jenkinsfile, commits, nomes de agente ou logs.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração em um arquivo local só passa a integrar o histórico compartilhado do SVN depois que um commit correspondente é aceito pelo repositório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Modificações e operações agendadas permanecem locais até o commit. A confirmação aceita cria uma revisão compartilhada visível aos demais clientes.",
+      "section": "2. Ciclo cotidiano: obter, alterar, revisar e confirmar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção explica corretamente como `agent` e `stage` se relacionam num Pipeline Declarative?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agent escolhe o local de execução; stage organiza uma fase dentro da sequência de trabalho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Agent confirma revisões SVN; stage mantém o histórico central de todas as cópias locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agent é uma mensagem de commit; stage é um diretório obrigatório do repositório SVN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agent executa somente no controller; stage impede que a Pipeline use qualquer agente remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agent armazena artefatos permanentemente; stage cria credenciais com nome igual ao build.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agent especifica onde a Pipeline ou uma fase executa; stage dá nome a uma parte distinta do processo e contém passos. Nenhum desses elementos confirma alterações SVN nem substitui o repositório.",
+      "section": "5. Pipeline como código e integração com Subversion",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tag SVN é um mecanismo técnico que impede absolutamente qualquer alteração futura no caminho nomeado, independentemente das permissões do repositório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tag é uma convenção para nomear um estado de referência. Imutabilidade depende de práticas e controles de acesso do repositório; o conceito da tag, sozinho, não impõe bloqueio absoluto.",
+      "section": "3. Histórico, conflitos e trabalho em branches",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Version Control with Subversion 1.8 — Fundamental Concepts",
+      "publisher": "Apache Subversion / SVN Book",
+      "reference": "Repositório, cópia de trabalho, versões e revisões",
+      "url": "https://svnbook.red-bean.com/en/1.8/svn.basic.version-control-basics.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Version Control with Subversion 1.8 — Basic Usage",
+      "publisher": "Apache Subversion / SVN Book",
+      "reference": "Checkout, ciclo de trabalho, update, revisão de mudanças, conflitos, revert, commit e histórico",
+      "url": "https://svnbook.red-bean.com/en/1.8/svn.tour.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Version Control with Subversion 1.8 — Branching and Merging",
+      "publisher": "Apache Subversion / SVN Book",
+      "reference": "Branches, merges, tags e estrutura convencional do repositório",
+      "url": "https://svnbook.red-bean.com/en/1.8/svn.branchmerge.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jenkins Handbook — Pipeline",
+      "publisher": "Jenkins Project",
+      "reference": "Pipeline, Jenkinsfile, etapas Declarative, stages e steps",
+      "url": "https://www.jenkins.io/doc/book/pipeline/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jenkins Handbook — Using a Jenkinsfile",
+      "publisher": "Jenkins Project",
+      "reference": "Pipeline como código, exemplos build/test/deploy e credenciais",
+      "url": "https://www.jenkins.io/doc/book/pipeline/jenkinsfile/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jenkins Handbook — Using Jenkins agents",
+      "publisher": "Jenkins Project",
+      "reference": "Controller, agentes, executores e rótulos",
+      "url": "https://www.jenkins.io/doc/book/using/using-agents/",
+      "accessedAt": "2026-11-05"
+    }
+  ]
+}

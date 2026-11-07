@@ -1,0 +1,1894 @@
+{
+  "id": "informatica.dados-sinteticos-mascaramento-testes",
+  "subject": "Informática",
+  "title": "Dados sintéticos e mascarados para testes",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Dados sintéticos e mascarados para testes",
+    "Dados sintéticos para ambientes de teste",
+    "Geração de dados sintéticos de teste",
+    "Mascaramento de dados para testes",
+    "Anonimização de dados em testes",
+    "Privacidade em bases de teste",
+    "Preparação segura de dados de teste",
+    "Dados fictícios para testes de software",
+    "Proteção de dados em homologação",
+    "Substituição de dados pessoais em testes"
+  ],
+  "scope": {
+    "covers": "Dados sintéticos e mascarados usados em desenvolvimento, testes e homologação: finalidade e diferenças entre dado sintético, dado mascarado, anonimização e pseudonimização; geração a partir de regras ou de dados reais; mascaramento estático e dinâmico; técnicas de substituição, supressão, generalização, permutação e geração; preservação de formato, relações, restrições e utilidade dos dados; riscos de reidentificação, inferência, cópia de registros raros e vieses; controles de acesso, segregação de ambientes, testes de qualidade, governança e ciclo de vida das bases de teste.",
+    "excludes": "Implementação específica de ferramentas comerciais, comandos particulares de um SGBD, conteúdo integral de leis de proteção de dados, anonimização para publicação estatística e técnicas de geração de dados para treinamento de modelos como tema autônomo."
+  },
+  "theoryTitle": "Como criar bases de teste úteis sem expor pessoas",
+  "chapters": [
+    {
+      "title": "1. Por que bases de teste precisam de tratamento",
+      "markdown": "### O problema que este assunto resolve\n\nDesenvolvimento, integração, testes de aceitação e homologação precisam de registros variados para exercitar regras, telas, relatórios e integrações. Copiar a base de produção parece conveniente, pois reproduz combinações reais, mas também leva nomes, documentos, contatos, hábitos e eventos de pessoas para ambientes com mais usuários, acessos técnicos e cópias locais. Uma base de teste pode ser vazada ou consultada de modo indevido mesmo que não seja o sistema oficial.\n\nO objetivo é fornecer dados com os formatos, relações e casos de negócio necessários ao teste, reduzindo a exposição de pessoas. Isso pode ser feito com dados inventados por regras, dados sintéticos modelados a partir de dados reais ou transformação de uma cópia controlada. Nenhuma técnica dispensa definir finalidade, limitar acesso e verificar o resultado.\n\n> **Siglas e termos deste capítulo**\n> - **Ambiente de teste**: instalação isolada usada para validar código ou processos antes da operação real.\n> - **Produção**: ambiente que presta o serviço efetivo e contém os registros operacionais.\n> - **Utilidade**: grau em que os dados permitem executar os testes pretendidos.\n> - **Reidentificação**: associação de um registro a uma pessoa identificada ou identificável.\n\n### Dados realistas não precisam ser dados reais\n\nPara validar uma regra de cadastro, pode ser necessário um CPF sintaticamente válido, um endereço plausível e uma relação entre cliente e pedido; não é necessário que esses valores pertençam a clientes verdadeiros. Dados artificiais podem preservar tipos, cardinalidade, distribuição aproximada e vínculos sem copiar a identidade de uma pessoa. Já um cenário de defeito raro pode exigir representação específica, que deve ser criada deliberadamente e documentada, em vez de importar um registro identificável sem avaliação.\n\nUma cópia de produção continua sendo dado de produção até que uma transformação eficaz e verificada reduza os riscos. Trocar o nome por “Pessoa 1” não resolve se telefone, data, endereço, texto livre ou a combinação de atributos ainda revelar quem é a pessoa.\n\n| Necessidade do teste | Exemplo de dado útil | Cuidado |\n| --- | --- | --- |\n| Validar formato | E-mail e identificador sintaticamente válidos | Evitar contato real ou domínio que receba mensagens |\n| Validar relações | Cliente ligado a pedidos por chave consistente | Não quebrar chaves estrangeiras ao transformar |\n| Cobrir limites | Valores nulos, extremos e estados raros | Criar casos de forma controlada e rastreável |\n| Reproduzir defeito | Conjunto mínimo que dispara a falha | Remover atributos pessoais que não participam do defeito |\n\n### Como cai na prova\n\nA banca pode sugerir que “ambiente fora de produção” equivale a “ambiente sem risco”. Não equivale: cópias, permissões amplas, logs e ferramentas de depuração ampliam a superfície de exposição. Também pode apresentar dados fictícios como automaticamente anônimos; a classificação depende do processo de geração e da possibilidade de inferir pessoas a partir dos registros ou de informações auxiliares."
+    },
+    {
+      "title": "2. Dados sintéticos, mascarados e identificadores",
+      "markdown": "### O problema que este assunto resolve\n\nOs nomes são parecidos, mas descrevem propriedades diferentes. **Dado sintético** é artificial, criado por regras, amostragem ou modelos para reproduzir características úteis de um conjunto. Pode ser inteiramente gerado ou conter apenas algumas variáveis sintéticas. **Mascaramento** transforma a apresentação ou os valores sensíveis de dados existentes, por exemplo substituindo nomes e números por valores fictícios. A origem pode continuar sendo um registro real.\n\n**Pseudonimização** substitui identificadores diretos por códigos, mantendo informação adicional separada que permite reatribuir o registro. É uma medida de redução de risco, mas os dados continuam vinculáveis quando essa informação ou outras fontes permitem a associação. **Anonimização** é um resultado contextual: a pessoa deixa de ser identificável de modo razoavelmente provável, considerando os dados, os meios disponíveis e o contexto de uso. Remover identificadores óbvios, por si só, não prova anonimização.\n\n> **Siglas e termos deste capítulo**\n> - **Identificador direto**: atributo que aponta diretamente para uma pessoa, como nome completo ou número de documento.\n> - **Quase-identificador**: atributo que, combinado com outros dados, pode distinguir uma pessoa, como idade, localidade e data.\n> - **Token**: valor substituto usado no lugar de um identificador.\n> - **Dado parcialmente sintético**: conjunto em que algumas variáveis são geradas e outras permanecem derivadas da fonte.\n\n### A técnica precisa corresponder ao objetivo\n\n| Abordagem | O que ocorre | Limite importante |\n| --- | --- | --- |\n| Geração por regras | Criam-se registros a partir de domínios, cenários e restrições definidos | Pode deixar de refletir combinações e distribuição reais |\n| Geração modelada | Um modelo aprende padrões de uma fonte e produz registros artificiais | Pode memorizar ou reproduzir casos raros da fonte |\n| Mascaramento estático | Uma cópia é transformada e gravada como novos valores | Transformações inconsistentes quebram vínculos ou deixam pistas |\n| Mascaramento dinâmico | A consulta apresenta uma versão mascarada segundo permissões | O valor original permanece armazenado e pode ser inferido por consultas |\n| Pseudonimização | Um identificador é substituído por código, com chave ou tabela separada | A possibilidade de reversão mantém risco de vinculação |\n\nNo mascaramento determinístico, o mesmo valor de entrada produz sempre o mesmo substituto. Isso pode preservar junções e testes de consistência, mas também permite rastrear a mesma pessoa entre tabelas ou conjuntos. O mascaramento aleatório reduz essa ligação, porém pode quebrar relacionamentos. A decisão deve considerar o que o teste precisa preservar.\n\n### Como cai na prova\n\nSe o valor fica oculto somente no resultado da consulta, trata-se de mascaramento dinâmico, não de substituição do conteúdo armazenado. Se uma chave separada permite recuperar o identificador, trata-se de pseudonimização, não de anonimização irreversível. E o rótulo “sintético” não elimina a necessidade de avaliar cópias de registros, inferência e combinação com dados externos."
+    },
+    {
+      "title": "3. Técnicas e preservação da utilidade",
+      "markdown": "### O problema que este assunto resolve\n\nUma transformação segura que torna a aplicação impossível de testar falha no objetivo. A base precisa equilibrar redução de risco e fidelidade suficiente para o cenário definido. Antes de escolher a técnica, a equipe descreve quais propriedades são necessárias: formato, domínios válidos, relações entre tabelas, distribuição, sequências temporais, valores extremos ou presença de dados ausentes.\n\n> **Siglas e termos deste capítulo**\n> - **Integridade referencial**: regra que exige que uma referência a uma linha corresponda a uma linha existente.\n> - **Supressão**: remoção de um valor ou atributo.\n> - **Generalização**: substituição por categoria menos específica, como idade exata por faixa etária.\n> - **Permutação**: troca de valores entre registros, mantendo o conjunto de valores.\n\n### Técnicas usuais\n\n- **Substituição**: troca nome, e-mail, telefone ou documento por valor artificial. Dados de contato devem usar destinos controlados para impedir envio acidental a pessoas reais.\n- **Supressão**: remove o campo que não é necessário ao teste; é preferível a conservar um atributo sem finalidade.\n- **Generalização**: reduz precisão de data, localização, idade ou valor. Pode diminuir unicidade, mas também esconder detalhes necessários a testes de limites.\n- **Permutação**: embaralha valores entre registros. Preserva a distribuição marginal, mas pode criar combinações que nunca ocorreriam e não garante anonimização.\n- **Ruído ou geração**: modifica valores ou cria novos registros com propriedades estatísticas semelhantes. A aproximação estatística não prova que exemplos individuais não foram copiados.\n- **Tokenização**: substitui um valor por token; quando há tabela de correspondência, essa tabela é altamente sensível e precisa de proteção separada.\n\nUma transformação relacional precisa ser consistente em todas as ocorrências. Se o cliente com chave 42 recebe um nome artificial numa tabela e outro nome numa tabela de pedidos, o teste de junção ou de tela integrada pode falhar. Para preservar o vínculo sem expor a identidade, pode-se usar uma transformação estável por chave, com controle do risco de correlação entre bases.\n\n### Matriz de adequação\n\n| Teste | Propriedade que pode precisar ser preservada | Transformação possível |\n| --- | --- | --- |\n| Validação de formulário | Tipo, formato e regras de domínio | Geração por regras e valores de fronteira |\n| Consulta com junções | Chaves consistentes entre tabelas | Substituição determinística coordenada |\n| Relatório agregado | Distribuições e totais aproximados | Dados sintéticos avaliados para a métrica |\n| Teste temporal | Ordem, intervalos e sazonalidade | Datas deslocadas de modo coerente |\n| Tratamento de exceção | Casos raros específicos | Cenário artificial isolado e documentado |\n\n### Como cai na prova\n\nNão confunda preservar formato com preservar significado: um e-mail com formato válido pode ainda ser real. Embaralhar uma coluna isolada não garante coerência relacional. A técnica deve ser avaliada por dois lados: se o teste continua válido e se o conjunto transformado deixa de expor pessoas."
+    },
+    {
+      "title": "4. Riscos, avaliação e controle de acesso",
+      "markdown": "### O problema que este assunto resolve\n\nUma transformação pode parecer convincente e ainda permitir que alguém reconheça uma pessoa. A avaliação deve considerar o conjunto completo, atributos raros, textos livres, relações entre tabelas, dados auxiliares disponíveis ao destinatário e possibilidade de consultas repetidas. Dados sintéticos derivados de informação pessoal também podem refletir vieses ou revelar exemplos da fonte. Quanto mais fiel a reprodução de casos individuais, maior pode ser a utilidade e também o risco de divulgação.\n\n> **Siglas e termos deste capítulo**\n> - **Inferência**: dedução de informação sobre uma pessoa a partir de atributos ou resultados.\n> - **Singularização**: capacidade de destacar um registro como pertencente a uma pessoa, mesmo sem saber seu nome.\n> - **Linkabilidade**: possibilidade de associar registros ou conjuntos diferentes à mesma pessoa.\n> - **Vazamento de modelo**: exposição, por saídas de um modelo, de informação aprendida a partir de registros de treinamento.\n\n### O que testar\n\nA equipe deve procurar registros raros, combinações únicas, valores extremos, datas e localidades muito precisas, conteúdo livre e identificadores indiretos. Também deve verificar se um conjunto externo conhecido permite fazer associação e se saídas repetidas revelam gradualmente atributos. Para dados modelados, avaliam-se reprodução de registros, inferência de participação e atributos, além de utilidade para os testes definidos. Testes de privacidade precisam ser revistos quando mudam fonte, destinatários, finalidade ou contexto.\n\nA qualidade também inclui representatividade. Se os dados originais não incluem adequadamente determinados grupos, o conjunto derivado tende a reproduzir essa lacuna. Métricas agregadas semelhantes não bastam para atestar ausência de viés; casos de fronteira e segmentos relevantes devem ser avaliados. Um conjunto não deve ser usado para decisões reais sobre pessoas só porque foi gerado artificialmente.\n\n### Controles operacionais\n\n- Gere a base em processo controlado; evite copiar a produção para máquinas pessoais ou ambientes sem proteção equivalente.\n- Restrinja permissões por função e conceda somente o acesso necessário. Separe credenciais, redes, chaves e armazenamento dos ambientes produtivos.\n- Desative integrações de saída ou direcione e-mails, SMS e pagamentos a simuladores.\n- Remova segredos e dados pessoais de logs, arquivos de depuração, snapshots e cópias de backup.\n- Defina prazo de retenção e descarte seguro das bases, exportações e chaves temporárias ao final do teste.\n- Registre origem, transformação, finalidade, versão do conjunto, limitações conhecidas e responsáveis pela aprovação.\n\n### Como cai na prova\n\nUma máscara visual não substitui autorização: usuário com permissão privilegiada pode obter dados sem máscara. Consultas ad hoc podem permitir inferir o valor original. Controles de acesso, auditoria, segregação e revisão da transformação complementam o mascaramento. A avaliação precisa considerar contexto e possíveis dados auxiliares, não apenas inspecionar uma amostra de linhas."
+    },
+    {
+      "title": "5. Fluxo prático para preparar e manter uma base de teste",
+      "markdown": "### O problema que este assunto resolve\n\nSem um processo repetível, cada equipe cria sua própria cópia, aplica uma máscara diferente e não sabe quais dados ainda estão presentes. Um fluxo governado permite reconstruir a base, rastrear suas transformações e verificar que atende aos casos de uso sem deixar conexões desnecessárias com a produção.\n\n> **Siglas e termos deste capítulo**\n> - **Proveniência**: registro da origem e do caminho percorrido por um conjunto de dados.\n> - **Fixture**: conjunto pequeno e controlado de dados de entrada usado para um teste.\n> - **Seed**: valor inicial que torna uma geração pseudoaleatória reproduzível.\n> - **Reconciliação**: comparação de propriedades esperadas antes e depois da transformação.\n\n### Etapas de preparação\n\n1. **Defina finalidade e cenários**: liste testes, dados necessários, atributos dispensáveis, limites, estados e relações relevantes.\n2. **Escolha a origem**: prefira geração por regras quando ela cobrir os cenários. Se uma fonte real for necessária, justifique, limite a amostra e processe-a em local controlado.\n3. **Planeje as transformações**: identifique campos pessoais, quase-identificadores e texto livre; selecione substituição, supressão, generalização ou geração; determine como manter chaves e restrições.\n4. **Execute de forma isolada**: proteja a fonte durante a transformação, evite logs com valores originais e não distribua a cópia intermediária.\n5. **Valide privacidade e utilidade**: confira que valores sensíveis não persistiram, vínculos e regras funcionam e os cenários de teste são representados; investigue casos únicos e inferíveis.\n6. **Libere e monitore**: aprove o conjunto, documente limitações e permissões, monitore acessos e reavalie após mudanças relevantes.\n7. **Descarte**: remova origem temporária, exportações, snapshots, backups intermediários e chaves de reversão conforme o ciclo de vida aprovado.\n\n### Critérios de validação\n\nUma validação funcional verifica esquema, domínios, chaves estrangeiras, cardinalidade e cenários de fronteira. Uma validação de privacidade busca identificadores residuais, valores reais em amostras e logs, combinações raras e caminhos de inferência. Uma validação estatística verifica se as distribuições necessárias ao teste são suficientemente próximas, sem tratar semelhança como prova de anonimato. Falha em qualquer eixo exige ajustar a transformação ou restringir o uso.\n\n### Como cai na prova\n\nA sequência correta começa pela finalidade e pelos requisitos, escolhe a fonte e a transformação, executa com proteção e valida os dois objetivos antes de compartilhar. “Mascarar depois de copiar para todos os ambientes” expõe a origem durante a etapa mais vulnerável. “Gerar uma vez e nunca reavaliar” ignora alterações de finalidade, destinatário, fontes auxiliares e técnicas de ataque."
+    }
+  ],
+  "summary": "Dados sintéticos são artificiais e podem ser gerados por regras ou modelos; dados mascarados resultam da transformação ou ocultação de valores, e podem continuar ligados a registros reais. Mascaramento dinâmico altera a apresentação conforme permissões, sem modificar o valor armazenado. Pseudonimização usa substitutos com possibilidade de associação por informação adicional; anonimização depende do risco contextual de identificação. Para testes, escolha a técnica conforme formato, relações, distribuições e cenários necessários. Substituição, supressão, generalização, permutação, tokenização e geração têm limites diferentes. Preserve chaves e restrições somente quando o teste exigir, e avalie risco de reidentificação, inferência, registros raros, viés e reprodução de dados de origem. Restrinja acessos, isole ambientes e credenciais, bloqueie integrações reais, proteja logs, documente proveniência e descarte cópias e chaves ao final. Valide privacidade e utilidade antes de compartilhar e reavalie quando houver mudança de finalidade, fonte ou destinatário.",
+  "flashcards": [
+    {
+      "front": "O que são dados sintéticos?",
+      "back": "Dados artificiais gerados por regras, amostragem ou modelos para reproduzir características úteis, sem serem necessariamente cópias de linhas reais."
+    },
+    {
+      "front": "Dado sintético é automaticamente anônimo?",
+      "back": "Não. Pode reproduzir ou permitir inferir registros da fonte; é necessário avaliar identificabilidade e contexto de uso."
+    },
+    {
+      "front": "O que é mascaramento estático?",
+      "back": "Transformação de uma cópia, com valores alterados e gravados no conjunto destinado ao teste."
+    },
+    {
+      "front": "O que o mascaramento dinâmico modifica?",
+      "back": "A representação exibida em resultados de consultas; o valor original continua armazenado."
+    },
+    {
+      "front": "Por que pseudonimização não equivale a anonimização?",
+      "back": "Porque códigos podem ser associados de volta à pessoa por chave separada ou informação auxiliar."
+    },
+    {
+      "front": "O que é quase-identificador?",
+      "back": "Atributo que isoladamente pode não identificar, mas combinado com outros pode distinguir uma pessoa."
+    },
+    {
+      "front": "Qual é o risco da substituição determinística?",
+      "back": "Preserva junções, mas permite correlacionar o mesmo registro em tabelas ou conjuntos diferentes."
+    },
+    {
+      "front": "Qual é o risco da substituição aleatória independente?",
+      "back": "Pode quebrar a correspondência entre referências ao mesmo registro em tabelas relacionadas."
+    },
+    {
+      "front": "O que faz a supressão?",
+      "back": "Remove um atributo ou valor que não é necessário ao cenário de teste."
+    },
+    {
+      "front": "O que faz a generalização?",
+      "back": "Reduz a precisão de um valor, por exemplo convertendo idade exata em faixa etária."
+    },
+    {
+      "front": "Permutar valores garante anonimização?",
+      "back": "Não. Pode manter valores singulares e criar combinações incoerentes; precisa de avaliação contextual."
+    },
+    {
+      "front": "Por que proteger a tabela de tokens?",
+      "back": "Ela permite reverter ou associar tokens aos dados originais e, por isso, mantém capacidade de identificação."
+    },
+    {
+      "front": "O que significa dado parcialmente sintético?",
+      "back": "Somente algumas variáveis são geradas; outras permanecem derivadas da base de origem."
+    },
+    {
+      "front": "Por que dados sintéticos podem reproduzir viés?",
+      "back": "O modelo ou as regras podem herdar lacunas e distorções presentes nos dados usados para gerá-los."
+    },
+    {
+      "front": "O que é reidentificação?",
+      "back": "Associar um registro a uma pessoa identificada ou identificável usando dados disponíveis."
+    },
+    {
+      "front": "Por que avaliar combinações de atributos?",
+      "back": "Localidade, datas e idade podem identificar em conjunto mesmo sem nome ou documento."
+    },
+    {
+      "front": "Que controle mantém junções úteis após transformação?",
+      "back": "Transformar referências relacionadas de modo consistente, preservando a integridade referencial necessária."
+    },
+    {
+      "front": "O que é proveniência de uma base de teste?",
+      "back": "Registro de origem, transformações, finalidade, versão, limitações e responsáveis pelo conjunto."
+    },
+    {
+      "front": "Por que usar domínios de e-mail controlados?",
+      "back": "Para que mensagens de teste não sejam entregues a pessoas ou serviços reais."
+    },
+    {
+      "front": "O que deve ocorrer com a chave de reversão após o uso?",
+      "back": "Ser protegida separadamente durante o uso e descartada ao final conforme o ciclo de vida aprovado."
+    },
+    {
+      "front": "O que avalia um teste de utilidade?",
+      "back": "Se formato, relações, distribuições e cenários necessários continuam adequados ao propósito de teste."
+    },
+    {
+      "front": "O que avalia um teste de privacidade?",
+      "back": "Se dados residuais, raros ou combináveis permitem identificar pessoas ou inferir informação pessoal."
+    },
+    {
+      "front": "O que é inferência de dados?",
+      "back": "Deduzir um valor ou atributo de alguém por consultas, padrões ou combinação de informações."
+    },
+    {
+      "front": "Por que dados raros merecem atenção?",
+      "back": "Podem singularizar alguém e facilitar a associação com fontes externas."
+    },
+    {
+      "front": "Quando reavaliar um conjunto transformado?",
+      "back": "Quando mudarem a finalidade, a fonte, os destinatários, os dados auxiliares ou os riscos conhecidos."
+    }
+  ],
+  "tips": [
+    "Separe três perguntas: de onde vieram os registros, que transformação foi feita e se ainda há possibilidade de associação.",
+    "Para testar junções, aplique a mesma transformação estável às referências relacionadas e verifique as chaves estrangeiras.",
+    "Inclua no plano os logs, exportações, snapshots, backups e arquivos temporários; eles também carregam dados.",
+    "Use valores de contato reservados ou simuladores para que um teste de notificação não alcance pessoas reais.",
+    "Avalie utilidade por cenário e privacidade por risco; semelhança estatística não prova anonimato.",
+    "Registre a semente e a versão das regras quando precisar reproduzir um conjunto gerado para depurar um teste."
+  ],
+  "traps": [
+    "A prova afirma que mascaramento dinâmico apaga ou substitui o dado armazenado. Ele muda a saída apresentada, não o valor original.",
+    "Chamar uma base de sintética não prova ausência de registros copiados ou de informação inferível da fonte.",
+    "Remover nome e documento não basta se datas, localidade, texto livre ou atributos combinados distinguem a pessoa.",
+    "Tokenizar não significa anonimizar: tabela ou chave de correspondência permite associação e precisa de proteção.",
+    "Embaralhar cada tabela separadamente pode destruir vínculos e não elimina necessariamente combinações identificáveis.",
+    "Mascaramento é complementar a permissões e auditoria; acesso privilegiado ou consultas inferenciais podem revelar o original."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare dado sintético, dado mascarado e dado pseudonimizado.",
+      "answer": "Sintético é artificialmente gerado; mascarado tem valores ocultados ou transformados; pseudonimizado usa substitutos que podem ser associados por informação adicional. A origem e o risco residual variam em cada caso."
+    },
+    {
+      "question": "Como escolher a técnica de transformação para testar relações entre tabelas?",
+      "answer": "Identifique quais relações e restrições precisam funcionar; aplique substituições coordenadas e consistentes às chaves relacionadas; valide as junções e avalie o risco de correlação entre conjuntos."
+    },
+    {
+      "question": "Quais verificações cobrem privacidade e utilidade?",
+      "answer": "Privacidade: identificadores residuais, combinações únicas, inferência e associação externa. Utilidade: formatos, domínios, relações, distribuições e cenários de fronteira exigidos pelos testes."
+    },
+    {
+      "question": "Por que uma base sintética exige governança mesmo após a geração?",
+      "answer": "A geração pode processar dados pessoais, reproduzir casos raros e vieses, ou permitir inferência; acesso, finalidade, retenção e descarte continuam precisando de controle."
+    },
+    {
+      "question": "Descreva um fluxo controlado para preparar uma base de homologação.",
+      "answer": "Definir cenários e campos necessários, preferir geração por regras quando suficiente, transformar fonte sob controle, validar privacidade e utilidade, documentar e aprovar o conjunto, limitar acessos e descartar intermediários ao final."
+    },
+    {
+      "question": "Que problemas podem surgir ao generalizar ou suprimir campos?",
+      "answer": "Reduzir precisão pode diminuir risco, mas ocultar informação necessária para cenários, limites ou relatórios. A equipe deve testar a adequação sem manter atributos desnecessários."
+    },
+    {
+      "question": "Como a geração baseada em dados reais pode revelar um indivíduo?",
+      "answer": "Um modelo pode memorizar ou reproduzir registros, sobretudo os raros, e saídas podem permitir inferência de participação ou de atributos."
+    },
+    {
+      "question": "Que controles reduzem exposição acidental em testes?",
+      "answer": "Segregação de ambientes e credenciais, acesso mínimo, bloqueio de integrações reais, proteção de logs e cópias, auditoria, retenção definida e descarte de chaves e intermediários."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre geração e transformação",
+      "summary": "Dado sintético é criado artificialmente; mascaramento transforma ou oculta valores de dados existentes. Uma base parcialmente sintética pode misturar variáveis novas e derivadas da fonte."
+    },
+    {
+      "key": "e2",
+      "title": "Máscara tratada como anonimização",
+      "summary": "Mascaramento pode ocultar valores sem remover o original ou impedir inferência. Pseudonimização também mantém possibilidade de associação por informação adicional."
+    },
+    {
+      "key": "e3",
+      "title": "Utilidade funcional ignorada",
+      "summary": "Transformação independente pode quebrar chaves, junções, formatos ou cenários. Requisitos de teste devem ser definidos e validados após a transformação."
+    },
+    {
+      "key": "e4",
+      "title": "Risco de reidentificação subestimado",
+      "summary": "Combinações raras, texto livre, atributos indiretos, consultas e dados externos podem revelar pessoas mesmo sem identificadores diretos."
+    },
+    {
+      "key": "e5",
+      "title": "Controles de ciclo de vida esquecidos",
+      "summary": "Bases, logs, cópias intermediárias e chaves de reversão precisam de acesso, retenção, monitoramento e descarte; ambiente não produtivo também pode expor informação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa validar telas e regras de pedidos em homologação. Qual prática reduz exposição sem abandonar cenários variados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar a produção completa, restringir a rede, mas conceder leitura ampla aos desenvolvedores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente tabelas vazias e desativar todos os fluxos de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Preparar uma base controlada conforme os casos de teste necessários.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter a produção conectada e esconder nomes apenas na interface inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicar continuamente as alterações produtivas sem revisar os campos copiados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A equipe deve derivar uma base adequada aos cenários e validar sua proteção e utilidade antes do uso. A cópia integral, a réplica contínua e a ocultação apenas na tela mantêm dados expostos; tabelas vazias não cobrem os fluxos pretendidos.",
+      "section": "1. Por que bases de teste precisam de tratamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base foi criada por um modelo treinado em registros de clientes. Qual conclusão sobre sua privacidade é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A origem modelada torna cada linha automaticamente anônima e irreversível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar cópias, inferências e identificabilidade no contexto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A presença de distribuições agregadas impede qualquer associação com clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Basta apagar nomes no resultado, mantendo os demais atributos sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O treinamento substitui a necessidade de controlar acesso e retenção de cópias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dados gerados por modelo podem memorizar ou reproduzir registros raros, além de permitir inferências. A equipe precisa avaliar o risco residual no conjunto e no contexto, bem como governar acesso e retenção.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente mascaramento dinâmico em uma consulta ao banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O recurso impede toda inferência feita por usuários com acesso a consultas ad hoc.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A operação substitui permanentemente os valores originais antes de qualquer consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A consulta converte automaticamente a tabela inteira em dados sintéticos novos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra elimina a necessidade de privilégios e auditoria sobre a tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A saída oculta valores por permissão; o original permanece armazenado.",
+          "correct": true
+        }
+      ],
+      "explanation": "No mascaramento dinâmico, a regra altera a forma como certos resultados são apresentados; o valor real permanece no banco. Permissões privilegiadas e consultas inferenciais podem contornar a proteção, que complementa outros controles.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe substitui o documento por um código e guarda separadamente a tabela que relaciona código e titular. Como classificar o resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Anonimização completa, pois o documento deixou de aparecer na tabela principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Generalização, pois todos os documentos foram convertidos em categorias amplas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dado sintético integral, sem relação com qualquer fonte identificável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pseudonimização, com chave de associação guardada em separado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Supressão irreversível, pois o código não contém letras do documento original.",
+          "correct": false
+        }
+      ],
+      "explanation": "O código substituto reduz a exposição direta, mas a tabela de correspondência mantém a capacidade de associação. Essa propriedade caracteriza pseudonimização e exige proteger a informação adicional separadamente.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma base transformada, clientes e pedidos precisam continuar ligados por chaves consistentes. Qual escolha atende melhor a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sortear substitutos por ocorrência, validando depois se as relações ainda coincidem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover todas as chaves estrangeiras antes de executar qualquer teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Generalizar todas as referências até que não possam ser comparadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permutar cada tabela isoladamente e conservar somente os formatos dos campos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar substituição coordenada e validar as junções.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma substituição consistente preserva a relação entre a chave do cliente e as referências nos pedidos. A equipe deve testar integridade referencial e considerar que a estabilidade também pode facilitar correlação entre conjuntos.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o principal efeito da generalização de uma data exata para mês e ano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria um identificador aleatório que pode ser revertido com a chave de token.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduz precisão, mas pode remover detalhe útil ao teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Garante por si só que a pessoa não pode ser identificada por outros campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Preserva o dia original em armazenamento, mas o esconde em toda consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transforma cada ocorrência em um registro independente sem relação temporal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Generalizar reduz a especificidade temporal e pode diminuir a singularização. A operação não prova anonimização e pode prejudicar testes que dependem do dia ou de intervalos curtos.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação envia e-mails de confirmação durante testes. Que configuração reduz o risco de contatar pessoas reais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar e-mails verdadeiros após avisar os titulares sobre a homologação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mascarar o endereço somente no relatório final da homologação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir envio real em horário noturno, com monitoramento da fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Direcionar notificações a simulador ou domínio controlado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar a validação de e-mail e usar campos vazios em todos os cenários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um simulador ou destino controlado permite testar o fluxo sem enviar mensagens a titulares reais. Ocultar o endereço em relatórios não impede que a aplicação o use durante a execução.",
+      "section": "5. Fluxo prático para preparar e manter uma base de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual atributo é exemplo típico de quase-identificador quando combinado com outros campos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma mensagem genérica que não contém referências a usuário ou evento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma senha aleatória sem relação com pessoa, evento ou sistema externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um código de versão compartilhado por todas as instalações do software.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um indicador técnico constante sem valor individual ou temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faixa etária com localidade pequena e data específica.",
+          "correct": true
+        }
+      ],
+      "explanation": "Faixa etária, localidade e data podem distinguir alguém em conjunto, embora cada campo isolado não revele diretamente um nome. A combinação precisa ser analisada com dados auxiliares disponíveis.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica deve ser verificada ao avaliar se uma base atende ao teste funcional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se os registros foram copiados da produção sem alteração de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se os dados permitem reconstruir a identidade de cada titular original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se os requisitos de formato, relações e cenários são atendidos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Se os valores parecem naturais para uma pessoa que leia uma amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o modelo reproduz todos os valores raros sem qualquer controle adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "A utilidade funcional é medida contra os requisitos dos testes: formatos, regras de domínio, vínculos e cenários, incluindo limites. Aparência plausível ou cópia fiel não demonstra adequação nem proteção.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro de governança ajuda a reconstruir como uma base de homologação foi produzida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista de erros de compilação sem indicar a versão dos dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A relação de usuários que consultaram o sistema, incluindo horários e telas acessadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma cópia integral da origem armazenada junto ao conjunto liberado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A descrição do esquema sem indicar de onde vieram os valores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A proveniência com origem, regras, finalidade e versão.",
+          "correct": true
+        }
+      ],
+      "explanation": "A proveniência registra o caminho do conjunto e permite entender sua origem, transformação e finalidade. A cópia integral preserva a exposição e os demais registros listados não explicam como os dados foram produzidos.",
+      "section": "5. Fluxo prático para preparar e manter uma base de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna sem uso no cenário de teste contém observações pessoais livres. Qual medida é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o campo, pois texto livre não pode revelar atributos identificadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Suprimir o campo quando ele não for necessário à finalidade do teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Copiar o conteúdo para logs, que têm acesso mais restrito que a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir somente nomes próprios e conservar todo o restante do texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permutar as observações sem avaliar combinações ou valores raros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o campo não é necessário, suprimi-lo reduz a quantidade de informação exposta. Texto livre pode conter nomes, eventos e detalhes indiretos; substituição parcial ou permutação sem revisão não assegura proteção.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto sintético reproduz com grande fidelidade os casos comuns e raros da fonte. Qual avaliação é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar somente o tamanho total, pois volume suficiente garante privacidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar apenas médias, pois casos individuais não afetam reidentificação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assumir anonimato se o arquivo não contém nome ou documento direto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Investigar reprodução de registros raros e risco de inferência da fonte.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Liberar o conjunto sem revisão se sua distribuição for estatisticamente semelhante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A alta fidelidade aumenta utilidade, mas pode também refletir casos singulares ou revelar informação da fonte. Avalie cópia, inferência e identificabilidade, não somente médias, volume ou presença de identificadores diretos.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário demonstra um risco de viés em dados sintéticos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fonte sub-representa um grupo e os dados gerados repetem essa lacuna.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A semente de geração é registrada para reproduzir um defeito de software.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O conjunto usa identificadores artificiais diferentes dos usados em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma restrição de chave estrangeira é verificada após a transformação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma rotina bloqueia mensagens de teste para destinos externos reais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Modelos e regras podem carregar para a saída as lacunas ou distorções da fonte. Representatividade e desempenho por segmentos relevantes devem ser avaliados; reprodutibilidade e controles de destino são outros aspectos.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma permutação de valores de uma coluna isolada pode ser inadequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque transforma necessariamente cada campo em identificador direto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque apaga o esquema e impede que a aplicação inicialize.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque pode romper relações ou formar combinações artificiais entre atributos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque preserva sempre cada valor no mesmo registro de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque impede que qualquer distribuição estatística seja calculada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Permutar uma coluna sem coordenar as demais pode quebrar associações necessárias ou criar combinações improváveis. A técnica precisa ser escolhida e testada de acordo com as relações do cenário.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual princípio deve orientar as permissões dos usuários no ambiente de testes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder acesso de administrador a todos para simplificar a depuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reutilizar credenciais produtivas para manter o mesmo comportamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir acesso irrestrito, inclusive a consultas ad hoc, quando nomes estiverem mascarados na tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar a base em diretório pessoal se os arquivos forem temporários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Limitar acessos às funções e tarefas que realmente precisam consultar os dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Acesso mínimo reduz a quantidade de pessoas e processos capazes de consultar ou exportar dados. Máscaras não substituem controle de permissões, e credenciais de produção não devem ser reutilizadas no ambiente de teste.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de compartilhar uma base transformada com outra equipe, qual etapa é essencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar riscos residuais e adequação ao propósito, documentando as limitações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover o nome do arquivo e manter os registros sem análise adicional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar que a base tem mais linhas que a versão de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir primeiro o acesso a todos os destinatários e revisar riscos depois do primeiro incidente reportado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar a descrição da origem para impedir que usuários façam perguntas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A liberação depende de verificar risco e utilidade para aquela finalidade e destinatário, além de documentar limitações e controles. Nome de arquivo ou volume não comprovam redução de risco.",
+      "section": "5. Fluxo prático para preparar e manter uma base de teste",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente de teste foi isolado da rede produtiva, mas mantém uma cópia real em notebooks dos desenvolvedores. Qual aspecto continua problemático?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rede isolada impede qualquer risco associado a cópias locais de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O acesso local amplia a superfície de exposição e precisa ser controlado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O notebook converte automaticamente a cópia real em dado mascarado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente a rede produtiva pode armazenar informação pessoal identificável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cópia pode permanecer indefinidamente se a rede não tiver integração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Isolamento de rede não protege cópias locais contra perda, acesso indevido ou exportação. A equipe deve evitar a distribuição da origem, restringir o armazenamento e eliminar intermediários conforme o ciclo de vida definido.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma diferença entre mascaramento estático e dinâmico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O estático oculta só na tela, enquanto o dinâmico grava outra base substituída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O estático cria sempre dados sintéticos, enquanto o dinâmico apaga tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos removem por definição a origem e impossibilitam consultas inferenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O estático grava valores transformados numa cópia; o dinâmico altera a saída consultada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O estático depende de permissões, enquanto o dinâmico não considera usuário algum.",
+          "correct": false
+        }
+      ],
+      "explanation": "No estático, os valores transformados são persistidos em uma cópia. No dinâmico, a apresentação depende de regras e permissões, mas o original permanece armazenado e requer controles adicionais.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina apaga nomes, mas conserva endereço, data exata e ocupação. O que deve ser considerado antes de declarar o conjunto anônimo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente se o esquema das tabelas continua compatível com o sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se a rotina executou com sucesso e não apresentou erro técnico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se combinações e fontes auxiliares ainda permitem identificar pessoas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Se os valores foram ordenados para que nenhum nome apareça primeiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se os usuários receberam treinamento para não pesquisar os registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A remoção de identificadores diretos não elimina a possibilidade de identificação por quase-identificadores combinados com fontes auxiliares. É necessário avaliar o conjunto e o contexto de acesso.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste exige valores próximos da realidade para validar relatórios. Qual prática equilibra utilidade e proteção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a cópia integral e remover o acesso somente depois da homologação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir métricas necessárias e avaliar dados gerados quanto a utilidade e divulgação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir um identificador direto e assumir que todos os demais campos são seguros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a base mais fiel possível sem estabelecer destinatários ou finalidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar todos os valores extremos, ainda que sejam essenciais ao relatório testado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A equipe especifica quais propriedades estatísticas são necessárias ao relatório e verifica se a geração as preserva sem expor registros. Fidelidade irrestrita pode aumentar risco; remover extremos sem critério reduz a utilidade.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que resultados de consultas repetidas podem aumentar o risco de inferência em uma base mascarada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque cada resultado necessariamente altera e apaga o valor original da linha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque usuários sem acesso não conseguem consultar nem metadados públicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque qualquer filtro aplicado converte a máscara em valor sintético.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque consultas combinadas podem estreitar faixas e revelar o valor subjacente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque resultados de consulta não podem ser registrados para auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtros e comparações sucessivas podem revelar intervalos ou atributos do valor real, mesmo quando a projeção exibe uma máscara. Permissões, limitação de consultas e auditoria são controles complementares.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base derivada será usada para testar um processo de fraude que depende de casos raros. Que decisão é tecnicamente mais sólida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Importar todos os casos reais raros, pois removê-los reduziria cobertura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir toda ocorrência rara e considerar o teste representativo por definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir cenários artificiais controlados e revisar risco e finalidade de cada um.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter casos raros sem controle, desde que o nome esteja ausente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Liberar acesso irrestrito aos casos, pois são poucos registros no total.",
+          "correct": false
+        }
+      ],
+      "explanation": "Casos raros podem ser necessários para utilidade e, ao mesmo tempo, facilitar singularização. Cenários artificiais específicos podem cobrir a regra; se dados reais forem indispensáveis, exige-se análise e controles proporcionais antes do uso.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência pode ocorrer ao usar substituição aleatória independente em cada tabela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Referências ao mesmo cliente podem receber valores diferentes e quebrar junções.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A base preserva necessariamente o vínculo, pois os valores têm mesmo formato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A operação converte as tabelas em cópia idêntica da fonte original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todas as chaves estrangeiras passam a ser identificadores diretos de pessoas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O banco passa a ocultar o valor original conforme o papel de cada usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem coordenação, cada ocorrência pode receber substituto distinto. Isso rompe relações funcionais embora os valores mantenham o formato esperado; o resultado precisa ser validado pelas junções e restrições relevantes.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual situação a supressão tende a ser preferível à transformação de um atributo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando o campo é indispensável para calcular um resultado do teste.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando o valor precisa conservar correspondência entre tabelas relacionadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando a equipe precisa validar a regra de formato daquele atributo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando o campo é desnecessário e sua presença aumenta exposição sem utilidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Quando a aplicação falha se o campo for nulo ou estiver ausente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o atributo não atende a nenhum cenário de teste, removê-lo reduz dados disponíveis para exposição. Se o campo for necessário a formato, cálculo ou relação, a equipe deve avaliar uma transformação apropriada.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de correspondência de tokens foi mantida para corrigir defeitos de teste. Qual controle é especialmente importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar tabela junto da base e liberar a mesma permissão de leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar a tabela como informação capaz de reidentificar e restringir seu acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Publicar a tabela para que cada equipe reverta os tokens quando necessário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o arquivo para outro formato e considerar removida a associação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter cópias locais sem prazo, pois os tokens não são dados pessoais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela de correspondência permite ligar o token à identidade original, portanto concentra capacidade de reidentificação. Deve ser protegida separadamente, ter finalidade e prazo definidos e não ser distribuída junto à base de teste.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica agregada da base sintética coincide com a da origem. O que essa coincidência demonstra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que cada registro artificial é independente e não reproduz um titular.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que a base foi anonimizada e pode ser compartilhada sem avaliar contexto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que a origem não continha vieses ou grupos sub-representados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a técnica não permite inferência de atributos individuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que uma propriedade agregada foi preservada, sem provar privacidade ou ausência de viés.",
+          "correct": true
+        }
+      ],
+      "explanation": "Coincidência de uma métrica mostra apenas que aquela estatística agregada foi mantida. Não prova ausência de cópias, inferência, identificabilidade ou viés em grupos e casos individuais.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após alterar a finalidade da base, a equipe pretende disponibilizá-la a novos destinatários. Qual providência cabe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reavaliar identificação, inferência, utilidade e controles para o novo contexto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter a avaliação inicial, pois os valores armazenados não foram alterados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de destinatários para diluir a possibilidade de identificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retirar somente a documentação para que ninguém associe uso e origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autorizar o acesso e revisar riscos depois do primeiro incidente reportado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Risco depende de finalidade, destinatários e contexto, além dos dados. Uma mudança relevante exige revisão antes do compartilhamento, incluindo utilidade pretendida, informações auxiliares e controles aplicáveis.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual etapa evita que dados pessoais apareçam em artefatos auxiliares da aplicação durante testes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ocultar valores apenas na interface e manter logs detalhados de cada campo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proteger ou sanitizar logs, snapshots, exportações e arquivos temporários.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar as cópias em qualquer diretório se o processo for automatizado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir captura de tela integral para facilitar a depuração posterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir auditoria para evitar que os valores sejam registrados duas vezes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logs e artefatos de depuração podem replicar campos sensíveis fora das tabelas. Eles devem ser minimizados ou sanitizados, protegidos com acesso adequado e incluídos no plano de retenção e descarte.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma semente fixa é usada para gerar novamente dados e reproduzir um erro. Qual é o benefício e o cuidado correspondente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajuda a repetir o conjunto; sua documentação e acesso ainda devem ser controlados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Prova que os dados são anônimos, dispensando análise da origem usada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante distribuição idêntica à produção em todos os cenários possíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impede qualquer pessoa de reconstruir dados gerados anteriormente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui validação de chaves, formato, privacidade e utilidade funcional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma semente pode tornar a geração reproduzível e ajudar na depuração. Isso não comprova proteção, representatividade ou validade; regras, versões e eventuais informações sensíveis usadas na geração continuam sob governança.",
+      "section": "5. Fluxo prático para preparar e manter uma base de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base é sintética e será usada em ambiente de pesquisa controlado. Qual análise permanece necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nenhuma, pois local controlado e geração artificial eliminam todo risco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a compatibilidade do formato com a ferramenta que abrirá o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se há identificabilidade ou inferência e quais controles cabem ao contexto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Se cada linha corresponde exatamente a um registro original conhecido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas se o modelo foi executado sem conexão com a internet.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um contexto restrito pode reduzir risco, mas não elimina a necessidade de avaliar dados gerados, saídas inferíveis e controles. O tipo de acesso e a finalidade influenciam a análise, não substituem sua realização.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base de teste é renovada periodicamente a partir de uma nova fotografia de produção. Qual controle deve ocorrer antes de cada liberação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que as regras anteriores funcionam sem verificar novos campos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir somente que o número de tabelas continua igual ao da versão anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Liberar a cópia e mascarar os campos depois que os testes terminarem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Revisar mudanças de esquema e dados, transformações e validações de risco e utilidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Manter a fotografia anterior sem avaliar se ainda atende aos cenários atuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Novos campos ou padrões podem escapar das regras de transformação já existentes. Cada renovação exige revisar origem e esquema, aplicar transformações e validar novamente privacidade e utilidade antes de liberar.",
+      "section": "5. Fluxo prático para preparar e manter uma base de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dado sintético gerado a partir de registros pessoais pode reproduzir vieses da fonte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Modelos e regras aprendem ou incorporam padrões da fonte. Se determinados grupos ou situações estão sub-representados, a saída pode repetir essa lacuna; a representatividade precisa ser avaliada.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mascaramento dinâmico altera o valor original persistido na tabela antes de cada consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A regra dinâmica mascara a apresentação nos resultados de consulta conforme a configuração e as permissões. O dado armazenado não é alterado, razão pela qual o recurso não equivale à criação de uma cópia estaticamente transformada.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A remoção de nome e documento direto pode ser insuficiente se a combinação de quase-identificadores singularizar alguém.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A identificação pode ocorrer por combinação de idade, localidade, data e outros atributos com fontes auxiliares. A equipe avalia o conjunto completo e o contexto de uso, e não somente a presença de identificadores diretos.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pseudonimização garante anonimização sempre que a tabela de correspondência é armazenada em outro servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Separar a informação adicional é um controle útil, mas não torna automaticamente impossível a associação. Acesso à tabela, dados auxiliares e outras formas de inferência precisam ser considerados; pseudonimização não é sinônimo de anonimização.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma substituição determinística coordenada pode preservar junções, embora também facilite correlacionar registros entre conjuntos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O mesmo valor de entrada recebe o mesmo substituto e mantém referências consistentes, propriedade útil a testes relacionais. Essa estabilidade também permite rastrear o mesmo registro em diferentes tabelas ou bases, o que deve ser avaliado.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A permutação isolada de uma coluna elimina necessariamente os riscos de identificação e conserva todas as relações do banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Permutar pode preservar a lista de valores, mas gerar combinações incoerentes, romper vínculos ou manter atributos raros identificáveis. Seu efeito depende da estrutura e do contexto, sem garantia de anonimização.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A avaliação de privacidade deve considerar dados auxiliares e o contexto dos destinatários, além das próprias linhas transformadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma combinação aparentemente não identificadora pode ser ligada a fontes externas disponíveis ao destinatário. Finalidade, acesso e informações auxiliares afetam a possibilidade de identificação e precisam integrar a avaliação.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ter dados sintéticos dispensa controle de acesso, pois nenhum conjunto artificial pode carregar informação da fonte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Dados sintéticos podem reproduzir exemplos, permitir inferências e conter padrões pessoais, especialmente quando derivados de dados reais. Acesso mínimo, retenção e revisão continuam sendo controles relevantes.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina que substitui valores de uma tabela sem atualizar referências pode comprometer a integridade referencial dos testes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Se uma chave é transformada de forma diferente entre tabela principal e tabela referenciadora, a relação pode deixar de apontar ao mesmo registro. A validação deve conferir chaves estrangeiras e junções após a transformação.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Generalizar valores pode reduzir a precisão identificadora e também eliminar detalhes exigidos por um cenário de teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A redução de precisão, como transformar data em mês, pode diminuir unicidade, mas também prejudicar regras que dependem do dia ou de intervalos. A equipe valida proteção e utilidade para o cenário pretendido.",
+      "section": "3. Técnicas e preservação da utilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resultado agregado semelhante ao original é prova suficiente de que dados sintéticos não reproduzem registros individuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Métricas agregadas semelhantes demonstram, no máximo, preservação daquela propriedade estatística. Elas não descartam memorização, cópia de registros raros, inferência ou identificação individual.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A tabela que liga tokens a identificadores originais deve ser protegida separadamente porque permite reidentificação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela de correspondência restaura a ligação entre código e titular. A separação reduz exposição conjunta, mas a informação continua sensível e deve ter acesso e retenção controlados.",
+      "section": "2. Dados sintéticos, mascarados e identificadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a base não contém nomes, o texto livre pode ser ignorado na avaliação, pois não participa de junções relacionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Texto livre pode conter nomes, endereços, eventos e detalhes singulares que identificam mesmo sem participar de junções. Ele deve ser removido ou transformado conforme a finalidade e validado quanto a conteúdo residual.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Acessos privilegiados podem revelar dados originais apesar da apresentação mascarada para usuários comuns.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Recursos de mascaramento dinâmico podem apresentar valores originais a usuários autorizados ou privilegiados. A máscara não substitui governança de permissões, segregação de funções e auditoria.",
+      "section": "4. Riscos, avaliação e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de finalidade ou de destinatários pode exigir nova avaliação de risco e adequação da base transformada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A identificabilidade depende também de quem acessa, para quê e com quais fontes auxiliares. Alterações de contexto podem modificar risco e utilidade, justificando revisão antes do novo compartilhamento.",
+      "section": "5. Fluxo prático para preparar e manter uma base de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Logs, snapshots e arquivos temporários não precisam constar do plano de descarte porque não são tabelas de teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Artefatos auxiliares podem conter os mesmos valores sensíveis que a base. O plano de retenção e descarte deve cobrir logs, exportações, snapshots, backups intermediários e chaves de reversão.",
+      "section": "5. Fluxo prático para preparar e manter uma base de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Dynamic Data Masking - SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "O mascaramento dinâmico oculta campos em resultados de consulta, não altera os dados armazenados e é complementar a permissões, auditoria e outros controles.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/security/dynamic-data-masking?view=sql-server-ver17",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Privacy-enhancing technologies (PETs): Synthetic data",
+      "publisher": "Information Commissioner's Office (ICO)",
+      "reference": "Definição, dados parcialmente e totalmente sintéticos, utilidade, minimização, vieses e riscos de inferência e reidentificação.",
+      "url": "https://ico.org.uk/media/for-organisations/uk-gdpr-guidance-and-resources/data-sharing/privacy-enhancing-technologies-1-0.pdf",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How do we ensure anonymisation is effective?",
+      "publisher": "Information Commissioner's Office (ICO)",
+      "reference": "Avaliação contextual de identificabilidade, teste de efetividade e reavaliação diante de novos dados, destinatários ou finalidades.",
+      "url": "https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-sharing/anonymisation/how-do-we-ensure-anonymisation-is-effective/",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

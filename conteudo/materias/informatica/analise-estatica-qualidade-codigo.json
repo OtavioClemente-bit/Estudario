@@ -1,0 +1,1834 @@
+{
+  "id": "informatica.analise-estatica-qualidade-codigo",
+  "subject": "Informática",
+  "title": "Análise estática e qualidade de código-fonte",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Análise de código fonte: clean code, refactoring, ferramenta Sonar, PMD, Findbugs, cobertura, checkstyle, duplicação, expressividade, complexidade ciclomática, coesão e acoplamento",
+    "Qualidade de código-fonte",
+    "Métricas de qualidade de código",
+    "Clean Code e qualidade de código",
+    "Refatoração de código-fonte",
+    "Refactoring de software",
+    "Ferramentas de análise estática",
+    "SonarQube e análise de código",
+    "PMD e regras de código Java",
+    "FindBugs e SpotBugs",
+    "Checkstyle e estilo de código",
+    "Cobertura de testes de software",
+    "Duplicação de código-fonte",
+    "Complexidade ciclomática de métodos"
+  ],
+  "scope": {
+    "covers": "Análise estática de código-fonte e qualidade interna: Clean Code, refatoração e preservação do comportamento; SonarQube, perfis de qualidade, issues, métricas e quality gate; PMD e CPD; FindBugs e sua continuidade comunitária SpotBugs; Checkstyle; cobertura de instruções, linhas e ramificações; duplicação; expressividade; complexidade ciclomática; coesão e acoplamento; interpretação e limites das métricas e ferramentas.",
+    "excludes": "Análise dinâmica de segurança, testes de penetração, configuração operacional completa de servidores SonarQube, sintaxe detalhada das regras de cada linguagem e métricas de produtividade individual."
+  },
+  "theoryTitle": "Análise estática, métricas e refatoração",
+  "chapters": [
+    {
+      "title": "1. Código legível, expressivo e refatoração",
+      "markdown": "### O problema que este assunto resolve\n\nCódigo é lido e alterado muitas vezes depois de escrito. Se nomes, responsabilidades e fluxo escondem a intenção, uma mudança simples exige reconstruir mentalmente o que o programa faz e aumenta o risco de defeitos. **Clean Code** é um conjunto de práticas de escrita que favorece leitura, compreensão e manutenção: nomes reveladores, funções com propósito claro, responsabilidades coesas, tratamento explícito de erros e pouca duplicação acidental. Não é um padrão universal de formatação nem uma garantia matemática de ausência de defeitos.\n\n> **Siglas e termos deste capítulo**\n> - **Expressividade**: quanto a estrutura e os nomes comunicam a intenção do código.\n> - **Refatoração (refactoring)**: mudança na estrutura interna do software sem alterar seu comportamento observável.\n> - **Comportamento observável**: resultados, efeitos e interfaces que clientes e testes conseguem perceber.\n> - **Code smell**: indício de estrutura problemática, que pede avaliação; por si só, não prova que exista defeito.\n\n### Tornar a intenção visível\n\nCompare `if (x > 0)` com `if (quantidadeDisponivel > 0)`. O segundo nome informa o papel do valor; não muda a execução, mas reduz inferências. Uma função chamada `calcularTotalComDesconto` deve cumprir a promessa do nome. Funções que validam entrada, persistem dados e enviam e-mail numa só rotina acumulam motivos diferentes para mudar. Separar responsabilidades pode deixar cada parte mais fácil de localizar e testar.\n\nA concisão não é um objetivo isolado. Uma expressão compacta, cheia de operadores aninhados, pode ser menos expressiva que algumas linhas com nomes intermediários. Comentários explicam contexto, decisões e restrições que não cabem no código; repetir literalmente o que a instrução já diz tende a ficar desatualizado.\n\n### Refatorar com segurança\n\nRefatoração melhora a estrutura mantendo os resultados observáveis. Um ciclo seguro é: caracterizar o comportamento com testes, fazer uma alteração pequena, executar os testes e revisar a diferença. Extrair método, renomear símbolo, eliminar duplicação e substituir condicional por polimorfismo são exemplos possíveis; nenhum é automaticamente adequado em qualquer situação. Se a mudança altera regra de negócio, formato de saída ou contrato, ela não é apenas refatoração.\n\nDuplicação pode indicar uma regra comum que deveria ter uma única fonte de verdade. Contudo, trechos parecidos podem representar regras que evoluem separadamente. Unificá-los sem compreender o domínio pode criar abstração artificial e acoplamento. A decisão depende da semântica, do custo de mudança e dos testes, não só da semelhança textual.\n\n### Como cai na prova\n\n- Refatoração conserva comportamento observável e reorganiza a estrutura interna.\n- Expressividade favorece que nomes e decomposição revelem intenção; menos caracteres não significam necessariamente mais clareza.\n- Code smells são sinais para investigação, não prova automática de bug.\n- Testes ajudam a detectar regressões, mas não provam sozinhos a correção de todos os comportamentos possíveis."
+    },
+    {
+      "title": "2. Análise estática e ferramentas de inspeção",
+      "markdown": "### O problema que este assunto resolve\n\nUma revisão manual encontra problemas importantes, mas não precisa gastar atenção verificando cada convenção repetitiva. A **análise estática** examina código ou artefatos sem executar o programa com entradas reais. Conforme a ferramenta e as regras selecionadas, aponta padrões suspeitos, violações de estilo, complexidade, duplicação ou possíveis erros. O resultado é um conjunto de achados que deve ser interpretado por alguém que conheça o contexto.\n\n> **Siglas e termos deste capítulo**\n> - **AST**: árvore sintática abstrata, representação estrutural do programa analisada por ferramentas.\n> - **Issue**: achado registrado por uma ferramenta, como bug provável, vulnerabilidade ou code smell.\n> - **Falso positivo**: alerta que não corresponde a um problema real naquele contexto.\n> - **Perfil de qualidade**: conjunto de regras e parâmetros usados na análise.\n> - **Quality gate**: condições que aprovam ou reprovam um estado de qualidade configurado.\n\n### SonarQube, PMD e CPD\n\nO **SonarQube** centraliza análises e apresenta issues, tendências e medidas. A análise é feita por scanners e analisadores; a plataforma recebe os resultados e os apresenta conforme regras, perfil e configuração do projeto. Um quality gate avalia condições definidas, como limites de cobertura ou ausência de certos achados, e pode ser integrado à esteira de integração contínua. O gate expressa uma política escolhida pela equipe: não demonstra que o sistema está livre de defeitos.\n\nO **PMD** analisa código-fonte por regras configuradas e pode apontar, por exemplo, blocos catch vazios, variáveis não usadas, construções propensas a erro ou problemas de desenho. Seu componente **CPD** (Copy/Paste Detector) procura blocos duplicados em linguagens suportadas. A detecção por texto ou estrutura encontra similaridade, mas não decide se duas regras de negócio devem ser unificadas.\n\n### FindBugs, SpotBugs e Checkstyle\n\nO **FindBugs** foi uma ferramenta de análise estática para bytecode Java, conhecida por procurar padrões associados a bugs. O projeto original foi abandonado; **SpotBugs** é seu fork comunitário, que continuou o trabalho. SpotBugs analisa classes compiladas e procura padrões de defeito; não é sinônimo de formatador nem substitui testes de execução.\n\nO **Checkstyle** verifica se o código Java segue convenções configuradas, como nomes, imports, espaços, tamanho de linhas e organização sintática. É especialmente útil para consistência de estilo. Uma violação de estilo não implica automaticamente erro funcional, e uma compilação sem erros tampouco garante conformidade com o Checkstyle.\n\n| Ferramenta | Foco característico | Entrada/resultado típico |\n| --- | --- | --- |\n| SonarQube | Centralizar regras, issues e métricas | Análise integrada e painel/gate |\n| PMD | Regras estáticas de código e desenho | Violações de regras no fonte |\n| CPD | Similaridade e blocos duplicados | Ocorrências de duplicação |\n| SpotBugs | Padrões de bugs em Java | Achados sobre bytecode compilado |\n| Checkstyle | Convenções e estilo Java | Violações de configuração de estilo |\n\n### Como cai na prova\n\n- Análise estática não precisa executar o programa com dados reais; testes dinâmicos o fazem.\n- Checkstyle concentra-se em convenções; SpotBugs procura padrões de bugs em bytecode; PMD aplica regras ao código; CPD procura duplicações.\n- SonarQube pode importar resultados de cobertura gerados por ferramentas externas. Scanner, plataforma e ferramenta de cobertura têm papéis distintos.\n- Um gate falho significa que as condições configuradas não foram atendidas, não que o código necessariamente não compila."
+    },
+    {
+      "title": "3. Métricas: cobertura, duplicação e complexidade",
+      "markdown": "### O problema que este assunto resolve\n\nMétricas resumem aspectos do código para apoiar comparação e priorização. Elas não substituem entendimento técnico: uma porcentagem isolada pode esconder riscos, e números de projetos diferentes não são comparáveis sem considerar linguagem, escopo, configuração e histórico. Use medidas para formular perguntas verificáveis, não para declarar qualidade absoluta.\n\n> **Siglas e termos deste capítulo**\n> - **Cobertura**: proporção de elementos instrumentados que foram exercitados durante testes.\n> - **Ramificação (branch)**: saída alternativa de uma decisão, como verdadeiro ou falso em um `if`.\n> - **Complexidade ciclomática**: medida do número de caminhos independentes no fluxo de controle.\n> - **Duplicação**: bloco de código identificado como repetido segundo os critérios da ferramenta.\n\n### Cobertura não é qualidade total\n\nFerramentas como JaCoCo registram cobertura de instruções de bytecode, linhas mapeadas e ramificações em decisões. Cobertura de linhas responde se ao menos uma instrução associada à linha foi executada; cobertura de ramificações observa saídas de decisões. Uma linha exercitada pode conter uma condição cuja outra saída não foi testada. Por isso, cobertura alta não comprova que as asserções sejam boas, que os requisitos estejam completos ou que não existam defeitos. Também é possível ter cobertura baixa em código crítico ou irrelevante, com riscos muito diferentes.\n\nO SonarQube não executa por si só todos os testes para calcular essa cobertura: normalmente importa relatórios produzidos durante a compilação/execução por ferramenta apropriada, configurados para o scanner. Relatório ausente ou incompatível pode deixar a métrica sem dados mesmo que os testes tenham sido executados.\n\n### Complexidade ciclomática\n\nA complexidade ciclomática estima caminhos independentes de fluxo. Uma rotina linear simples tem complexidade mínima 1; decisões acrescentam caminhos. Uma formulação clássica para um grafo de fluxo conectado é `V(G) = E - N + 2`, em que E representa arestas e N nós. Na prática, ferramentas calculam a medida segundo regras próprias da linguagem. Mais caminhos podem exigir mais casos de teste para exercitar decisões, mas complexidade não mede diretamente tempo de execução, tamanho em linhas ou dificuldade humana em todos os casos.\n\n### Duplicação e leitura responsável\n\nMétrica de duplicação depende do mecanismo e dos limiares da ferramenta. O SonarQube, por exemplo, documenta critérios de blocos que variam por linguagem: em Java há uma regra baseada em quantidade de instruções duplicadas, enquanto outras linguagens usam tokens e linhas. Espaços e certos literais podem ser ignorados conforme o analisador. Portanto, não generalize um limiar para todos os projetos. Duplicação elevada pode elevar custo de correção: a mesma regra talvez precise ser corrigida em vários lugares. Ainda assim, a ferramenta não conhece sozinha a intenção semântica.\n\n### Como cai na prova\n\n- Cobertura de linha e cobertura de ramificação medem coisas relacionadas, mas diferentes.\n- Complexidade ciclomática cresce com decisões/caminhos; não é medida de velocidade.\n- Percentual alto não prova testes eficazes: verifique casos, condições e asserções.\n- Limiares de duplicação dependem da ferramenta, da linguagem e da configuração."
+    },
+    {
+      "title": "4. Coesão, acoplamento e qualidade na prática",
+      "markdown": "### O problema que este assunto resolve\n\nAlém de contar linhas ou alertas, é preciso avaliar como partes do sistema se relacionam. Um módulo fácil de mudar tende a reunir responsabilidades relacionadas e depender de poucas decisões internas de outros módulos. Coesão e acoplamento são conceitos de desenho; algumas métricas tentam aproximá-los, mas nenhuma pontuação substitui a leitura do contexto.\n\n> **Siglas e termos deste capítulo**\n> - **Coesão**: grau em que os elementos de um módulo colaboram para uma finalidade relacionada.\n> - **Acoplamento**: dependências entre módulos e quanto um precisa conhecer do outro.\n> - **Dependência**: relação em que uma parte usa, chama ou conhece outra.\n> - **Integração contínua (CI)**: prática de integrar mudanças e executar verificações automatizadas com frequência.\n\n### Interpretar desenho e dependências\n\nAlta coesão costuma significar que métodos e dados de uma classe contribuem para uma responsabilidade compreensível. Baixa coesão aparece, por exemplo, quando uma classe reúne cálculo de folha, envio de mensagens e leitura de arquivos sem uma finalidade comum. Acoplamento alto aparece quando uma alteração num componente exige conhecer ou modificar muitos outros, ou quando detalhes concretos se espalham por consumidores. Interfaces bem escolhidas podem reduzir dependência de implementação, mas adicionar abstrações sem necessidade também pode dificultar o entendimento.\n\nNão se deve confundir baixa dependência com ausência de comunicação: componentes cooperam por contratos. O objetivo é limitar conhecimento desnecessário e tornar mudanças localizadas. Em geral, coesão maior e acoplamento menor favorecem manutenção, sem constituir leis absolutas.\n\n### Fluxo de qualidade e triagem de achados\n\nUma equipe pode executar compilação, testes, análise estática e geração de cobertura na CI, enviar os relatórios ao SonarQube e aplicar um quality gate. Achados devem ser priorizados por risco, impacto, repetição e custo de correção. Regras podem ser ajustadas, e exceções justificadas precisam ser explícitas e revisadas; silenciar alertas indiscriminadamente elimina informação. Refatorações devem ser pequenas e acompanhadas por testes relevantes.\n\nMétricas são mais úteis em tendência e no código novo. Comparar cada linha ou desenvolvedor por um indicador único incentiva otimização superficial: pode-se aumentar cobertura com testes sem assertivas ou reduzir duplicação criando uma abstração ruim. Combine evidências: testes, revisão, execução em ambiente adequado, análise estática e conhecimento do domínio.\n\n### Como cai na prova\n\n- Coesão trata da unidade de propósito dentro do módulo; acoplamento trata das dependências entre módulos.\n- Quality gate automatiza critérios definidos, mas não substitui revisão ou testes.\n- Achado automatizado é evidência para triagem; falso positivo e exceção contextual são possíveis.\n- Boas métricas apoiam decisões; não devem ser usadas como objetivo cego nem como prova isolada de qualidade."
+    }
+  ],
+  "summary": "Análise estática inspeciona código ou artefatos sem executar o programa com entradas reais. SonarQube centraliza resultados e avalia quality gates configurados; PMD aplica regras estáticas e CPD procura duplicações; FindBugs foi sucedido por SpotBugs, que analisa bytecode Java em busca de padrões de bugs; Checkstyle verifica convenções Java. Métricas como cobertura de instruções, linhas e ramificações, duplicação e complexidade ciclomática mostram aspectos limitados do sistema. Clean Code torna intenção e responsabilidades mais claras. Refatoração reorganiza a estrutura sem mudar o comportamento observável, preferencialmente em passos pequenos protegidos por testes. Coesão descreve a relação entre elementos de um módulo; acoplamento, as dependências entre módulos. Achados e métricas exigem interpretação humana.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza análise estática?",
+      "back": "Inspeciona código ou artefatos sem executar o programa com entradas reais."
+    },
+    {
+      "front": "O que é refatoração?",
+      "back": "Mudança interna de estrutura que preserva o comportamento observável."
+    },
+    {
+      "front": "O que expressividade busca no código?",
+      "back": "Deixar intenção e papel dos elementos compreensíveis por nomes e estrutura."
+    },
+    {
+      "front": "Clean Code é um padrão universal de formatação?",
+      "back": "Não. É um conjunto de práticas voltadas a leitura, compreensão e manutenção."
+    },
+    {
+      "front": "O que é code smell?",
+      "back": "Indício de estrutura que merece investigação, não prova automática de defeito."
+    },
+    {
+      "front": "Qual o foco característico do Checkstyle?",
+      "back": "Verificar convenções e estilo configurados para código Java."
+    },
+    {
+      "front": "Qual o foco característico do PMD?",
+      "back": "Aplicar regras estáticas que identificam padrões problemáticos no código."
+    },
+    {
+      "front": "Para que serve o CPD do PMD?",
+      "back": "Detectar blocos de código duplicados segundo os critérios da ferramenta."
+    },
+    {
+      "front": "O que SpotBugs herdou?",
+      "back": "É um fork comunitário que continuou o projeto FindBugs, hoje abandonado."
+    },
+    {
+      "front": "Que artefato SpotBugs analisa?",
+      "back": "Classes compiladas/bytecode Java para encontrar padrões associados a bugs."
+    },
+    {
+      "front": "O que o SonarQube centraliza?",
+      "back": "Issues, medidas e resultados de análise segundo regras e configuração do projeto."
+    },
+    {
+      "front": "O que expressa um quality gate?",
+      "back": "Condições configuradas para avaliar se um estado de qualidade atende à política adotada."
+    },
+    {
+      "front": "O quality gate prova ausência de defeitos?",
+      "back": "Não. Apenas informa se as condições configuradas foram atendidas."
+    },
+    {
+      "front": "O que cobertura de linha indica?",
+      "back": "Se instruções associadas às linhas cobertas foram executadas durante os testes."
+    },
+    {
+      "front": "O que cobertura de ramificação observa?",
+      "back": "Se as saídas de decisões, como verdadeiro e falso, foram exercitadas."
+    },
+    {
+      "front": "Cobertura alta prova testes bons?",
+      "back": "Não. Também importam casos, requisitos verificados e qualidade das asserções."
+    },
+    {
+      "front": "O que estima a complexidade ciclomática?",
+      "back": "O número de caminhos independentes no fluxo de controle."
+    },
+    {
+      "front": "Complexidade ciclomática mede tempo de execução?",
+      "back": "Não. É medida estrutural ligada a decisões e caminhos."
+    },
+    {
+      "front": "O que é coesão?",
+      "back": "Quanto elementos de um módulo colaboram para uma finalidade relacionada."
+    },
+    {
+      "front": "O que é acoplamento?",
+      "back": "O grau de dependência e conhecimento entre módulos."
+    },
+    {
+      "front": "Como SonarQube costuma obter cobertura?",
+      "back": "Importa relatório gerado por ferramenta de cobertura configurada no build."
+    },
+    {
+      "front": "Por que duplicação pode ser custosa?",
+      "back": "Uma regra repetida pode exigir correção em diversos lugares."
+    },
+    {
+      "front": "Toda duplicação textual deve ser unificada?",
+      "back": "Não. Trechos semelhantes podem representar regras que evoluem separadamente."
+    },
+    {
+      "front": "Como proteger uma refatoração?",
+      "back": "Usar testes relevantes, alterar em passos pequenos e revisar cada mudança."
+    }
+  ],
+  "tips": [
+    "Associe Checkstyle a convenções de estilo Java; um alerta de estilo não é necessariamente bug funcional.",
+    "Lembre-se da linhagem: FindBugs foi abandonado; SpotBugs é seu fork comunitário.",
+    "Separe PMD, CPD e SpotBugs: regras no fonte, duplicação e padrões de bugs no bytecode, respectivamente.",
+    "Não confunda cobertura de linha com cobertura de ramificação: executar uma linha condicional não percorre necessariamente todas as saídas.",
+    "Complexidade ciclomática se relaciona a decisões e caminhos independentes, não a desempenho ou quantidade de linhas.",
+    "Ao avaliar refatoração, pergunte se o comportamento observável foi preservado e se testes relevantes foram executados."
+  ],
+  "traps": [
+    "Dizer que SonarQube executa os testes para calcular cobertura: em geral ele importa relatórios produzidos por ferramentas integradas ao build.",
+    "Tratar quality gate aprovado como prova de sistema sem defeitos: o gate só avalia as condições configuradas.",
+    "Concluir que 100% de linhas cobertas significa que todos os resultados foram validados: cobertura não mede a qualidade das asserções.",
+    "Afirmar que toda duplicação deve ser eliminada: trechos semelhantes podem ter significados e ciclos de mudança distintos.",
+    "Chamar toda alteração de refatoração: se o comportamento observável mudou, houve também mudança funcional.",
+    "Trocar coesão por acoplamento: a primeira relaciona elementos dentro de um módulo; o segundo relaciona módulos diferentes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre análise estática e teste dinâmico.",
+      "answer": "A análise estática inspeciona código ou artefatos sem executar com entradas; o teste dinâmico executa o programa e observa resultados para casos escolhidos."
+    },
+    {
+      "question": "Descreva a finalidade de SonarQube, PMD, CPD, SpotBugs e Checkstyle.",
+      "answer": "SonarQube centraliza resultados e métricas; PMD aplica regras estáticas; CPD detecta duplicação; SpotBugs procura padrões de bugs em bytecode Java; Checkstyle verifica convenções de estilo Java."
+    },
+    {
+      "question": "Por que cobertura de linhas e ramificações não são equivalentes?",
+      "answer": "Uma linha com decisão pode ser executada sem que todas as saídas da decisão sejam exercitadas; cobertura de ramificações distingue esses caminhos."
+    },
+    {
+      "question": "O que a complexidade ciclomática informa e o que não informa?",
+      "answer": "Estima caminhos independentes no fluxo de controle e ajuda a pensar em testes; não mede diretamente velocidade, correção nem dificuldade humana completa."
+    },
+    {
+      "question": "Defina coesão e acoplamento e relacione-os à manutenção.",
+      "answer": "Coesão é a unidade de propósito dentro de um módulo; acoplamento é a dependência entre módulos. Em geral, propósito claro e dependências limitadas favorecem mudanças localizadas."
+    },
+    {
+      "question": "Como organizar uma refatoração com menor risco de regressão?",
+      "answer": "Estabeleça testes relevantes, faça uma mudança estrutural pequena, execute os testes e revise a alteração antes de prosseguir."
+    },
+    {
+      "question": "Por que um quality gate não garante qualidade absoluta?",
+      "answer": "Ele verifica apenas condições e métricas configuradas; requisitos omitidos, falsos negativos e defeitos não detectados continuam possíveis."
+    },
+    {
+      "question": "Quando uma duplicação identificada por ferramenta pode não justificar extração?",
+      "answer": "Quando os trechos parecidos representam regras independentes que podem evoluir de modos diferentes, ou quando a abstração compartilhada criaria dependência inadequada."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre ferramentas",
+      "summary": "Checkstyle fiscaliza convenções; PMD aplica regras estáticas; CPD localiza duplicações; SpotBugs procura padrões de bugs em bytecode; SonarQube centraliza e apresenta resultados."
+    },
+    {
+      "key": "e2",
+      "title": "Cobertura tratada como prova",
+      "summary": "Cobertura informa execução de elementos instrumentados. Não comprova completude dos requisitos nem qualidade das asserções; linha e ramificação são medidas diferentes."
+    },
+    {
+      "key": "e3",
+      "title": "Métricas interpretadas fora de contexto",
+      "summary": "Complexidade ciclomática estima caminhos; duplicação segue critérios da ferramenta e linguagem. Nenhuma medida isolada define qualidade ou desempenho."
+    },
+    {
+      "key": "e4",
+      "title": "Refatoração confundida com mudança funcional",
+      "summary": "Refatoração preserva comportamento observável. Alterar saída, regra de negócio ou contrato implica mudança funcional além da reorganização interna."
+    },
+    {
+      "key": "e5",
+      "title": "Coesão e acoplamento invertidos",
+      "summary": "Coesão descreve a relação entre responsabilidades dentro do módulo; acoplamento descreve as dependências entre módulos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A análise estática pode identificar padrões suspeitos no código sem executar o programa com entradas reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A análise estática examina o código ou seus artefatos sem realizar a execução funcional com dados de entrada. Testes dinâmicos executam o programa.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Refatorar significa alterar a regra de negócio para produzir uma saída nova, ainda que a estrutura interna permaneça igual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Refatoração reorganiza a estrutura interna preservando o comportamento observável. A mudança de saída ou regra de negócio é funcional, não apenas estrutural.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Checkstyle pode verificar convenções de nomes, imports e formatação configuradas para um projeto Java.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Checkstyle verifica regras de estilo e convenções Java configuradas. A ocorrência de uma violação não significa, por si só, que o programa tenha um defeito funcional.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um quality gate aprovado comprova que nenhum defeito funcional existe no sistema analisado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O gate apenas informa que as condições configuradas foram atendidas. Ele não prova ausência de defeitos, requisitos não testados ou problemas que as regras não detectam.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cobertura de linha e cobertura de ramificação podem diferir quando uma linha executada contém uma decisão com saídas não testadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A execução de uma linha condicional não garante que as alternativas verdadeiro e falso tenham sido percorridas. Métricas de ramificação observam as saídas das decisões.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A complexidade ciclomática mede diretamente o tempo de execução de um método em milissegundos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A complexidade ciclomática estima caminhos independentes no fluxo de controle. Não é uma medida de tempo ou desempenho de execução.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em geral, maior coesão interna e dependências externas mais limitadas favorecem mudanças localizadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Coesão liga elementos a uma finalidade comum dentro do módulo; acoplamento representa dependências entre módulos. Limitar dependências desnecessárias costuma reduzir o alcance das mudanças.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma porcentagem de cobertura alta assegura que cada teste possui asserções corretas e verifica todos os requisitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Cobertura mostra elementos executados, não se os resultados foram comparados corretamente nem se todos os requisitos estão representados. Testes sem assertivas podem elevar a cobertura sem detectar regressões.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CPD associado ao PMD procura blocos duplicados conforme critérios que podem variar por linguagem e configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "CPD significa Copy/Paste Detector e encontra similaridades segundo limiares e critérios próprios. Não decide automaticamente se os trechos têm a mesma semântica.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SpotBugs é o nome original do FindBugs, e o FindBugs é o fork comunitário que o sucedeu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A relação é inversa: FindBugs foi abandonado, e SpotBugs é o fork comunitário que continuou o projeto, com análise de bytecode Java.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A análise estática precisa executar o sistema para observar resultados em produção antes de apontar qualquer padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A característica da análise estática é inspecionar código ou artefatos sem executar o programa com entradas reais. Execução é própria de teste dinâmico ou observação operacional.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Trechos textualmente parecidos devem sempre ser extraídos para uma função comum, ainda que as regras representadas evoluam separadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Similaridade textual não basta para unificar responsabilidades. Se as regras evoluem independentemente, a abstração pode acoplar conceitos que deveriam mudar separados.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SonarQube pode receber um relatório de cobertura gerado por outra ferramenta durante o build e apresentá-lo na análise.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo usual executa a ferramenta de cobertura, produz arquivo em formato esperado e configura o scanner para importá-lo. SonarQube centraliza o dado recebido.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Coesão descreve principalmente quanto um módulo depende de outros módulos e conhece suas implementações internas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Essa descrição corresponde a acoplamento. Coesão trata de como os elementos de um módulo colaboram para uma finalidade relacionada.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A complexidade ciclomática pode ajudar a estimar caminhos independentes a considerar em testes, sem garantir que esses testes validem os requisitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A medida relaciona-se a caminhos independentes e pode orientar o raciocínio sobre casos de teste. Ela não verifica se as asserções ou requisitos foram escolhidos corretamente.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Clean Code exige reduzir qualquer função a uma única linha, mesmo que a intenção fique menos clara.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Clean Code prioriza clareza, intenção visível e manutenção, não a menor quantidade de caracteres. Uma decomposição clara pode ocupar mais linhas que uma expressão comprimida.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer conferir convenções de nomes, imports e organização de código Java antes de integrar alterações. Qual ferramenta se encaixa diretamente nessa verificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Checkstyle, com regras de estilo definidas para o projeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SpotBugs, com padrões de defeitos inferidos do bytecode.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JaCoCo, com contadores de execução e ramificações cobertas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CPD, com blocos repetidos localizados no código-fonte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SonarQube, com condições de qualidade consolidadas no projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Checkstyle aplica verificações de convenções e estilo Java configuradas. SpotBugs procura padrões de bugs; JaCoCo mede cobertura; CPD procura duplicações; SonarQube centraliza diferentes resultados.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante revisão, uma rotina mistura cálculo de preço, persistência e envio de e-mail. Qual avaliação é mais compatível com Clean Code?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rotina está adequada se o compilador aceitar todas as operações juntas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rotina reúne motivos distintos para mudar e pode ter responsabilidades separadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A rotina deve virar uma única expressão para reduzir linhas no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rotina deve manter as três tarefas, pois testes impedem qualquer acoplamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rotina só precisa de um comentário que repita cada instrução executada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Responsabilidades não relacionadas aumentam os motivos de mudança e dificultam teste e compreensão. Separá-las pode melhorar coesão; compilação e comentários literais não corrigem a estrutura.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O build executa testes e cria um relatório de cobertura, mas o painel SonarQube não mostra a métrica. Qual verificação é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o limite do quality gate até ele substituir o arquivo ausente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mover o relatório para o bytecode, pois o scanner só lê classes Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar formato, caminho do relatório e parâmetros de importação do scanner.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Reexecutar apenas o Checkstyle, que calcula cobertura de ramificações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover os testes, pois SonarQube calcula a cobertura sem relatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cobertura costuma ser importada de relatório externo. É necessário verificar se a ferramenta o produziu em formato e local esperados e se os parâmetros do scanner apontam para ele.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe contém regras e dados para uma finalidade única, enquanto conhece detalhes de implementação de muitos módulos vizinhos. Qual diagnóstico separa corretamente os conceitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há baixo acoplamento porque a classe concentra sua finalidade em um lugar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode haver coesão interna, mas o acoplamento externo merece avaliação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Há baixa coesão porque a classe conhece implementações de outros módulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Coesão e acoplamento descrevem apenas o número de linhas da classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não há relação com manutenção enquanto todos os módulos compilarem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A finalidade única indica potencialmente boa coesão interna; conhecer detalhes de muitos vizinhos indica dependências externas e possível acoplamento alto. Compilação não mede essas propriedades.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método executa a mesma linha condicional nos testes, mas somente o caminho verdadeiro é percorrido. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cobertura de linha prova que os dois caminhos foram observados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A linha não pode ser coberta até que todo o método seja executado, inclusive quando o relatório registra sua execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A linha pode constar como coberta, embora falte cobertura de ramificação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A complexidade ciclomática passa a medir o tempo desse caminho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O relatório deve converter o caminho falso em issue do Checkstyle.",
+          "correct": false
+        }
+      ],
+      "explanation": "A linha pode ter sido executada quando a condição foi verdadeira. A cobertura de ramificação ainda aponta que a outra saída não foi percorrida.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um revisor encontra um nome `v` para representar a quantidade disponível de um produto. Qual alternativa melhora a expressividade sem mudar o algoritmo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Renomear `v` para `quantidadeDisponivel`, preservando seu uso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir `v` por `x`, para evitar termos ligados ao domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o identificador e repetir o valor literal em cada expressão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar comentário que descreva cada ocorrência de `v` no método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear `v` para `resultadoFinal`, ainda que não seja resultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um nome que revela o significado reduz inferências e comunica a intenção. Nomes genéricos ou inexatos e comentários repetitivos não oferecem a mesma clareza.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência reduz o risco ao extrair uma função durante uma refatoração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar os testes existentes para que a nova estrutura não os limite.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Extrair vários módulos, alterar contratos e testar só após a publicação, pois testes antecipados sempre impedem refatorações seguras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar primeiro a regra de negócio e chamar toda mudança de refatoração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar testes relevantes, extrair um trecho coeso e executar os testes novamente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Renomear arquivos sem revisar chamadas, resultados ou diferenças geradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudanças pequenas e testes antes/depois ajudam a perceber regressões enquanto o escopo ainda é controlável. Alterar regra funcional não é refatoração pura.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A análise aponta um bloco duplicado, mas os dois trechos representam políticas comerciais diferentes, sujeitas a mudanças independentes. Como interpretar o achado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir uma política pela outra, pois o analisador identifica a mais atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Extrair sempre os trechos para uma função, pois duplicação textual prova identidade e obriga políticas comerciais distintas a compartilhar exatamente a mesma regra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar o alerta sem revisão, pois CPD não fornece informação aproveitável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter ambos em herança, já que toda regra repetida é uma subclasse.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Investigar a semântica antes de unificar, pois a similaridade não decide a abstração.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ferramentas detectam semelhança estrutural/textual, não a intenção do domínio. Regras independentes podem precisar continuar separadas para não criar acoplamento indevido.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição caracteriza melhor a função do SonarQube numa esteira de integração contínua?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar por conta própria cada teste de unidade e inventar casos ausentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Receber análises, exibir métricas e aplicar condições configuradas de qualidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir o compilador e corrigir automaticamente toda issue encontrada, sem precisar analisar o código nem validar as alterações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantir que o aplicativo não tenha vulnerabilidades depois do gate.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir qualquer mudança que aumente o número total de linhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "SonarQube centraliza resultados de análise e métricas, podendo verificar gates configurados na CI. Não substitui testes ou compilador, nem garante ausência absoluta de problemas.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer encontrar uma variável local sem uso e um bloco `catch` vazio por meio de regras no código-fonte. Qual ferramenta se encaixa melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CPD, que relata somente padrões de duplicação entre blocos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JaCoCo, escolhendo contadores de linha e de instruções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PMD, selecionando regras adequadas ao projeto e à linguagem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Checkstyle, voltado exclusivamente à semântica de defeitos de execução, sem verificar convenções ou formatação de código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SpotBugs, que substitui toda inspeção do código-fonte por cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "PMD aplica regras estáticas que podem identificar variáveis não usadas e construções suspeitas como catch vazio. JaCoCo mede cobertura; CPD duplica; Checkstyle confere estilo; SpotBugs analisa padrões de bugs.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente SpotBugs de Checkstyle num projeto Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SpotBugs procura padrões de bugs em bytecode; Checkstyle verifica convenções configuradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SpotBugs mede apenas linhas cobertas; Checkstyle identifica caminhos independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SpotBugs detecta apenas duplicação; Checkstyle calcula cobertura de ramificações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SpotBugs é o sucessor do JaCoCo; Checkstyle é o compilador do Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SpotBugs aplica somente formatação; Checkstyle determina defeitos em produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "SpotBugs é continuação comunitária do FindBugs e analisa classes compiladas buscando padrões de defeitos. Checkstyle verifica estilo e convenções definidos para o código Java.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método de um serviço tem várias decisões aninhadas; a equipe quer priorizar onde adicionar testes de caminhos. Que métrica pode orientar a investigação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acoplamento, como porcentagem de asserções corretas nos testes unitários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duplicação, como número de linhas com instruções executadas em teste; essa métrica também informa diretamente quantos caminhos independentes existem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Coesão, como duração em milissegundos de cada ramificação executada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Complexidade ciclomática, como indicação de caminhos independentes do fluxo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Checkstyle, como contador de resultados observáveis por entrada do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Complexidade ciclomática estima caminhos independentes associados ao fluxo de controle e pode apoiar a seleção de casos. Ela não informa cobertura real nem substitui a análise dos requisitos.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto registra 100% de linhas cobertas, mas seus testes apenas chamam os métodos e não verificam resultados. Qual conclusão é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O projeto não precisa de testes de ramificação se as linhas estão cobertas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os requisitos foram demonstrados porque cada linha foi alcançada, mesmo sem nenhuma asserção ou verificação de resultado nos testes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O quality gate está correto mesmo que as asserções estejam ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cobertura deve ser convertida em complexidade de execução do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A execução foi registrada, mas a eficácia das verificações continua sem comprovação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Cobertura registra execução, não a qualidade dos oráculos/asserções. Sem verificar resultados, testes podem percorrer código sem detectar comportamento incorreto ou requisitos não atendidos.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao analisar relatórios de projetos em linguagens diferentes, por que não se deve aplicar automaticamente o mesmo limiar de duplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duplicação é sempre calculada como número de testes dividido por classes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ferramentas podem usar unidades e regras distintas conforme linguagem e configuração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A linguagem determina o resultado do quality gate sem qualquer configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os analisadores contam somente linhas idênticas, incluindo espaços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicação não pode ser medida em mais de uma linguagem do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Critérios documentados variam: alguns usam tokens e linhas, outros instruções, e a ferramenta pode ignorar diferenças específicas. O limiar precisa ser interpretado segundo a configuração concreta.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer separar uma rotina extensa sem alterar respostas externas. Qual critério define se a mudança é apenas refatoração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O código passa a usar uma biblioteca diferente, ainda que a saída mude.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de arquivos aumenta, independentemente dos resultados produzidos; essa mudança estrutural isolada define refatoração mesmo se os contratos externos forem alterados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os contratos e resultados observáveis permanecem, apesar da estrutura interna nova.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A implementação fica menor, mesmo que exceções sejam tratadas de outro modo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os testes antigos são removidos para que não restrinjam a organização nova.",
+          "correct": false
+        }
+      ],
+      "explanation": "O critério essencial é preservar o comportamento observável. Mudanças em saída, exceções expostas ou contrato introduzem alteração funcional e exigem validação correspondente.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra repetida foi extraída para módulo comum, que agora depende de detalhes específicos de dois domínios. Qual risco estrutural merece atenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O compartilhamento pode ter aumentado acoplamento e reduzido a independência das regras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A extração necessariamente aumenta cobertura de ramificações do programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A dependência entre módulos prova que ambos têm coesão elevada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A nova função elimina toda possibilidade de alteração funcional futura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um módulo comum impede que regras comerciais sejam testadas isoladamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma abstração compartilhada pode centralizar mudança, mas, se mistura conceitos que evoluem separadamente, cria dependência e compromete mudanças independentes. A decisão depende da semântica.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual fluxo combina corretamente análise estática e cobertura numa CI que publica o resultado no SonarQube?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar CPD para instrumentar o programa e gerar relatório de linhas percorridas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar somente Checkstyle e esperar que ele produza resultados de testes dinâmicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar código sem build e pedir ao quality gate que execute cada caso de teste, pois o gate compila o projeto e cria os relatórios dinâmicos sozinho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar testes e ferramenta de cobertura, gerar relatório e configurar o scanner para importá-lo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trocar o relatório por um perfil de regras, pois ambos representam cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ferramenta de cobertura coleta dados durante execução dos testes e gera relatório. O scanner é configurado para importar esse arquivo junto à análise enviada ao SonarQube.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programador reduz o nome de `dataDeVencimento` para `d` para cumprir uma regra local de brevidade, mas torna o código menos compreensível. Qual avaliação faz sentido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome é irrelevante se os testes alcançarem todas as linhas do método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome menor sempre melhora Clean Code porque reduz caracteres digitados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A análise estática comprova que `d` representa corretamente a data de vencimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O código ficou mais coeso porque todo identificador curto tem um propósito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A concisão prejudicou a expressividade; a regra deve ser avaliada pelo contexto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Clean Code procura tornar a intenção visível. Brevidade mecânica pode esconder significado; nomes devem equilibrar concisão e clareza para o contexto.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que se pode concluir de um quality gate reprovado por condição de cobertura em código novo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sistema não compila, pois cobertura e compilação são a mesma verificação; uma condição de cobertura reprovada prova necessariamente falha de compilação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A condição configurada não foi atendida; é preciso examinar o relatório e o escopo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todos os módulos antigos perderam seus testes durante a análise.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A análise estática encontrou necessariamente um bug de execução em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O scanner deve ter criado testes automaticamente, mas eles foram rejeitados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A reprovação indica descumprimento de uma condição de gate. Verifique métrica, código novo, dados importados e configuração; isso não determina sozinho compilação ou presença de bug.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função com várias decisões independentes precisa de mais caminhos de teste que uma função linear simples. Qual afirmação explica melhor a relação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cobertura de linhas substitui a análise de ramificações e de resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A complexidade de linhas mede quantos caminhos foram exercitados pelos testes e comprova que todos os resultados esperados foram validados em execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A complexidade ciclomática aumenta com caminhos de decisão e pode orientar casos de teste.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A duplicação calcula a quantidade de saídas booleanas de cada método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O acoplamento determina quantas condições devem ser verdadeiras numa função.",
+          "correct": false
+        }
+      ],
+      "explanation": "Decisões aumentam o número de caminhos independentes estimados pela complexidade ciclomática. A medida pode orientar a discussão de casos, mas não atesta que eles foram executados nem validados.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação é mais adequada quando uma regra automática produz um falso positivo contextual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar o caso, justificar eventual exceção e manter a regra útil no restante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar todos os analisadores para que nenhum alerta semelhante apareça.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar qualquer alerta futuro, pois ferramentas sempre interpretam mal o código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o requisito funcional para que o alerta desapareça sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar todo falso positivo como teste aprovado no relatório de cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Achados automatizados requerem triagem. Uma exceção pode ser apropriada se justificada e limitada; desligar todas as regras elimina sinais úteis e reduz a capacidade preventiva.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que testes relevantes são úteis ao fazer uma série de refatorações pequenas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impedem que uma equipe altere qualquer responsabilidade ou nome de método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantem matematicamente todos os comportamentos possíveis sem revisar requisitos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituem a análise estática e tornam métricas de desenho desnecessárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ajudam a detectar quando uma alteração estrutural mudou resultados observáveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Transformam mudanças de regra de negócio em mudanças apenas internas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes exercitam cenários e verificam resultados esperados, dando proteção contra regressões durante mudanças estruturais. Sua abrangência depende dos casos e não constitui prova matemática de todos os comportamentos.",
+      "section": "1. Código legível, expressivo e refatoração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização compara módulos com a mesma cobertura, mas um tem muitas decisões aninhadas e alta complexidade. Qual análise é razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cobertura semelhante não elimina diferença estrutural nem dispensa testes de caminhos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cobertura igual prova que os métodos têm complexidade e risco iguais, ainda que um contenha muitas decisões aninhadas e caminhos independentes adicionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Complexidade maior significa necessariamente execução mais lenta em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O módulo mais complexo tem obrigatoriamente duplicação textual maior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A qualidade é determinada pela métrica mais alta, sem análise de contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cobertura registra execução de elementos; complexidade estima caminhos. Duas medidas podem apontar aspectos distintos e devem ser interpretadas em conjunto, sem inferir desempenho ou defeitos automaticamente.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adota testes, análise estática, revisão e métricas em conjunto. Por que essa combinação é mais informativa que um único indicador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada prática revela evidências diferentes e também possui limites próprios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A combinação torna desnecessário conhecer requisitos e comportamento esperado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As práticas repetem exatamente o mesmo tipo de verificação sem complementaridade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A revisão manual garante que todo achado automatizado esteja errado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Métricas conjuntas provam a ausência de erros independentemente do escopo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes observam comportamentos escolhidos, análise estática procura padrões, revisão interpreta intenção e métricas resumem aspectos. Combiná-los amplia evidências, mas não elimina a necessidade de contexto.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina tem baixa coesão porque reúne tarefas sem finalidade relacionada. Qual efeito é mais plausível ao alterar uma dessas tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mudança pode afetar partes não relacionadas e dificultar teste e manutenção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A mudança reduz automaticamente a cobertura de ramificações do projeto sempre que uma rotina agrupa responsabilidades sem relação, mesmo sem alterar os testes executados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rotina passa a ter menor acoplamento por conter várias responsabilidades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A complexidade ciclomática necessariamente cai quando a coesão diminui.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A análise estática deixa de examinar o arquivo por haver tarefas diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Responsabilidades dispersas tornam menos claro o impacto de mudanças e podem dificultar testes focados. A relação é de desenho e manutenção; não determina automaticamente outras métricas.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o papel de uma issue encontrada por analisador estático é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um achado a revisar, que pode apontar risco real ou exigir decisão contextual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É prova conclusiva de que o programa falhará em produção em qualquer uso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É equivalente a um teste que executou todos os caminhos do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É resultado que deve sempre ser apagado antes da revisão por pares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É certificado de qualidade quando não há nenhuma issue registrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Analisadores encontram padrões segundo regras e modelos; podem gerar falsos positivos e também deixar problemas passar. O achado informa a triagem, mas não substitui julgamento técnico.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante revisão, uma classe conhece implementações concretas e detalhes internos de muitos serviços. Que direção de melhoria pode reduzir acoplamento sem remover colaboração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir contratos adequados e reduzir o conhecimento de detalhes concretos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eliminar toda comunicação entre os módulos, inclusive a necessária ao sistema, é a única forma válida de reduzir acoplamento em qualquer arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover todos os serviços para a classe para que deixem de ser dependências.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de chamadas diretas para tornar o fluxo mais explícito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar nomes de classes mantendo inalteradas todas as dependências internas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contratos apropriados podem permitir colaboração sem expor detalhes de implementação. O objetivo é limitar conhecimento desnecessário, não eliminar comunicação funcional.",
+      "section": "4. Coesão, acoplamento e qualidade na prática",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um perfil de qualidade define regras para analisar um projeto. Qual afirmação sobre esse perfil é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele seleciona/configura regras; o resultado depende também do código e da análise executada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele é o relatório de cobertura que contém os testes executados no build e registra, sem depender do código ou de configurações, todos os comportamentos do projeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele substitui o código-fonte por um conjunto de métricas sem analisar arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele garante a mesma política para qualquer projeto sem opção de configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele determina a complexidade real de negócio sem consultar a implementação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Perfil de qualidade reúne regras e parâmetros usados na análise. Não é relatório de execução nem prova automática; as issues dependem do código analisado e das regras selecionadas.",
+      "section": "2. Análise estática e ferramentas de inspeção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação distingue duplicação detectada de duplicação semântica relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trechos duplicados não podem ser detectados em análise estática de código.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Toda similaridade representa a mesma regra e exige um método único compartilhado, mesmo quando as políticas do domínio evoluem de forma independente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duplicação só existe quando duas funções têm exatamente o mesmo nome.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A métrica determina sozinha quais conceitos do domínio são equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ferramenta identifica similaridade por critérios técnicos; a relevância depende do domínio.",
+          "correct": true
+        }
+      ],
+      "explanation": "CPD e analisadores procuram blocos semelhantes por critérios de tokens, instruções ou linhas. A equivalência de intenção e a decisão de abstrair exigem conhecimento do domínio.",
+      "section": "3. Métricas: cobertura, duplicação e complexidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — Understanding measures and metrics",
+      "publisher": "SonarSource",
+      "reference": "Definições de cobertura, ramificações, duplicação e complexidade ciclomática",
+      "url": "https://docs.sonarsource.com/sonarqube-server/user-guide/code-metrics/metrics-definition",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — Test coverage overview",
+      "publisher": "SonarSource",
+      "reference": "Fluxo para gerar relatório de cobertura e importá-lo pelo SonarScanner",
+      "url": "https://docs.sonarsource.com/sonarqube-server/analyzing-source-code/test-coverage/overview",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PMD — Documentation Index",
+      "publisher": "PMD",
+      "reference": "Analisador estático, regras, linguagens e detector de duplicação CPD",
+      "url": "https://pmd.github.io/pmd/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SpotBugs",
+      "publisher": "SpotBugs Project",
+      "reference": "Análise estática Java, relação de fork com FindBugs e padrões de bug",
+      "url": "https://spotbugs.github.io/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Checkstyle Checks",
+      "publisher": "Checkstyle Project",
+      "reference": "Verificações padronizadas de estilo e convenções para Java",
+      "url": "https://checkstyle.org/checks/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "JaCoCo — Coverage Counters",
+      "publisher": "JaCoCo Project",
+      "reference": "Cobertura de instruções, ramificações, linhas e complexidade ciclomática",
+      "url": "https://www.jacoco.org/jacoco/trunk/doc/counters.html",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

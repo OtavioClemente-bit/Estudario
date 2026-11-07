@@ -1,0 +1,1785 @@
+{
+  "id": "informatica.indices-bitmap-complexidade-algoritmos",
+  "subject": "Informática",
+  "title": "Índices bitmap e complexidade de algoritmos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Índices bitmap. Complexidade de algoritmos.",
+    "Índices de bitmap em bancos de dados",
+    "Índice bitmap e mapa de bits",
+    "Bitmap index em banco de dados",
+    "Índices bitmap em data warehouse",
+    "Complexidade de algoritmos e análise assintótica",
+    "Análise de tempo e espaço de algoritmos",
+    "Notação Big O, Omega e Theta",
+    "Ordem de crescimento de algoritmos",
+    "Custo assintótico de algoritmos",
+    "Complexidade de tempo e memória",
+    "Índice bitmap e complexidade computacional"
+  ],
+  "scope": {
+    "covers": "Estrutura e funcionamento dos índices bitmap em bancos de dados; cardinalidade, seleção, combinações lógicas, usos em data warehouse, limitações em cargas de escrita e comparação com B-tree; análise de algoritmos por tamanho da entrada; complexidades de tempo e espaço; casos melhor, médio e pior; ordens de crescimento, regras de análise de laços e recursão; notações O, Ω e Θ.",
+    "excludes": "Sintaxe proprietária completa de criação de índices, administração física de SGBD, provas formais avançadas de recorrências, análise amortizada e classes de complexidade computacional como P e NP."
+  },
+  "theoryTitle": "Índices bitmap e análise de custo de algoritmos",
+  "chapters": [
+    {
+      "title": "1. Índices bitmap: representação e consulta",
+      "markdown": "### O problema que este assunto resolve\n\nUma consulta analítica pode filtrar uma tabela grande por várias condições ao mesmo tempo, como região, canal de venda e situação do pedido. Um índice bitmap representa, para cada valor indexado, quais linhas da tabela têm aquele valor. O SGBD combina esses mapas com operações de bits antes de buscar as linhas correspondentes.\n\n> **Siglas e termos deste capítulo**\n> - **Bitmap (mapa de bits)**: sequência de zeros e uns que marca a presença de uma condição em cada posição correspondente a uma linha.\n> - **ROWID**: identificador/endereço lógico usado pelo Oracle para localizar uma linha.\n> - **Cardinalidade**: quantidade de valores distintos de uma coluna.\n> - **Seletividade**: proporção de linhas que satisfaz uma condição.\n> - **Predicado**: condição usada para filtrar linhas, geralmente no `WHERE`.\n\n### Como o mapa representa linhas\n\nConsidere cinco linhas de uma tabela de vendas, na ordem de seus identificadores. Se a coluna `canal` contém `loja`, `web`, `loja`, `telefone`, `web`, o mapa do valor `web` pode ser lido como `01001`: há um bit marcado para a segunda e a quinta linhas. Cada chave do índice possui seu bitmap, que referencia várias linhas; não é uma entrada isolada por linha como a representação conceitual típica de um B-tree. A implementação real pode comprimir os mapas e agrupá-los em faixas de ROWIDs.\n\nO bitmap não armazena necessariamente uma cópia integral da linha. Ele ajuda a localizar quais posições satisfazem um valor. O mecanismo do banco usa o mapa e os ROWIDs para acessar os registros necessários.\n\n### Combinação de filtros\n\nSe `B_web` marca as linhas do canal web e `B_aberto` marca os pedidos abertos, então `B_web AND B_aberto` marca as linhas que satisfazem as duas condições. `OR` reúne as que satisfazem uma ou outra; `NOT` inverte a marcação segundo a semântica do índice. Essa combinação é útil quando consultas variam quais dimensões filtram os dados: o banco pode combinar índices separados sem manter previamente um índice composto para cada combinação de colunas.\n\n| Operação | Leitura dos bits | Uso típico |\n| --- | --- | --- |\n| `AND` | Bit 1 se ambas as condições têm bit 1 | Exigir todos os filtros |\n| `OR` | Bit 1 se ao menos uma condição tem bit 1 | Aceitar alternativas |\n| `NOT` | Inverter a condição representada | Excluir um conjunto |\n\n### Como cai na prova\n\n- Cada chave está associada a um mapa de ocorrências; cada bit representa uma posição/linha, não um valor numérico da coluna.\n- A vantagem em filtros combinados vem da combinação lógica dos mapas.\n- Não confunda a representação bitmap com uma tabela de linhas duplicada dentro do índice."
+    },
+    {
+      "title": "2. Quando bitmap é adequado e seus limites",
+      "markdown": "### O problema que este assunto resolve\n\nEscolher um índice depende do formato dos dados e do tipo de carga. Índices bitmap costumam ser bons em tabelas consultadas intensamente, com poucas alterações concorrentes e colunas de baixa ou média cardinalidade. Um B-tree costuma ser a escolha mais natural para valores muito distintos e alterações frequentes. Não é uma regra automática: o otimizador considera estatísticas, filtros, volume retornado e outros caminhos de acesso.\n\n> **Siglas e termos deste capítulo**\n> - **NDV**: número de valores distintos (*number of distinct values*).\n> - **Data warehouse**: ambiente voltado a análise e consulta de dados consolidados.\n> - **OLTP**: processamento transacional online, com muitas operações pequenas e concorrentes de leitura e escrita.\n> - **DML**: comandos que inserem, atualizam ou removem dados.\n> - **Índice B-tree**: estrutura de busca em árvore balanceada, comum em colunas de alta cardinalidade e consultas seletivas.\n\n### Cardinalidade e padrão de uso\n\nUma coluna `sexo` com poucos valores possíveis tende a ter baixa cardinalidade; um identificador de cliente único tende a ter cardinalidade alta. Em uma tabela de fatos com milhões de vendas, colunas como estado, categoria ou situação podem oferecer bons candidatos bitmap, principalmente se aparecem juntas em filtros analíticos. Índices bitmap também podem ser usados em cardinalidades maiores em situações específicas; cardinalidade não é um limiar universal que sozinho decide a escolha.\n\nA documentação do Oracle aponta o uso em data warehouse e dados pouco modificados, e descreve as vantagens para colunas com poucos valores distintos. Também alerta para ambientes OLTP com muitas transações concorrentes que modificam os dados: o bitmap pode exigir bloqueio numa faixa/chave que afeta diversas linhas, aumentando contenção.\n\n| Cenário | Tendência de escolha | Motivo\n| --- | --- | --- |\n| Consulta analítica combina filtros de várias dimensões pouco alteradas | Bitmap pode ser adequado | Mapas podem ser combinados com operações lógicas |\n| Muitas atualizações concorrentes em linhas individuais | B-tree costuma ser mais adequado | Reduz problemas de contenção associados ao bitmap |\n| Busca seletiva por identificador quase único | B-tree costuma ser mais adequado | Alta cardinalidade e localização pontual |\n| Consulta retorna grande parte da tabela | O otimizador pode preferir varredura completa | A leitura do índice e das linhas pode custar mais |\n\n### Índice não garante plano mais rápido\n\nO índice acrescenta custo de armazenamento e manutenção. Para uma consulta que retorna grande fração da tabela, percorrer o índice e depois buscar muitas linhas pode ser pior do que ler a tabela sequencialmente. O otimizador escolhe entre índice, varredura da tabela e outros caminhos, com base em estatísticas e custo estimado.\n\n### Como cai na prova\n\n- Baixa cardinalidade e leitura analítica frequente favorecem considerar bitmap; não provam que ele será sempre escolhido.\n- Carga OLTP com muitas alterações simultâneas é um alerta de contenção.\n- A coluna de nome ou telefone, com muitos valores distintos, costuma favorecer B-tree; não confunda com coluna categórica de poucos valores."
+    },
+    {
+      "title": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "markdown": "### O problema que este assunto resolve\n\nMedir um algoritmo em segundos numa máquina específica dificulta comparar soluções: processadores, linguagens, compiladores e dados mudam o tempo observado. A análise assintótica descreve como o custo cresce quando o tamanho da entrada aumenta, abstraindo constantes e termos de ordem menor.\n\n> **Siglas e termos deste capítulo**\n> - **n**: parâmetro que representa o tamanho da entrada; deve ser definido conforme o problema.\n> - **T(n)**: quantidade de operações ou tempo estimado para entrada de tamanho n.\n> - **O(g(n))**: limite superior assintótico, a menos de constantes, para entradas suficientemente grandes.\n> - **Ω(g(n))**: limite inferior assintótico.\n> - **Θ(g(n))**: limite superior e inferior da mesma ordem.\n\n### Escolher o parâmetro e contar operações\n\nPara uma lista, n pode ser o número de elementos; para um grafo, podem ser necessários dois parâmetros, como vértices V e arestas E. Uma busca linear pode examinar até n elementos. Um algoritmo que compara cada par de elementos pode fazer um número proporcional a n² de comparações. A análise conta operações relevantes por uma regra consistente, e não o tempo de cada linha de código em qualquer processador.\n\nExemplo: `T(n) = 3n² + 5n + 7`. Para valores grandes de n, o termo quadrático domina. Descartando fatores constantes e termos menores, a ordem é Θ(n²). Isso não significa que o tempo real seja exatamente n² segundos.\n\n### Ordens comuns de crescimento\n\n| Ordem | Nome informal | Exemplo típico\n| --- | --- | --- |\n| Θ(1) | Constante | Acessar posição de vetor por índice\n| Θ(log n) | Logarítmica | Busca binária em vetor ordenado\n| Θ(n) | Linear | Examinar cada elemento uma vez\n| Θ(n log n) | Linearítmica | Merge sort em entradas gerais\n| Θ(n²) | Quadrática | Dois laços que percorrem pares\n| Θ(2ⁿ) | Exponencial | Enumerar subconjuntos em abordagem direta\n\nA ordem de crescimento permite comparar tendências, não declarar desempenho absoluto. Para entradas pequenas, custos fixos e detalhes de implementação podem alterar quem é mais rápido.\n\n### Como cai na prova\n\n- Declare o que n mede antes de analisar.\n- Em somas de termos positivos, domina o termo que cresce mais rapidamente.\n- `O(n²)` diz respeito a crescimento assintótico; não quer dizer que a execução leve n² segundos nem que seja sempre pior em qualquer entrada pequena."
+    },
+    {
+      "title": "4. Casos, espaço e análise de estruturas de controle",
+      "markdown": "### O problema que este assunto resolve\n\nA mesma rotina pode fazer quantidades diferentes de trabalho conforme a disposição dos dados. Também pode gastar pouca memória extra e muito tempo, ou o inverso. Por isso se distinguem os casos de entrada e se analisam separadamente tempo e espaço.\n\n> **Siglas e termos deste capítulo**\n> - **Melhor caso**: menor custo entre entradas de tamanho n.\n> - **Pior caso**: maior custo entre entradas de tamanho n.\n> - **Caso médio**: custo esperado segundo uma distribuição de entradas explicitada.\n> - **Complexidade espacial**: memória usada, frequentemente contando o espaço auxiliar.\n> - **Recorrência**: equação que descreve custo recursivo a partir de subproblemas menores.\n\n### Casos de execução\n\nNa busca linear, se o alvo estiver na primeira posição, o melhor caso usa número constante de comparações. Se estiver na última posição ou ausente, o pior caso examina n elementos, logo Θ(n). O caso médio depende de hipóteses sobre a posição do alvo e sobre sua probabilidade; não se obtém simplesmente por escolher um ponto intermediário sem justificar a distribuição.\n\nBig-O é uma notação de limite superior, não sinônimo de pior caso. Pode-se dar o limite O(n) para o pior caso da busca, mas também se pode descrever um limite superior de outra função para um caso ou algoritmo. “Pior caso” classifica entradas; “O” classifica o crescimento de uma função.\n\n### Laços e chamadas recursivas\n\nUm laço que executa n iterações com trabalho constante por iteração custa Θ(n). Dois laços aninhados, cada qual com n iterações, custam Θ(n²) quando o corpo é constante. Dois laços consecutivos custam Θ(n)+Θ(n), que é Θ(n), não Θ(n²). Se a cada passo a entrada é dividida por dois até chegar a um elemento, há cerca de log₂n níveis.\n\nPara recursão, identifique o número de subproblemas, o tamanho de cada um e o trabalho fora das chamadas. Por exemplo, busca binária faz uma chamada sobre metade da faixa e trabalho constante por nível, resultando em Θ(log n). Merge sort divide em duas metades e combina em trabalho linear por nível; são Θ(log n) níveis com Θ(n) trabalho em cada, total Θ(n log n).\n\n### Tempo não é espaço\n\nA busca binária iterativa usa tempo Θ(log n) e espaço auxiliar Θ(1); sua versão recursiva costuma usar pilha Θ(log n). Um algoritmo que cria uma cópia proporcional à entrada pode usar Θ(n) espaço adicional, mesmo que sua memória de entrada não seja contada como espaço auxiliar.\n\n### Como cai na prova\n\n- Laços consecutivos somam custos; laços aninhados multiplicam quantidades de iteração.\n- Caso médio depende de modelo probabilístico; não é automaticamente a média aritmética de melhor e pior caso.\n- Informe se a memória da própria entrada está incluída ou se a análise mede apenas espaço auxiliar."
+    }
+  ],
+  "summary": "Índices bitmap guardam, para cada chave, mapas de bits associados a posições/ROWIDs das linhas. Operações AND, OR e NOT ajudam a combinar filtros analíticos. São candidatos em data warehouses com colunas de baixa ou média cardinalidade e poucas alterações concorrentes; podem sofrer contenção em cargas OLTP com DML simultânea. B-trees tendem a servir melhor valores muito distintos e buscas seletivas, mas a escolha final depende do otimizador e das estatísticas. Complexidade analisa como tempo ou espaço cresce com o tamanho da entrada. O(n) é limite superior assintótico, Ω(n) inferior e Θ(n) limita ambos pela mesma ordem; O não significa automaticamente pior caso. Laços consecutivos somam, aninhados podem multiplicar; melhor, médio e pior caso descrevem entradas, enquanto espaço mede memória. Ordens usuais incluem constante, logarítmica, linear, n log n, quadrática e exponencial.",
+  "flashcards": [
+    {
+      "front": "O que representa cada bit de um índice bitmap?",
+      "back": "A ocorrência ou ausência do valor associado à chave na posição correspondente a uma linha/ROWID."
+    },
+    {
+      "front": "Como AND combina dois bitmaps?",
+      "back": "Marca as linhas que satisfazem simultaneamente as duas condições."
+    },
+    {
+      "front": "Para que serve OR entre bitmaps?",
+      "back": "Reúne linhas que satisfazem pelo menos uma das condições representadas."
+    },
+    {
+      "front": "O que significa cardinalidade de coluna?",
+      "back": "A quantidade de valores distintos que a coluna assume."
+    },
+    {
+      "front": "Qual tipo de carga costuma favorecer índices bitmap?",
+      "back": "Consultas analíticas em tabelas pouco alteradas, com filtros combinados e colunas de poucos valores distintos."
+    },
+    {
+      "front": "Qual risco existe para bitmap em OLTP concorrente?",
+      "back": "Atualizações podem gerar contenção porque a unidade de bloqueio pode envolver chave/faixa que corresponde a várias linhas."
+    },
+    {
+      "front": "Quando B-tree costuma ser considerado?",
+      "back": "Em colunas de alta cardinalidade, buscas seletivas e cargas com alterações frequentes."
+    },
+    {
+      "front": "Um índice é sempre mais rápido que varredura completa?",
+      "back": "Não. Se a consulta retorna muitas linhas, ler a tabela sequencialmente pode custar menos."
+    },
+    {
+      "front": "O que n representa em T(n)?",
+      "back": "O parâmetro escolhido para representar o tamanho da entrada."
+    },
+    {
+      "front": "O que expressa O(g(n))?",
+      "back": "Um limite superior assintótico, ignorando constantes, para entradas suficientemente grandes."
+    },
+    {
+      "front": "O que expressa Ω(g(n))?",
+      "back": "Um limite inferior assintótico."
+    },
+    {
+      "front": "Quando se usa Θ(g(n))?",
+      "back": "Quando a função tem limites superior e inferior da ordem g(n)."
+    },
+    {
+      "front": "O que domina em 4n² + 9n + 2?",
+      "back": "O termo quadrático; a ordem assintótica é Θ(n²)."
+    },
+    {
+      "front": "Qual é a ordem de uma busca linear no pior caso?",
+      "back": "Θ(n), pois pode examinar todos os n elementos."
+    },
+    {
+      "front": "Qual é a ordem de uma busca binária em vetor ordenado?",
+      "back": "Θ(log n), pois descarta aproximadamente metade da faixa por etapa."
+    },
+    {
+      "front": "Qual custo tem dois laços consecutivos de n passos?",
+      "back": "Θ(n)+Θ(n), que simplifica para Θ(n)."
+    },
+    {
+      "front": "Qual custo pode ter dois laços aninhados de n passos?",
+      "back": "Θ(n²), se o corpo interno executa n vezes para cada iteração externa."
+    },
+    {
+      "front": "Pior caso e Big-O são sinônimos?",
+      "back": "Não. Pior caso descreve a entrada mais custosa; Big-O é uma notação de limite superior."
+    },
+    {
+      "front": "Do que depende o caso médio?",
+      "back": "Da distribuição de probabilidade assumida para as entradas."
+    },
+    {
+      "front": "O que mede complexidade espacial auxiliar?",
+      "back": "A memória adicional usada pelo algoritmo, segundo a convenção explicitada."
+    }
+  ],
+  "tips": [
+    "Desenhe uma pequena sequência de bits e associe cada posição à mesma linha em todos os mapas.",
+    "Ao comparar bitmap e B-tree, considere juntos cardinalidade, padrão de leitura e frequência de atualização.",
+    "Antes de contar operações, escreva o que n representa; grafos e matrizes podem exigir mais de um parâmetro.",
+    "Em polinômios, retenha o termo dominante e retire fatores constantes para identificar a classe assintótica.",
+    "Desenhe laços consecutivos e aninhados separadamente: soma e produto não são a mesma análise.",
+    "Registre se a pergunta pede tempo, memória total ou espaço auxiliar, e qual caso de entrada está sendo medido."
+  ],
+  "traps": [
+    "Achar que um índice bitmap sempre ocupa menos espaço ou vence qualquer índice B-tree.",
+    "Tratar baixa cardinalidade como condição suficiente para o otimizador escolher bitmap sem avaliar a consulta.",
+    "Afirmar que Big-O descreve necessariamente o pior caso; são conceitos diferentes.",
+    "Somar as iterações de laços aninhados como se fossem consecutivos, ou multiplicar laços consecutivos.",
+    "Chamar caso médio de média entre melhor e pior sem especificar distribuição das entradas.",
+    "Confundir complexidade de tempo com espaço e ignorar a pilha de chamadas recursivas."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como uma chave de bitmap identifica várias linhas?",
+      "answer": "Por um mapa em que cada posição marcada corresponde a uma linha/ROWID associada àquela chave."
+    },
+    {
+      "question": "Como AND entre mapas acelera filtros dimensionais?",
+      "answer": "Produz diretamente o conjunto de linhas que atende a ambos os predicados, antes de buscar as linhas da tabela."
+    },
+    {
+      "question": "Por que atualização concorrente é um problema para bitmap?",
+      "answer": "A granularidade de bloqueio da chave bitmap pode envolver várias linhas, elevando a contenção em cargas de escrita concorrentes."
+    },
+    {
+      "question": "Por que o otimizador pode ignorar um índice disponível?",
+      "answer": "As estatísticas e a seletividade podem indicar que outro caminho, como varredura da tabela, tem custo menor."
+    },
+    {
+      "question": "Como simplificar 8n³ + 20n + 100?",
+      "answer": "O termo cúbico domina; a ordem é Θ(n³)."
+    },
+    {
+      "question": "Que informação falta para calcular caso médio?",
+      "answer": "Uma distribuição ou modelo probabilístico para as entradas consideradas."
+    },
+    {
+      "question": "Como analisar um laço que reduz n pela metade a cada repetição?",
+      "answer": "Há aproximadamente log₂n repetições, portanto Θ(log n), se o trabalho por repetição for constante."
+    },
+    {
+      "question": "Por que uma rotina recursiva pode usar mais espaço que sua versão iterativa?",
+      "answer": "As chamadas pendentes ocupam a pilha; busca binária recursiva pode usar Θ(log n) quadros."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Bitmap tratado como índice universal",
+      "summary": "Bitmap tende a favorecer consultas analíticas, colunas de baixa ou média cardinalidade e pouca escrita concorrente; alta cardinalidade e DML frequente podem favorecer B-tree. O otimizador considera o custo real."
+    },
+    {
+      "key": "e2",
+      "title": "Bits e condições lógicas confundidos",
+      "summary": "Cada bit marca a posição de uma linha para a chave associada. AND exige ambas as condições, OR aceita uma delas e NOT inverte a condição representada."
+    },
+    {
+      "key": "e3",
+      "title": "Notações assintóticas misturadas",
+      "summary": "O é limite superior, Ω inferior e Θ limites coincidentes. Big-O não é sinônimo de pior caso, e constantes ou termos inferiores não definem a ordem dominante."
+    },
+    {
+      "key": "e4",
+      "title": "Casos e recursos não distinguidos",
+      "summary": "Melhor, médio e pior classificam entradas; o caso médio exige uma distribuição. Tempo e espaço são medidas diferentes, e chamadas recursivas podem consumir pilha."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe compara busca binária e busca linear em um vetor ordenado com n posições. Qual característica permite à busca binária reduzir a faixa pela metade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela examina cada posição até encontrar o valor procurado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela mantém a faixa ordenada e compara com a posição central.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela cria uma cópia completa antes de qualquer comparação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela aplica uma operação AND aos valores adjacentes do vetor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela percorre os elementos em ordem aleatória até achar o alvo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A busca binária depende da ordenação: a comparação com o elemento central permite descartar uma das metades da faixa. A busca linear pode examinar posições sequencialmente, sem essa redução logarítmica.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bitmap em banco de dados guarda uma lista completa e ordenada de todos os valores das linhas, em vez de indicar quais posições correspondem a cada chave.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A estrutura associa um bitmap a cada chave, com bits que indicam as posições das linhas que possuem aquele valor. Não é simplesmente uma lista ordenada dos valores completos da tabela.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de eventos tem coluna status com quatro valores comuns e um bitmap de prioridade. A consulta exige status aberto e prioridade alta. Qual operação combina os mapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "AND, para manter as posições que satisfazem os dois filtros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "OR, para exigir que ambos os atributos coincidam.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NOT, para reunir os eventos marcados em cada mapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Soma, para ordenar os eventos pela prioridade registrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JOIN, para transformar os bits em valores distintos.",
+          "correct": false
+        }
+      ],
+      "explanation": "AND produz a interseção das posições marcadas e corresponde à exigência simultânea dos dois predicados. OR aceita uma condição ou outra; NOT nega uma condição, e soma não é a operação de filtragem descrita.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tabela grande, um atributo possui poucos milhares de valores distintos e aparece em filtros analíticos combinados. Qual conclusão é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O índice deve ser removido, pois milhares de valores tornam a coluna única.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O otimizador sempre usará bitmap, independentemente das estatísticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bitmap é candidato a avaliar, sem dispensar análise de plano e carga.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de valores distintos não afeta a cardinalidade da coluna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "B-tree é impossível quando a consulta filtra mais de uma coluna.",
+          "correct": false
+        }
+      ],
+      "explanation": "A relação entre distintos e linhas pode indicar cardinalidade relativamente baixa, e filtros combinados são um uso bitmap possível. Estatísticas, seletividade, DML e plano efetivo ainda determinam se o índice compensa.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma consulta devolve a maior parte das linhas, percorrer um índice e depois buscar os registros pode custar mais do que ler a tabela em sequência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se muitas linhas serão retornadas, o acesso indireto pode causar muitas buscas adicionais. Com base em estatísticas e custos, o otimizador pode preferir uma varredura completa.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina visita todos os n elementos uma vez e realiza trabalho constante por visita. Qual ordem descreve seu tempo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(1), pois o custo por visita independe de n.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Θ(log n), pois os elementos são visitados em sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Θ(n), pois há n visitas de custo constante.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Θ(n²), pois cada item aparece uma vez no laço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Θ(2ⁿ), pois uma visita pode conter uma condição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Há n visitas e cada uma custa uma quantidade constante de operações, totalizando Θ(n). Θ(n²) exigiria, por exemplo, percorrer n itens em cada uma de n repetições.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a entrada diminui por um fator constante maior que um a cada etapa, até chegar ao tamanho unitário, quantas etapas são necessárias em função de n?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(n²), pois cada etapa processa uma fração da entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Θ(log n), pois o tamanho decresce geometricamente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Θ(n), pois o tamanho inicial é n elementos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Θ(2ⁿ), pois cada divisão duplica o número de etapas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Θ(1), pois cada etapa usa trabalho constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dividir repetidamente por uma constante exige um número de etapas proporcional ao logaritmo de n. O trabalho constante por etapa não torna constante o total de etapas.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo cria uma cópia auxiliar com um elemento para cada elemento da entrada. Qual ordem descreve esse espaço adicional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(1), pois cada elemento da cópia tem tamanho constante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Θ(log n), pois a cópia cresce em níveis sucessivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Θ(n), pois a quantidade de posições cresce com a entrada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Θ(n²), pois a entrada e a cópia têm o mesmo comprimento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Θ(2ⁿ), pois cada elemento pode conter dois valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cópia contém n posições e, assumindo armazenamento constante por posição, ocupa espaço auxiliar Θ(n). O espaço da entrada original é uma convenção separada e não muda o tamanho dessa cópia.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina com dois laços aninhados de n iterações executa necessariamente Θ(n) operações porque o corpo de cada laço é constante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O laço interno executa n vezes para cada uma das n iterações externas, gerando n² operações quando o corpo é constante; a ordem é Θ(n²).",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela analítica tem milhões de vendas e a coluna canal assume loja, web ou telefone. Como interpretar o bitmap associado a web?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada bit marca se a linha correspondente tem canal web.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada bit armazena o texto integral da linha de venda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada bit representa um novo valor possível para canal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada bit indica se a tabela inteira está bloqueada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada bit registra a quantidade de consultas feitas à coluna.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bitmap de uma chave marca as posições das linhas que possuem aquele valor; o acesso às linhas pode então usar seus identificadores. Ele não guarda texto completo, valores novos, bloqueios da tabela ou contagem de consultas.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se dois mapas representam pedidos web e pedidos abertos, a operação AND seleciona as linhas que satisfazem ambos os predicados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A operação bit a bit AND deixa marcado somente o conjunto de posições em que os dois mapas têm marca, isto é, as linhas que satisfazem simultaneamente as condições representadas.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta aceita pedidos pagos ou pedidos enviados. Qual operação entre bitmaps corresponde à união desses conjuntos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AND, pois mantém apenas posições marcadas nos dois mapas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OR, pois marca posições presentes em qualquer mapa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "NOT, pois troca a condição de pagamento pela de envio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "XOR, pois preserva somente linhas marcadas nos dois mapas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JOIN, pois ordena bits antes de verificar cada condição.",
+          "correct": false
+        }
+      ],
+      "explanation": "OR forma a união: uma posição fica marcada se pelo menos uma das condições a marca. AND seria interseção; NOT nega uma condição, e XOR não corresponde à união geral.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um bitmap, uma posição marcada para certa chave corresponde a uma linha que contém aquele valor indexado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A posição do bit se mapeia para a linha correspondente, frequentemente identificada por ROWID. O mapa indica presença do valor associado à chave naquela linha.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe filtra uma tabela por três dimensões, mas as combinações usadas variam conforme a pergunta do analista. Qual recurso explica a utilidade de mapas separados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eles evitam a necessidade de manter qualquer estatística do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eles substituem a tabela de fatos por cópias completas das linhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eles podem ser combinados logicamente sem indexar cada combinação antes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Eles convertem todos os predicados em buscas por faixa ordenada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eles garantem que o plano de execução use somente índices bitmap.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices separados podem ser combinados por AND, OR ou outras operações lógicas, o que atende filtros analíticos que variam de combinação. Isso não elimina estatísticas, não duplica as linhas e não obriga o otimizador a usar bitmap.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No bitmap index, os bits representam o valor numérico armazenado na coluna em forma binária, e não as linhas que possuem a chave.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O mapa representa ocorrências da chave nas linhas, com posições que se relacionam a ROWIDs; não é a codificação binária do valor da coluna.",
+      "section": "1. Índices bitmap: representação e consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna tem três estados possíveis, embora uma tabela possua milhões de linhas. Qual característica pode torná-la candidata a bitmap em consultas analíticas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alta cardinalidade, pois quase toda linha tem um valor exclusivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Baixa cardinalidade, pois há poucos valores distintos entre as linhas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ausência de consultas, pois índices servem apenas para cargas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atualização por transação, pois bitmap dispensa manutenção de índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Valores sem repetição, pois cada mapa serve uma só linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Poucos valores distintos em muitas linhas caracterizam baixa cardinalidade, situação em que bitmaps podem ser compactos e úteis em consultas analíticas. O índice ainda precisa ser mantido quando dados mudam e não é destinado a valores exclusivos em geral.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A coluna região, atualizada raramente e usada junto com outras dimensões em filtros de um data warehouse, é um cenário em que vale avaliar um índice bitmap.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Consultas analíticas que combinam filtros em colunas com poucos ou moderados valores e pouca alteração são um uso típico a avaliar. A escolha final ainda depende do plano e das estatísticas.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema OLTP recebe atualizações concorrentes frequentes em linhas individuais. Qual preocupação pesa contra índices bitmap?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O mapa impede qualquer consulta de igualdade sobre a coluna.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A chave pode envolver várias linhas e aumentar contenção nas escritas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A operação AND deixa de funcionar após a primeira atualização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O índice transforma automaticamente cada atualização em varredura total.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mapa só consegue representar tabelas com uma única linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em implementações bitmap, o bloqueio associado à chave pode abranger mais do que uma linha individual. Muitas transações concorrentes de escrita podem então disputar a mesma área, razão pela qual bitmap não costuma ser indicado para OLTP intensivo.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna com identificadores quase todos distintos e alterações frequentes costuma ser um caso em que B-tree merece ser avaliado antes de bitmap.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Alta cardinalidade e DML frequente são características associadas ao uso comum de B-tree. A avaliação depende do sistema e da consulta, mas bitmap não é a escolha típica automática nesse cenário.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta devolve quase todas as linhas de uma tabela. Por que o otimizador pode preferir uma varredura completa, mesmo existindo índice?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque um índice existente fica inválido sempre que retorna muitas linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque ler o índice e buscar cada linha pode custar mais que ler a tabela.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque índices são usados apenas para modificar registros no banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a varredura completa elimina a necessidade de filtros SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque estatísticas não participam da escolha do caminho de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando grande parte das linhas será lida, o acesso indireto pelo índice pode causar muitas buscas adicionais. O custo estimado pode favorecer ler a tabela em sequência; a existência do índice não obriga seu uso.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Baixa cardinalidade garante que qualquer SGBD escolherá um índice bitmap para toda consulta que use aquela coluna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cardinalidade é apenas um fator. Seletividade, estatísticas, volume retornado, concorrência e outros caminhos influenciam o custo; o otimizador pode escolher outra estratégia ou uma varredura da tabela.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe busca principalmente salário menor que certo valor e a coluna possui muitos valores distintos. Qual avaliação é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bitmap é obrigatório porque qualquer comparação de faixa exige bits.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "B-tree pode ser mais apropriado para alta cardinalidade e busca por faixa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Nenhum índice pode ser usado quando a condição contém menor que.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um bitmap separado para cada salário é sempre menor que B-tree.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cardinalidade deixa de importar quando a consulta ordena salários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Colunas com muitos valores distintos e predicados de faixa são usos comuns de B-tree. Bitmap é especialmente atraente em igualdade e combinação de condições de colunas com poucos ou moderados valores, embora o plano real dependa do SGBD.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Criar um índice acrescenta custo de armazenamento e de manutenção quando os dados são alterados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O índice ocupa espaço e precisa refletir alterações relevantes na tabela. Por isso, mesmo índices que ajudam consultas têm custo em inserções, atualizações, exclusões e armazenamento.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em análise assintótica, uma medição de tempo em segundos numa única máquina é substituída principalmente por quê?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelo crescimento do custo em função do tamanho da entrada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pela marca do processador, tomada como variável de entrada principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pelo espaço em disco ocupado pelo código-fonte do algoritmo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pelo total de usuários que escreveram a implementação original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pelo número fixo de instruções em qualquer execução possível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A análise assintótica descreve como o custo cresce à medida que aumenta o tamanho da entrada, abstraindo detalhes específicos de máquina e constantes para comparar tendências.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para analisar uma lista de registros, n pode representar o número de elementos, desde que essa escolha seja explicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A análise precisa relacionar custo a um parâmetro de entrada definido. Para uma lista, o número de elementos é uma escolha usual; para outros problemas pode haver outros parâmetros relevantes.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a ordem assintótica de T(n) = 3n² + 5n + 7?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(1), pois os três coeficientes são constantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Θ(log n), porque n aparece dentro da expressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Θ(n), pois o termo linear decide o crescimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Θ(n²), pois o termo quadrático domina para n grande.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Θ(2ⁿ), pois a função contém mais de um termo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando n cresce, n² domina n e a constante. Fatores constantes e termos de ordem inferior são ignorados na classificação assintótica, então a ordem é quadrática.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A notação O(n) significa que o algoritmo sempre executa em exatamente n segundos para toda máquina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O(n) classifica um limite superior assintótico de crescimento em relação ao tamanho da entrada; não é tempo em segundos nem igualdade exata com n.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual notação descreve um limite inferior assintótico para uma função de custo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(g(n)), que fornece o limite inferior por definição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ω(g(n)), que expressa uma cota inferior assintótica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Θ(g(n)), que expressa apenas uma cota superior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "log(g(n)), que define o custo mínimo de qualquer rotina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "n(g(n)), que indica a quantidade mínima de memória usada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ω (Omega) representa limite inferior: a função cresce pelo menos na ordem indicada, a menos de constantes, para entradas suficientemente grandes. O é superior e Θ combina limites superior e inferior da mesma ordem.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma função pertence a O(n²), isso por si só demonstra que seu pior caso é exatamente quadrático.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O(n²) afirma limite superior assintótico, não igualdade exata nem necessariamente que se esteja falando do pior caso. Para uma ordem justa, Θ(n²) dá também o limite inferior; caso e notação são dimensões distintas.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca linear pode encontrar o valor na primeira posição ou precisar examinar toda a lista. Quais são, respectivamente, esses casos em uma lista não vazia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Melhor caso constante e pior caso linear.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Melhor caso quadrático e pior caso constante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Melhor caso logarítmico e pior caso quadrático.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Melhor caso linear e pior caso logarítmico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Melhor caso exponencial e pior caso linearítmico.",
+          "correct": false
+        }
+      ],
+      "explanation": "No melhor caso, a primeira comparação encontra o alvo, custo Θ(1). No pior caso, o algoritmo verifica até n elementos, custo Θ(n). A ordem depende da posição do dado ou de sua ausência.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Caso médio pode ser determinado sem hipótese probabilística, bastando calcular a média aritmética entre melhor e pior caso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O caso médio é uma expectativa e depende de como as entradas possíveis se distribuem. A média simples entre extremos não tem justificativa sem um modelo de probabilidade apropriado.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ordem descreve dois laços consecutivos, cada um com n iterações e trabalho constante por iteração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(n²), pois há dois laços no texto do programa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Θ(log n), pois cada laço reinicia o contador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Θ(n), pois os custos lineares se somam.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Θ(2ⁿ), pois o segundo laço depende do primeiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Θ(1), pois cada laço termina depois de número fixo de passos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os laços executam sucessivamente, então os custos são Θ(n)+Θ(n)=Θ(2n), que simplifica para Θ(n) após remover fator constante.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois laços aninhados, cada um executando n vezes, fazem Θ(n²) operações se o corpo interno tem custo constante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para cada uma das n iterações externas, o laço interno realiza n operações; o produto é n·n, portanto Θ(n²), sob as condições dadas.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um algoritmo reduz a faixa de busca pela metade a cada etapa, até restar um elemento. Qual ordem descreve o número de etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(n²), pois cada etapa compara dois extremos da faixa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Θ(log n), pois a faixa diminui geometricamente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Θ(n), pois cada elemento precisa ser removido individualmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Θ(2ⁿ), pois as metades produzem chamadas exponenciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Θ(1), pois cada etapa tem apenas uma comparação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cada etapa, o tamanho passa de n para aproximadamente n/2. O número de divisões necessárias para chegar a 1 é proporcional a log₂n, ainda que o trabalho individual por etapa seja constante.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A complexidade espacial mede necessariamente o tamanho do arquivo executável e não a memória usada durante a execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Complexidade espacial examina o uso de memória durante a execução, muitas vezes com foco no espaço auxiliar. O tamanho do binário é uma medida diferente.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Busca binária recursiva em vetor ordenado faz uma chamada sobre metade da faixa e usa pilha proporcional ao número de níveis. Qual par é esperado para tempo e espaço auxiliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tempo Θ(n), espaço Θ(1), pois só compara um elemento por chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tempo Θ(log n), espaço Θ(log n) pela pilha de chamadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tempo Θ(n²), espaço Θ(n), pela duplicação da entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tempo Θ(1), espaço Θ(n), por manter todas as posições em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tempo Θ(2ⁿ), espaço Θ(log n), por explorar as duas metades.",
+          "correct": false
+        }
+      ],
+      "explanation": "A busca binária faz somente uma chamada recursiva por nível e reduz a faixa pela metade, gerando Θ(log n) níveis e tempo. Esses níveis ficam na pilha; assim, a implementação recursiva usa Θ(log n) espaço auxiliar.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca binária recursiva e sua versão iterativa necessariamente usam o mesmo espaço auxiliar assintótico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A versão recursiva mantém quadros de chamada na pilha, tipicamente Θ(log n); a iterativa pode manter apenas variáveis de controle e usar Θ(1) espaço auxiliar.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de merge sort em entradas gerais está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Divide em duas partes, combina em trabalho linear por nível e tem Θ(n log n).",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Divide em uma parte, combina em tempo constante e tem Θ(log n).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compara todos os pares em uma única etapa e tem Θ(n² log n).",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplica a entrada em cada nível e tem Θ(2ⁿ).",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Percorre só a primeira metade e tem Θ(n) em qualquer entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A divisão em metades produz cerca de log n níveis. Em cada nível, o trabalho total de intercalação é proporcional a n; multiplicando nível por custo, obtém-se Θ(n log n).",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma soma de custos não negativos Θ(n) + Θ(n²), a ordem resultante é Θ(n²), pois o termo de maior crescimento domina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para n suficientemente grande, n² cresce mais rapidamente que n. O termo linear não altera a ordem dominante da soma, cuja classe é Θ(n²).",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dado que f(n) é Θ(g(n)), qual relação é compatível com a definição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "f tem limite superior e inferior proporcionais a g para n grande.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "f é sempre igual a g para toda entrada e valor pequeno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "f tem apenas limite superior, sem restrição inferior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "f executa em g segundos em qualquer processador existente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "f cresce mais devagar que toda função logarítmica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Θ(g(n)) significa que f pertence tanto a O(g(n)) quanto a Ω(g(n)): para entradas suficientemente grandes, há limites superior e inferior pela mesma função, a menos de constantes positivas.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função que cresce como n log n é assintoticamente mais lenta que uma função quadrática n².",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para n crescente, n² cresce mais rapidamente que n log n. Essa comparação indica tendência assintótica, sem prometer que n log n será mais rápido para todo tamanho pequeno ou implementação concreta.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação é mais precisa para uma análise que conclui O(n log n)?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O custo tem limite superior assintótico proporcional a n log n.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O custo tem limite inferior assintótico proporcional a n log n.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O custo é exatamente n log n operações em toda entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O algoritmo leva n log n segundos em todas as máquinas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O algoritmo necessariamente usa espaço n log n e tempo constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "O(n log n) fornece uma cota superior de crescimento para a função analisada. Não afirma igualdade exata, limite inferior, segundos invariáveis nem qualquer conclusão automática sobre memória.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o número de arestas de um grafo também varia independentemente do número de vértices, usar apenas V como parâmetro pode ocultar parte do custo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em grafos, V e E podem ser parâmetros relevantes. Um algoritmo que visita vértices e arestas pode ter custo expresso em função de ambos, como O(V+E), em vez de reduzir tudo a um único n sem justificativa.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um laço executa n vezes e seu corpo percorre uma lista de n elementos. Qual custo decorre desse aninhamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(n²), pois há n varreduras lineares da lista.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Θ(n), pois a lista é a mesma em todas as repetições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Θ(log n), pois o laço externo limita o tamanho interno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Θ(1), pois a lista não muda durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Θ(n log n), pois toda varredura contém n comparações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O corpo interno custa Θ(n) e é executado n vezes. O produto dos custos é Θ(n²), mesmo se a lista não for modificada entre as passagens.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta filtra por gênero, estado e categoria, e retorna poucos registros. O plano escolhido deve ser bitmap porque a combinação de filtros sempre supera qualquer alternativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Bitmap pode combinar eficientemente filtros de baixa cardinalidade, mas o plano depende de seletividade, estatísticas, organização e custos do SGBD. Um índice B-tree, índice composto ou outro acesso pode ser mais vantajoso.",
+      "section": "2. Quando bitmap é adequado e seus limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se cada passo de um algoritmo percorre todos os n elementos e a quantidade de passos também cresce como n, qual é o custo total?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Θ(n²), pelo produto de n passos por n operações em cada passo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Θ(n), pois as duas quantidades descrevem a mesma entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Θ(log n), pois passos repetidos são sempre logarítmicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Θ(2ⁿ), pois há dois fatores iguais no custo estimado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Θ(1), pois cada operação individual leva tempo constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada passo custa Θ(n) e há Θ(n) passos, portanto o custo acumulado é Θ(n·n)=Θ(n²). Custo constante por operação não torna constante o total quando há muitas operações.",
+      "section": "4. Casos, espaço e análise de estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A notação Θ(n) informa simultaneamente que o custo analisado tem crescimento limitado superior e inferiormente pela ordem linear.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Theta combina O(n), cota superior, e Ω(n), cota inferior, para a mesma ordem assintótica, desconsiderando constantes para entradas grandes.",
+      "section": "3. Complexidade assintótica: tamanho de entrada e crescimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle AI Database Concepts — Overview of Bitmap Indexes",
+      "publisher": "Oracle",
+      "reference": "Representação por bitmap para cada chave, uso analítico e conceitos de cardinalidade",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/26/cncpt/database-concepts.pdf",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database SQL Tuning Guide — Optimizer Access Paths",
+      "publisher": "Oracle",
+      "reference": "Indicações de uso de bitmap, NDV, operações lógicas, data warehouse e comparação de caminhos de acesso",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/optimizer-access-paths.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Algorithm Analysis — OpenDSA Data Structures and Algorithms",
+      "publisher": "Virginia Tech",
+      "reference": "Análise assintótica, definições de O, Omega e Theta, análise de tempo e espaço",
+      "url": "https://opendsa-server.cs.vt.edu/OpenDSA/Books/DSAF23notes/html/AlgAnal.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lecture 06: Asymptotics — Mathematics for Computer Science",
+      "publisher": "MIT OpenCourseWare",
+      "reference": "Notação assintótica e interpretação de limites de crescimento",
+      "url": "https://ocw.mit.edu/courses/6-1200j-mathematics-for-computer-science-spring-2024/mit6_1200j_s24_lec06.pdf",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

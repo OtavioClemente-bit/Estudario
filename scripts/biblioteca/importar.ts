@@ -102,7 +102,9 @@ if (Deno.env.get("OFICIAIS") !== "0") {
     const target = notes.find((n) => n.topic === String(value.topic) && n.boardNorm === boardNorm && n.roleNorm === "");
     const real = ((value.questions as Json[] | undefined) ?? []).filter((q) => q.sourceType === "REAL");
     if (!target) { oficiaisAguardando += real.length; continue; }
-    const merged = { ...target.value, questions: [...((target.value.questions as Json[] | undefined) ?? []), ...real] };
+    // O recorte aceita no máximo 600 questões: as de prova real entram até completar (07/11: 602 travou a publicação).
+    const atuais = (target.value.questions as Json[] | undefined) ?? [];
+    const merged = { ...target.value, questions: [...atuais, ...real.slice(0, Math.max(0, 600 - atuais.length))] };
     try {
       validateBoardNote(merged, materials.get(target.topic)!);
       target.value = merged;

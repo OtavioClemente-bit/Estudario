@@ -1,0 +1,1883 @@
+{
+  "id": "informatica.administracao-servidores-email-protecao-suporte",
+  "subject": "Informática",
+  "title": "Administração de servidores de e-mail, proteção e suporte",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Servidores de e-mail Exchange e Postfix",
+    "Rotas de e-mail e listas de distribuição",
+    "Políticas de retenção de mensagens",
+    "Proteção de correio eletrônico empresarial",
+    "Antispam e antivírus para servidores de e-mail",
+    "SPF DKIM e DMARC em correio eletrônico",
+    "Microsoft Exchange e Postfix na administração",
+    "Suporte ao usuário de correio eletrônico",
+    "Suporte a internet intranet e aplicações web",
+    "Administração de rotas de mensagens corporativas",
+    "Configuração de grupos e distribuição de e-mails"
+  ],
+  "scope": {
+    "covers": "Administração de servidores de e-mail Microsoft Exchange e Postfix ou equivalentes; fluxo e roteamento de mensagens, conectores, filas, aliases e listas de distribuição; políticas de retenção e recuperação; filtros antispam e antivírus; autenticação de domínio e mensagem por SPF, DKIM e DMARC; triagem, diagnóstico e orientação aos usuários em correio eletrônico, internet, intranet e aplicações web.",
+    "excludes": "Instalação detalhada por versão, comandos específicos de licenciamento, configuração completa de DNS ou firewall, protocolos criptográficos em profundidade, administração geral de sistemas operacionais, suporte a aplicações não relacionadas a web e prazos legais de guarda não informados pelo edital."
+  },
+  "theoryTitle": "Operação segura do correio eletrônico e atendimento aos usuários",
+  "chapters": [
+    {
+      "title": "1. Fluxo, administração e roteamento de mensagens",
+      "markdown": "### O problema que este assunto resolve\n\nUma mensagem passa por mais etapas do que a tela do usuário mostra. O cliente submete a mensagem ao serviço de envio; servidores de transporte consultam destinatários, políticas e rotas; o servidor de destino aceita ou recusa a entrega; por fim, a mensagem fica na caixa postal e é acessada por cliente ou webmail. Administrar o serviço é manter essas etapas coerentes, observáveis e protegidas. Exchange e Postfix são produtos diferentes, mas ambos participam de funções de transporte e roteamento de e-mail.\n\n> **Siglas e termos deste capítulo**\n> - **MTA**: agente de transferência de mensagens; recebe e encaminha e-mail entre servidores.\n> - **Caixa postal**: armazenamento associado ao destinatário, com pastas e itens.\n> - **Conector**: configuração que define uma relação de envio ou recebimento, incluindo escopo, autenticação e próximo salto.\n> - **Rota**: decisão de para qual servidor ou transporte encaminhar um domínio ou destinatário.\n> - **Fila**: mensagens aguardando tentativa, entrega ou nova tentativa.\n> - **Alias**: endereço alternativo que redireciona para outro destinatário.\n\n### Exchange: transporte e destinatários\n\nNo Exchange, a administração combina destinatários (caixas postais, grupos e contatos), fluxo de mensagens, permissões e políticas. Regras de fluxo ou transporte avaliam mensagens durante o trânsito, com condições, exceções e ações. Podem, por exemplo, rejeitar uma mensagem, redirecioná-la, adicionar destinatário ou inserir aviso. Isso difere de uma regra de caixa de entrada do Outlook, que atua após a mensagem chegar à caixa postal. As regras são avaliadas por prioridade; uma ação pode interromper o processamento de regras posteriores. Em ambiente Exchange Online, o rastreamento de mensagens permite verificar se o serviço recebeu, rejeitou, adiou ou entregou uma mensagem, além de eventos e ações aplicadas.\n\nConectores são usados para estabelecer fluxos de entrada e saída com domínios, serviços ou servidores específicos. Uma rota não é simplesmente um endereço de destinatário: DNS, conectores, domínios aceitos, configuração de transporte e estado do próximo salto podem influenciar o encaminhamento. Alterações devem ser planejadas, testadas com escopo controlado e acompanhadas por rastreamento.\n\n### Postfix: domínios, mapas e filas\n\nPostfix é um MTA modular comum em sistemas Unix. A configuração central (`main.cf`) define parâmetros gerais, enquanto `master.cf` descreve serviços e processos que atendem funções específicas. Mapas de transporte podem associar um domínio ou endereço a um transporte e próximo salto. Mapas de aliases e de destinatários virtuais permitem expandir ou redirecionar endereços. A aceitação de destinatários locais, virtuais ou relay deve ser explícita: um servidor aberto para retransmitir mensagens a qualquer destino pode ser abusado para envio de spam.\n\nA fila permite acompanhar mensagens que não foram entregues imediatamente. Uma mensagem adiada pode decorrer de indisponibilidade remota, falha temporária de DNS, limitação ou rejeição temporária; isso não equivale automaticamente a perda. Examinar identificador, destinatário, horário e log ajuda a separar falha temporária de falha permanente. Em ambos os produtos, logs e rastreamento devem ser correlacionados com remetente, destinatário e horário, observando fuso e privacidade.\n\n| Necessidade | Exchange | Postfix |\n| --- | --- | --- |\n| Regras de trânsito | Regras de fluxo/transporte com condições, exceções e ações | Restrições e serviços configurados; filtros podem ser integrados |\n| Roteamento | Conectores, domínios aceitos e configuração de transporte | Mapas de transporte, resolução de destino e parâmetros do MTA |\n| Diagnóstico | Rastreamento de mensagem e logs administrativos | Fila e logs do serviço |\n| Expansão de destinatários | Grupos e destinatários habilitados para e-mail | Aliases e mapas de destinatários virtuais |\n\n### Listas de distribuição e retenção\n\nUma lista de distribuição expande um endereço coletivo em destinatários membros; ela não precisa ser uma caixa postal compartilhada nem uma área de conversação. A administração deve conferir proprietários, membros, remetentes autorizados, moderação e visibilidade no catálogo. Grupos dinâmicos calculam os destinatários a partir de critérios; alterações de atributos podem alterar quem recebe a mensagem. Uma distribuição incorreta pode expor informação a pessoas que não deveriam recebê-la.\n\nRetenção é uma regra administrativa para preservar, arquivar ou eliminar itens conforme política organizacional. No Exchange, etiquetas podem ser aplicadas por padrão à caixa, a pastas padrão ou pelo usuário a itens/pastas, conforme o tipo de etiqueta. Políticas agrupam etiquetas e são atribuídas a caixas postais; retenção legal ou de investigação pode impedir a eliminação definitiva. Retenção não é sinônimo de backup: backup busca restaurar dados após falha; retenção atende regras de ciclo de vida e preservação. O suporte não deve prometer recuperação nem apagar conteúdo sem verificar política, permissões e trilha aprovada.\n\n### Como cai na prova\n\n- Regra de transporte atua durante o fluxo; regra de caixa de entrada atua sobre mensagens da caixa postal.\n- Rota, conector e próximo salto influenciam a entrega; uma fila registra mensagens pendentes ou adiadas.\n- Uma lista expande destinatários e exige controle de membros e remetentes; alias redireciona um endereço.\n- Retenção, arquivamento, backup e hold têm finalidades distintas; a retenção pode impedir exclusão definitiva."
+    },
+    {
+      "title": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "markdown": "### O problema que este assunto resolve\n\nO correio recebe conteúdo malicioso, falsificação de remetente, campanhas em massa e mensagens legítimas com características que se parecem com abuso. Nenhum sinal isolado prova que uma mensagem é segura ou maliciosa. A defesa combina reputação, análise de conteúdo e anexos, autenticação de domínio, política de quarentena e resposta a incidentes.\n\n> **Siglas e termos deste capítulo**\n> - **SPF**: política publicada no DNS que declara quais servidores podem usar determinado domínio SMTP de envelope.\n> - **DKIM**: assinatura criptográfica que associa uma mensagem a um domínio assinante e permite verificar integridade de partes assinadas.\n> - **DMARC**: política e mecanismo de relatório que avaliam alinhamento entre domínio visível no campo From e autenticação SPF ou DKIM.\n> - **DNS**: sistema distribuído que publica registros de domínio, inclusive os usados na validação de e-mail.\n> - **Quarentena**: retenção de mensagem suspeita para análise ou liberação controlada.\n> - **Falso positivo**: mensagem legítima classificada incorretamente como ameaça ou spam.\n\n### Antispam e antivírus\n\nFiltros antispam combinam sinais como reputação do IP e do domínio, volume, padrões de envio, conteúdo, URLs, cabeçalhos e resultados de autenticação. A pontuação pode levar a entrega, marcação, quarentena ou rejeição conforme política. Antivírus e análise de malware examinam anexos e conteúdo com assinaturas e técnicas comportamentais ou de detonação, conforme a plataforma. Arquivos compactados, links e documentos com macros podem demandar inspeção adicional.\n\nA política precisa equilibrar bloqueio e continuidade: rejeitar na borda reduz a entrada de mensagem claramente inválida; quarentena permite revisão de casos incertos; liberar uma mensagem deve exigir evidência e procedimento autorizado. Uma lista de permissões ampla que ignora toda a proteção para mensagens internas pode permitir que uma conta comprometida distribua malware. O administrador deve monitorar falsos positivos, falsos negativos, picos de volume e alterações de regras.\n\n### SPF: autorização de servidores de envio\n\nO proprietário do domínio publica um registro SPF no DNS, normalmente como texto no domínio avaliado. O servidor recebedor compara o IP que conecta com a política publicada para a identidade SMTP avaliada, sobretudo o domínio do `MAIL FROM` (e trata casos específicos de `HELO`). Mecanismos como `ip4`, `ip6`, `include`, `a` e `mx` expressam fontes autorizadas; o qualificador final define o resultado para fontes não correspondentes. O resultado não valida, por si só, o campo visível `From:` da mensagem, nem cifra o conteúdo.\n\nÉ necessário inventariar todos os serviços que enviam e-mail usando o domínio antes de publicar a política: plataforma corporativa, sistema de chamados, marketing, aplicação e relay terceirizado. Registros duplicados ou referências excessivas podem provocar erro de avaliação. SPF verifica autorização do host para uma identidade de envelope; ele não assina a mensagem e não impede um atacante de falsificar o campo de exibição.\n\n### DKIM e DMARC: assinatura, alinhamento e política\n\nCom DKIM, o sistema emissor assina cabeçalhos selecionados e o corpo da mensagem usando chave privada. O destinatário consulta a chave pública publicada no DNS, usando domínio assinante (`d=`) e seletor (`s=`) da assinatura. A verificação confirma que a assinatura é válida para o domínio e que as partes assinadas não sofreram alterações incompatíveis; não prova que o conteúdo é benigno nem identifica necessariamente o autor humano. Gateways que alteram o corpo podem invalidar a assinatura.\n\nDMARC usa o domínio do campo `From:` como domínio do autor e verifica se SPF ou DKIM passa **e** se o domínio autenticado está alinhado com esse domínio, em modo estrito ou relaxado. Se qualquer um dos caminhos autenticados passar com alinhamento suficiente, DMARC pode passar. A política publicada pede ao recebedor tratamento para mensagens que falhem (monitorar, colocar em quarentena ou rejeitar, conforme registro vigente), e relatórios agregados ajudam o domínio a localizar fontes legítimas ainda não configuradas. A adoção segura começa observando relatórios e regularizando remetentes antes de endurecer a política. Esses mecanismos autenticam domínios; não garantem reputação, confidencialidade ou legitimidade do texto.\n\n| Mecanismo | O que verifica | Onde se publica/consulta | Limite importante |\n| --- | --- | --- | --- |\n| SPF | IP autorizado para identidade SMTP de envelope | DNS do domínio avaliado | Não assina a mensagem nem autentica diretamente o From visível |\n| DKIM | Assinatura e integridade de campos/corpo selecionados | Chave pública DNS via seletor e domínio | Mensagem assinada ainda pode conter fraude ou malware |\n| DMARC | Alinhamento de SPF ou DKIM com o domínio do From e política do domínio | Registro DNS DMARC | Não cifra mensagem nem garante que conteúdo é verdadeiro |\n\n### Como cai na prova\n\n- SPF autoriza fontes de envio para uma identidade SMTP; DKIM verifica assinatura; DMARC verifica alinhamento e comunica política/relatórios.\n- DMARC não exige que SPF e DKIM passem ao mesmo tempo: um caminho alinhado pode ser suficiente.\n- Antispam e antivírus complementam autenticação; aprovação SPF/DKIM/DMARC não é atestado de ausência de malware.\n- Publicar política restritiva antes de descobrir todos os remetentes legítimos pode bloquear mensagens válidas."
+    },
+    {
+      "title": "3. Suporte a correio eletrônico, internet e intranet",
+      "markdown": "### O problema que este assunto resolve\n\nUm atendimento eficiente começa por reproduzir o sintoma e delimitar o impacto. “O e-mail não funciona” pode significar autenticação recusada, falha de envio, destinatário incorreto, mensagem em quarentena, problema de sincronização ou regra local. O técnico precisa coletar dados úteis sem pedir senha, reduzir o risco de exposição e explicar ao usuário o próximo passo em linguagem compreensível.\n\n> **Siglas e termos deste capítulo**\n> - **Webmail**: acesso à caixa postal por navegador.\n> - **Intranet**: aplicações e conteúdos web destinados ao ambiente interno da organização.\n> - **Cache**: cópia local temporária de dados, que pode estar desatualizada.\n> - **MFA**: autenticação multifator, que combina fatores distintos para confirmar identidade.\n> - **URL**: endereço de um recurso na web.\n> - **Navegação privada**: sessão que reduz o armazenamento local de histórico e cookies ao encerrar; não torna o tráfego anônimo.\n\n### Roteiro de triagem de correio\n\nPergunte quando começou, se afeta uma pessoa ou várias, qual operação falha (entrar, enviar, receber, pesquisar, anexar ou sincronizar), qual cliente é usado e qual mensagem de erro aparece. Para uma mensagem específica, registre remetente, destinatário, assunto ou identificador permitido, horário aproximado e fuso. Evite pedir o conteúdo integral se cabeçalho ou identificador bastar. Não solicite senha, código MFA ou token.\n\nSepare os casos: falha de login pode envolver credencial, MFA, conta bloqueada ou serviço de identidade; falha de envio pode envolver endereço inválido, limite, anexo bloqueado ou rejeição do servidor remoto; atraso pode decorrer de fila, indisponibilidade ou tentativas de entrega; recebimento ausente pode envolver endereço, grupo, regra, quarentena, lixo eletrônico ou encaminhamento. No ambiente administrativo, rastreamento de mensagens e logs ajudam a confirmar se houve recebimento, rejeição, adiamento, expansão de grupo ou entrega. Corrija primeiro a causa observada e valide com mensagem de teste autorizada.\n\n### Navegador, internet, intranet e aplicação web\n\nPara uma aplicação web, confirme URL e rede usada, se o problema ocorre em outro navegador ou dispositivo, horário, mensagem exibida e alcance entre usuários. Uma página fora do ar para todos sugere serviço ou rede central; falha em apenas um perfil pode apontar cache, cookie, extensão, certificado local ou sessão. Testes comparativos devem preservar as evidências e não apagar dados locais indiscriminadamente. Para conteúdo interno, confira VPN ou rede corporativa e permissões da aplicação; para conteúdo público, avalie resolução de nome, conectividade e proxy segundo os procedimentos locais.\n\nOriente a verificar o domínio antes de inserir credenciais, usar o endereço oficial salvo ou portal corporativo, não contornar avisos de certificado e reportar páginas suspeitas. Navegação privada não esconde tráfego da organização, do provedor nem do site visitado. Limpar cookies pode encerrar sessões e apagar preferências; explique o efeito e use isso apenas como teste dirigido. Em aplicação web, não peça ao usuário para instalar extensão, executar arquivo ou desativar proteção sem autorização da equipe responsável.\n\n### Comunicação e encerramento do chamado\n\nA orientação deve distinguir fato confirmado de hipótese, informar impacto, ação adotada, responsável e quando haverá atualização. Se o incidente sugerir phishing, conta comprometida ou envio não autorizado, peça que o usuário não responda nem clique, preserve a mensagem para análise pelo procedimento interno e acione segurança. Ao concluir, confirme com o usuário a operação que voltou a funcionar, registre solução sem credenciais ou dados excessivos e encerre com instrução preventiva simples.\n\n### Como cai na prova\n\n- Um relato vago deve virar perguntas de triagem sobre alcance, operação, horário, cliente e erro observado.\n- O rastreamento administrativo mostra eventos de transporte; a pasta Spam do usuário, sozinha, não esclarece toda a rota.\n- Navegação privada reduz rastros locais após a sessão, mas não anonimiza o tráfego.\n- Em suspeita de phishing, preservar evidência e escalar é melhor do que encaminhar a mensagem para colegas."
+    },
+    {
+      "title": "4. Mudanças, monitoramento e resolução de falhas",
+      "markdown": "### O problema que este assunto resolve\n\nA administração segura não é apenas alterar configuração quando alguém reclama. Ela combina controle de mudança, privilégio mínimo, monitoramento e validação. Uma regra de transporte incorreta pode redirecionar mensagens; um conector mal delimitado pode criar retransmissão aberta; uma lista desatualizada pode expor correspondência; e uma alteração de retenção pode eliminar dados necessários.\n\n> **Siglas e termos deste capítulo**\n> - **Privilégio mínimo**: conceder somente as permissões necessárias à tarefa.\n> - **Relay aberto**: servidor que aceita retransmitir para destinos arbitrários sem controle apropriado.\n> - **NDR**: relatório de não entrega, que informa que uma mensagem não pôde ser entregue.\n> - **RPO/RTO**: metas de ponto e tempo de recuperação, definidas pela organização para continuidade.\n> - **Mudança controlada**: alteração registrada, avaliada, aprovada conforme processo e validada após implantação.\n\n### Procedimento de mudança e monitoramento\n\nAntes de alterar rota, grupo, política de proteção ou retenção, registre objetivo, escopo, risco, dependências, plano de teste e reversão. Use conta administrativa individual e permissões limitadas; evite compartilhar credenciais. Faça primeiro teste em destinatário ou grupo controlado, confira resultado em rastreamento, logs e relatórios, e monitore o serviço após a mudança. Se o comportamento piorar, interrompa conforme o plano e comunique usuários afetados.\n\nIndicadores úteis incluem volume de mensagens aceitas e recusadas, fila por idade e destino, taxa de adiamento, NDR, quarentena, detecções de malware, falsos positivos e uso de armazenamento. Um aumento de fila apenas para um domínio pode indicar problema no servidor remoto ou rota; crescimento geral pode apontar falha local, recurso saturado ou bloqueio de rede. A interpretação depende de correlação temporal com mudanças e eventos do serviço.\n\n### Diagnóstico por evidência\n\nSe o remetente recebeu NDR, leia o código e o texto de diagnóstico sem assumir que toda rejeição tem a mesma causa. Se a mensagem consta como recebida e depois rejeitada, investigue regra, destinatário ou política; se está adiada, verifique fila, DNS e conectividade do próximo salto; se aparece entregue, mas o usuário não a vê, confira pasta, regra de caixa de entrada, encaminhamento, grupo e cliente de sincronização. Para distribuição, confirme a associação vigente no momento do envio e a expansão registrada. Para suspeita de falso positivo, consulte detecção e regra específicas, valide remetente por canal confiável e libere apenas segundo a política aprovada.\n\n### Como cai na prova\n\n- Faça mudanças delimitadas, documentadas e testáveis; privilegie contas individuais e permissões mínimas.\n- Fila adiada, rejeição permanente e entrega concluída exigem diagnósticos diferentes.\n- “Entregue” no rastreamento não garante que o usuário viu a mensagem na caixa de entrada: regras e pastas podem movê-la.\n- Indicadores devem ser correlacionados; um único aumento de fila não identifica sozinho a causa."
+    }
+  ],
+  "summary": "Exchange e Postfix administram destinatários e transporte, mas usam componentes e instrumentos próprios. No Exchange, regras de fluxo atuam durante o trânsito, conectores orientam fluxos e rastreamento mostra eventos de entrega; no Postfix, parâmetros, mapas de transporte, aliases, fila e logs ajudam a controlar encaminhamento e diagnóstico. Listas expandem mensagens a membros e precisam de donos, permissões e revisão. Retenção e etiquetas controlam preservação, arquivamento ou exclusão segundo política; backup tem finalidade distinta. Antispam e antivírus analisam reputação, conteúdo e anexos. SPF compara o servidor de conexão com fontes autorizadas para uma identidade SMTP, DKIM valida assinatura associada a domínio e seletor, e DMARC avalia alinhamento de SPF ou DKIM com o domínio visível no From e publica política/relatórios. Para suporte, delimite impacto, operação, horário e erro; use rastreamento e logs, proteja credenciais e oriente o usuário com passos verificáveis para e-mail, internet, intranet e aplicações web. Mudanças devem ter escopo, teste, registro e validação.",
+  "flashcards": [
+    {
+      "front": "Em que momento uma regra de transporte do Exchange atua?",
+      "back": "Durante o trânsito da mensagem pelo serviço, antes da entrega final à caixa postal."
+    },
+    {
+      "front": "O que mostra o rastreamento de mensagem do Exchange Online?",
+      "back": "Eventos que ajudam a identificar se o serviço recebeu, rejeitou, adiou, expandiu ou entregou a mensagem e quais ações ocorreram."
+    },
+    {
+      "front": "Qual é a função de um conector de e-mail?",
+      "back": "Configurar um fluxo de entrada ou saída com escopo e próximo salto definidos, incluindo requisitos de conexão e autenticação."
+    },
+    {
+      "front": "Para que serve um mapa de transporte no Postfix?",
+      "back": "Associar destinos, como domínios ou endereços, a um transporte e próximo salto específicos."
+    },
+    {
+      "front": "O que uma fila de mensagens permite diagnosticar?",
+      "back": "Mensagens pendentes ou adiadas, seus destinos e identificadores, distinguindo atraso temporário de outras falhas."
+    },
+    {
+      "front": "O que faz um alias de e-mail?",
+      "back": "Redireciona um endereço para outro destinatário ou conjunto configurado de destinatários."
+    },
+    {
+      "front": "O que ocorre quando uma mensagem é enviada a uma lista de distribuição?",
+      "back": "O endereço coletivo é expandido para os membros elegíveis do grupo."
+    },
+    {
+      "front": "Que configurações de uma lista devem ser revisadas?",
+      "back": "Membros, proprietários, remetentes autorizados, moderação e visibilidade no catálogo."
+    },
+    {
+      "front": "Como difere retenção de backup?",
+      "back": "Retenção aplica regras de preservação, arquivamento ou descarte; backup serve para restaurar dados após perda ou falha."
+    },
+    {
+      "front": "O que pode fazer uma retenção legal ou investigativa?",
+      "back": "Impedir a exclusão definitiva de itens sujeitos à preservação, conforme o mecanismo aplicado."
+    },
+    {
+      "front": "Que sinais podem alimentar um filtro antispam?",
+      "back": "Reputação, volume, padrão de envio, conteúdo, URLs, cabeçalhos e resultados de autenticação."
+    },
+    {
+      "front": "Qual identidade o SPF verifica principalmente?",
+      "back": "O domínio associado à identidade SMTP de envelope, especialmente o domínio usado em MAIL FROM."
+    },
+    {
+      "front": "O que o mecanismo SPF consulta para avaliar um emissor?",
+      "back": "A política publicada pelo domínio no DNS para comparar o endereço IP de conexão com as fontes autorizadas."
+    },
+    {
+      "front": "O que valida DKIM?",
+      "back": "Uma assinatura criptográfica associada a um domínio assinante e a partes selecionadas da mensagem."
+    },
+    {
+      "front": "Como se localiza a chave pública DKIM?",
+      "back": "A partir do domínio assinante e do seletor incluídos no cabeçalho de assinatura, consultando o DNS."
+    },
+    {
+      "front": "O que DMARC acrescenta a SPF e DKIM?",
+      "back": "Verifica alinhamento do domínio autenticado com o domínio do campo From e permite publicar política e solicitar relatórios."
+    },
+    {
+      "front": "DMARC requer SPF e DKIM aprovados simultaneamente?",
+      "back": "Não; um dos mecanismos pode sustentar aprovação se passar e estiver alinhado com o domínio do From."
+    },
+    {
+      "front": "DMARC cifra ou inspeciona o conteúdo da mensagem?",
+      "back": "Não. Ele avalia autenticação/alinhamento de domínio e política de tratamento, sem fornecer confidencialidade."
+    },
+    {
+      "front": "O que é falso positivo em filtro de e-mail?",
+      "back": "Uma mensagem legítima classificada incorretamente como spam ou ameaça."
+    },
+    {
+      "front": "Quais dados ajudam a localizar um e-mail atrasado?",
+      "back": "Remetente, destinatário, horário e fuso aproximados, cliente usado e identificador ou assunto permitido pela política."
+    },
+    {
+      "front": "O que deve ser pedido ao usuário para autenticar a conta?",
+      "back": "Nunca a senha, código MFA ou token; a equipe deve usar procedimentos seguros de identidade."
+    },
+    {
+      "front": "O que a navegação privada faz?",
+      "back": "Reduz o armazenamento local de histórico e cookies ao fim da sessão, mas não torna a navegação anônima."
+    },
+    {
+      "front": "O que pode significar mensagem marcada como entregue, mas não vista?",
+      "back": "Pode ter sido movida por regra, encaminhada, colocada em outra pasta ou ainda não sincronizada no cliente."
+    },
+    {
+      "front": "Por que limitar o privilégio administrativo?",
+      "back": "Para reduzir o impacto de erro ou comprometimento, concedendo só as permissões necessárias à tarefa."
+    },
+    {
+      "front": "Quais elementos devem constar no planejamento de mudança?",
+      "back": "Objetivo, escopo, risco, dependências, teste, plano de reversão, registro e validação posterior."
+    }
+  ],
+  "tips": [
+    "Em prova, associe rastreamento Exchange ao percurso da mensagem e caixa de entrada às regras pós-entrega.",
+    "Pense em Postfix como MTA com mapas, aliases, transportes, fila e logs; não atribua a ele menus do Exchange.",
+    "SPF autoriza origem para identidade SMTP; não é assinatura nem criptografia.",
+    "DKIM é assinatura ligada a domínio e seletor; uma assinatura válida não certifica que o conteúdo é confiável.",
+    "DMARC avalia alinhamento entre From e um caminho SPF ou DKIM aprovado e pode orientar política e relatórios.",
+    "No suporte, primeiro delimite usuários afetados, operação, momento e mensagem de erro; depois teste hipótese com evidência."
+  ],
+  "traps": [
+    "Confundir regra de transporte com regra de caixa de entrada: uma atua no fluxo, a outra na caixa do usuário.",
+    "Tratar fila adiada como perda definitiva sem consultar tentativas, logs ou o servidor de destino.",
+    "Supor que um endereço de lista é uma caixa postal compartilhada com histórico de conversa.",
+    "Tomar SPF aprovado, DKIM válido ou DMARC aprovado como prova de que não há malware ou fraude no conteúdo.",
+    "Confundir retenção com cópia de segurança ou apagar itens sujeitos a preservação sem autorização.",
+    "Orientar a ignorar alerta de certificado ou pedir senha/código de autenticação para investigar um chamado."
+  ],
+  "activeRecall": [
+    "Descreva o caminho de uma mensagem desde o envio até a entrega, apontando onde entram rota, fila e rastreamento.",
+    "Compare uma regra de fluxo do Exchange com uma regra de caixa de entrada do usuário.",
+    "Explique como conector, domínio aceito e próximo salto influenciam o roteamento no Exchange.",
+    "Explique como mapa de transporte e mapa de alias têm funções diferentes no Postfix.",
+    "Como você investigaria mensagem que aparece como adiada e mensagem que aparece como entregue?",
+    "Compare lista de distribuição, grupo dinâmico e alias considerando expansão e manutenção de membros.",
+    "Explique diferenças entre retenção, arquivamento, hold e backup.",
+    "Compare SPF, DKIM e DMARC quanto à identidade examinada e aos limites de cada mecanismo."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Roteamento e ferramentas trocados",
+      "summary": "Exchange usa conectores, regras de fluxo e rastreamento; Postfix usa configuração, mapas, filas e logs. Regras de transporte atuam no trânsito, regras de caixa de entrada após entrega."
+    },
+    {
+      "key": "e2",
+      "title": "Destinatários coletivos mal administrados",
+      "summary": "Lista expande para membros; alias redireciona; grupo dinâmico depende de critérios. Propriedade, membros, remetentes permitidos, moderação e visibilidade precisam de revisão."
+    },
+    {
+      "key": "e3",
+      "title": "Retenção confundida com backup",
+      "summary": "Retenção e hold preservam ou eliminam segundo política; arquivo organiza itens; backup permite restauração. Respeite retenção legal e processo de autorização."
+    },
+    {
+      "key": "e4",
+      "title": "SPF, DKIM e DMARC confundidos",
+      "summary": "SPF compara origem com política de identidade SMTP; DKIM verifica assinatura de domínio; DMARC valida alinhamento de SPF ou DKIM com o From e expressa política e relatórios."
+    },
+    {
+      "key": "e5",
+      "title": "Triagem sem evidência ou proteção de credenciais",
+      "summary": "Delimite impacto, operação, horário, cliente e erro; use rastreamento/logs. Nunca solicite senha ou código MFA, nem mande contornar alertas de certificado."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No Exchange Online, uma equipe quer rejeitar mensagens em trânsito que atendam a certas condições antes que cheguem às caixas postais. Qual recurso atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra de fluxo de mensagens com condições e ação de rejeição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma regra de caixa de entrada criada por cada destinatário afetado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma etiqueta de retenção aplicada depois da leitura da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um alias que transforme o endereço de origem em destinatário local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma pasta de arquivo que mova mensagens já sincronizadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras de fluxo ou transporte avaliam mensagens enquanto elas atravessam a organização e podem rejeitá-las quando as condições configuradas forem satisfeitas. Regras de caixa de entrada e etiquetas atuam sobre itens da caixa; alias e arquivo não aplicam a condição de trânsito descrita.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem enviada a um destinatário externo permanece pendente no Postfix após uma falha temporária de conexão com o próximo servidor. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mensagem foi apagada porque todo atraso elimina a fila local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Postfix deve converter o destinatário externo em alias local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela fica na fila e pode ser reenviada após a falha temporária.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A falha prova que SPF e DKIM do domínio destinatário estão incorretos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A entrega foi concluída, mas o usuário precisa atualizar a caixa postal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha temporária de conexão pode manter a mensagem na fila para novas tentativas. É necessário examinar o identificador e os logs para confirmar o estado. Atraso não prova falha de autenticação do domínio nem entrega concluída.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Exchange Online, uma regra de transporte possui condições, exceções e ações. As exceções podem impedir que a ação seja executada mesmo quando as condições da regra forem atendidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A regra identifica mensagens por condições e pode excluir casos por exceções; quando uma exceção se aplica, a ação da regra não é aplicada àquela mensagem.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual instrumento administrativo do Exchange Online é mais apropriado para verificar se uma mensagem específica foi recebida, rejeitada, adiada ou entregue?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista global de endereços, consultada pelo destinatário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O rastreamento de mensagens, filtrado por remetente e período.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A política de retenção padrão da caixa postal do remetente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra de encaminhamento que o usuário mantém no navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O registro DKIM do domínio que assinou a mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O rastreamento segue mensagens através do serviço e informa estados e eventos, ajudando a diagnosticar recebimento, rejeição, adiamento e entrega. Catálogo, retenção, encaminhamento e DKIM têm outras funções.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador do Postfix precisa encaminhar mensagens de um domínio específico para um servidor de próximo salto diferente do padrão. Qual configuração conceitual deve avaliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma etiqueta de retenção vinculada a cada caixa postal do domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um seletor DKIM definido para cada destinatário externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma regra de caixa de entrada implantada no cliente de e-mail.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mapa de transporte com domínio e próximo salto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma consulta DMARC que altere a resolução SMTP do destinatário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mapas de transporte do Postfix podem selecionar transporte e próximo salto para destinos configurados. Etiquetas, DKIM, regras de cliente e DMARC não são mecanismos de roteamento de saída do MTA.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente um alias de um endereço de lista de distribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alias autentica o domínio, enquanto lista valida a assinatura criptográfica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alias cria arquivo de retenção, enquanto lista mantém uma cópia imutável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alias sempre representa caixa compartilhada, enquanto lista bloqueia mensagens externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alias altera a rota IP, enquanto lista determina o próximo salto SMTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alias redireciona endereços; lista expande a mensagem para membros.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um alias fornece redirecionamento de endereço. Uma lista de distribuição representa um grupo de destinatários e expande a mensagem para membros. Nenhum dos dois mecanismos executa autenticação SPF, DKIM ou DMARC.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para reduzir o risco de um servidor Postfix ser usado para retransmitir spam a qualquer destino, qual princípio de configuração é mais importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir relay somente a origens e destinatários autorizados pela política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter relay aberto e bloquear somente anexos executáveis conhecidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aceitar qualquer relay, desde que exista um registro SPF publicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir as filas por aliases para evitar tentativas de entrega posteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar os logs para que remetentes externos não identifiquem o serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle de relay deve limitar quem pode encaminhar mensagens e para quais destinos, conforme a função do servidor. SPF não substitui controle de retransmissão, e desativar logs reduz capacidade de investigação sem impedir abuso.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de distribuição precisa impedir que remetentes externos enviem mensagens e permitir que somente moderadores aprovem exceções. Qual conjunto de controles é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar o grupo no catálogo e remover todos os seus membros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar remetentes permitidos e aprovação por moderador.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar DKIM às mensagens e deixar o grupo aberto a qualquer origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o endereço em alias e habilitar retenção automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um conector de saída sem configurar as permissões do grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gerenciamento de entrega do grupo controla quem pode enviar, e a moderação estabelece aprovação para mensagens sujeitas à regra. Publicação no catálogo não controla remetentes, e autenticação de domínio não substitui permissões do grupo.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Exchange, uma política de retenção pode reunir etiquetas aplicadas à caixa inteira, a pastas padrão ou manualmente a itens, conforme o tipo de etiqueta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As etiquetas de retenção têm escopos diferentes: etiquetas padrão podem atingir a caixa, etiquetas de pasta alcançam pastas padrão e etiquetas pessoais podem ser escolhidas pelo usuário para itens ou pastas quando habilitadas na política.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa preservar mensagens sujeitas a uma investigação e permitir que a exclusão cotidiana feita pelo usuário não as elimine definitivamente. Qual conceito se aplica melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alias, que envia uma cópia automática para o próprio usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Regra antispam, que transforma itens removidos em mensagens aprovadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mecanismo de preservação ou hold associado à política de retenção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Grupo dinâmico, que restaura os itens conforme atributos do remetente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conector de entrada, que mantém uma réplica do conteúdo na rota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Políticas de preservação ou hold podem manter conteúdo sujeito à investigação mesmo quando o usuário o remove da visualização comum. Alias, grupo, antispam e conector não implementam retenção para investigação.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de caixa de entrada do Outlook atua sobre mensagens associadas à caixa do usuário, enquanto uma regra de fluxo atua durante o trânsito pelo serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Regras de fluxo agem enquanto a mensagem transita pelo serviço; regras de caixa de entrada atuam sobre a mensagem associada à caixa do usuário, em geral depois da entrega.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe administra políticas de retenção e precisa distinguir arquivo de backup. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Arquivo e retenção substituem cópias de segurança contra toda falha física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Backup aplica prazos de eliminação aos itens em todas as caixas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retenção serve apenas para mover mensagens para pastas pessoais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup e retenção são sinônimos se o arquivo estiver na nuvem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retenção rege o ciclo de vida; backup busca permitir restauração.",
+          "correct": true
+        }
+      ],
+      "explanation": "Retenção define preservação, arquivamento ou descarte segundo uma política de ciclo de vida; backup cria meios de restaurar dados após perda ou falha. Uma função não substitui automaticamente a outra.",
+      "section": "1. Fluxo, administração e roteamento de mensagens",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SPF publica uma política DNS que ajuda o recebedor a avaliar se o endereço IP que se conectou está autorizado para a identidade SMTP examinada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SPF compara o emissor observado com a política do domínio para a identidade SMTP avaliada, principalmente o domínio do MAIL FROM. O resultado não equivale à validação do From visível nem à assinatura do conteúdo.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um domínio envia e-mail por sua plataforma corporativa e por um sistema de chamados terceirizado. O que deve ser feito antes de endurecer a política SPF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar um registro separado para cada ferramenta de envio identificada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar vários registros SPF independentes para cada ferramenta usada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover os sistemas terceirizados e manter somente o cliente Outlook.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar DMARC para substituir toda autorização de origem do SPF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapear os sistemas que enviam e autorizar suas fontes legítimas.",
+          "correct": true
+        }
+      ],
+      "explanation": "A equipe precisa identificar todos os emissores autorizados para o domínio e construir uma política coerente antes de restringir. Registros SPF duplicados podem causar erro; DMARC e antivírus não substituem a autorização de origem do SPF.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que o servidor recebedor usa para localizar a chave pública necessária à validação de uma assinatura DKIM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço IP do destinatário e o nome da caixa postal local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O domínio e o seletor indicados no cabeçalho DKIM-Signature.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A rota de saída definida pelo mapa de transporte do Postfix.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista de membros do grupo que recebeu a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O registro MX do domínio visível no campo Assunto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura inclui domínio assinante e seletor, que orientam a consulta DNS da chave pública. IP do destinatário, rota Postfix, lista de membros e assunto não fornecem a chave DKIM.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem passa em SPF, mas o domínio SPF não está alinhado com o domínio do campo From e nenhuma assinatura DKIM alinhada passa. O resultado DMARC pode ser aprovado somente porque SPF passou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DMARC requer que um mecanismo autenticado passe com alinhamento suficiente com o domínio do From. Uma aprovação SPF sem alinhamento, sem caminho DKIM alinhado, não satisfaz esse requisito.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em DKIM, a assinatura válida demonstra que a mensagem foi escrita por uma pessoa específica e que seu conteúdo não pode ser malicioso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DKIM associa uma assinatura a um domínio assinante e permite verificar partes assinadas da mensagem. Não identifica necessariamente a pessoa autora e não avalia se o conteúdo é benigno.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja começar a implantar DMARC sem bloquear imediatamente sistemas legítimos ainda não inventariados. Qual sequência é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rejeitar desde o início e desativar os relatórios para evitar dúvidas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover SPF e DKIM e usar apenas os filtros antispam locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Começar em monitoramento, analisar relatórios e corrigir fontes legítimas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alinhar somente o domínio do servidor receptor com o campo From.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar quarentena a todo tráfego interno e externo da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O monitoramento e a análise de relatórios ajudam a descobrir emissores legítimos que ainda não estão autenticados ou alinhados. Após corrigir essas fontes, o domínio pode avançar para políticas mais restritivas com menor risco de bloquear mensagens válidas.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro antispam classifica incorretamente como ameaça uma mensagem legítima de um fornecedor, e usuários relatam perda de correspondência. Qual ação administrativa é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar todos os filtros de malware para eliminar futuros falsos positivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma exceção global para qualquer remetente externo conhecido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pedir que todos os destinatários encaminhem a mensagem entre si.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar a detecção e aplicar correção ou exceção delimitada pela política.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar o registro SPF do destinatário para liberar a mensagem na caixa.",
+          "correct": false
+        }
+      ],
+      "explanation": "É preciso identificar a regra ou detecção responsável, validar o fornecedor por canal confiável e ajustar a política ou exceção com escopo limitado. Desativar a proteção ou liberar amplamente remetentes aumenta o risco; SPF do destinatário não controla diretamente essa classificação.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antispam pode usar reputação, volume, conteúdo, URLs e autenticação; antivírus ou análise de malware pode inspecionar anexos e arquivos suspeitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Filtros antispam combinam vários sinais para estimar abuso ou mensagens indesejadas; mecanismos antimalware examinam conteúdo e anexos. As funções se complementam e não são idênticas.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem passa por SPF, DKIM e DMARC. Qual conclusão é tecnicamente justificável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo está criptografado e só o destinatário pode lê-lo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O domínio visível foi autenticado por caminho alinhado, sem garantia sobre conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O usuário que consta no campo From foi identificado civilmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema comprovou que anexos e links não contêm código malicioso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor remetente foi certificado como confiável para toda comunicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "DMARC bem-sucedido indica um caminho SPF ou DKIM autenticado e alinhado com o domínio do From. Esses mecanismos autenticam domínio, não criptografam a mensagem, não identificam civilmente o autor e não substituem análise de malware ou reputação.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O objetivo principal do SPF é criptografar o corpo da mensagem de modo que gateways intermediários não possam examiná-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SPF é um mecanismo de autorização de fontes para uma identidade SMTP, consultando a política DNS do domínio. Ele não fornece criptografia nem confidencialidade do conteúdo.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta corporativa foi comprometida e enviou mensagens com assinatura DKIM válida. Como a equipe deve interpretar esse sinal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A assinatura torna legítima qualquer mensagem enviada pela conta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DKIM prova que o usuário digitou o texto e aprovou os links.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DMARC dispensa investigação porque a assinatura passou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem foi cifrada no trajeto e não pode ser analisada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura valida domínio e partes assinadas, mas a conta ainda pode estar abusada.",
+          "correct": true
+        }
+      ],
+      "explanation": "DKIM comprova uma associação criptográfica com o domínio assinante e integridade de partes assinadas. Uma conta legítima comprometida pode enviar conteúdo malicioso com assinatura válida, de modo que autenticação não substitui resposta ao incidente.",
+      "section": "2. Proteção: antispam, antivírus e autenticação do domínio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário informa que não consegue enviar anexos. Qual primeira coleta de dados ajuda a separar política de tamanho, bloqueio de tipo e falha geral de envio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Perguntar tamanho e tipo do arquivo, destinatário e erro exibido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Solicitar senha, código MFA e cópia integral da caixa postal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o perfil de usuário e recriar todas as pastas locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar antivírus no computador antes de qualquer teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar a política DMARC do domínio do destinatário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tamanho, tipo, destinatário e mensagem de erro ajudam a identificar limite, bloqueio de formato ou outra falha sem expor credenciais. Apagar perfis ou desativar proteção antes de delimitar o problema é desnecessário e arriscado.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber um chamado, perguntar quais usuários são afetados, qual operação falha, quando começou e qual erro aparece ajuda a delimitar o incidente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Escopo, operação, horário e mensagem de erro distinguem falha individual de serviço amplo e orientam testes específicos em vez de mudanças indiscriminadas.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico precisa conferir a autenticação da caixa de um usuário durante atendimento remoto. Qual prática protege melhor a conta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Solicitar a senha para confirmar que corresponde à registrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pedir o código MFA e guardar no chamado para auditoria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o fluxo oficial de identidade sem receber senha ou código.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Enviar um link de redefinição por uma conta pessoal do técnico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar MFA enquanto o usuário testa o webmail.",
+          "correct": false
+        }
+      ],
+      "explanation": "Credenciais e códigos MFA são segredos que não devem ser solicitados ou armazenados. A equipe deve confirmar identidade e orientar recuperação pelo fluxo oficial, mantendo os fatores de autenticação ativos conforme política.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar o acesso a uma intranet e a um site público, qual dado é especialmente útil para descobrir se o problema está restrito ao ambiente interno?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o usuário prefere a pasta Arquivo ou a pasta Rascunhos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se a lista de distribuição tem um proprietário registrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o SPF do domínio público termina com política restritiva.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o usuário está na rede corporativa ou conectado pela VPN.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Se o cliente de e-mail sincronizou a pasta Itens Enviados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A intranet pode exigir rede corporativa, VPN ou permissões internas. Verificar o contexto de conexão ajuda a diferenciar restrição de acesso interno de falha geral do navegador ou do serviço público.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a navegação privada do navegador altera principalmente ao fim da sessão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela impede que a rede corporativa registre conexões feitas pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela criptografa o tráfego entre o dispositivo e todos os sites visitados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela torna anônimo o endereço IP perante o provedor de internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela reduz o histórico e alguns dados locais guardados no perfil.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ela remove as permissões de acesso aplicadas pela intranet.",
+          "correct": false
+        }
+      ],
+      "explanation": "A navegação privada reduz o armazenamento local de histórico e alguns dados após o encerramento da sessão. Ela não oculta tráfego da organização ou do provedor, não anonimiza o IP nem altera permissões da aplicação web.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário relata que um portal web só falha em seu perfil do navegador. Qual teste inicial é razoável antes de reinstalar o computador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o servidor de correio da organização por outro produto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reconfigurar o registro DKIM do domínio que hospeda o portal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a retenção da caixa postal e aguardar nova sincronização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a validação de certificados em todos os navegadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar outro navegador ou perfil e verificar sessão e cache.",
+          "correct": true
+        }
+      ],
+      "explanation": "Se o problema está limitado a um perfil, sessão, cookies, cache ou extensão podem influenciar. Comparar outro navegador ou perfil é um teste delimitado; reinstalar o computador ou desativar certificados não é uma primeira medida proporcional.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário recebe uma página de login com aviso de certificado inválido. Qual orientação é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar o alerta se o logotipo do portal parecer familiar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inserir a senha e avisar a equipe apenas se houver erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar de navegador até que um deles aceite o certificado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a verificação TLS para concluir o acesso urgente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não inserir credenciais e reportar o alerta pelo canal interno.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um alerta de certificado pode indicar configuração incorreta ou interceptação. O usuário deve evitar inserir credenciais, confirmar o endereço oficial e reportar o evento pelo canal de suporte, sem contornar a proteção.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar mensagem ausente, solicitar senha e código de autenticação ao usuário costuma ser necessário para pesquisar o rastreamento administrativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A pesquisa administrativa usa dados de mensagem como remetente, destinatário e período, com as permissões apropriadas. Senha e código MFA não são necessários e não devem ser coletados.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um e-mail marcado como entregue não aparece na caixa de entrada do usuário. Qual conjunto de verificações é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar pastas, regras, encaminhamento e sincronização do cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar imediatamente o SPF do domínio de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar a fila do servidor porque a entrega foi registrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar retenção em todas as caixas para devolver o e-mail.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o usuário de todos os grupos de distribuição existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Entrega no transporte não garante que o item permaneça na caixa de entrada visível. Regras podem mover ou encaminhar mensagens, pastas podem variar e o cliente pode não ter sincronizado. Investigue esses estados antes de modificar DNS ou grupos.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Diante de possível phishing, qual instrução inicial reduz o risco e preserva informação para análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Responder ao remetente para confirmar se ele conhece o usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Encaminhar a mensagem suspeita para toda a equipe decidir.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não clicar nem responder e reportar pelo procedimento interno.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Excluir a mensagem antes de registrar qualquer evidência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o filtro antispam até a investigação terminar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Não clicar nem responder reduz a chance de comprometimento e o reporte pelo canal interno permite análise e preservação da mensagem conforme procedimento. Encaminhar amplamente pode expor outras pessoas ao risco.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa não acessa a intranet enquanto trabalha fora da rede corporativa. Qual hipótese deve ser verificada antes de alterar a aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o registro DKIM do portal foi publicado pelo proprietário correto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se a caixa postal está sob uma política de retenção ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se um grupo de distribuição está expandindo os destinatários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o acesso exige VPN ou outra conexão corporativa autorizada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Se o servidor de saída permite relay para destinos externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Intranets frequentemente dependem de rede interna ou VPN e de permissões específicas. Confirme o caminho de acesso exigido antes de alterar aplicação, DNS ou serviço de e-mail.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Limpar cookies e dados locais do navegador pode encerrar sessões e remover preferências; por isso, deve ser explicado e usado como teste dirigido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dados locais podem conter sessões e preferências. O suporte deve informar o efeito da ação e aplicá-la quando a hipótese técnica justificar, em vez de apagar dados sem necessidade.",
+      "section": "3. Suporte a correio eletrônico, internet e intranet",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança em conector ou rota de saída está planejada para produção. Qual procedimento reduz o risco operacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar sem registro para evitar que o teste atrase a equipe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir escopo, risco, teste, reversão e validação após a mudança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar uma conta administrativa compartilhada por todo o setor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar também todas as políticas de retenção para uniformizar o ambiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar somente no fato de que a interface aceitou salvar a configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudança controlada exige objetivo e escopo claros, avaliação de risco, plano de teste e reversão e validação posterior com rastreamento ou logs. Salvar sem observar o resultado não confirma que o fluxo está correto.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma taxa de adiamento aumenta apenas para um domínio externo, enquanto mensagens internas são entregues normalmente. Qual linha de investigação é mais direcionada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar o próximo salto, conectividade e respostas do domínio remoto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover a política de retenção de todos os usuários internos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a assinatura DKIM dos usuários destinatários locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar os grupos dinâmicos para reduzir a fila externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reinstalar os navegadores de todos os usuários da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A concentração do atraso em um domínio aponta para investigar rota, próximo salto, DNS, conectividade e respostas temporárias do sistema remoto. O indicador orienta uma hipótese, mas logs e eventos devem confirmá-la.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O princípio do privilégio mínimo recomenda conceder ao administrador apenas as permissões necessárias à tarefa que executará.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Limitar permissões reduz a superfície de erro e o impacto caso a conta seja comprometida. Permissões elevadas devem corresponder à necessidade operacional e ser controladas.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um NDR recebido pelo remetente deve ser ignorado porque mensagens legítimas nunca produzem relatórios de não entrega.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um NDR informa que a entrega falhou e pode apontar endereço inválido, rejeição por política, limite ou problema temporário. O código e o diagnóstico devem orientar a investigação.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de indicadores ajuda a acompanhar a saúde do serviço de correio eletrônico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o número de usuários que mudaram a cor do tema do webmail.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas a quantidade de mensagens na pasta Itens Enviados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o número de grupos visíveis no catálogo global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fila por idade e destino, adiamentos, NDRs e eventos de quarentena.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de vezes que cada usuário abriu a navegação privada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fila por idade/destino, taxas de adiamento, NDRs, detecções e quarentena fornecem sinais de fluxo e proteção. Indicadores devem ser comparados no tempo e correlacionados com mudanças para investigar causas.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o rastreamento mostra que a mensagem foi entregue, então ela necessariamente continua na Caixa de Entrada e foi exibida ao usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A mensagem pode ter sido movida por regra, encaminhada, direcionada a outra pasta ou não sincronizada no cliente. O estado de transporte não confirma leitura nem localização atual na interface.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha afeta muitos usuários logo após alteração de uma regra de fluxo. Qual ação oferece diagnóstico e contenção mais úteis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Solicitar que cada usuário recrie a conta de e-mail local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correlacionar horário, regra e rastreamento, seguindo plano de reversão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alterar todos os registros DNS de autenticação do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aguardar sem comunicar porque o serviço sempre corrige regras sozinho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar antimalware e antivírus em todas as caixas afetadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proximidade temporal sugere investigar a mudança, verificar mensagens e ações afetadas no rastreamento e aplicar o plano de reversão ou correção sob controle. Recriar clientes e alterar DNS não tratam uma regra de fluxo recém-modificada.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de política deve ser validada apenas porque a interface administrativa confirmou que a configuração foi salva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Salvar a configuração confirma apenas que a alteração foi registrada. A equipe ainda precisa testar o comportamento com escopo controlado e verificar rastreamento, logs ou indicadores após a implantação.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma mensagem enviada a grupo, um membro recém-adicionado afirma que não recebeu o conteúdo. Qual verificação é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar associação no momento do envio e consultar expansão/rastreamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar o domínio do grupo e aguardar a próxima política DMARC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar a retenção do remetente para recriar a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar o usuário a todas as listas sem conferir necessidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reconfigurar o mapa de transporte do servidor Postfix local.",
+          "correct": false
+        }
+      ],
+      "explanation": "A associação vigente na hora do envio e o evento de expansão do grupo ajudam a saber se o destinatário fazia parte da distribuição. Depois, rastreamento individual e regras/pastas do membro mostram o destino da mensagem.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem pode ser considerada segura apenas porque foi aprovada em DMARC; portanto, a verificação antimalware pode ser dispensada para mensagens autenticadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DMARC avalia alinhamento de autenticação de domínio e política. Uma conta ou domínio autenticado ainda pode enviar conteúdo malicioso, então antispam, antimalware e resposta a incidentes permanecem necessários.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante o atendimento, a mensagem contém dados pessoais e o técnico precisa registrar evidência. Qual prática é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar o conteúdo completo para um canal público da equipe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Solicitar a senha do remetente para abrir a mensagem original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Coletar os dados mínimos permitidos e usar o canal aprovado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover os cabeçalhos e encaminhar para uma conta pessoal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar o anexo no chamado para facilitar o acesso geral.",
+          "correct": false
+        }
+      ],
+      "explanation": "A coleta deve limitar-se ao necessário para o diagnóstico, respeitar permissões e usar armazenamento/canais aprovados. Conteúdo integral, credenciais ou encaminhamento a contas pessoais criam exposição desnecessária.",
+      "section": "4. Mudanças, monitoramento e resolução de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Mail flow rules (transport rules) in Exchange Online",
+      "publisher": "Microsoft Learn",
+      "reference": "Condições, exceções, ações, prioridades e processamento de regras de fluxo",
+      "url": "https://learn.microsoft.com/en-us/exchange/security-and-compliance/mail-flow-rules/mail-flow-rules",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Create and manage distribution lists in Exchange Online",
+      "publisher": "Microsoft Learn",
+      "reference": "Grupos de distribuição, membros, remetentes permitidos, moderação e visibilidade",
+      "url": "https://learn.microsoft.com/en-us/exchange/recipients-in-exchange-online/manage-distribution-groups/manage-distribution-groups",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Learn about retention for Exchange",
+      "publisher": "Microsoft Learn",
+      "reference": "Retenção, exclusão, itens de caixa postal e preservação",
+      "url": "https://learn.microsoft.com/en-us/purview/retention-policies-exchange",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Retention tags and retention policies in Exchange Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Tipos de etiquetas de retenção, políticas e atribuição a caixas postais",
+      "url": "https://learn.microsoft.com/en-us/exchange/policy-and-compliance/mrm/retention-tags-and-retention-policies",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Message trace in the new EAC in Exchange Online",
+      "publisher": "Microsoft Learn",
+      "reference": "Rastreamento do percurso, estados e eventos de mensagens",
+      "url": "https://learn.microsoft.com/en-us/exchange/monitoring/trace-an-email-message/message-trace-modern-eac",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Postfix transport table",
+      "publisher": "Postfix project",
+      "reference": "Mapeamento de destinos a transporte e próximo salto",
+      "url": "https://www.postfix.org/transport.5.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Postfix address rewriting",
+      "publisher": "Postfix project",
+      "reference": "Aliases, reescrita e roteamento de endereços",
+      "url": "https://www.postfix.org/ADDRESS_REWRITING_README.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7208: Sender Policy Framework (SPF)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Autorização de hosts para uso de domínios em identidade SMTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc7208.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6376: DomainKeys Identified Mail (DKIM) Signatures",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Assinatura criptográfica associada a domínio e verificação por chave pública",
+      "url": "https://www.rfc-editor.org/rfc/rfc6376.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9989: Domain-based Message Authentication, Reporting, and Conformance (DMARC)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Padrão vigente consultado para alinhamento, política e relatórios DMARC",
+      "url": "https://www.rfc-editor.org/rfc/rfc9989.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

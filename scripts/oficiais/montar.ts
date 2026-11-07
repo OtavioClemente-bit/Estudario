@@ -73,6 +73,8 @@ for (const arquivo of arquivos) {
     // A mesma questão cai em provas de vários cargos do mesmo concurso (conhecimentos básicos): entra uma vez só.
     const chaveEnunciado = norm(statement).replace(/[^a-z0-9]+/g, " ").trim();
     if (grupo.questions.some((x) => norm(String(x.statement)).replace(/[^a-z0-9]+/g, " ").trim() === chaveEnunciado)) continue;
+    // O validador do importar.ts aceita no máximo 600 questões por recorte (07/11: um recorte passou e travou a publicação).
+    if (grupo.questions.length >= 600) continue;
     grupo.questions.push(questao);
     porRecorte.set(chave, grupo);
     contagem.aceitas++;

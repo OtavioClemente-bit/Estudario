@@ -1,0 +1,1950 @@
+{
+  "id": "informatica.arquiteturas-ia-negocio-modelos-pipelines",
+  "subject": "Informática",
+  "title": "Arquiteturas de IA para negócio: modelos, APIs, integração e pipelines",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquiteturas de IA para negócio: APIs de modelos e pipelines de dados",
+    "Arquitetura de inteligência artificial para empresas",
+    "Integração de modelos de IA por API em sistemas de negócio",
+    "Uso empresarial de APIs de modelos de inteligência artificial",
+    "Pipelines de dados e modelos de IA em aplicações de negócio",
+    "Sistemas corporativos integrados a modelos de linguagem",
+    "Aplicações de negócio com modelos de inteligência artificial",
+    "Orquestração de dados e inferência de modelos de IA",
+    "Arquitetura de soluções empresariais baseadas em IA",
+    "Integração de serviços e dados com APIs de IA"
+  ],
+  "scope": {
+    "covers": "Arquiteturas de IA para negócio: seleção e consumo de modelos por APIs; padrões síncronos e assíncronos; integração com aplicações, serviços e fontes de dados; desenho de pipelines de ingestão, transformação, inferência, validação e entrega; orquestração, idempotência, retentativas, filas, observabilidade, segurança, privacidade, governança e avaliação operacional.",
+    "excludes": "Treinamento matemático aprofundado de redes neurais, desenvolvimento de um modelo fundacional, comparação comercial de fornecedores, operação detalhada de produtos proprietários e aconselhamento jurídico sobre tratamento de dados."
+  },
+  "theoryTitle": "Como integrar modelos de IA a processos e dados de negócio",
+  "chapters": [
+    {
+      "title": "1. Da necessidade de negócio à arquitetura de IA",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode querer classificar solicitações, resumir documentos, localizar informação em uma base interna ou sugerir uma resposta a um atendente. O modelo é apenas um componente: a solução também precisa receber uma solicitação, aplicar regras de acesso, preparar contexto, chamar o modelo, validar a resposta e integrá-la ao fluxo de trabalho. Uma chamada direta do navegador ao fornecedor pode expor credenciais e contornar as regras do sistema.\n\nComece pelo resultado operacional: qual tarefa será apoiada, quem toma a decisão final, qual dado entra, qual saída é aceitável e como medir o ganho. Uma tarefa previsível e baseada em regras pode dispensar IA; para extração estruturada ou classificação, um modelo menor pode bastar; para uma resposta com base documental, a recuperação de trechos relevantes pode ser necessária. O modelo deve ser escolhido por adequação, qualidade, latência, custo, disponibilidade, limites de uso e condições de tratamento de dados, não por prestígio ou tamanho isolado.\n\n> **Siglas e termos deste capítulo**\n> - **IA**: inteligência artificial; aqui, serviços que inferem saídas a partir de entradas.\n> - **Inferência**: execução de um modelo já disponibilizado para produzir uma saída.\n> - **API**: interface de programação usada para solicitar uma operação a outro serviço.\n> - **Gateway**: ponto controlado de entrada que aplica autenticação, limites e roteamento.\n> - **SLO**: objetivo de nível de serviço, como uma meta de latência ou disponibilidade.\n\n### Blocos comuns da solução\n\nUma arquitetura prática separa responsabilidades. A aplicação de negócio autentica a pessoa e valida o caso de uso; um backend ou camada de integração guarda credenciais e chama a API do modelo; serviços de dados autorizados fornecem contexto; e uma etapa posterior trata, registra e encaminha a resposta. O gateway pode centralizar autenticação de serviço, quotas, limites de tamanho, roteamento e métricas. Ele não substitui a autorização de negócio nem torna confiável uma saída gerada pelo modelo.\n\n| Bloco | Responsabilidade concreta | Exemplo de controle\n| --- | --- | --- |\n| Aplicação | Apresentar a função ao usuário e recolher entrada | Validar campos e perfil\n| Backend de negócio | Aplicar regras do processo e chamar componentes internos | Verificar permissão antes de buscar dados\n| Adaptador de modelo | Traduzir o contrato interno para a API externa | Timeout, tratamento de erro e versão de API\n| Camada de dados | Recuperar fatos autorizados e registrar resultados necessários | Filtrar por titular e escopo de acesso\n| Observabilidade | Acompanhar desempenho e falhas | Latência, custo, erros e qualidade\n\n### API de modelo: contrato, não mágica\n\nUma API recebe uma solicitação estruturada e devolve uma resposta estruturada conforme o contrato publicado pelo provedor. Em um fluxo de geração, o cliente informa instruções, conteúdo e parâmetros suportados; a resposta pode trazer texto, metadados, identificadores ou estados de execução. A aplicação deve verificar o estado, interpretar o formato e tratar respostas incompletas, recusas, erros de validação, limite de requisições e falhas de rede. Não presuma que toda chamada devolva imediatamente um texto final.\n\nMantenha uma interface interna própria, como `classificarSolicitacao(entrada)`, e implemente adaptadores para serviços externos. Assim, regras de negócio e telas não ficam acopladas a nomes de campos específicos de um fornecedor. Guarde modelo e versão/configuração usados junto com os metadados necessários para reproduzir uma avaliação; faça mudanças de versão mediante testes comparativos. Uma troca de modelo pode alterar estilo, latência, custo e comportamento mesmo quando a instrução permanece igual.\n\nA chave de API é segredo de servidor: deve vir de um cofre de segredos ou mecanismo equivalente, com acesso mínimo, rotação e separação entre ambientes. Não a inclua no código-fonte, aplicativo do navegador, repositório, prompt ou log. Para evitar consumo descontrolado, aplique autorização por caso de uso, quotas, limites de entrada/saída e orçamento.\n\n### Como cai na prova\n\n- A API conecta a aplicação ao modelo; não substitui autenticação, regra de negócio, validação da resposta nem integração com dados.\n- Credenciais ficam no ambiente de servidor e são protegidas como segredos.\n- A escolha considera tarefa, qualidade, custo, latência, disponibilidade, limites e dados, com métricas relacionadas ao processo real.\n- O componente generativo não deve receber automaticamente acesso irrestrito a banco, correio eletrônico ou sistemas transacionais."
+    },
+    {
+      "title": "2. Integração de modelos com aplicações e sistemas",
+      "markdown": "### O problema que este assunto resolve\n\nUma resposta de IA só gera valor quando chega ao sistema e à pessoa certos, dentro de uma transação segura. Integração envolve contratos entre serviços, identidade, autorização, tratamento de falhas e compatibilidade. Para uma consulta interativa, a aplicação pode esperar uma resposta síncrona; para análise de milhares de documentos, é mais adequado aceitar o pedido, enfileirar trabalho e informar o resultado depois.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo comum de comunicação entre aplicações web.\n> - **JSON**: formato textual de dados estruturados usado em muitos contratos de API.\n> - **OAuth**: família de mecanismos de autorização delegada; não é uma chave de API universal.\n> - **Fila**: componente que armazena mensagens para processamento desacoplado.\n> - **DLQ**: fila de mensagens que excederam a política normal de processamento.\n> - **Idempotência**: propriedade de repetir uma operação sem duplicar seu efeito de negócio.\n\n### Síncrono, assíncrono e eventos\n\nNo padrão síncrono, um serviço chama outro e aguarda a resposta no mesmo fluxo. É simples para uma consulta curta, mas mantém recursos ocupados e propaga latência ou indisponibilidade. Defina timeout, tamanho máximo de entrada e resposta, limite de concorrência e política de retentativa. Uma cascata de chamadas sequenciais aumenta o tempo total; quando possível, chamadas independentes podem ocorrer em paralelo, respeitando capacidade e dependências.\n\nNo padrão assíncrono, a aplicação grava uma tarefa ou publica um evento e devolve um identificador de acompanhamento. Um worker consome a mensagem, chama o modelo e salva o resultado; o usuário pode consultar o estado ou receber notificação. A fila absorve picos e separa a disponibilidade do produtor da capacidade de processamento, mas exige correlação, tratamento de duplicatas, ordenação quando necessária, expiração e monitoramento de mensagens paradas.\n\nEvento descreve algo que aconteceu, como `DocumentoRecebido`; comando pede uma ação, como `ClassificarDocumento`. Essa diferença ajuda a definir contratos estáveis. Em uma integração orientada a eventos, o produtor publica um evento e consumidores interessados reagem. Em uma orquestração, um componente coordenador conhece as etapas e seus resultados. A coreografia reduz dependência de um coordenador central em fluxos simples; a orquestração facilita visualizar uma transação distribuída com várias etapas e compensações. O padrão saga coordena etapas locais e ações compensatórias, mas não transforma vários bancos em uma transação ACID única.\n\n### Falhas, retentativas e segurança da integração\n\nRetente falhas transitórias, como limitação temporária ou indisponibilidade, com espera progressiva e limite de tentativas; respeite instruções de espera fornecidas pelo serviço quando aplicável. Erro de autenticação, entrada inválida ou permissão negada costuma exigir correção, não repetição imediata. Retentar sem idempotência pode cobrar duas vezes, abrir dois chamados ou enviar duas mensagens. Use uma chave de idempotência ou registro de operação quando o sistema suportar; caso contrário, desenhe uma verificação de duplicidade no domínio.\n\nSepare autenticação (quem é o chamador) de autorização (o que ele pode fazer). Um usuário autorizado a consultar um documento pode não ter autorização para enviar seu conteúdo a um serviço externo. Use identidade de serviço, escopo mínimo, conexão cifrada, validação de certificado, segregação de ambientes e controle de saída de rede. Registre identificadores de correlação, duração, modelo e resultado operacional; evite registrar conteúdo sensível e credenciais.\n\nA saída do modelo é entrada não confiável para o sistema. Valide esquema, tipos, tamanho, valores permitidos e regras de domínio antes de atualizar um cadastro ou executar ação. Exija confirmação humana em decisões de impacto ou quando a política do negócio assim determinar. Uma resposta em JSON solicitado no prompt não é automaticamente JSON válido nem prova de que os valores sejam corretos.\n\n### Como cai na prova\n\n- Chamada síncrona aguarda resposta; fila permite processamento posterior e desacoplado.\n- Retentativa requer classificação de erro, limite e proteção contra efeitos duplicados.\n- Gateway centraliza políticas de acesso e tráfego, mas autorização de negócio ainda deve ser verificada pelo serviço responsável.\n- Resposta do modelo deve passar por validação antes de virar comando ou dado persistido."
+    },
+    {
+      "title": "3. Pipelines de dados e inferência",
+      "markdown": "### O problema que este assunto resolve\n\nUm pipeline transforma dados de origem em um produto de dados ou resultado operacional por etapas repetíveis. Um fluxo para triagem de documentos pode receber arquivos, verificar formato e autorização, extrair texto, remover duplicatas, classificar, revisar saídas de baixa confiança e enviar o resultado a um sistema corporativo. A inferência é uma etapa do pipeline, não o pipeline inteiro.\n\n> **Siglas e termos deste capítulo**\n> - **ETL**: extrair, transformar e carregar os dados no destino.\n> - **ELT**: extrair, carregar e transformar no ambiente de destino.\n> - **DAG**: grafo acíclico dirigido que representa tarefas e dependências.\n> - **Batch**: processamento de um conjunto acumulado em uma execução.\n> - **Streaming**: processamento contínuo de eventos à medida que chegam.\n> - **Watermark**: referência de progresso temporal usada para lidar com eventos atrasados.\n> - **Schema**: definição de campos, tipos e regras esperadas para os dados.\n\n### Desenho de ponta a ponta\n\nUma pipeline típica separa: (1) ingestão de fontes e registro de proveniência; (2) validação de esquema, qualidade, acesso e duplicidade; (3) transformação, normalização, filtragem e eventual mascaramento; (4) enriquecimento ou recuperação de contexto; (5) inferência; (6) validação determinística da resposta; (7) gravação em destino e publicação do resultado; (8) métricas, alertas e trilha de auditoria. Cada fronteira precisa ter contrato e comportamento em caso de erro.\n\nEm ETL, transformações ocorrem antes da carga no destino; em ELT, os dados são carregados primeiro e transformados no ambiente de destino. Batch favorece volumes e janelas previsíveis; streaming reduz atraso, mas exige considerar eventos repetidos ou fora de ordem, estado e reprocessamento. Uma arquitetura pode combinar os dois: eventos chegam continuamente e uma tarefa em lote recompõe dados históricos.\n\nUm orquestrador como Apache Airflow descreve tarefas e dependências em uma DAG, agenda execuções e acompanha estados. Ele coordena o trabalho; não deve ser tratado como armazenamento de grandes conjuntos de dados. Passe referências a arquivos ou objetos guardados em armazenamento compartilhado, e mantenha em mensagens de controle identificadores pequenos. Se uma tarefa puder ser repetida, escreva o resultado de forma idempotente: grave por chave de negócio, substitua partição de forma controlada ou use uma tabela de deduplicação, em vez de inserir cegamente a mesma linha novamente.\n\n### Dados para contexto: busca e RAG\n\nEm geração aumentada por recuperação (RAG), documentos autorizados são preparados e indexados; na consulta, o sistema recupera trechos relevantes e os inclui como contexto para o modelo. O processo precisa preservar origem, atualização, permissões e filtros de acesso no momento da recuperação. Uma busca semanticamente parecida não garante autorização: o filtro de identidade deve ser aplicado antes de entregar o trecho ao modelo. A resposta deve apontar evidências ou referências quando o produto exigir rastreabilidade, e a aplicação deve lidar com contexto vazio ou conflitante.\n\nDividir documentos em trechos muito grandes pode exceder o contexto e esconder detalhes; trechos pequenos demais podem separar uma condição de sua exceção. Avalie tamanho, sobreposição, metadados e estratégia de recuperação com exemplos representativos. Atualização e exclusão também fazem parte do ciclo de vida do índice, inclusive quando um documento muda de classificação ou deixa de poder ser usado.\n\n### Confiabilidade e qualidade de dados\n\nDefina verificações antes e depois da inferência: campos obrigatórios, faixa de datas, valores aceitos, detecção de duplicatas e reconciliação de totais. Registre a versão da transformação, o identificador da execução, a origem e as referências de dados necessárias para auditoria. Uma falha parcial deve ser identificável e recuperável sem repetir efeitos já confirmados. Use quarentena para itens inválidos, com motivo e caminho de correção.\n\n### Como cai na prova\n\n- Pipeline inclui ingestão, preparação, inferência, validação, entrega e observabilidade; não é sinônimo de chamada ao modelo.\n- DAG representa dependências acíclicas; o orquestrador agenda e monitora, enquanto o dado volumoso permanece em armazenamento apropriado.\n- Reexecução segura exige idempotência, versionamento de entradas e saídas e controle de duplicidade.\n- RAG recupera conteúdo de uma fonte; a busca não elimina autorização, atualização nem verificação da resposta."
+    },
+    {
+      "title": "4. Operação, segurança e evolução da solução",
+      "markdown": "### O problema que este assunto resolve\n\nUma solução que funciona em uma demonstração ainda pode falhar em produção por custo imprevisível, respostas inconsistentes, mudança de fonte, indisponibilidade de API, vazamento de dados ou ausência de procedimento de revisão. A operação precisa tornar observáveis as etapas, estabelecer limites e permitir que a equipe compare versões e intervenha quando necessário.\n\n> **Siglas e termos deste capítulo**\n> - **SLA**: compromisso de nível de serviço definido entre partes.\n> - **SLI**: indicador medido, como latência ou proporção de erros.\n> - **Drift**: mudança na distribuição dos dados ou no comportamento observado ao longo do tempo.\n> - **PII**: informação que pode identificar uma pessoa, direta ou indiretamente.\n> - **Human-in-the-loop**: etapa em que uma pessoa revisa ou decide sobre a saída.\n\n### Avaliação antes e depois da implantação\n\nMonte um conjunto de exemplos representativo do processo, com entradas variadas, casos-limite, saídas esperadas e critérios de aceitação. Separe dados de avaliação dos dados usados para ajustar instruções. Meça qualidade da tarefa (por exemplo, precisão de classificação ou completude de campos), além de latência, taxa de erro, custo por item, taxa de recusa e necessidade de revisão humana. Uma média agregada pode ocultar falhas em grupos ou categorias; analise recortes relevantes e casos de alto impacto.\n\nAntes de trocar modelo, prompt, recuperação ou transformação, compare a versão candidata com uma linha de base usando os mesmos exemplos. Use implantação gradual, tráfego espelhado quando permitido, ou grupo piloto; defina critério de reversão. A comparação deve considerar o processo completo: um modelo pode melhorar a redação e piorar a exatidão de campos que acionam uma regra. Registre modelo, parâmetros, prompt, conjunto de dados, código e versão do índice.\n\n### Observabilidade e controle operacional\n\nPropague identificador de correlação entre requisição, fila, execução de pipeline e resposta. Colete métricas de duração por etapa, volume, fila pendente, retentativas, erros por categoria, tokens ou unidades cobradas e tempo até resultado. Faça logs estruturados sem inserir segredos ou conteúdo sensível desnecessário. Traces ajudam a localizar onde uma requisição gastou tempo; métricas ajudam a observar tendências e alertas. Monitore também resultado de negócio, como proporção de documentos corretamente encaminhados, e não apenas disponibilidade HTTP.\n\nEstabeleça timeout, circuit breaker ou mecanismo equivalente para interromper chamadas repetidas a um serviço degradado, fila de falhas para análise e procedimento de contingência. O fallback pode ser uma regra mais simples, encaminhamento manual ou mensagem de indisponibilidade; não deve apresentar resultado antigo como atual sem sinalização. A equipe deve conhecer limites de uso, capacidade, custo máximo e caminhos de escalonamento.\n\n### Segurança, privacidade e governança\n\nClassifique os dados e envie ao serviço somente o necessário para a tarefa. Remova ou mascare identificadores quando isso mantiver utilidade; limite retenção; aplique controle de acesso por função; registre quem iniciou uma operação e qual resultado foi usado. Verifique o contrato do serviço sobre retenção, uso dos dados, localização e opções de proteção antes de encaminhar informação corporativa. Uma API privada ou conexão cifrada protege o transporte, mas não resolve sozinha retenção, autorização ou uso apropriado.\n\nConsidere prompt injection em documentos, páginas ou mensagens recuperadas: texto de origem pode tentar instruir o modelo a revelar dados ou ignorar regras. Trate material recuperado como dado não confiável, mantenha políticas e ferramentas sob controle da aplicação e restrinja ações permitidas. Não dê ao modelo credenciais amplas; exponha ferramentas específicas com validação de argumento e autorização no sistema de destino. Para ações de escrita ou efeitos externos, exija validação e, conforme o risco, confirmação humana.\n\n### Como cai na prova\n\n- Avaliação deve combinar qualidade da tarefa, risco, latência, custo e revisão humana com dados representativos.\n- Logs e métricas permitem diagnosticar, mas devem evitar segredos e conteúdo pessoal desnecessário.\n- Segurança depende de identidade, autorização, minimização, retenção e validação; criptografia é só uma camada.\n- A saída gerada não tem autoridade própria para conceder acesso nem executar operações sem controles do sistema."
+    }
+  ],
+  "summary": "Uma arquitetura empresarial de IA conecta objetivo de negócio, aplicação, backend seguro, APIs de modelos, dados autorizados e operação observável. Chamadas síncronas servem a interações curtas; filas e eventos desacoplam trabalhos demorados. Pipelines organizam ingestão, validação, transformação, recuperação de contexto, inferência e entrega. Orquestradores coordenam tarefas; dados volumosos ficam em armazenamento adequado. Retentativas exigem limite e idempotência. Respostas são não confiáveis até passarem por validação de esquema e regra de domínio. Avalie qualidade, latência, custo e revisão; proteja segredos e dados, registre proveniência e versione modelo, instruções, transformações e índices.",
+  "flashcards": [
+    {
+      "front": "Qual é o papel de uma API de modelo numa arquitetura empresarial?",
+      "back": "Receber uma solicitação conforme um contrato e devolver uma resposta ou estado de execução; não substitui regras de negócio, autorização, validação nem integração com dados."
+    },
+    {
+      "front": "Onde deve ficar a chave de acesso a um serviço de modelo?",
+      "back": "Em mecanismo protegido do lado do servidor, com acesso mínimo e rotação; não no navegador, repositório, prompt ou log."
+    },
+    {
+      "front": "Quando uma chamada síncrona é adequada?",
+      "back": "Quando a interação precisa de resultado imediato e a duração prevista cabe no timeout e na experiência do usuário."
+    },
+    {
+      "front": "O que uma fila oferece à integração de IA?",
+      "back": "Desacopla envio e processamento, absorve picos e permite execução posterior, com estados, retentativas e monitoramento."
+    },
+    {
+      "front": "Por que retentativa pode duplicar uma operação?",
+      "back": "A primeira chamada pode ter sido concluída sem que a confirmação chegasse; repetir uma gravação ou envio pode gerar um segundo efeito."
+    },
+    {
+      "front": "O que significa idempotência?",
+      "back": "Repetir uma operação com a mesma intenção sem produzir efeitos de negócio duplicados."
+    },
+    {
+      "front": "O que distingue evento de comando?",
+      "back": "Evento relata algo ocorrido; comando solicita que um componente faça algo."
+    },
+    {
+      "front": "Para que serve uma DLQ?",
+      "back": "Separar mensagens que falharam após a política de tentativas, para investigação e reprocessamento controlado."
+    },
+    {
+      "front": "O que representa uma DAG de pipeline?",
+      "back": "Tarefas e dependências em um grafo dirigido sem ciclos, que pode orientar a ordem de execução."
+    },
+    {
+      "front": "Qual é o papel de um orquestrador de dados?",
+      "back": "Agendar, coordenar dependências e acompanhar estados das tarefas, não servir como armazenamento principal de grandes dados."
+    },
+    {
+      "front": "Qual a diferença prática entre ETL e ELT?",
+      "back": "ETL transforma antes de carregar no destino; ELT carrega e transforma no ambiente de destino."
+    },
+    {
+      "front": "O que é processamento batch?",
+      "back": "Processar um conjunto acumulado de dados em uma execução ou janela definida."
+    },
+    {
+      "front": "O que é processamento streaming?",
+      "back": "Processar continuamente eventos conforme chegam, considerando estado, repetição e ordenação."
+    },
+    {
+      "front": "O que é RAG?",
+      "back": "Recuperar conteúdo relevante de fontes autorizadas e fornecê-lo como contexto a um modelo durante a geração."
+    },
+    {
+      "front": "A recuperação semântica concede permissão de acesso?",
+      "back": "Não. A autorização deve filtrar os dados antes que trechos sejam enviados ao modelo."
+    },
+    {
+      "front": "Por que validar resposta estruturada do modelo?",
+      "back": "Formato solicitado não garante validade sintática nem correção dos valores; esquema e regras de domínio precisam ser verificados."
+    },
+    {
+      "front": "O que medir além de disponibilidade da API?",
+      "back": "Qualidade da tarefa, latência por etapa, erros, custo, volume de revisão humana e resultado operacional."
+    },
+    {
+      "front": "O que é implantação gradual de uma nova versão?",
+      "back": "Liberar a mudança para parte controlada do tráfego ou usuários, observando critérios antes de ampliar ou reverter."
+    },
+    {
+      "front": "Por que guardar proveniência dos dados?",
+      "back": "Para rastrear origem, versão e transformação que produziram um resultado e apoiar auditoria ou reprodução da avaliação."
+    },
+    {
+      "front": "O que fazer com entrada de pipeline inválida?",
+      "back": "Aplicar validação, registrar motivo e direcionar para quarentena ou correção sem contaminar silenciosamente o destino."
+    }
+  ],
+  "tips": [
+    "Desenhe o fluxo começando pela decisão de negócio e marque em qual etapa a pessoa pode revisar o resultado.",
+    "Diferencie API síncrona de fila assíncrona observando se o chamador aguarda o processamento terminar.",
+    "Em cenário de retentativa, pergunte sempre qual efeito pode ocorrer duas vezes e como a idempotência o evita.",
+    "No pipeline, procure origem, qualidade, transformação, inferência, validação e destino; chamada ao modelo é só uma etapa.",
+    "Se a questão citar RAG, verifique autorização e atualização do acervo além da relevância dos trechos.",
+    "Compare modelos com o mesmo conjunto de avaliação e inclua custo, latência e qualidade da tarefa."
+  ],
+  "traps": [
+    "Confundir autenticação do chamador com autorização para acessar determinado documento ou enviar dados a um fornecedor.",
+    "Achar que JSON solicitado no prompt garante saída válida, completa ou verdadeira.",
+    "Retentar indiscriminadamente uma operação de escrita e causar duplicidade no sistema de negócio.",
+    "Tratar fila como garantia automática de ordem, processamento exatamente uma vez ou sucesso final.",
+    "Acreditar que busca semântica remove controles de acesso dos documentos recuperados.",
+    "Medir somente disponibilidade técnica e ignorar erro de classificação, custo por item ou aumento de revisão humana."
+  ],
+  "activeRecall": [
+    "Descreva os componentes entre uma tela corporativa e um serviço externo de modelo, incluindo onde ficam segredos e regras de acesso.",
+    "Compare uma chamada síncrona com uma fila para classificar um arquivo pesado e diga que estado deve ser devolvido ao usuário.",
+    "Explique como timeout e retentativa podem gerar efeito duplicado e proponha duas medidas de controle.",
+    "Enumere as etapas de um pipeline documental desde a ingestão até a entrega de uma classificação auditável.",
+    "Explique por que um orquestrador acompanha referências aos dados em vez de transportar grandes arquivos entre tarefas.",
+    "Compare ETL, ELT, batch e streaming por ordem das operações e padrão de chegada dos dados.",
+    "Descreva o fluxo RAG e indique em que ponto deve ser aplicada a autorização de acesso ao documento.",
+    "Proponha métricas e critérios de reversão para atualizar modelo ou instrução em um sistema de atendimento."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "API confundida com arquitetura completa",
+      "summary": "A API transporta requisições e respostas; aplicação, identidade, autorização, dados, validação, observabilidade e operação são componentes próprios."
+    },
+    {
+      "key": "e2",
+      "title": "Retentativa sem idempotência",
+      "summary": "Falha de confirmação não prova que a operação não ocorreu. Repetição cega pode duplicar gravações, cobranças ou mensagens."
+    },
+    {
+      "key": "e3",
+      "title": "Orquestração confundida com armazenamento",
+      "summary": "DAG e orquestrador coordenam tarefas e estados. Arquivos e conjuntos grandes devem estar em armazenamento compartilhado apropriado."
+    },
+    {
+      "key": "e4",
+      "title": "RAG tomado como garantia de verdade ou acesso",
+      "summary": "Recuperar trecho parecido não garante que esteja atualizado, autorizado ou correto; filtros de permissão e validação continuam necessários."
+    },
+    {
+      "key": "e5",
+      "title": "Saída generativa tratada como comando confiável",
+      "summary": "A saída pode estar malformada ou incorreta. Valide esquema e regra de domínio e controle qualquer efeito externo, com revisão humana conforme o risco."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma solução corporativa, uma API de modelo recebe dados e devolve uma inferência; autorização e validação continuam sendo responsabilidades da aplicação. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A API disponibiliza uma operação do modelo, mas não conhece necessariamente as permissões e regras do processo corporativo. A aplicação deve controlar os dados enviados e verificar a resposta antes de utilizá-la.",
+      "section": "1. Da necessidade de negócio à arquitetura de IA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de API embutida no JavaScript do navegador fica protegida porque a comunicação HTTP usa criptografia. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Criptografia protege o transporte, mas o código entregue ao navegador pode ser inspecionado pelo usuário. A credencial deve permanecer em ambiente de servidor e ser protegida como segredo.",
+      "section": "1. Da necessidade de negócio à arquitetura de IA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila assíncrona permite que o produtor aceite o pedido sem aguardar o término da inferência, desde que a aplicação acompanhe depois o estado do trabalho. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O produtor pode registrar ou publicar a tarefa e devolver um identificador. Um worker processa depois, enquanto a aplicação consulta ou recebe a conclusão.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma chamada a um modelo termina por timeout, repetir imediatamente qualquer operação solicitada é seguro porque o servidor não respondeu. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O serviço pode ter concluído a operação sem que a confirmação chegasse ao cliente. Repetir um efeito externo pode duplicá-lo; use idempotência, consulta de estado ou deduplicação.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento como DocumentoRecebido informa que algo ocorreu; um comando como ClassificarDocumento solicita uma ação. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Evento descreve um fato ocorrido e pode interessar a diversos consumidores. Comando expressa uma intenção dirigida a um responsável por executar uma ação.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DLQ é um mecanismo de autorização que impede que consumidores não autenticados leiam eventos corporativos. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma dead-letter queue separa mensagens que falharam segundo a política de processamento para investigação ou reprocessamento. Autenticação e autorização exigem controles próprios.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ETL, os dados são transformados antes de serem carregados no destino; em ELT, a transformação ocorre após a carga no ambiente de destino. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A ordem das palavras descreve a diferença operacional: ETL transforma entre extração e carga, enquanto ELT carrega antes de transformar no destino.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DAG de tarefas pode conter ciclos, desde que cada ciclo tenha um limite de tentativas configurado no orquestrador. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "DAG significa grafo dirigido acíclico; as dependências não formam ciclos. Retentativas de uma tarefa são política de execução, não uma forma de permitir ciclo no grafo.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um pipeline com Airflow, é preferível passar entre tarefas referências a arquivos grandes guardados em armazenamento compartilhado, em vez de carregar o arquivo inteiro em uma mensagem de controle. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Tarefas podem executar em workers diferentes, então armazenamento compartilhado permite que etapas posteriores leiam o mesmo objeto. Mensagens de controle são adequadas a metadados pequenos, como caminho e identificador.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A recuperação de trechos em uma arquitetura RAG autoriza automaticamente o modelo a receber qualquer documento semanticamente semelhante à consulta. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Similaridade mede relação com a consulta, não permissão. A recuperação precisa aplicar controles de acesso e filtros por identidade e contexto antes de expor trechos ao modelo.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa repetível deve produzir resultado consistente em nova execução, pois orquestradores podem repetir tarefas após falhas. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Projetar tarefas idempotentes evita duplicidade ou estado parcial quando há retentativa. O resultado deve ser publicado de forma controlada e verificável.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo que devolve a resposta no formato JSON solicitado garante que todos os campos são válidos para o cadastro de destino. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O formato pode estar inválido ou conter valores incoerentes. A aplicação deve validar sintaxe, tipos, campos permitidos e regras do domínio antes de gravar.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A disponibilidade HTTP de um serviço basta para demonstrar que um sistema de classificação de solicitações está produzindo resultados úteis. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Disponibilidade informa se o serviço responde, não se classifica corretamente. É necessário medir qualidade da tarefa, custo, latência, erros e necessidade de revisão.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada criptografada a um provedor torna desnecessário avaliar retenção, autorização e minimização dos dados enviados. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Criptografia protege o transporte. A organização ainda precisa controlar acesso, finalidade, dados enviados, retenção e condições do serviço utilizado.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um circuito de proteção pode interromper temporariamente chamadas a um serviço degradado e permitir que a aplicação use um caminho de contingência. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Circuit breaker reduz chamadas repetidas a um serviço que apresenta falhas, evitando sobrecarga adicional. O fallback deve ser explícito e não pode apresentar silenciosamente dado antigo como atual.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Conteúdo recuperado de documentos deve ser tratado como dado não confiável, pois pode conter instruções maliciosas de prompt injection. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Documentos e páginas podem conter texto que tenta alterar o comportamento do modelo. A aplicação mantém políticas, restringe ferramentas e não concede autoridade ao conteúdo recuperado.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer resumir contratos armazenados internamente. Qual desenho mantém a credencial do provedor fora do navegador e permite aplicar regras corporativas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tela chama o provedor com uma chave gravada no código do aplicativo cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O backend verifica permissões e chama o modelo com segredo guardado no servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O banco publica a chave em uma tabela de consulta acessível aos usuários autenticados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O provedor recebe acesso direto ao banco e seleciona os contratos por conta própria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um proxy público encaminha a chamada sem identidade para evitar dependência do backend.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backend pode aplicar a autorização sobre cada contrato e manter o segredo no servidor. Código cliente pode ser inspecionado; acesso direto ao banco ou proxy sem identidade amplia o risco.",
+      "section": "1. Da necessidade de negócio à arquitetura de IA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa compara modelos para classificar chamados de suporte. Qual critério fornece a avaliação mais útil para a decisão de implantação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher o modelo com maior tamanho anunciado pelo fabricante, independentemente da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher o que produz respostas mais longas durante uma demonstração informal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar apenas o preço de uma chamada e ignorar erros de classificação no processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar exemplos representativos e comparar qualidade, latência, custo e revisão exigida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir a tarefa com exemplos representativos e ponderar qualidade, custo e latência.",
+          "correct": true
+        }
+      ],
+      "explanation": "A seleção precisa refletir o uso real e seus limites. Um conjunto representativo permite comparar resultado da tarefa, latência e custo, além do volume de correções humanas.",
+      "section": "1. Da necessidade de negócio à arquitetura de IA",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processamento de documentos pode levar vários minutos e não precisa responder na mesma sessão. Qual integração atende melhor ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação publica uma tarefa, devolve um identificador e consulta seu estado depois.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tela mantém a conexão aberta indefinidamente até o modelo terminar a análise.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O banco de dados aguarda a inferência dentro de uma transação longa do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação repete a chamada em paralelo até uma delas retornar primeiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O navegador agenda o trabalho localmente e fecha a conexão com o servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fila e processamento assíncrono evitam manter a sessão aberta. O identificador permite acompanhar estados e apresentar o resultado quando o worker concluir.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API externa retorna erro temporário depois de uma solicitação que pode ter sido processada. Que medida reduz o risco de duplicar a ação ao tentar novamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a concorrência e reenviar a solicitação sem consultar seu identificador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir em intervalos fixos sem limitar tentativas para garantir conclusão rápida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar chave idempotente ou deduplicação e retentar com limite e espera.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Registrar o erro no log e permitir que cada usuário reenvie o pedido várias vezes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o timeout para que a conexão permaneça aberta durante a indisponibilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "A solicitação pode ter sido concluída apesar da resposta perdida. Uma chave idempotente ou verificação de duplicidade, combinada com retentativas limitadas, protege o efeito de negócio.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe expõe vários serviços corporativos por uma entrada comum. Qual responsabilidade é apropriada para um gateway de API nesse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Determinar se cada classificação gerada pelo modelo está semanticamente correta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir as autorizações internas de cada domínio de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar documentos completos e usá-los como repositório corporativo definitivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Centralizar políticas de entrada, autenticação, limites e roteamento de chamadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Fazer o modelo decidir as permissões de leitura com base no texto do pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um gateway pode concentrar controle de tráfego, autenticação, quotas e roteamento. A autorização específica sobre recursos e a validação semântica continuam nos componentes responsáveis.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço publica DocumentoRecebido e vários consumidores iniciam atividades independentes. Qual estilo de integração descreve esse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma consulta síncrona em que todos os consumidores respondem na mesma conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma atualização direta em que o produtor grava em cada banco consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma chamada encadeada em que o produtor aguarda a conclusão de toda etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma transação única que bloqueia os sistemas até todos confirmarem a gravação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicação de evento com consumidores desacoplados.",
+          "correct": true
+        }
+      ],
+      "explanation": "O produtor publica o fato e consumidores interessados reagem sem que ele precise coordenar cada execução no mesmo fluxo. A entrega e o estado dos consumidores ainda precisam de observabilidade.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo de aprovação envolve quatro serviços, precisa acompanhar etapas e executar compensações se uma etapa posterior falhar. Qual padrão é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma fila única sem estado nem identificador para as operações em andamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma saga coordenada, com estado das etapas e ações compensatórias definidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um cron agendado que repete todas as gravações sempre que houver atraso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma chamada síncrona sem timeout que mantém os quatro bancos bloqueados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma cópia integral dos bancos em cada serviço antes de iniciar o processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Saga modela etapas locais em uma transação distribuída e ações compensatórias para falhas. Não transforma os bancos em uma transação ACID única; o fluxo precisa registrar seu estado.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline recebe arquivos com formatos inesperados. Qual procedimento evita que entradas inválidas contaminem os dados usados pelo modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar os campos inesperados e carregar cada registro diretamente no destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar todos os arquivos ao modelo para que ele corrija o esquema de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar esquema e regras e separar inválidos com motivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Excluir os registros que falharem sem guardar identificador ou motivo da rejeição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Misturar arquivos inválidos aos válidos e corrigir as diferenças no relatório final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validação na entrada detecta desvio de esquema e permite separar dados rejeitados com motivo rastreável. A inferência não substitui regras determinísticas de qualidade.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo diário extrai registros, transforma campos e grava o resultado em um repositório. Como se classifica a ordem em que a transformação precede a carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ELT, pois a carga sempre ocorre antes da leitura dos dados de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Streaming, pois qualquer carga em repositório equivale a evento contínuo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RAG, pois a transformação produz contexto para uma busca semântica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ETL, pois os dados são transformados antes de serem carregados no destino.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DAG, pois toda extração, transformação e carga são necessariamente tarefas cíclicas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ETL executa extração, transformação e carga nessa sequência. A frequência diária descreve o agendamento batch, não altera a classificação da ordem das operações.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto de tarefas de ingestão, limpeza e inferência possui dependências explícitas e precisa ser agendado. Qual componente organiza a execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um orquestrador de workflow que representa tarefas e dependências em uma DAG.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um modelo de linguagem que mantém a ordem de execução na janela de contexto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um gateway de API que armazena permanentemente todos os arquivos de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um cache de navegador que reinicia as tarefas quando a página é recarregada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um classificador que decide a ordem de execução pelo conteúdo de cada saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Orquestradores como Airflow agendam workflows e coordenam dependências entre tarefas. O grafo descreve a ordem; os dados volumosos devem ficar em armazenamento apropriado.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um worker pode receber novamente a mesma mensagem após uma falha. Como deve ser desenhada a gravação do resultado no destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir uma nova linha em cada tentativa e reconciliar duplicatas manualmente no fim.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Evitar qualquer identificador de origem para acelerar a escrita do resultado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gravar primeiro sem confirmação e apagar todas as linhas do destino ao reiniciar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a confirmação da fila para permitir reprocessamento sem registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar por chave de negócio com efeito idempotente.",
+          "correct": true
+        }
+      ],
+      "explanation": "A entrega repetida é possível em sistemas distribuídos. Uma chave estável e uma escrita idempotente permitem que nova tentativa não gere outro registro de negócio.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa RAG para responder sobre procedimentos internos. Qual controle deve ser aplicado antes de incluir trechos recuperados no contexto do modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar trechos somente pelo tamanho e incluir todos os documentos indexados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar autorização e filtros de acesso compatíveis com a identidade e o caso de uso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover metadados de origem para impedir que a aplicação avalie a atualidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confiar que o modelo reconhecerá quais documentos a pessoa está autorizada a ler.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder acesso amplo ao índice ao processo de inferência para evitar filtros duplicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Relevância semântica não equivale a permissão de leitura. A aplicação deve filtrar os resultados de acordo com identidade e escopo antes de enviá-los ao modelo.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento mudou e sua versão anterior continua no índice de busca. Qual ação operacional mantém o contexto recuperado alinhado à fonte vigente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter sempre todas as versões sem indicar data, origem ou situação de validade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho do prompt para que o modelo escolha qual texto parece novo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atualizar ou invalidar a entrada indexada e preservar metadados de origem e versão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar a verificação de acesso para acelerar a consulta aos documentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar o texto antigo para a instrução do sistema e mantê-lo como referência permanente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atualização e a exclusão fazem parte do ciclo de vida do índice. Metadados de versão e origem ajudam a localizar e invalidar conteúdo obsoleto, respeitando permissões.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende trocar modelo, instrução e versão do índice documental. Qual procedimento revela melhor regressões antes de liberar a mudança a todos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar a versão candidata com a linha de base em exemplos fixos e critérios de reversão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar todas as dependências simultaneamente e observar somente o número de requisições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Selecionar alguns exemplos favoráveis depois da implantação e ignorar os demais resultados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Avaliar apenas se a interface continua carregando sem medir o resultado produzido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar a configuração anterior assim que a primeira resposta da versão nova chegar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma linha de base com casos representativos permite comparar qualidade, custo e latência antes da liberação ampla. Critérios de reversão e versões registradas facilitam responder a regressões.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de classificação responde normalmente, mas aumentaram as correções feitas pelos atendentes. Qual conjunto de observações ajuda a localizar a degradação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas quantidade de conexões abertas no gateway, sem examinar saídas ou correções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tamanho médio da tela e número de usuários que abriram a página inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente a disponibilidade mensal do provedor e a versão do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Métricas de qualidade por categoria, revisão humana, dados de entrada e versão do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Latência por etapa, erros, qualidade da tarefa e proporção de resultados revisados.",
+          "correct": true
+        }
+      ],
+      "explanation": "O aumento de correções indica problema na qualidade operacional mesmo com API disponível. Métricas por etapa e categoria, junto à versão e às entradas, ajudam a identificar mudanças relevantes.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe resposta estruturada com um campo de prioridade fora dos valores permitidos pelo sistema de chamados. O que deve ocorrer antes da gravação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar o conteúdo original porque o modelo escolheu o campo solicitado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar a ação mais urgente para compensar a incerteza do valor recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aceitar a resposta se a sintaxe JSON estiver correta, sem validar o domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar esquema e regra de negócio e encaminhar valor inválido para tratamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Pedir ao modelo para gravar diretamente no banco com credencial administrativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validade sintática não garante que os valores sejam aceitos pelo domínio. A aplicação deve validar campo e faixa permitidos antes de persistir ou acionar outra etapa.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um log de inferência é necessário para investigar falhas, mas as entradas podem conter dados pessoais. Qual política é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar prompts completos e credenciais para reproduzir cada chamada sem restrições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar todos os registros, inclusive identificadores de execução e métricas técnicas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar somente o texto final e permitir acesso irrestrito a todos os funcionários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar dados pessoais para um canal de mensagens usado pela equipe de suporte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Minimizar conteúdo sensível e registrar metadados úteis com acesso e retenção controlados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Observabilidade pode usar correlação, duração, versão e categorias de erro sem expor conteúdo desnecessário. Dados armazenados precisam de controle de acesso e retenção apropriada.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página recuperada contém instrução para revelar dados de outros clientes. Como a arquitetura deve tratar esse texto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como política mais recente, substituindo as regras corporativas que antecederam a busca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como dado não confiável, mantendo ferramentas restritas e autorização na aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como comando autorizado porque a busca encontrou a página em fonte interna.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como confirmação de que todos os documentos do índice podem ser enviados ao modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como solicitação para registrar a chave do serviço no contexto da conversa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conteúdo recuperado pode conter prompt injection e não deve alterar políticas nem permissões. A aplicação restringe ferramentas e valida acesso no serviço que executaria qualquer ação.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada ao modelo ficou lenta e o serviço apresenta erros consecutivos. Qual combinação reduz a propagação da falha sem ocultar o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar chamadas concorrentes e ocultar os erros com respostas padrão indistinguíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retentar sem limite e manter cada conexão aberta até a recuperação do fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar timeout e proteção contra chamadas repetidas, monitorando fallback explicitamente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover telemetria para reduzir o custo e deixar o usuário repetir o pedido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar validação de saída para reduzir o tempo gasto no processamento local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout limita espera e um circuit breaker ou controle semelhante reduz chamadas repetidas durante degradação. O fallback deve ser visível e monitorado para não mascarar a indisponibilidade.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa do pipeline atualiza um índice de busca e pode ser reexecutada após falha. Qual desenho facilita recuperação sem misturar estados parciais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar por versão ou partição de forma controlada e publicar apenas quando validada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar o índice inteiro em cada tentativa sem guardar origem ou estado anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inserir novamente todos os vetores sem chave e aceitar entradas duplicadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir consultas durante a reconstrução sem indicar versão ou prontidão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar checkpoints para forçar o reprocessamento manual de todo o histórico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Construir uma versão ou partição isolada, validar o conteúdo e só então publicá-la evita que consultas encontrem estado parcial. A estratégia também facilita voltar à versão anterior após uma falha.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura de IA precisa reduzir o volume de dados pessoais enviado a um serviço externo. Qual medida atua diretamente sobre esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de réplicas para distribuir as chamadas por mais servidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar as solicitações completas em log para não consultar a fonte original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar o banco integral em cada solicitação para dar mais contexto ao modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar apenas campos necessários e mascarar identificadores quando viável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar autenticação entre aplicação e provedor para evitar metadados adicionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Minimização seleciona os dados estritamente necessários para a finalidade e pode incluir mascaramento que preserve utilidade. Réplicas e logging não reduzem o conteúdo enviado.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo de negócio exige que resultados de baixa confiança sejam revisados antes de alterar cadastros. Onde esse requisito pertence?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na política de operação da aplicação, com limiar e encaminhamento para revisão humana.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Na expectativa de que o modelo sempre explique sua própria incerteza corretamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No protocolo HTTP, que decide automaticamente a confiança sem regra de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na fila de mensagens, que substitui a validação de campos e a revisão humana.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No mecanismo de criptografia, que impede a geração de valores incorretos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Revisão humana é parte do fluxo de negócio e deve ser acionada por critérios definidos e observáveis. Protocolo, fila e criptografia não avaliam correção semântica.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa saber onde o tempo foi gasto entre fila, recuperação documental, inferência e gravação. Qual recurso de observabilidade ajuda a acompanhar uma requisição pelas etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma captura de tela da interface feita ao final de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um arquivo de configuração local compartilhado entre todos os workers.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma chave de API registrada no log para correlacionar chamadas externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tabela sem identificadores que agrega todos os tempos em uma média mensal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um identificador de correlação e traces com duração registrada por etapa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Identificador de correlação conecta eventos e traces de uma requisição ao longo dos componentes. A duração por etapa localiza gargalos sem expor credenciais.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline recebe eventos fora de ordem e precisa calcular progresso temporal, tolerando atrasos conhecidos. Qual conceito ajuda a definir a fronteira de completude?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um gateway, que reordena por padrão todos os eventos de qualquer origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um watermark, associado à política para tratar eventos atrasados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma chave secreta, que comprova que o evento chegou na sequência correta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma DLQ, que determina o tempo correto de todos os eventos processados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um prompt do modelo, que interpreta a ordem dos eventos como regra temporal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Watermark representa progresso temporal estimado e ajuda sistemas de streaming a decidir quando uma janela pode ser considerada suficientemente completa. Eventos atrasados ainda precisam de política explícita.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja testar uma nova versão do modelo com parte controlada das solicitações e manter possibilidade de retorno. Qual estratégia atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir a versão em todos os ambientes e remover as configurações anteriores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Direcionar parte controlada do tráfego, comparar métricas e manter reversão definida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o prompt em produção sem registrar qual solicitação usou cada versão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a coleta de métricas para impedir viés durante a implantação gradual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Esperar reclamações de usuários antes de observar qualidade e custo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A implantação gradual compara comportamento sob tráfego controlado e permite interromper ou reverter se critérios definidos piorarem. Registrar versão e métricas é essencial para interpretar o resultado.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe separa dados de controle de dados de negócio entre as tarefas. Qual item é mais apropriado para passar como referência pequena em uma mensagem de orquestração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo integral de milhões de linhas que será transformado pelo worker seguinte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma cópia serializada de todo o banco para dispensar acesso a armazenamento compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O identificador e o caminho do objeto grande em armazenamento acessível aos workers.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A credencial administrativa do repositório para que cada tarefa escolha seu arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O resultado completo da inferência e todos os documentos de origem sem limite de tamanho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mensagens de controle devem carregar metadados pequenos, como identificador e caminho. O worker lê o objeto grande de armazenamento compartilhado com identidade e permissão próprias.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de IA encaminha uma decisão de alto impacto para uma equipe responsável. Qual desenho controla melhor a transição de inferência para ação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar, revisar, mostrar a origem e registrar a decisão humana.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permitir que o texto gerado execute a ação sem checagem para reduzir latência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dar ao modelo permissão irrestrita de gravação e auditar somente no fim do ano.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocultar do revisor a origem dos dados para evitar influência sobre a avaliação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar a confiança textual como autorização suficiente para concluir o processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Decisões de alto impacto exigem controles do processo, revisão segundo política, contexto rastreável e registro. Uma saída fluente ou indicador de confiança não constitui autorização suficiente.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa integra vários serviços e quer escolher coordenação explícita para um processo longo com etapas e tratamento de falhas. Qual característica favorece a orquestração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada participante reage sem estado compartilhado e sem conhecimento das demais etapas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A aplicação grava diretamente em todos os bancos de serviço sem contratos definidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modelo determina sozinho a ordem das operações a partir de respostas livres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um coordenador mantém o estado do fluxo e direciona a próxima etapa conforme resultados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma única chamada HTTP substitui a necessidade de registrar falhas intermediárias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Orquestração torna explícitos o estado e o avanço do fluxo, útil quando várias etapas e tratamento de falha precisam ser coordenados. Coreografia é outra opção para fluxos mais desacoplados.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe armazena conteúdo recuperado e o resultado da inferência para auditoria. Qual conjunto de metadados favorece rastreabilidade sem exigir que se guarde indiscriminadamente todo dado pessoal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o texto final, sem referência a versão, origem ou execução associada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificador de execução, versões relevantes e referências de origem com acesso controlado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Chaves secretas, credenciais e histórico integral de todas as conversas em texto claro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma cópia permanente de cada base de origem em todos os logs de serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um contador global sem vínculo com tarefa, modelo ou transformação utilizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados de execução, versões e referências às fontes permitem rastrear como um resultado foi produzido. A coleta deve ser minimizada e protegida; credenciais e cópias indiscriminadas não são necessárias para correlação.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço oferece limite temporário de requisições e informa quando o cliente pode tentar novamente. Qual tratamento é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar o limite e abrir solicitações paralelas para concluir antes do bloqueio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir em ciclo fechado sem atraso até uma solicitação ser aceita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Respeitar o intervalo indicado, limitar tentativas e observar a fila ou concorrência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação para usar um limite compartilhado menos restritivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Classificar a resposta como saída do modelo e armazená-la como resultado definitivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta de limitação indica que a capacidade ou quota foi excedida. Espera controlada, limite de tentativas e controle de concorrência reduzem pressão adicional e evitam tempestade de chamadas.",
+      "section": "2. Integração de modelos com aplicações e sistemas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa executa extração e inferência de forma contínua para reduzir atraso de triagem. Qual característica define melhor streaming em comparação com batch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os eventos são processados continuamente conforme chegam, com atenção a estado e atraso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os registros são acumulados até o fechamento mensal antes de qualquer transformação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os dados são sempre transformados antes de serem extraídos da fonte corporativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modelo recebe acesso permanente ao banco para acompanhar mudanças sem integração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As tarefas são executadas em ordem aleatória para distribuir a capacidade entre workers.",
+          "correct": false
+        }
+      ],
+      "explanation": "Streaming processa eventos à medida que chegam e deve tratar estado, eventos repetidos ou tardios. Batch processa conjuntos acumulados em execuções ou janelas definidas.",
+      "section": "3. Pipelines de dados e inferência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer reduzir a dependência do contrato específico de um único fornecedor de modelo. Qual decisão de arquitetura ajuda mais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Espalhar nomes de campos externos diretamente por telas e regras do processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar respostas sem registrar qual fornecedor ou versão foi utilizada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma interface interna estável e adaptadores que traduzem contratos externos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Permitir que cada cliente escolha parâmetros diferentes sem validação central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover testes comparativos para que mudanças de fornecedor ocorram sem atraso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma camada adaptadora isola detalhes de contrato externo da lógica de negócio. Ainda é preciso testar equivalência funcional e registrar versões porque a troca pode alterar saída, custo ou latência.",
+      "section": "1. Da necessidade de negócio à arquitetura de IA",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo de pipeline está sendo depurado; a equipe precisa identificar por que uma tarefa falhou sem expor prompts com informações pessoais. Qual registro é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conteúdo pessoal completo e segredo de API anexados a cada mensagem de erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a frase final gerada, eliminando estado e identificadores de etapa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo local temporário sem correlação com a execução distribuída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Metadados de correlação, etapa, categoria de erro e duração, com conteúdo minimizado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A senha do worker e a pilha de configuração integral distribuídas em canal público.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados estruturados permitem correlacionar a falha e localizar a etapa sem registrar dados sensíveis desnecessários. Segredos nunca devem ser incluídos em logs ou canais de suporte.",
+      "section": "4. Operação, segurança e evolução da solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Text generation and prompting",
+      "publisher": "OpenAI",
+      "reference": "Documentação da API de respostas, entradas, saídas e geração de texto",
+      "url": "https://platform.openai.com/docs/guides/text-generation",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Choosing your coordination approach",
+      "publisher": "Amazon Web Services",
+      "reference": "Orientação para coreografia, orquestração e saga na integração de microsserviços",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/modernization-integrating-microservices/choosing-approach.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Asynchronous communication",
+      "publisher": "Amazon Web Services",
+      "reference": "Comunicação assíncrona, desacoplamento e isolamento de falhas",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/modernization-integrating-microservices/asynchronous.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing APIs",
+      "publisher": "Amazon Web Services",
+      "reference": "Gerenciamento e exposição de APIs para integração de serviços",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/modernization-integrating-microservices/apis.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Best Practices",
+      "publisher": "Apache Airflow",
+      "reference": "Idempotência, retentativas, armazenamento compartilhado e dados entre tarefas",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/best-practices.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DAGs",
+      "publisher": "Apache Airflow",
+      "reference": "Workflows, tarefas, dependências, agendamento e regras de execução",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/concepts/dags.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

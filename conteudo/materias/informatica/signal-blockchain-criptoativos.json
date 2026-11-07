@@ -1,0 +1,1902 @@
+{
+  "id": "informatica.signal-blockchain-criptoativos",
+  "subject": "Informática",
+  "title": "Protocolo Signal, blockchain e criptoativos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Protocolo Signal. Blockchain. Criptomoedas.",
+    "Signal Protocol, blockchain e criptomoedas",
+    "Protocolo de mensagens Signal e criptoativos",
+    "Criptografia Signal e tecnologia blockchain",
+    "Mensagens seguras e moedas digitais",
+    "Blockchain e moedas criptográficas",
+    "Criptoativos e protocolo de comunicação Signal",
+    "Ledger distribuído e criptomoedas",
+    "Chaves criptográficas no Signal Protocol",
+    "Bitcoin, blockchain e segurança digital"
+  ],
+  "scope": {
+    "covers": "Protocolo Signal: acordo inicial assíncrono PQXDH, prekeys, Double Ratchet, chaves por mensagem, sigilo futuro, tolerância a mensagens fora de ordem e limites da criptografia ponta a ponta. Blockchain: livro-razão distribuído, blocos, hashes, assinaturas, consenso, prova de trabalho, mineração, forks, contratos inteligentes e limites de imutabilidade. Criptoativos: Bitcoin, transações UTXO, chaves e carteiras, custódia, confirmação, volatilidade, rastreabilidade e enquadramento brasileiro entre Banco Central e CVM.",
+    "excludes": "Implementação de aplicativos Signal, recomendação de investimento, previsão de preços, mineração prática, código de contratos inteligentes e análise jurídica completa de valores mobiliários ou prestadores de serviços."
+  },
+  "theoryTitle": "Mensagens privadas, registros distribuídos e ativos digitais",
+  "chapters": [
+    {
+      "title": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "markdown": "### O problema que este assunto resolve\n\nDuas pessoas precisam iniciar uma conversa protegida sem estarem conectadas ao mesmo tempo. O Signal Protocol separa o acordo inicial de chaves da proteção contínua das mensagens. No PQXDH, o destinatário publica chaves públicas antecipadamente; o iniciador busca um pacote de prekeys no servidor e estabelece um segredo compartilhado sem que o servidor receba as chaves privadas.\n\n> **Siglas e termos deste capítulo**\n> - **IK**: chave pública de identidade usada para associar e autenticar chaves.\n> - **SPK**: prekey assinada, publicada pelo destinatário para acordos iniciais.\n> - **OPK**: prekey de uso único, se disponível, consumida em uma sessão.\n> - **PQXDH**: acordo estendido Diffie–Hellman com componente pós-quântico.\n> - **KDF**: função de derivação que transforma segredos em chaves separadas.\n\n### Etapas do início assíncrono\n\nBob publica sua chave de identidade, uma prekey de curva assinada e prekeys de encapsulamento pós-quântico assinadas; pode ainda publicar OPKs de curva. Alice obtém o bundle, verifica as assinaturas usando a identidade de Bob e combina material DH com o segredo resultante do encapsulamento PQKEM. Uma KDF deriva o segredo inicial. Alice já pode enviar ciphertext na primeira mensagem; Bob processa essa mensagem quando voltar a ficar online. As chaves privadas de prekeys de uso único usadas são apagadas para limitar exposição futura.\n\nA assinatura vincula a prekey à chave de identidade apresentada, mas a confiança de que aquela chave pertence à pessoa certa depende da autenticação da identidade. A comparação de fingerprint ou QR por um canal confiável ajuda a detectar substituição. PQXDH protege o início contra certos ataques de coleta para decriptação futura, mas a especificação ainda baseia a autenticação mútua em hipótese clássica nesta revisão.\n\n| Elemento | Publicação ou origem | Função |\n| --- | --- | --- |\n| IK | Cada participante | Referência para identidade e assinatura das prekeys |\n| SPK | Destinatário | Ajuda a iniciar sessões assíncronas |\n| OPK | Destinatário, quando há estoque | Acrescenta material descartável ao acordo |\n| Chave efêmera | Iniciador | Contribui ao acordo daquela sessão |\n| Bundle | Servidor entrega chaves públicas | Permite iniciar sem conexão simultânea |\n\n### Como cai na prova\n\n- O servidor distribui prekeys e encaminha mensagens; não precisa conhecer o segredo privado da sessão.\n- SPK assinada não é OPK: a primeira pode ser reutilizada até sua renovação; a segunda é de uso único.\n- PQXDH inicia o acordo; não é o ratchet que renova cada chave de mensagem.\n- Criptografia não elimina a necessidade de verificar se a identidade pública é realmente a do contato pretendido."
+    },
+    {
+      "title": "2. Signal: ratchet, mensagens e limites de segurança",
+      "markdown": "### O problema que este assunto resolve\n\nUma chave estática para toda a conversa faria com que sua exposição abrisse muitas mensagens. O Double Ratchet mantém cadeias que avançam: cada mensagem recebe uma chave própria e novas chaves públicas DH renovam o segredo raiz e as cadeias. Chaves antigas podem ser apagadas depois do uso.\n\n> **Siglas e termos deste capítulo**\n> - **RK**: chave raiz que alimenta novas cadeias.\n> - **CK**: chave de uma cadeia de envio ou recepção.\n> - **MK**: chave específica de uma mensagem.\n> - **DH ratchet**: atualização que mistura novo segredo Diffie–Hellman ao estado.\n> - **Forward secrecy**: proteção de mensagens passadas após descarte das chaves usadas.\n> - **PCS**: recuperação futura após comprometimento, quando entra segredo novo desconhecido.\n\n### Duas engrenagens e mensagens atrasadas\n\nA ratchet simétrica deriva uma MK e a próxima CK a cada mensagem. A ratchet DH é acionada quando chega uma chave pública de ratchet nova: o segredo DH alimenta a cadeia raiz, que gera chaves de envio e recepção. Cabeçalhos e contadores informam a chave pública e a posição da mensagem. Se mensagens chegam fora de ordem, o receptor pode guardar temporariamente chaves puladas, dentro de limites definidos, e usá-las quando os ciphertexts correspondentes chegarem.\n\nForward secrecy diz respeito sobretudo às mensagens antigas depois que chaves usadas foram apagadas. PCS não é mágica nem instantânea: requer que entre um segredo novo que o invasor não conheça. Enquanto um dispositivo segue sob controle do atacante, mensagens exibidas nele podem ser lidas antes da cifra ou após a decifra.\n\nSesame trata a gestão assíncrona de sessões e dispositivos, incluindo sessões concorrentes e estado perdido. Não é cifra de mensagens. A criptografia ponta a ponta protege o conteúdo durante o trânsito contra intermediários sem as chaves, mas não promete ocultar todos os metadados, impedir indisponibilidade ou proteger endpoints infectados.\n\n| Propriedade | Mecanismo | Limite |\n| --- | --- | --- |\n| Chave distinta por mensagem | Ratchet simétrica | Não protege endpoint comprometido |\n| Sigilo futuro | Descarte das chaves antigas | Não recupera chave já copiada |\n| Recuperação após invasão | Segredo novo por ratchet DH | Depende de segredo desconhecido do invasor |\n| Reordenação | Contadores e chaves puladas | Armazenamento é limitado |\n\n### Como cai na prova\n\n- A cadeia simétrica avança por mensagem; a atualização DH ocorre com nova chave pública de ratchet.\n- Sesame administra sessões e dispositivos; não substitui o Double Ratchet.\n- Ponta a ponta não equivale a anonimato total nem protege aparelho comprometido.\n- PQXDH trata do começo da sessão; extensões pós-quânticas de ratchet tratam da renovação contínua."
+    },
+    {
+      "title": "3. Blockchain: blocos, consenso e execução de regras",
+      "markdown": "### O problema que este assunto resolve\n\nParticipantes sem uma base central comum precisam manter cópias coerentes de registros. Blockchain é um tipo de livro-razão digital distribuído: transações são organizadas em blocos ligados por referências criptográficas, replicados pelos nós da rede. O hash do bloco anterior faz alterações retroativas detectáveis e custosas, mas não torna o sistema absolutamente imutável.\n\n> **Siglas e termos deste capítulo**\n> - **DLT**: tecnologia de livro-razão distribuído; blockchain é uma forma de DLT.\n> - **Hash**: resumo de tamanho fixo, sensível a mudanças na entrada.\n> - **Nó**: computador que participa da rede, valida ou replica dados.\n> - **Consenso**: regra para a rede concordar sobre o estado e a ordem dos registros.\n> - **PoW**: prova de trabalho computacional, usada no Bitcoin para ordenar blocos.\n> - **Contrato inteligente**: código executado conforme regras registradas em uma rede.\n\n### Encadeamento e consenso\n\nUm bloco costuma conter transações, referência ao bloco anterior e dados próprios. Uma alteração em transação muda o hash do bloco; a referência seguinte deixa de corresponder, exigindo reconstruir os sucessores e convencer a rede a aceitar a nova cadeia. Em redes abertas, consenso seleciona qual histórico válido prevalece entre propostas concorrentes. No Bitcoin, mineradores reúnem transações válidas em candidatos a bloco e competem por uma prova de trabalho; nós verificam regras e a cadeia com maior trabalho acumulado válida orienta a escolha.\n\nOutras redes usam mecanismos distintos, como prova de participação. Blockchain não exige sempre mineração, token ou acesso público: existem redes permissionadas. Um fork ocorre quando há divergência de regras ou de histórico. Uma mudança compatível pode resultar em soft fork; uma mudança incompatível pode dividir participantes e produzir hard fork.\n\nContratos inteligentes executam código na rede sob condições definidas. Oráculos podem fornecer dados externos, mas a blockchain não comprova por si a veracidade do dado recebido. Erro de código, falha de governança ou entrada externa falsa pode gerar execução indesejada.\n\n| Mecanismo | Como participa do consenso | Cuidado |\n| --- | --- | --- |\n| Prova de trabalho | Competição por cálculo e validação de blocos | Consome energia e não impede todo ataque |\n| Prova de participação | Seleção/validação vinculada a participação econômica | Regras de penalidade e seleção variam |\n| Hash encadeado | Liga blocos e evidencia alterações | Não garante que todo dado original era verdadeiro |\n\n### Como cai na prova\n\n- Blockchain é um registro replicado e encadeado, não um sinônimo de criptomoeda.\n- Hash evidencia alteração; consenso trata da aceitação de uma sequência comum.\n- Imutabilidade é uma propriedade prática condicionada ao modelo e à segurança da rede.\n- Contrato inteligente não verifica sozinho a verdade de eventos externos."
+    },
+    {
+      "title": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "markdown": "### O problema que este assunto resolve\n\nBitcoin propôs dinheiro eletrônico ponto a ponto para transferências sem uma instituição financeira intermediária. A rede combina assinaturas digitais, transações e prova de trabalho para que nós verifiquem a titularidade de saídas e reduzam o gasto duplicado. Isso não transforma bitcoin em moeda de curso legal nem em ativo garantido por autoridade monetária.\n\n> **Siglas e termos deste capítulo**\n> - **UTXO**: saída de transação não gasta, que pode ser consumida como entrada posterior.\n> - **Chave privada**: segredo que permite autorizar operações associadas a chaves públicas.\n> - **Carteira**: ferramenta que gerencia chaves e apresenta saldos; não é necessariamente onde as moedas ficam guardadas.\n> - **Custódia**: guarda e controle de chaves por terceiro ou pelo próprio usuário.\n> - **Confirmação**: inclusão de uma transação em bloco aceito pela rede e aprofundamento por blocos seguintes.\n> - **PSAV**: prestadora de serviços de ativos virtuais.\n\n### Transações e custódia\n\nNo modelo UTXO, uma transação consome saídas anteriores e cria novas saídas. A assinatura demonstra autorização segundo a chave correspondente; perder a chave privada pode tornar os fundos inacessíveis. Uma carteira não contém literalmente bitcoins: ela administra chaves e consulta o estado público da rede. Carteira custodial delega o controle operacional ao prestador; autocustódia deixa o usuário responsável por backup, proteção e recuperação das chaves.\n\nTransações públicas podem ser rastreadas por endereços e valores, embora um endereço não seja por si um nome civil. Correlações com serviços, padrões de uso e registros externos podem identificar participantes. A confirmação reduz a chance prática de reorganização, mas não equivale a garantia absoluta e instantânea. Volatilidade, golpes, falha de prestador e perda de chave são riscos distintos.\n\n### Brasil: fronteira entre BC e CVM\n\nA lei brasileira de ativos virtuais estabeleceu diretrizes para serviços e atribuiu ao Poder Executivo a designação do regulador. O Decreto 11.563/2023 designou o Banco Central para regular, autorizar e supervisionar prestadoras de serviços de ativos virtuais dentro do escopo legal. Isso não absorveu as competências da CVM: se um token representar valor mobiliário, a forma digital não afasta a legislação e a supervisão do mercado de capitais. A CVM esclarece que a autorização de PSAV pelo BC não substitui autorização para atividade com valores mobiliários.\n\nCriptomoedas como bitcoin não são emitidas nem garantidas por autoridade monetária brasileira, e sua aceitação como pagamento não é obrigatória. A classificação depende das características e da função econômica do ativo, não apenas do nome “token” ou da tecnologia blockchain.\n\n| Situação | Referência principal |\n| --- | --- |\n| Serviços de ativos virtuais no escopo da lei | Banco Central, conforme designação regulamentar |\n| Token que constitui valor mobiliário | CVM, conforme legislação do mercado de valores mobiliários |\n| Chave privada perdida | Não há recuperação automática pela rede |\n| Registro público de transações | Pode permitir rastreamento e análise de padrões |\n\n### Como cai na prova\n\n- Carteira administra chaves; os registros e unidades são representados no estado da rede.\n- Bitcoin não é emitido ou garantido pelo BC; pagamento com criptoativo não é aceitação obrigatória.\n- BC regula PSAV no campo legal designado; CVM mantém competência sobre valores mobiliários, inclusive digitais.\n- Blockchain público pode ser pseudônimo e rastreável; não assegura anonimato."
+    }
+  ],
+  "summary": "PQXDH permite iniciar uma sessão assíncrona por meio de prekeys públicas; o Double Ratchet deriva chaves individuais e renova cadeias, enquanto Sesame administra sessões e dispositivos. Essas técnicas não ocultam necessariamente metadados nem protegem aparelhos comprometidos. Blockchain é um livro-razão distribuído de blocos vinculados por hashes e mantido por regras de consenso; imutabilidade é uma garantia prática condicionada, não absoluta. Bitcoin usa prova de trabalho e transações UTXO assinadas. Carteiras administram chaves, e a perda da chave privada pode impedir o acesso aos ativos. Criptoativos são voláteis e rastreáveis em graus variados. No Brasil, o Banco Central regula prestadoras de serviços de ativos virtuais no escopo legal designado, enquanto a CVM mantém competência sobre valores mobiliários mesmo quando representados por tokens.",
+  "flashcards": [
+    {
+      "front": "Como PQXDH funciona com o destinatário offline?",
+      "back": "O destinatário publica prekeys; o iniciador busca um bundle e envia a mensagem inicial cifrada sem conexão simultânea."
+    },
+    {
+      "front": "Para que serve uma SPK?",
+      "back": "É uma prekey pública assinada pela identidade e publicada para ajudar a iniciar sessões assíncronas."
+    },
+    {
+      "front": "O que diferencia OPK de SPK?",
+      "back": "A OPK é de uso único e pode ser consumida; a SPK é assinada e reutilizada até renovação."
+    },
+    {
+      "front": "Qual é o papel da chave de identidade no bundle?",
+      "back": "Permite verificar assinaturas das prekeys e associá-las à identidade apresentada."
+    },
+    {
+      "front": "O que faz a ratchet simétrica?",
+      "back": "Avança uma cadeia e deriva uma chave diferente para cada mensagem."
+    },
+    {
+      "front": "Quando ocorre uma atualização DH no Double Ratchet?",
+      "back": "Quando chega uma nova chave pública de ratchet e um novo segredo atualiza o estado."
+    },
+    {
+      "front": "O que significa forward secrecy?",
+      "back": "Chaves atuais não devem revelar automaticamente mensagens passadas cujas chaves foram apagadas."
+    },
+    {
+      "front": "Quando pode haver recuperação pós-comprometimento?",
+      "back": "Quando um segredo novo e desconhecido do atacante é incorporado ao estado."
+    },
+    {
+      "front": "Como mensagens fora de ordem são tratadas?",
+      "back": "Contadores localizam a posição e chaves puladas podem ser armazenadas sob limites."
+    },
+    {
+      "front": "Qual é a função de Sesame?",
+      "back": "Gerenciar sessões assíncronas entre dispositivos, incluindo criação, seleção e remoção."
+    },
+    {
+      "front": "O que liga os blocos de uma blockchain?",
+      "back": "Cada bloco inclui uma referência criptográfica, normalmente hash, ao bloco anterior."
+    },
+    {
+      "front": "O que um hash de bloco oferece?",
+      "back": "Uma mudança nos dados altera o resumo e evidencia inconsistência no encadeamento."
+    },
+    {
+      "front": "Blockchain e criptomoeda são sinônimos?",
+      "back": "Não; blockchain é uma tecnologia de registro e pode existir sem criptomoeda."
+    },
+    {
+      "front": "O que o consenso determina?",
+      "back": "Como participantes concordam sobre quais transações válidas entram no histórico comum."
+    },
+    {
+      "front": "Como funciona a prova de trabalho no Bitcoin?",
+      "back": "Mineradores competem para encontrar prova computacional; nós verificam o bloco e as regras."
+    },
+    {
+      "front": "O que é um contrato inteligente?",
+      "back": "Código registrado e executado na rede conforme condições programadas."
+    },
+    {
+      "front": "O que é uma saída UTXO?",
+      "back": "Uma saída de transação ainda não gasta, disponível como entrada de outra transação."
+    },
+    {
+      "front": "Onde ficam bitcoins numa carteira?",
+      "back": "A carteira gerencia chaves; os saldos decorrem das saídas registradas na rede."
+    },
+    {
+      "front": "O que ocorre se a chave privada se perde?",
+      "back": "A rede não recupera automaticamente o controle; os fundos associados podem ficar inacessíveis."
+    },
+    {
+      "front": "Bitcoin é moeda emitida pelo Banco Central?",
+      "back": "Não. Não é emitido nem garantido por autoridade monetária brasileira."
+    },
+    {
+      "front": "Blockchain pública garante anonimato?",
+      "back": "Não; endereços podem ser correlacionados a serviços e padrões de transação."
+    },
+    {
+      "front": "Qual órgão regula PSAV no Brasil?",
+      "back": "O Banco Central, conforme a designação do Decreto 11.563/2023 e o escopo da lei."
+    },
+    {
+      "front": "Token digital pode ser valor mobiliário?",
+      "back": "Sim; a representação digital não afasta a competência da CVM quando o ativo se enquadra como valor mobiliário."
+    },
+    {
+      "front": "O que é custódia de criptoativos?",
+      "back": "Guarda e controle de chaves por terceiro; na autocustódia, o usuário controla as próprias chaves."
+    },
+    {
+      "front": "O que indica uma confirmação de transação?",
+      "back": "Inclusão em bloco aceito e aprofundamento por blocos posteriores, reduzindo risco de reorganização."
+    }
+  ],
+  "tips": [
+    "Separe o acordo inicial PQXDH da renovação de chaves feita pelo Double Ratchet.",
+    "Ao ler uma questão de Signal, identifique se trata de identidade, sessão, mensagem ou metadado.",
+    "Hash detecta mudança; consenso é que seleciona o histórico aceito pela rede.",
+    "Não conclua que toda blockchain usa mineração: prova de participação é outro mecanismo.",
+    "Carteira é ferramenta de chaves; bitcoin não fica literalmente guardado dentro dela.",
+    "Para competência regulatória, pergunte se é serviço de ativo virtual ou valor mobiliário."
+  ],
+  "traps": [
+    "Confundir prekey assinada com prekey de uso único.",
+    "Afirmar que criptografia ponta a ponta esconde todo metadado ou protege um telefone invadido.",
+    "Tratar imutabilidade como impossibilidade física de reorganizar ou corrigir uma rede.",
+    "Supor que contrato inteligente verifica a verdade de qualquer dado externo.",
+    "Chamar qualquer token de criptomoeda ou concluir que todo token fica fora da CVM.",
+    "Dizer que bitcoin é moeda oficial, emitida ou garantida pelo Banco Central."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva como Alice inicia uma sessão PQXDH com Bob offline.",
+      "answer": "Bob publica identidade e prekeys; Alice obtém o bundle, verifica assinaturas, combina segredos e envia ciphertext inicial."
+    },
+    {
+      "question": "Como a ratchet simétrica e a ratchet DH diferem?",
+      "answer": "A simétrica avança por mensagem; a DH mistura novo segredo quando recebe nova chave pública de ratchet."
+    },
+    {
+      "question": "Por que mensagens puladas podem ser decifradas depois?",
+      "answer": "O receptor guarda temporariamente chaves associadas aos contadores ausentes, respeitando limites."
+    },
+    {
+      "question": "Quais limites permanecem mesmo com ponta a ponta?",
+      "answer": "Metadados podem vazar, o servidor pode afetar disponibilidade e endpoint comprometido expõe texto ou chaves."
+    },
+    {
+      "question": "Como uma alteração em bloco anterior afeta o encadeamento?",
+      "answer": "Muda seu hash e quebra a referência usada pelo bloco seguinte, exigindo reorganização aceita pela rede."
+    },
+    {
+      "question": "Qual é a função do consenso numa blockchain?",
+      "answer": "Definir qual sequência de registros válidos os participantes aceitam como estado comum."
+    },
+    {
+      "question": "O que acontece numa transação UTXO?",
+      "answer": "Saídas ainda não gastas são consumidas como entradas e novas saídas são criadas."
+    },
+    {
+      "question": "Como se dividem as competências do BC e da CVM?",
+      "answer": "BC regula PSAV no escopo designado; CVM supervisiona atividades com valores mobiliários, inclusive tokens."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Acordo inicial e ratchet são a mesma etapa",
+      "summary": "Confusão entre estabelecer a sessão e atualizar as chaves de mensagens.",
+      "description": "PQXDH estabelece o segredo inicial; o Double Ratchet deriva chaves por mensagem e as renova durante a sessão."
+    },
+    {
+      "key": "e2",
+      "title": "Registro distribuído significa imutabilidade absoluta",
+      "summary": "Hash e replicação dificultam mudanças, mas não tornam todo histórico irreversível.",
+      "description": "Hashes tornam alterações detectáveis e consenso condiciona aceitação; forks ou reorganizações continuam possíveis conforme a rede."
+    },
+    {
+      "key": "e3",
+      "title": "Carteira contém moedas e recupera qualquer perda",
+      "summary": "A carteira gerencia credenciais; o registro do ativo está no estado compartilhado.",
+      "description": "A carteira gerencia chaves e consulta registros; perder a chave privada pode tornar o controle irrecuperável."
+    },
+    {
+      "key": "e4",
+      "title": "Todo criptoativo é moeda ou está fora da CVM",
+      "summary": "A função do token define o enquadramento, não apenas sua forma tecnológica.",
+      "description": "A função e as características importam; token que configure valor mobiliário segue a competência da CVM."
+    },
+    {
+      "key": "e5",
+      "title": "Ponta a ponta elimina riscos de endpoint e metadados",
+      "summary": "Cifra o conteúdo no trânsito sem proteger dispositivo ou ocultar todo padrão.",
+      "description": "A cifra protege conteúdo no trânsito, mas não impede leitura em aparelho comprometido nem oculta necessariamente padrões de comunicação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No PQXDH, um iniciador pode começar a comunicação enquanto o destinatário está desconectado, desde que este tenha publicado prekeys ao servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O bundle de prekeys permite estabelecer o segredo inicial e enviar ciphertext sem conexão simultânea; o destinatário processa a mensagem posteriormente.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OPK e a SPK são ambas consumidas obrigatoriamente depois de uma única sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A OPK é projetada para uso único e pode ser removida após ser entregue. A SPK é uma prekey assinada que permanece publicada para iniciar sessões e é renovada periodicamente; portanto, não se consome por definição na primeira sessão.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Verificar a assinatura de uma prekey com uma chave de identidade garante, por si só, que essa identidade pertence à pessoa pretendida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A assinatura vincula a prekey à identidade apresentada; o usuário ainda precisa confiar na associação entre a chave de identidade e a pessoa, por exemplo comparando fingerprint por canal confiável.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ratchet simétrica deriva uma chave de mensagem diferente a cada avanço da cadeia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada etapa da cadeia produz uma MK individual e uma CK seguinte, que pode continuar a cadeia sem reutilizar a mesma chave de mensagem.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Forward secrecy é a propriedade que impede que um comprometimento atual revele automaticamente mensagens antigas cujas chaves já foram apagadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O apagamento de chaves anteriores limita a exposição retrospectiva caso o estado corrente seja comprometido; não significa proteção automática do futuro.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Double Ratchet pode recuperar confidencialidade futura após comprometimento sem receber qualquer segredo novo desconhecido pelo invasor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A recuperação depende de nova entropia ou segredo desconhecido do atacante, como uma nova contribuição DH cujo segredo privado não foi exposto.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cabeçalhos com contadores podem ajudar o receptor a guardar chaves puladas e tratar mensagens recebidas fora de ordem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os contadores localizam a posição de cada mensagem. O receptor pode derivar e guardar chaves ausentes sob limites para uso se as mensagens atrasadas chegarem.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sesame é o algoritmo que substitui a cifra autenticada e protege cada mensagem de ponta a ponta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sesame gerencia sessões assíncronas e dispositivos; a cifra de conteúdo é executada pelo protocolo de sessão, como o Double Ratchet.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criptografia ponta a ponta impede que um malware leia o texto claro num telefone já comprometido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O malware pode capturar conteúdo antes da cifragem ou depois da decifragem no endpoint. A proteção do trânsito não corrige comprometimento do aparelho.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma blockchain pode ser entendida como um registro digital replicado em que blocos são ligados por referências criptográficas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O encadeamento por hashes permite detectar alterações nos dados referenciados e os nós mantêm cópias do registro segundo regras da rede.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como um bloco contém o hash anterior, reescrever o passado é matematicamente impossível em qualquer blockchain.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O encadeamento torna alterações detectáveis e potencialmente custosas. Forks e reorganizações podem ocorrer, e a resistência depende do consenso e dos recursos da rede.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Consenso estabelece as regras pelas quais os participantes escolhem um histórico compartilhado entre propostas concorrentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O mecanismo de consenso coordena a ordem e aceitação dos registros válidos na rede distribuída; hashes, isoladamente, não escolhem qual histórico prevalece.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda blockchain necessariamente usa mineração por prova de trabalho e emite uma criptomoeda própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Existem mecanismos como prova de participação e redes permissionadas; blockchain não exige token ou mineração em todos os desenhos.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bitcoin, nós verificam regras dos blocos, enquanto mineradores competem para produzir candidatos com prova de trabalho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mineradores propõem blocos e provam trabalho computacional; os nós verificam a validade conforme as regras e acompanham a cadeia válida com maior trabalho acumulado.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato inteligente pode executar código na blockchain, mas não comprova sozinho que uma informação externa fornecida por oráculo é verdadeira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O código processa as entradas recebidas; a confiabilidade do dado externo depende do oráculo e de suas fontes e controles.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança incompatível nas regras pode provocar um hard fork e separar participantes que adotam versões diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando participantes não aceitam as mesmas regras compatíveis, a rede pode divergir em históricos distintos; a continuidade depende da adoção dos nós e usuários.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carteira de bitcoin administra chaves e consulta a rede; as unidades não ficam literalmente armazenadas dentro do aplicativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A carteira controla credenciais que autorizam gastos e apresenta o estado de transações registrado na rede; não contém moedas como arquivos locais.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo UTXO, uma saída ainda não gasta pode ser consumida como entrada de uma transação posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "UTXO significa saída de transação não gasta. Uma transação válida pode consumir saídas disponíveis e criar novas saídas.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A perda de uma chave privada pode tornar inacessíveis os ativos associados, pois a rede não dispõe de um mecanismo central automático de recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle depende das credenciais que autorizam gastos; sem cópia ou processo de recuperação configurado, o usuário pode perder o acesso aos fundos.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como endereços de blockchain não são nomes civis, transações públicas nunca podem ser associadas a pessoas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Análise de padrões e correlação com serviços ou registros externos pode vincular endereços a identidades; pseudonimato não é anonimato garantido.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aceitação de bitcoin como forma de pagamento é obrigatória para estabelecimentos brasileiros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Criptoativos como bitcoin não são moeda de curso legal emitida ou garantida pelo Banco Central brasileiro. Por isso, a aceitação de bitcoin como pagamento não é obrigatória; depende de acordo entre as partes e do estabelecimento.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A representação de um ativo por token afasta automaticamente a competência da CVM, mesmo quando o ativo configura valor mobiliário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A forma digital não altera por si só o enquadramento. A CVM mantém competência sobre valores mobiliários independentemente de representação digital.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Decreto 11.563/2023 designou o Banco Central para exercer a função regulatória prevista para serviços de ativos virtuais, preservadas competências de outros órgãos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O BC foi designado no âmbito da lei de ativos virtuais, sem retirar da CVM a supervisão de valores mobiliários nem outras atribuições legais.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma usuária quer enviar a primeira mensagem protegida a um contato offline. Qual recurso resolve diretamente a falta de conexão simultânea?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O bundle de prekeys publicado pelo destinatário para acordo inicial assíncrono.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma chave de mensagem já usada, reutilizada pelo servidor para iniciar a sessão e responder pelos dois dispositivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma chave de recuperação guardada em texto claro na mailbox do destinatário para decifrar mais tarde.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma sessão Sesame criada sem identidade, prekey ou segredo compartilhado entre os participantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um cabeçalho DH que exige que os dois dispositivos estejam online ao mesmo tempo para trocar valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bundle contém prekeys públicas previamente publicadas pelo destinatário, permitindo que o iniciador obtenha material para o acordo sem conexão simultânea. A mailbox encaminha esses dados e ciphertext, mas não precisa guardar chaves privadas nem decifrar o conteúdo.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No bundle PQXDH, o que permite ao iniciador verificar que uma prekey assinada foi vinculada à identidade apresentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O contador da cadeia de mensagens, autenticado pela chave do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A assinatura da prekey verificada com a chave pública de identidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O hash do último bloco publicado pela rede de mensageria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O identificador de dispositivo, que substitui qualquer chave pública.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mensagem de confirmação enviada antes do acordo de chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura verifica a ligação criptográfica entre prekey e chave de identidade apresentada. A associação da chave à pessoa pretendida ainda pode exigir comparação por canal confiável.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a diferença entre uma SPK e uma OPK?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A SPK é secreta e local; a OPK é uma chave pública de identidade permanente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A SPK cifra todas as mensagens; a OPK valida assinaturas emitidas pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A SPK é publicada e assinada; a OPK é projetada para um único uso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A SPK é um hash de bloco; a OPK é uma prova de trabalho do iniciador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A SPK só funciona online; a OPK é usada apenas para mensagens em grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A signed prekey é publicada com assinatura para acordos assíncronos; uma one-time prekey acrescenta material de uso único quando está disponível.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe avalia o que o servidor do Signal precisa conhecer para entregar a mensagem. Qual afirmação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor mantém as chaves privadas e decifra cada mensagem para roteá-la.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor escolhe a identidade civil e cria as assinaturas em nome dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor deriva a chave de mensagem a partir do texto em claro recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor publica dados de prekeys e encaminha ciphertext sem precisar do segredo privado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O servidor valida a verdade semântica da conversa antes de cifrar o conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serviço facilita distribuição de chaves públicas e entrega assíncrona. As chaves privadas e o estado criptográfico dos usuários não precisam ser entregues ao servidor.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa melhor o acordo inicial PQXDH?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor cria a chave privada de Alice, lê o texto e guarda a sessão em claro para recuperar a conta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bob publica prekeys, Alice busca o bundle, verifica assinaturas e deriva um segredo inicial.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alice espera Bob online, troca uma única chave simétrica e dispensa autenticação por assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os dois participantes publicam suas chaves privadas e somam identificadores para obter segredo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mailbox escolhe a cifra e transforma qualquer chave enviada em segredo mútuo para a sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bob publica chaves públicas e assinaturas. Alice busca o bundle, verifica a vinculação à identidade, combina contribuições criptográficas e deriva o segredo inicial sem revelar chaves privadas ao servidor.",
+      "section": "1. Signal: iniciar uma conversa com o destinatário offline",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma conversa, chega uma chave pública de ratchet nova. O que o Double Ratchet faz antes de derivar a chave da mensagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa um passo DH e atualiza a cadeia raiz e as cadeias de envio e recepção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reutiliza a última chave de mensagem e apaga todos os contadores locais para sincronizar os dois aparelhos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pede ao servidor que decifre a mensagem e devolva uma cópia autenticada aos participantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte a chave pública do par em assinatura de identidade duradoura para todo dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interrompe a sessão, pois o protocolo aceita uma única chave pública por contato e aparelho.",
+          "correct": false
+        }
+      ],
+      "explanation": "A nova chave pública aciona a ratchet DH: um segredo DH novo alimenta a cadeia raiz e dela são derivadas cadeias de envio e recepção. Em seguida, a ratchet simétrica deriva a chave daquela mensagem.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova pede a finalidade principal da ratchet simétrica. Qual resposta é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticar a pessoa real por leitura de QR e validar sua identidade civil.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter uma única chave estática compartilhada por toda a conversa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar os metadados do contato e sincronizar dispositivos na nuvem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Derivar uma chave de mensagem nova a cada avanço da cadeia.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Decidir qual blockchain pública registra cada ciphertext enviado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cadeia simétrica avança a cada mensagem e produz uma chave individual, que pode ser descartada após uso. Identidade e gestão de dispositivos são outras funções.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem foi recebida fora de ordem. Qual tratamento do protocolo ajuda a decifrá-la quando chegar sua vez?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar todas as chaves de identidade e reenviar o texto em claro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar temporariamente chaves puladas identificadas por ratchet e contador.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ordenar os pacotes por tamanho e ignorar cabeçalhos criptográficos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Solicitar ao servidor a chave privada de cada mensagem atrasada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar a mesma chave de mensagem ao ciphertext seguinte da cadeia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os contadores permitem derivar posições ausentes; chaves puladas podem ser guardadas dentro de um limite e usadas quando o ciphertext correspondente chega.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário oferece condição para recuperação pós-comprometimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O atacante mantém acesso ao aparelho e observa continuamente o estado corrente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O aplicativo reutiliza para sempre a mesma cadeia já copiada pelo invasor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um segredo novo entra na ratchet DH e permanece desconhecido do invasor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O servidor repete uma chave antiga sem qualquer contribuição dos participantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O destinatário apaga a interface, mas mantém as chaves comprometidas no estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A recuperação requer nova entropia ou segredo que o adversário não conhece; a simples passagem do tempo ou troca de interface não restaura confidencialidade.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um auditor precisa explicar a função do Sesame. Qual descrição evita confundi-lo com cifra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Administra criação, seleção e remoção de sessões em vários dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cria o hash que conecta todos os blocos da blockchain do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assina cada mensagem usando a identidade civil do servidor central.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui o acordo PQXDH por senha simétrica compartilhada em grupo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte mensagens cifradas em registros públicos de transação UTXO.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sesame trata a administração assíncrona de sessões e dispositivos. A cifra de conteúdo e o acordo inicial pertencem a componentes distintos do protocolo.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa afirma que o Signal oculta necessariamente remetente, horário e todo padrão de tráfego. Qual avaliação é melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Está correta porque a cifra transforma metadados em segredo desconhecido do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Está correta quando existe uma chave de mensagem nova para cada texto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Está incorreta: cifra de conteúdo não implica ocultação de todos os metadados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Está incorreta apenas porque o Double Ratchet revela o texto claro ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Está correta sempre que usuários comparam fingerprints antes de conversar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A criptografia ponta a ponta protege conteúdo no trânsito, mas dados operacionais de roteamento e padrões podem permanecer observáveis dependendo do sistema.",
+      "section": "2. Signal: ratchet, mensagens e limites de segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que acontece com o hash do bloco seguinte quando os dados de um bloco anterior são alterados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permanece sempre idêntico, pois o hash considera apenas a data de criação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A referência deixa de corresponder, tornando a alteração detectável no encadeamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É apagado automaticamente por todos os nós sem qualquer regra de consenso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É substituído pela chave privada do usuário que enviou a transação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vira uma assinatura do minerador e valida o texto original por si só.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como o bloco seguinte referencia o hash anterior, mudança no conteúdo altera o resumo e rompe a correspondência, embora consenso determine a aceitação do histórico.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa define melhor o papel do consenso numa rede blockchain?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cifrar as chaves privadas de todos os nós com um segredo central.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantir que todo dado inserido no bloco corresponde à verdade do mundo real.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinar qual histórico válido compartilhado os participantes aceitam.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Eliminar a necessidade de validar transações e conferir regras de protocolo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar cada registro distribuído em moeda de curso legal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Consenso coordena a escolha do estado e da ordem dos registros aceitos; não prova verdade externa nem substitui validação de regras.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bitcoin, qual descrição distingue adequadamente mineradores e nós validadores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mineradores custodiam chaves dos usuários; nós autorizam pagamentos em nome deles.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mineradores propõem blocos com prova de trabalho; nós verificam regras e validade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mineradores assinam todo UTXO; nós mantêm a senha de cada carteira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mineradores decifram transações; nós escolhem a taxa de câmbio oficial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mineradores emitem moeda estatal; nós confirmam contratos civis fora da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mineração produz candidatos a bloco e compete pela prova de trabalho; os nós verificam se blocos e transações obedecem às regras que aplicam.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede permissionada usa prova de participação em vez de mineração. Qual conclusão é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não pode ser blockchain, porque todo ledger precisa de mineração pública.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É blockchain apenas se emitir moedas negociadas em mercado aberto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rede deixou de usar consenso, já que participantes são identificados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Blockchain admite modelos distintos; mineração não é requisito universal.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A prova de participação transforma automaticamente o registro em banco central.",
+          "correct": false
+        }
+      ],
+      "explanation": "Blockchain descreve arquitetura de registro distribuído e encadeamento; redes variam em acesso e consenso, e não precisam todas de PoW ou moeda própria.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação depende de um preço externo fornecido a contrato inteligente. Qual risco técnico deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O contrato sempre recalcula o preço verdadeiro diretamente do mundo físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O hash do bloco certifica a honestidade de toda fonte consultada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O oráculo pode entregar dado incorreto; a cadeia executará conforme a entrada recebida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O consenso remove qualquer necessidade de auditar a origem da informação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A prova de trabalho converte um dado externo em assinatura da CVM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A blockchain executa determinadamente as entradas que recebe, mas a qualidade e autenticidade do dado externo dependem do oráculo e da fonte usada.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário corresponde a um hard fork?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma mudança de regra incompatível que pode separar participantes em históricos distintos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma troca de senha local sem efeito sobre nós ou validação de blocos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma confirmação adicional da mesma transação na cadeia aceita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma compressão de chaves que sempre preserva todas as regras existentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um backup privado que não é publicado nem altera o protocolo de consenso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma mudança incompatível pode levar grupos a seguirem regras e históricos diferentes; a divisão depende de adoção e compatibilidade entre participantes.",
+      "section": "3. Blockchain: blocos, consenso e execução de regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma transação UTXO representa o gasto de bitcoin?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualiza uma conta central mantida pelo Banco Central brasileiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apaga blocos antigos e substitui o endereço de toda a rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consome saídas não gastas como entradas e cria novas saídas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Envia a chave privada ao minerador para que ele assine o pagamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte cada bloco em título de dívida emitido pela carteira.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modelo UTXO, saídas anteriores ainda disponíveis são consumidas e a transação cria novas saídas sob condições de gasto definidas.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve com precisão uma carteira de criptoativos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o órgão público que valida a titularidade legal de cada unidade e registra o dono civil.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma ferramenta que gerencia chaves e consulta os registros da rede.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É um arquivo que contém fisicamente as moedas do usuário e as transfere ao minerador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma seguradora que devolve automaticamente ativos após perda de senha ou chave privada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o mecanismo de consenso que escolhe o próximo bloco e define as regras do ledger.",
+          "correct": false
+        }
+      ],
+      "explanation": "A carteira controla credenciais e apresenta o estado do ledger; as unidades e transações são representadas nos registros distribuídos, não dentro do aplicativo.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma usuária envia bitcoin de uma carteira custodial. Quem pode controlar operacionalmente as chaves nesse modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O custodiante pode controlar as chaves, enquanto a usuária depende dos serviços contratados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A CVM gera sempre as chaves privadas de toda carteira custodial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada minerador recebe uma cópia de todas as chaves dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O usuário não possui qualquer relação com autenticação ou acesso à conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A blockchain recupera credenciais perdidas por reconhecimento de identidade civil.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na custódia, o prestador guarda ou controla chaves operacionais, diferentemente da autocustódia, em que o usuário assume diretamente essa responsabilidade.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação recebeu várias confirmações em blocos posteriores. O que isso indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Banco Central garantiu a conversão pelo valor original da compra.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O pagamento tornou-se irrevogável por lei em qualquer circunstância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A carteira transferiu a chave privada para todos os nós da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A transação foi incluída e aprofundada, reduzindo o risco prático de reorganização.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O endereço do recebedor foi convertido em identidade civil validada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Blocos sucessores aprofundam a posição do registro e tornam reorganizá-lo mais custoso, sem constituir garantia absoluta ou conversão regulatória.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como deve ser entendido o pseudonimato das transações públicas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os endereços são nomes civis assinados por uma autoridade monetária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os endereços não identificam diretamente, mas padrões podem permitir correlação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O ledger apaga os valores assim que qualquer bloco posterior é produzido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A prova de trabalho oculta toda relação entre entradas e saídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura digital impede que analistas consultem transações confirmadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Endereços são identificadores pseudônimos, mas análise de padrões e dados externos pode associá-los a pessoas ou serviços.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa emite token que representa participação ou direito típico de valor mobiliário. Qual avaliação regulatória é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A blockchain elimina a lei de valores mobiliários e transfere tudo ao BC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A forma de token exige que o ativo deixe de ser fiscalizado por qualquer órgão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A representação digital não afasta a competência da CVM sobre valores mobiliários.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O ativo só pode ser supervisionado pela CVM se estiver em papel físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A autorização da PSAV pelo BC substitui todas as autorizações do mercado de capitais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A CVM mantém suas competências sobre valores mobiliários independentemente da forma digital; autorização de prestadora no campo do BC não substitui esse regime.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual órgão foi designado pelo Decreto 11.563/2023 para a função regulatória sobre serviços de ativos virtuais prevista na lei?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Banco Central do Brasil, preservadas competências legais de outros órgãos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Comissão de Valores Mobiliários para todo tipo de moeda digital e pagamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Secretaria da Receita Federal para autorizar e supervisionar cada blockchain.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conselho Administrativo de Defesa Econômica para emitir ativos virtuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tribunal de Contas da União como custodiante de carteiras privadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O decreto designou o BC como regulador previsto para serviços de ativos virtuais, sem alterar competências da CVM sobre valores mobiliários e de outros órgãos em suas áreas.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual síntese sobre bitcoin e moeda brasileira é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bitcoin é emitido pelo BC e possui curso forçado em todo contrato privado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bitcoin é garantido pelo Tesouro e deve ser aceito por comerciantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bitcoin é título público e sua cotação é fixada diariamente pela CVM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bitcoin não é emitido nem garantido por autoridade monetária brasileira; aceitação não é mandatória.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Bitcoin é depósito bancário coberto por garantia pública de valor nominal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Criptomoedas como bitcoin não são emitidas ou garantidas por autoridade monetária brasileira; sua aceitação como meio de pagamento não é obrigatória.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ativo digital tem características de valor mobiliário, mas é negociado como token numa rede distribuída. Qual órgão mantém competência sobre esse aspecto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Banco Central exclusivamente, porque todo token é serviço de pagamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A CVM, pois a forma digital não muda a natureza de valor mobiliário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O minerador que incluir a primeira transação na blockchain.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O provedor da carteira, que substitui a supervisão do mercado de capitais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhum órgão, pois registros distribuídos são excluídos da legislação brasileira.",
+          "correct": false
+        }
+      ],
+      "explanation": "A CVM regula e supervisiona valores mobiliários independentemente de sua forma de representação; a tecnologia não exclui o enquadramento legal.",
+      "section": "4. Bitcoin, carteiras e enquadramento dos criptoativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The PQXDH Key Agreement Protocol",
+      "publisher": "Signal",
+      "reference": "Acordo inicial assíncrono, prekeys e pressupostos de autenticação",
+      "url": "https://signal.org/docs/specifications/pqxdh/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Double Ratchet Algorithm",
+      "publisher": "Signal",
+      "reference": "Ratchets simétrica e DH, chaves por mensagem e mensagens fora de ordem",
+      "url": "https://signal.org/docs/specifications/doubleratchet/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Sesame Algorithm",
+      "publisher": "Signal",
+      "reference": "Gestão assíncrona de sessões e dispositivos",
+      "url": "https://signal.org/docs/specifications/sesame/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST IR 8202 — Blockchain Technology Overview",
+      "publisher": "NIST",
+      "reference": "DLT, hashes, consenso, prova de trabalho, prova de participação, forks e contratos inteligentes",
+      "url": "https://csrc.nist.gov/pubs/ir/8202/final",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bitcoin: A Peer-to-Peer Electronic Cash System",
+      "publisher": "Bitcoin.org",
+      "reference": "Proposta original de dinheiro eletrônico ponto a ponto, transações e prova de trabalho",
+      "url": "https://bitcoin.org/bitcoin.pdf",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Publicado Decreto sobre Ativos Virtuais",
+      "publisher": "Comissão de Valores Mobiliários",
+      "reference": "Designação do Banco Central e manutenção da competência da CVM para valores mobiliários",
+      "url": "https://www.gov.br/cvm/pt-br/assuntos/noticias/2023/publicado-decreto-sobre-ativos-virtuais",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Criptoativos e ICOs",
+      "publisher": "Portal do Investidor — CVM",
+      "reference": "Natureza dos criptoativos, ausência de garantia monetária e diferença entre criptomoeda e oferta de investimento",
+      "url": "https://www.gov.br/investidor/pt-br/investir/cuidados-ao-investir/evitando-problemas/principais-fraudes-e-esquemas-irregulares/criptoativos-e-icos",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

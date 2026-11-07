@@ -1,0 +1,2670 @@
+{
+  "id": "informatica.nexus-repositorio-artefatos",
+  "subject": "Informática",
+  "title": "Nexus Repository: repositório de artefatos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Nexus Repository para artefatos",
+    "Nexus Repository Manager",
+    "Sonatype Nexus Repository",
+    "Repositório Nexus de artefatos",
+    "Gerenciador Nexus de pacotes",
+    "Nexus para dependências de software",
+    "Repositórios hosted proxy group",
+    "Cache de dependências no Nexus",
+    "Componentes e assets no Nexus",
+    "Nexus Repository em CI/CD"
+  ],
+  "scope": {
+    "covers": "Sonatype Nexus Repository como gerenciador central de componentes e artefatos: papel no ciclo de desenvolvimento, componentes e assets, formatos, repositórios hosted, proxy e group, cache e metadados, ordenação e uso de grupos, publicação e consumo, privilégios e controles básicos de segurança, armazenamento em blob stores, automação e armadilhas operacionais.",
+    "excludes": "Nexus Framework de escalabilidade do Scrum, administração detalhada de cada formato, instalação e dimensionamento do servidor, recursos comerciais específicos e configuração completa de ferramentas clientes."
+  },
+  "theoryTitle": "Nexus Repository e a gestão de artefatos",
+  "chapters": [
+    {
+      "title": "1. O papel do Nexus Repository",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe costuma consumir bibliotecas públicas, produzir pacotes próprios e distribuir versões para outros sistemas. Se cada máquina baixa dependências diretamente da internet e cada equipe guarda seus artefatos em locais diferentes, há downloads repetidos, builds inconsistentes e pouca visibilidade sobre o que foi usado. O Sonatype Nexus Repository é um servidor que centraliza o armazenamento e a distribuição desses componentes. Ele funciona como fonte organizada para pacotes internos e externos e se integra a ferramentas de build e pipelines de entrega.\n\n> **Siglas e termos deste capítulo**\n> - **Artefato/componente**: pacote ou módulo usado ou produzido por software, como uma biblioteca JAR ou pacote npm.\n> - **Asset**: arquivo físico associado a um componente, como JAR, POM e arquivos de assinatura.\n> - **Formato**: protocolo e convenções esperados por um ecossistema, como Maven, npm, NuGet ou Docker.\n> - **Repositório**: contêiner lógico de componentes, acessível por uma URL.\n> - **CI/CD**: integração e entrega contínuas, esteiras que compilam, testam e publicam software.\n\n### Componentes, assets e formatos\n\nUm componente é a unidade que o usuário reconhece como pacote; um componente pode conter um ou vários assets. Um componente Maven é identificado pelas coordenadas **groupId, artifactId e version** (GAV) e pode reunir JAR, POM, fontes e arquivos auxiliares da mesma versão. Em npm, a identificação usa nome e versão do pacote. Em NuGet, usa Package ID e versão. Em Docker, a documentação considera componente um manifesto associado a uma imagem; camadas são blobs referenciados pelo manifesto e podem ser compartilhadas.\n\nO formato importa porque determina como clientes encontram, enviam e leem os pacotes e seus metadados. Nexus oferece suporte a muitos ecossistemas, entre eles Maven, npm, NuGet, PyPI, Docker, Helm e Raw. Nem todo formato oferece todos os tipos de repositório; essa disponibilidade varia.\n\n| Conceito | Exemplo concreto |\n| --- | --- |\n| Componente | `org.exemplo:util:2.1` |\n| Asset | `util-2.1.jar` e `util-2.1.pom` |\n| Formato | Maven 2 |\n| Repositório | `maven-releases` |\n\n### Onde aparece no fluxo de entrega\n\nUma ferramenta de build pode buscar bibliotecas por uma URL Nexus. Ao compilar, ela recebe dependências internas e externas; ao publicar, envia o pacote produzido a um repositório de destino. O Nexus pode então oferecer uma URL única para consumo, aplicar controle de acesso e manter cache de dependências remotas. Ele não substitui o Git como histórico do código-fonte nem é, por si, uma ferramenta de compilação.\n\n### Como cai na prova\n\n- O Nexus Repository administra pacotes binários e dependências; não é sistema de controle de versão do código-fonte.\n- Componente e asset não são necessariamente sinônimos: um pacote pode ser composto por vários arquivos associados.\n- Formato e tipo respondem a perguntas diferentes: Maven é formato; hosted, proxy e group são tipos."
+    },
+    {
+      "title": "2. Tipos hosted, proxy e group",
+      "markdown": "### O problema que este assunto resolve\n\nA mesma instalação Nexus pode armazenar versões produzidas pela organização, intermediar acesso a um servidor externo e apresentar várias fontes por um endpoint. Os três tipos centrais são **hosted**, **proxy** e **group**. Escolher o tipo correto evita tratar publicação interna como cache ou expor clientes a várias URLs.\n\n> **Siglas e termos deste capítulo**\n> - **Hosted**: repositório que mantém componentes publicados como conteúdo autoritativo local.\n> - **Proxy**: ponto de acesso que consulta e armazena em cache conteúdo de um repositório remoto.\n> - **Group**: repositório virtual que combina repositórios membros sob uma URL.\n> - **Upstream/remoto**: fonte externa consultada pelo proxy.\n> - **Endpoint**: URL usada pelo cliente para acessar um serviço.\n\n### Hosted: publicação controlada\n\nUse um hosted para armazenar pacotes publicados pela própria organização ou componentes de terceiros que foram importados para ficarem sob custódia local. Ele é a localização autoritativa daquele conteúdo no Nexus. Por exemplo, uma pipeline pode publicar uma biblioteca interna em `maven-releases`; um repositório separado de snapshots pode receber versões ainda em desenvolvimento conforme a política adotada. Hosted não busca o pacote em um servidor público como função principal.\n\n### Proxy: acesso remoto com cache\n\nO proxy é configurado com uma URL remota. Quando o cliente pede um componente, o Nexus verifica o conteúdo local em cache. Se não estiver disponível ou se a informação armazenada precisar ser atualizada, consulta o upstream, guarda localmente o conteúdo recebido e o entrega ao cliente. Pedidos posteriores podem ser atendidos sem nova transferência externa enquanto o cache for considerado válido. Assim, proxy reduz tráfego e pode manter dependências já armazenadas disponíveis durante indisponibilidades externas. Não transforma, por si, o repositório remoto em hosted nem publica pacotes internos.\n\nA idade máxima do componente e a idade máxima dos metadados são configurações distintas, expressas em minutos. Metadados podem ser índices ou listas de versões; o cache de um pacote baixado e o cache de uma lista de versões não são a mesma coisa. Um cliente pode deixar de enxergar uma versão recém-publicada se os metadados ainda estiverem dentro do período em que o Nexus os considera válidos.\n\n### Group: uma URL para vários membros\n\nUm group agrega repositórios compatíveis e apresenta ao cliente um único endpoint. O grupo não significa que os assets dos membros foram copiados para um novo repositório. Na resolução, o Nexus percorre os membros na ordem configurada e retorna a primeira correspondência. Por isso costuma ser útil posicionar hosted antes de proxies: a busca de conteúdo interno evita consultas remotas desnecessárias. A ordem também influencia os metadados efetivamente obtidos.\n\n| Necessidade | Tipo apropriado |\n| --- | --- |\n| Receber publicação de pacote da equipe | Hosted |\n| Intermediar Maven Central e manter cache | Proxy |\n| Expor hosted e proxy por uma URL | Group |\n\n### Como cai na prova\n\n- Proxy consulta uma origem remota e faz cache; hosted guarda conteúdo publicado localmente; group reúne endpoints.\n- Group não é cópia física de todos os membros e a ordem deles é relevante.\n- Um privilégio concedido ao group vale para requisições dirigidas ao group e aos membros transitivos nessa rota; não libera automaticamente acesso direto a cada membro."
+    },
+    {
+      "title": "3. Publicação, consumo e administração",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de criados os repositórios, clientes precisam saber qual URL usar e administradores precisam controlar quem pode ler ou alterar conteúdo. A interface lista nome, formato, tipo, blob store, estado e URL. O nome é único na instância e compõe o caminho de acesso; a URL é configurada no Maven, npm, NuGet ou outro cliente compatível.\n\n> **Siglas e termos deste capítulo**\n> - **RBAC**: controle de acesso baseado em papéis e privilégios.\n> - **Blob store**: armazenamento dos arquivos binários dos assets.\n> - **Read/Browse/Edit/Delete**: privilégios distintos de leitura, navegação, alteração e remoção.\n> - **Credencial**: identidade ou token apresentado pelo cliente para autenticação.\n\n### Criar e acessar repositórios\n\nA criação requer privilégios de administração do repositório para adicionar e ler a configuração criada. O operador escolhe primeiro o formato e depois um tipo disponível para esse formato, informa os campos obrigatórios e salva. A disponibilidade de hosted, proxy ou group depende do formato escolhido. Para consumir conteúdo, o cliente usa a URL do repositório; um group é conveniente quando se quer oferecer um endpoint que combine conteúdo local e remoto.\n\nPermissões são granulares. Os privilégios de administração usam uma família de nomes `nx-repository-admin-...`; existem permissões para ler, editar, excluir e administrar por formato e repositório. Conceder acesso mínimo necessário reduz o risco de publicação ou exclusão indevida. Um usuário autorizado a um group pode acessar membros transitivos por meio da URL do group, mas uma chamada direta ao membro exige permissão própria.\n\n### Armazenamento, estados e observabilidade\n\nCada repositório está associado a um blob store para os arquivos binários. Isso é distinto do tipo hosted/proxy/group: tipo descreve o comportamento lógico; blob store identifica onde partes binárias são armazenadas. A listagem também mostra estado e URL. Hosted e group podem estar online ou offline. Um proxy pode estar pronto para conectar, ter alcançado o remoto, estar bloqueado manualmente, bloqueado automaticamente porque o remoto não responde, ou aparecer indisponível conforme a conectividade e a configuração.\n\nNexus oferece busca e navegação de componentes, e recursos de automação por API. Pipelines podem publicar e buscar pacotes, mas devem usar credenciais apropriadas e endpoints adequados ao formato. O controle do Nexus complementa, sem substituir, revisão de código, testes, gestão de segredos e políticas de segurança da cadeia de fornecimento.\n\n### Como cai na prova\n\n- Privilégio de leitura não equivale a editar ou excluir; criação requer privilégios de administração apropriados.\n- Estado “remote unavailable” de um proxy descreve conectividade com a origem, não necessariamente que a instalação Nexus inteira caiu.\n- Blob store é armazenamento binário; não é um quarto tipo de repositório."
+    },
+    {
+      "title": "4. Cache, grupos e operação segura",
+      "markdown": "### O problema que este assunto resolve\n\nUm gerenciador central melhora consistência, mas sua configuração pode criar gargalos ou riscos. Grupos com muitos proxies podem aumentar a latência, ciclos de proxy podem apontar de volta à própria origem e uma URL remota insegura pode expor tráfego a interceptação. Operar Nexus exige manter as fontes claras, o cache coerente e o acesso limitado.\n\n> **Siglas e termos deste capítulo**\n> - **Routing rule**: regra que permite ou bloqueia caminhos de componentes em proxy.\n> - **Dependency confusion**: risco de resolver um pacote público com o mesmo nome de um pacote interno.\n> - **TLS/HTTPS**: proteção criptográfica do tráfego entre cliente e servidor.\n> - **Ciclo de proxy**: referências remotas que, direta ou indiretamente, retornam ao repositório de origem.\n\n### Regras de roteamento e confiança\n\nAs routing rules restringem quais componentes podem ser solicitados por um proxy. Uma política pode bloquear namespaces internos em fontes públicas, reduzindo risco de dependency confusion, e permitir apenas os componentes externos necessários. A recomendação operacional é aplicar regras aos proxies, manter inventário das origens e usar HTTPS para os endereços remotos. Autenticação remota, quando necessária, deve ser verificada junto da URL.\n\n### Ordem e tamanho de grupos\n\nO Nexus percorre os membros de um group sequencialmente; centenas de proxies em um único grupo podem deixar cada resolução lenta. Prefira grupos menores, adequados ao conjunto de dependências de uma equipe, e reutilize proxies quando fizer sentido. Mantenha hosted locais em posição anterior a proxies para encontrar logo os pacotes internos. Revise periodicamente proxies sem uso, URLs inválidas e intervalos de cache.\n\nUm proxy de um group remoto que inclui, por sua vez, um proxy apontando de volta pode criar uma referência circular. Verifique a topologia completa, inclusive grupos aninhados, antes de encadear servidores. O desenho hub-and-spoke, com localizações remotas escrevendo em um núcleo central e usando proxies para consumo, costuma ser mais simples que uma malha bidirecional.\n\n### Como cai na prova\n\n- Cache acelera e reduz tráfego, mas não significa que os metadados são sempre atualizados instantaneamente.\n- Routing rules podem bloquear namespaces internos em repositórios públicos e limitar componentes permitidos.\n- Proxies duplicados, grupos enormes, URLs remotas antigas e ciclos são problemas operacionais concretos."
+    }
+  ],
+  "summary": "Nexus Repository é um gerenciador de componentes e artefatos que centraliza publicação e consumo. Um componente pode ter vários assets e pertence a um formato como Maven, npm ou Docker. Hosted armazena publicações locais; proxy acessa fonte remota e mantém cache de componentes e metadados; group combina repositórios sob uma URL e consulta membros na ordem configurada. Controle privilégios por operação e repositório, use HTTPS e regras de roteamento em proxies, mantenha grupos enxutos e evite ciclos de proxy.",
+  "flashcards": [
+    {
+      "front": "Qual problema o Nexus Repository resolve?",
+      "back": "Centraliza armazenamento, busca, cache e distribuição de componentes de software internos e externos."
+    },
+    {
+      "front": "O Nexus substitui Git?",
+      "back": "Não. Gerencia pacotes e artefatos binários; Git controla versões de código-fonte."
+    },
+    {
+      "front": "O que é um componente?",
+      "back": "Um pacote ou módulo identificável, como uma biblioteca ou pacote de ecossistema."
+    },
+    {
+      "front": "Um componente sempre corresponde a um arquivo?",
+      "back": "Não. Pode reunir vários assets relacionados, como JAR e POM Maven."
+    },
+    {
+      "front": "Quais coordenadas identificam componente Maven?",
+      "back": "Group ID, Artifact ID e Version (GAV)."
+    },
+    {
+      "front": "Quais são os três tipos usuais de repositório?",
+      "back": "Hosted, proxy e group."
+    },
+    {
+      "front": "Para que serve hosted?",
+      "back": "Armazenar conteúdo publicado localmente como localização autoritativa."
+    },
+    {
+      "front": "Para que serve proxy?",
+      "back": "Intermediar acesso a uma fonte remota e manter conteúdo em cache."
+    },
+    {
+      "front": "Para que serve group?",
+      "back": "Expor vários repositórios membros por uma URL única."
+    },
+    {
+      "front": "Group copia os assets de seus membros?",
+      "back": "Não. Combina acesso a membros sem implicar cópia física."
+    },
+    {
+      "front": "A ordem de membros de group importa?",
+      "back": "Sim. A busca segue a ordem e devolve a primeira correspondência."
+    },
+    {
+      "front": "Por que colocar hosted antes de proxy?",
+      "back": "Para resolver rapidamente conteúdo interno e evitar consultas remotas desnecessárias."
+    },
+    {
+      "front": "O que pode ser armazenado em cache por proxy?",
+      "back": "Componentes e metadados, com idades máximas configuráveis separadamente."
+    },
+    {
+      "front": "Em que unidade são expressas as idades máximas do cache?",
+      "back": "Minutos."
+    },
+    {
+      "front": "O que é formato de repositório?",
+      "back": "Convenções e protocolo de um ecossistema, como Maven, npm ou NuGet."
+    },
+    {
+      "front": "O que é blob store?",
+      "back": "Armazenamento usado para as partes binárias dos assets."
+    },
+    {
+      "front": "Quais operações de acesso podem ter privilégios separados?",
+      "back": "Leitura, navegação, edição, exclusão e administração."
+    },
+    {
+      "front": "Permissão a um group autoriza chamada direta ao membro?",
+      "back": "Não necessariamente; acesso direto requer privilégio próprio ao membro."
+    },
+    {
+      "front": "Para que serve uma routing rule?",
+      "back": "Limitar caminhos de componentes permitidos ou bloqueados em proxy."
+    },
+    {
+      "front": "Como reduzir risco de dependency confusion?",
+      "back": "Bloquear namespaces internos em proxies públicos por regras de roteamento."
+    },
+    {
+      "front": "Que protocolo é recomendado para URL remota do proxy?",
+      "back": "HTTPS, para proteger o tráfego contra interceptação."
+    },
+    {
+      "front": "O que indica remote unavailable?",
+      "back": "Que o proxy não consegue alcançar a origem remota conforme seu estado/configuração."
+    },
+    {
+      "front": "Por que evitar grupos com centenas de proxies?",
+      "back": "Cada resolução pode verificar muitos membros e elevar a latência."
+    },
+    {
+      "front": "O que é ciclo de proxy?",
+      "back": "Uma cadeia de proxies que direta ou indiretamente retorna à origem, podendo circular requisições."
+    }
+  ],
+  "tips": [
+    "Separe sempre formato (Maven, npm) de tipo (hosted, proxy, group).",
+    "Associe publicação interna a hosted, cache de origem externa a proxy e endpoint agregado a group.",
+    "Em questões sobre group, lembre: membros são percorridos em ordem e a primeira correspondência é usada.",
+    "Componente é a unidade lógica; asset é um arquivo relacionado e pode haver vários por componente.",
+    "Cache de metadados e cache do componente têm idades máximas próprias.",
+    "Revise permissões, URLs remotas, routing rules e topologia para prevenir exposição e lentidão."
+  ],
+  "traps": [
+    "Confundir formato Maven com tipo hosted: são dimensões diferentes da configuração.",
+    "Afirmar que proxy publica pacotes internos como função principal: isso cabe ao hosted.",
+    "Dizer que group duplica os assets dos membros: ele agrega acesso por uma URL.",
+    "Supor que conceder privilégio ao group libera também chamadas diretas aos membros: a rota direta exige autorização própria.",
+    "Tratar cache de pacote e cache de metadados como um único prazo: são controles distintos.",
+    "Ignorar ordem, grupos enormes ou referências circulares: esses fatores afetam resolução e desempenho."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre componente e asset com exemplo Maven.",
+      "answer": "O componente pode ser identificado por GAV e reunir assets como JAR e POM da mesma versão."
+    },
+    {
+      "question": "Compare hosted, proxy e group.",
+      "answer": "Hosted guarda publicação local autoritativa; proxy consulta origem remota e armazena cache; group agrega membros em uma URL."
+    },
+    {
+      "question": "Descreva a primeira solicitação a um proxy quando o pacote não está em cache.",
+      "answer": "Nexus consulta o upstream, armazena localmente o conteúdo recebido e o entrega ao cliente."
+    },
+    {
+      "question": "Por que uma versão recém-publicada pode não aparecer via proxy?",
+      "answer": "Os metadados podem ainda estar dentro do período de validade do cache e não ter sido atualizados."
+    },
+    {
+      "question": "O que a ordem dos membros de um group altera?",
+      "answer": "A sequência em que Nexus procura o componente e a primeira correspondência retornada."
+    },
+    {
+      "question": "Explique o escopo de privilégio de group e de membro direto.",
+      "answer": "A permissão ao group aplica-se a requisições por ele e membros transitivos nessa rota; acesso direto ao membro requer privilégio específico."
+    },
+    {
+      "question": "Como routing rules ajudam na segurança da cadeia de dependências?",
+      "answer": "Podem bloquear namespaces internos em fontes públicas e permitir somente os componentes externos necessários."
+    },
+    {
+      "question": "Cite três causas de lentidão ou falha operacional na resolução.",
+      "answer": "Grupos com muitos proxies, URL remota inválida ou inacessível e cadeias circulares de proxy."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Tipo e formato confundidos",
+      "summary": "Maven, npm e Docker são formatos; hosted, proxy e group descrevem comportamento do repositório."
+    },
+    {
+      "key": "e2",
+      "title": "Cache e metadados tratados como iguais",
+      "summary": "Proxy armazena conteúdo e metadados; idades máximas são controles distintos e podem adiar descoberta de versões."
+    },
+    {
+      "key": "e3",
+      "title": "Componente confundido com arquivo",
+      "summary": "Um componente pode reunir múltiplos assets; a identificação depende do formato, como GAV no Maven."
+    },
+    {
+      "key": "e4",
+      "title": "Acesso ao group generalizado",
+      "summary": "Acesso pelo group não concede automaticamente acesso por URL direta a cada repositório membro."
+    },
+    {
+      "key": "e5",
+      "title": "Topologia de proxy mal planejada",
+      "summary": "Grupos muito grandes, proxies duplicados, origens desatualizadas e ciclos elevam latência ou impedem resolução."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe deseja guardar uma biblioteca compilada internamente para que outros projetos a consumam. Qual repositório atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Group agrega acesso, mas não copia automaticamente arquivos entre os repositórios membros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proxy consulta origem remota; não recebe publicação interna como repositório autoritativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hosted: publicação local autoritativa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Blob store armazena binários; não é endpoint de protocolo Maven para clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Routing rule filtra solicitações; não recebe nem versiona publicações da pipeline.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hosted é apropriado para publicar componentes próprios, pois mantém o conteúdo local sob autoridade da organização. Proxy busca conteúdo remoto, group agrega endpoints, blob store guarda binários e routing rule filtra solicitações.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um repositório proxy, um cliente solicita pela primeira vez um pacote que não existe no cache. O que ocorre no fluxo normal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O proxy não cria um hosted temporário: publicar um pacote é uma operação separada em repositório apropriado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Consulta a origem remota, mantém o conteúdo recebido em cache local e entrega a resposta ao cliente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O proxy não combina todos os groups nem devolve URLs; resolve o conteúdo no upstream configurado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente acessa diretamente o upstream, pois proxy não encaminha conteúdo remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Nexus converte o pacote para outro formato antes de gravá-lo no blob store.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando o item não está disponível no cache, o proxy consulta o upstream, armazena localmente o conteúdo e responde ao cliente. Isso reduz downloads externos em solicitações posteriores.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que um repositório group oferece a uma ferramenta cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma cópia física permanente dos assets dos membros, sincronizada para substituir os repositórios de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma URL agregadora para acessar vários repositórios membros compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um canal que republica cada pacote externo como versão interna após toda consulta ao upstream.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um substituto físico que reúne e elimina os blob stores associados aos repositórios membros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra de autorização que concede edição de componentes, função que pertence aos privilégios.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um group expõe vários repositórios compatíveis por um endpoint agregado, simplificando a configuração do cliente. Ele organiza o acesso lógico aos membros, mas não cria por isso uma cópia física unificada dos arquivos.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Maven, quais dados formam as coordenadas GAV de um componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Grupo, autor e validação criptográfica obrigatória do arquivo Maven.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Grupo, artefato e versão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gateway, asset e volume físico do blob store, três supostas coordenadas de identidade do pacote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Grupo, endereço remoto e validade do cache configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gerenciador, arquitetura e versão do servidor Nexus.",
+          "correct": false
+        }
+      ],
+      "explanation": "GAV representa groupId, artifactId e version, identificadores usados pelo ecossistema Maven. Os demais itens descrevem propriedades de infraestrutura ou conceitos distintos.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a relação entre componente e asset no Nexus?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo componente contém exatamente um asset, independentemente do formato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um componente pode reunir diversos arquivos relacionados, chamados assets.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Asset é o nome dado ao repositório remoto configurado em um proxy.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Componente significa apenas o código-fonte armazenado em um repositório Git.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Componente e formato são equivalentes e identificam o mesmo atributo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A unidade lógica componente pode ter um ou mais arquivos associados. Em Maven, por exemplo, JAR e POM podem pertencer ao mesmo componente GAV.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa expor pacote interno e dependências públicas por uma única URL para ferramentas de build. Qual configuração corresponde a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar um proxy apontado para cada computador que executa a compilação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar um group com os repositórios locais e proxies pertinentes como membros.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transformar o blob store em endpoint comum de todos os formatos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar hosted separado para cada dependência pública já baixada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar routing rules como agregador de endpoints, embora essas regras apenas filtrem solicitações e não reúnam repositórios membros sob uma URL comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um group reúne repositórios membros e permite que o cliente use uma única URL. Hosted guarda conteúdo local, proxy intermedeia fontes remotas, e routing rules filtram solicitações.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um group, o mesmo componente existe em um hosted e em um proxy. Como o Nexus resolve a busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combina os dois arquivos e devolve um componente formado pela união dos assets.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Consulta os membros na ordem configurada e retorna a primeira correspondência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Escolhe sempre o proxy, pois conteúdo remoto tem precedência sobre hosted.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolhe aleatoriamente um membro para distribuir a carga de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignora a lista de membros e consulta somente o blob store do group.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ordem dos membros é significativa: o Nexus pesquisa sequencialmente e retorna a primeira ocorrência. Por isso a precedência pode ser configurada ordenando os membros.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração tende a favorecer a resolução de pacotes internos em um group que também contém proxies?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar os membros pelo tamanho decrescente do blob store usado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar os proxies remotos antes de qualquer hosted local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar todos os membros hosted e manter apenas o group.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar hosted locais antes dos proxies na lista ordenada de membros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Repetir o mesmo proxy em várias posições para aumentar sua prioridade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hosted local pode atender rapidamente o pacote interno sem precisar consultar fontes remotas. A documentação recomenda hosted primeiro, e proxies depois conforme a necessidade.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe nota que uma versão publicada há pouco ainda não aparece quando busca pelo índice do proxy. Qual explicação é compatível com o funcionamento do cache?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Nexus converteu a versão em asset e removeu sua identificação de pacote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os metadados em cache ainda podem estar dentro da idade considerada válida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A lista de versões é armazenada somente em repositórios hosted.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tipo proxy proíbe atualizar índices depois da primeira solicitação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Group descarta metadados sempre que um novo asset é publicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cache de metadados tem idade máxima própria. Se o índice ainda é considerado válido, o proxy pode não consultar imediatamente a origem para obter a lista recém-atualizada.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que unidade a documentação expressa as idades máximas de cache de componentes e metadados do proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Número de builds, atualizado a cada publicação da pipeline.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bytes, compartilhados por todos os componentes do upstream.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Minutos, definidos separadamente para componentes e metadados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Versões semânticas, uma para cada asset armazenado localmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dias fixos, iguais para todas as configurações de proxy.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os campos Maximum Component Age e Maximum Metadata Age são expressos em minutos. Eles tratam conteúdo e metadados, respectivamente.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa reúne somente exemplos de formatos/ecossistemas que o Nexus Repository pode atender?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura, navegação, edição, exclusão e administração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hosted, proxy, group, blob store e routing rule.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Online, offline, remoto disponível e remoto bloqueado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Maven, npm, NuGet, PyPI e Docker.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CI, CD, Git, pipeline e controle de versão-fonte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Maven, npm, NuGet, PyPI e Docker são formatos/ecossistemas. Hosted, proxy e group são tipos; os demais itens são estados, privilégios ou conceitos de operação.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório Maven agrupa um JAR e um POM que compartilham as mesmas coordenadas. Como esses arquivos se relacionam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada arquivo exige um hosted separado, mesmo quando as coordenadas coincidem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "São dois formatos distintos que devem obrigatoriamente usar grupos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O JAR é um proxy e o POM é um repositório group do mesmo componente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O POM é o blob store que contém fisicamente todos os JARs do Nexus.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "São assets relacionados a um componente identificado pelas coordenadas GAV.",
+          "correct": true
+        }
+      ],
+      "explanation": "No Maven, a unidade é identificada por groupId, artifactId e version e pode reunir vários assets associados, como binário e metadados POM.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer concentrar downloads de dependências externas e reduzir tráfego repetido ao mesmo upstream. Qual recurso é diretamente adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um group vazio que replique os arquivos nos computadores dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um proxy Nexus que centralize a consulta e mantenha cache do conteúdo remoto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um hosted para cada pacote público, sem configurar origem remota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma routing rule que baixe e compile dependências automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um blob store publicado como substituto de qualquer cliente de pacote.",
+          "correct": false
+        }
+      ],
+      "explanation": "O proxy centraliza o acesso à origem, armazena componentes em cache e pode atender solicitações posteriores localmente. Isso reduz tráfego e duplicação de downloads.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que medida ajuda a evitar que um pacote público com nome parecido substitua indevidamente uma dependência interna?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a idade máxima do cache para ocultar nomes internos do índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar todos os proxies públicos antes dos hosted nos groups de build.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bloquear namespaces internos em proxies públicos por meio de routing rules.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Permitir publicação anônima nos proxies para validar a origem do pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar o pacote interno em um group com o nome do pacote público.",
+          "correct": false
+        }
+      ],
+      "explanation": "Routing rules podem bloquear namespaces internos nas solicitações destinadas a repositórios públicos e permitir apenas componentes externos aprovados, mitigando dependency confusion.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que é recomendável configurar HTTPS para o endereço remoto usado por um proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para conceder privilégios de administração aos clientes autenticados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para transformar automaticamente o proxy em hosted local autoritativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para impedir que o Nexus mantenha cache de componentes já consultados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para proteger o tráfego contra interceptação durante a comunicação com a origem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Para fazer com que todos os formatos usem o protocolo Maven.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação recomenda HTTPS para proxies remotos, protegendo a comunicação contra ataques de intermediário. TLS não altera o tipo nem o formato do repositório.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário acessa um repositório por URL de group e possui privilégio concedido nesse group. O que isso implica para membros transitivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A permissão ao group permite chamada direta a cada membro individual automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O privilégio concede acesso administrativo direto a todos os membros da instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O usuário passa a editar qualquer asset sem depender do privilégio concedido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Nexus ignora a configuração do group e autentica somente no blob store.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O privilégio vale para a requisição feita pelo group e seus membros transitivos nessa rota.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação esclarece que o privilégio do group se aplica a solicitações dirigidas a ele, inclusive membros transitivos. Solicitações diretas aos repositórios membros exigem permissões explícitas próprias.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente consegue baixar de um group, mas recebe acesso negado ao usar diretamente a URL de um de seus membros. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O group deve ter copiado o conteúdo e removido o membro da lista de acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O acesso pelo group não concede automaticamente privilégio para chamada direta ao membro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O membro está necessariamente offline porque o acesso ao group funcionou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A URL direta sempre exige privilégio de administração global do Nexus.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O formato do membro foi alterado pelo group durante a autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Permissões do group aplicam-se à rota do group. Acesso direto ao membro depende de privilégio explícito para aquele repositório, o que explica a diferença observada.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao blob store na arquitetura do Nexus Repository?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma regra de roteamento que bloqueia pacotes de origem externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um tipo de repositório usado para combinar hosted e proxy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É o armazenamento associado às partes binárias dos assets dos repositórios.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É o protocolo de metadados usado apenas pelo ecossistema Maven.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É a lista de usuários que podem editar as configurações de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Blob store identifica o armazenamento das partes binárias dos assets. Não é um tipo de repositório, formato ou mecanismo de autorização.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A listagem de repositórios mostra formato, tipo, blob store e URL. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Blob store identifica se o repositório é hosted, proxy ou group.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Formato indica o estado online; URL informa o tamanho do componente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tipo descreve o comportamento lógico; blob store indica onde ficam partes binárias.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "URL determina os privilégios de edição e exclusão do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Formato e estado são equivalentes, ambos determinados pelo upstream.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tipo informa se o repositório é hosted, proxy ou group. Blob store aponta armazenamento binário; formato indica o ecossistema e URL é o endereço de acesso.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador pode navegar nos repositórios, mas não criar um novo. Qual explicação é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ausência de permissão de leitura impede que usuários vejam qualquer repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todo usuário com acesso de navegação pode criar repositórios em qualquer formato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A criação só é permitida por clientes Maven e não pela administração Nexus.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Navegação e criação dependem de privilégios diferentes, e criar requer privilégio de administração apropriado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O privilégio de criar é automaticamente concedido a quem acessa qualquer group.",
+          "correct": false
+        }
+      ],
+      "explanation": "A capacidade de adicionar repositórios requer privilégio administrativo apropriado; ler ou navegar não equivale a administrar configuração.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um grupo composto por centenas de proxies remotos pode prejudicar o desempenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista longa reduz a idade máxima do cache a zero minutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Nexus limita groups a uma URL por equipe e desativa os membros excedentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada proxy converte todas as dependências para um formato incompatível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os membros remotos são replicados integralmente a cada consulta do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A resolução pode ter de verificar muitos membros sequencialmente para cada solicitação.",
+          "correct": true
+        }
+      ],
+      "explanation": "A busca no group percorre membros em ordem. Muitos proxies podem aumentar o número de verificações e consultas remotas, elevando a latência; grupos enxutos são mais eficientes.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe configura dois proxies para a mesma URL externa sem necessidade identificada. Qual é a melhor ação de manutenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar ambos repetidamente ao group para aumentar a disponibilidade do cache.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duplicar também os hosted para manter simetria entre os repositórios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Revisar a necessidade e reutilizar um proxy nos grupos que precisam daquela origem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apontar cada proxy ao outro para que compartilhem automaticamente os componentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar validação de metadados para que os dois proxies se sincronizem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Proxies duplicados para a mesma origem geram configuração e cache redundantes. A recomendação é evitar duplicações e reutilizar proxies por grupos apropriados.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza uma referência circular envolvendo proxies Nexus?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um group possui dois hosted com nomes de repositório diferentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um proxy consulta um grupo remoto que inclui caminho de volta à origem do proxy.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um cliente consulta um componente Maven usando coordenadas GAV válidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um proxy mantém componentes baixados na própria instalação Nexus.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um usuário lê um asset pelo endpoint group sem acesso direto ao membro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ciclos aparecem quando um proxy direciona a outro group ou proxy que, direta ou indiretamente, volta à fonte original. A topologia deve ser examinada para evitar esse retorno.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia de organização é apontada como mais simples para equipes remotas consumirem artefatos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os locais publicam anonimamente diretamente nos proxies públicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada local replica bidirecionalmente todos os repositórios de todos os outros locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um núcleo central recebe publicações, enquanto locais remotos usam proxies para consumo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Cada equipe mantém grupos com todos os proxies disponíveis na organização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os locais remotos dispensam hosted e gravam pacotes somente no upstream público.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo hub-and-spoke centraliza a escrita em um servidor central e usa proxies para consumo remoto. Uma malha bidirecional tende a multiplicar conexões e complexidade operacional.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como routing rules podem limitar o conteúdo obtido por um proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionando automaticamente o blob store com maior espaço disponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mudando o formato de todos os componentes baixados para Raw.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuindo permissões de edição aos usuários que fazem solicitações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definindo componentes ou caminhos permitidos e bloqueados para as solicitações remotas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Convertendo metadados remotos em credenciais de autenticação local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Routing rules filtram quais componentes podem ser acessados pelo proxy. Podem bloquear namespaces internos em fontes públicas e restringir o conjunto de dependências externas.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy mostra estado de remoto indisponível. O que esse estado informa diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O proxy se converteu automaticamente em um group offline.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todo o Nexus está desligado e nenhum hosted pode ser acessado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O blob store foi removido e todos os assets locais foram apagados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O formato do repositório deixou de ser suportado pelos clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A origem remota não está alcançável pelo proxy conforme a configuração atual.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os estados de proxy distinguem condição de conectividade e bloqueio com o remoto. Remoto indisponível não significa necessariamente que toda a instância Nexus esteja fora do ar.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline precisa publicar um pacote interno e outra pipeline deve consumi-lo. Qual sequência combina com os papéis do Nexus?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar no proxy público e buscar depois diretamente no blob store.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar no hosted apropriado e configurar o cliente consumidor para usar sua URL ou um group.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Publicar na routing rule e consumir pelo endereço do upstream externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar no group, que passa a ser o único armazenamento físico dos assets.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar no formato de metadados e consumir pelo endpoint do usuário administrador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pacote produzido pela organização é publicado em hosted; consumidores podem usar esse endpoint ou um group que agregue esse hosted com outras fontes.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time quer que ferramentas de build obtenham componentes internos e externos por um endereço simples. Por que usar group pode simplificar a configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Group elimina a necessidade de autorizar leitura nos repositórios Nexus.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cliente não precisa conhecer o protocolo do formato de pacote utilizado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cliente aponta para uma URL agregada enquanto administradores ajustam seus membros.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Group recompila dependências remotas em binários próprios da equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Group garante atualização instantânea de todos os metadados externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A vantagem de group é fornecer um endpoint único para vários repositórios compatíveis, permitindo que administradores alterem os membros sem reconfigurar cada cliente.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve adequadamente o papel de um gerenciador de repositórios no fluxo de desenvolvimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerenciar exclusivamente documentos de requisitos sem guardar arquivos binários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir compiladores, testes automatizados e sistemas de controle de código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar o código publicado para substituir ambientes de homologação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar e distribuir dependências e resultados de build de forma centralizada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Replicar bancos de dados transacionais entre produção e desenvolvimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um repository manager centraliza componentes, dependências e artefatos construídos. Ele integra-se a ferramentas do ciclo de desenvolvimento, sem substituir build, testes, Git ou banco de dados.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Docker no Nexus, qual elemento é contado como componente conforme a documentação de componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada camada binária, mesmo quando compartilhada entre várias imagens, ainda que a documentação use o manifesto como unidade do componente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O manifesto marcado que lista as camadas binárias da imagem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cada nome de usuário que envia uma tag para o repositório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O blob store inteiro associado ao repositório Docker.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada chamada HTTP usada pelo cliente para enviar as camadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "No formato Docker, o componente é definido por um manifesto associado a uma tag. Camadas são blobs referenciados e compartilháveis; tags podem apontar para manifestos.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas tags Docker apontam para o mesmo manifesto. Como isso afeta a contagem de componentes descrita pela Sonatype?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada tag obriga o Nexus a contar um manifesto novo sem relação com o existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada camada compartilhada torna-se um componente adicional para cada tag.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O manifesto representa um componente, embora haja mais de uma tag apontando para ele.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O Nexus não conta componentes Docker quando camadas são reutilizadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As tags são convertidas em hosted e os manifestos em proxies separados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação usa o manifesto como componente: tags distintas que apontam para o mesmo manifesto contam como um componente; manifestos únicos contam separadamente.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação de identificação de componente está correta para npm segundo a documentação do Nexus?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tag, camada e manifesto são campos obrigatórios de todo pacote npm.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Blob store e idade de cache identificam o componente npm.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nome do hosted e URL do upstream formam o GAV npm.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Package ID e versão identificam o componente npm.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Autor, licença e usuário de publicação substituem nome e versão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para npm, a documentação identifica componentes por Package ID e versão. GAV é o modelo de coordenadas Maven, não uma regra geral de todos os formatos.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador verifica a configuração de um repositório e precisa distinguir seu nome de sua URL. Qual descrição está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A URL descreve apenas o estado remoto e não pode ser usada por ferramentas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A URL é o nome global do formato e pode ser compartilhada por todos os Nexus.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome identifica o blob store, enquanto a URL identifica o usuário administrador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome é definido pelo cliente Maven e não pode ser consultado na interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome é identificador único na instância e compõe o caminho usado na URL.",
+          "correct": true
+        }
+      ],
+      "explanation": "O nome do repositório é identificador único na instância e aparece no caminho de acesso. A URL exibida é copiada para configurar ferramentas clientes.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer retirar um proxy sem uso e conferir se sua URL ainda é válida antes de mantê-lo. Que prática é recomendada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar HTTPS para identificar rapidamente URLs que deixaram de responder.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter todos os proxies permanentemente ativos para ampliar o cache global, mesmo que estejam sem consumidores e apontem para origens inválidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir cada proxy sem uso por grupo com todos os remotos disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Auditar periodicamente proxies, origens e autenticação remota e desativar os sem uso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apagar as configurações do upstream sem verificar consumidores ou credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A manutenção recomendada inclui documentar, auditar URLs e autenticação, revisar necessidade e retirar proxies que não são mais usados, reduzindo overhead e confusão.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A capacidade de adicionar, editar ou excluir um repositório é controlada principalmente por qual mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordem dos membros no group ao qual o administrador pertence.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Idade máxima do cache de metadados configurada no proxy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Privilégios administrativos de repositório associados às operações permitidas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tipo de blob store escolhido ao criar a instalação Nexus, como se a escolha do armazenamento concedesse permissões de administração aos usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Formato Maven, que concede administração a todos os clientes de build.",
+          "correct": false
+        }
+      ],
+      "explanation": "A administração de repositórios é governada por privilégios específicos, que controlam operações como adicionar, ler, editar e excluir. Cache, ordenação e formato não concedem permissões.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instalação, hosted e group estão configurados como offline. O que essa condição indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O usuário que consulta não possui permissão de edição do componente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O repositório remoto do proxy está indisponível por falha de DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os metadados expiraram e serão atualizados na próxima chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A opção online do próprio repositório não está habilitada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O blob store está cheio e bloqueou automaticamente todos os formatos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para hosted e group, offline corresponde à configuração do repositório sem a opção online habilitada. Os estados de proxy também distinguem condições do upstream.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Nexus pode reduzir a dependência de cada servidor de build manter seu próprio cache isolado. Qual mecanismo produz esse efeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar uma cópia completa do Nexus dentro de cada ferramenta cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicar o código-fonte Git de cada build para o upstream público.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar somente hosted e desabilitar toda consulta a componentes externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um group distinto em cada servidor e evitar qualquer endpoint central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Direcionar downloads por proxies centralizados que compartilham o cache local.",
+          "correct": true
+        }
+      ],
+      "explanation": "Proxies centralizados fazem as equipes consultarem um cache gerenciado em comum, reduzindo downloads repetidos e a dispersão de caches locais.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar a compatibilidade de um formato com hosted, proxy ou group, qual cuidado é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo formato suporta obrigatoriamente os três tipos em qualquer edição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A disponibilidade dos tipos varia conforme o formato selecionado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A escolha de blob store determina quais tipos serão habilitados no formato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente decide o tipo do repositório sem configuração administrativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Group só pode conter formatos diferentes dentro da mesma URL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação informa que a disponibilidade de proxy, hosted e group depende do formato. Portanto, deve-se conferir os tipos oferecidos para o formato desejado.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Nexus atua como proxy de uma fonte externa que fica permanentemente indisponível. Qual alternativa descreve uma possibilidade operacional documentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar um ciclo para que outro proxy tente acessar a origem original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter automaticamente o proxy em group sem preservar componentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar indefinidamente o cache para garantir que todo conteúdo futuro exista.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Considerar exportar e reimportar o conteúdo como hosted de terceiros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apagar todos os assets em cache e apontar clientes ao blob store.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para um proxy que ficará permanentemente offline, a documentação sugere considerar exportar e reimportar o conteúdo como hosted de terceiros, preservando uma fonte local administrada.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o uso do Nexus por ferramentas de build, assinale a alternativa correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Clientes compatíveis usam a URL do repositório para consultar ou publicar componentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Clientes ignoram o formato e acessam apenas a interface administrativa web.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A URL do Nexus é usada exclusivamente para armazenar commits Git e não pode atender requisições de clientes de pacotes ou ferramentas de build.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ferramenta cliente precisa acessar diretamente o blob store para cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A integração só funciona em Maven e não alcança outros ecossistemas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A URL exibida para o repositório é usada para conectar ferramentas clientes ao endpoint do formato correspondente. Nexus suporta diversos ecossistemas, não apenas Maven.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo possui privilégios de navegação, mas um usuário precisa excluir um pacote. Qual conclusão deve orientar a configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Navegação não substitui o privilégio específico de exclusão do repositório.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Navegação inclui exclusão porque ambos são operações de leitura do componente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A exclusão depende apenas de o proxy ter cache válido para o pacote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todo usuário de group pode excluir conteúdo de qualquer membro transitivo, mesmo sem privilégio de escrita ou exclusão no repositório correspondente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O acesso de exclusão é concedido pelo cliente de pacote, sem controle Nexus.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os privilégios são separados por operação. Navegar ou ler não implica permissão para alterar ou excluir conteúdo; o acesso deve seguir o menor privilégio necessário.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual política de grupo reduz consultas desnecessárias a fontes externas quando grande parte dos componentes é interna?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar hosted internos antes dos proxies e limitar membros ao necessário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ordenar proxies por distância geográfica e repetir cada hosted ao final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incluir todos os proxies da instância para que nenhum componente falte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover hosted do grupo e criar um proxy apontando para o próprio Nexus.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a ordem dos membros e deixar o cliente escolher em cada pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hosted em posições iniciais pode responder por componentes internos sem consulta remota. Grupos devem conter apenas proxies necessários para evitar buscas longas e overhead.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Nexus Repository mantém metadados e arquivos de pacote em um proxy. Qual afirmação diferencia corretamente os dois caches?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Idade máxima de componente e idade máxima de metadados são parâmetros distintos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Metadados são assets de build e não podem ser renovados pelo proxy; somente o cliente poderia substituí-los, sem qualquer controle de idade configurável no servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O prazo do pacote sempre determina o prazo dos índices de versões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O proxy mantém somente metadados e nunca armazena o componente recebido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O group escolhe o prazo de cache conforme a ordem dos hosted membros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Maximum Component Age e Maximum Metadata Age controlam a validade do conteúdo e dos metadados, respectivamente. Separar esses valores ajuda a compreender atualização de arquivos versus índices.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Nexus Repository oferece API para integração com automação. Qual uso é coerente com esse recurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Automatizar tarefas de integração e administração por sistemas externos autorizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir automaticamente as credenciais e políticas de autorização do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar testes funcionais do software publicado sem ferramentas adicionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter qualquer linguagem de programação em um formato Maven universal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar a necessidade de manter URLs e formatos para os clientes, pois a API transforma automaticamente qualquer endpoint em um protocolo universal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nexus possui API que permite automação e integração com outros sistemas. A API não elimina controle de acesso nem substitui ferramentas de build ou teste.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha distingue corretamente controle de código-fonte de gestão de artefatos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Git mantém histórico de código; Nexus Repository distribui componentes e pacotes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Nexus mantém commits e branches do código-fonte, enquanto Git administra cache compartilhado de pacotes Maven e metadados binários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos armazenam exclusivamente metadados sem arquivos binários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Git é o tipo proxy e Nexus é o formato de repositório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nexus compila código e Git publica automaticamente os artefatos binários.",
+          "correct": false
+        }
+      ],
+      "explanation": "São ferramentas com funções complementares: Git versiona código-fonte; Nexus Repository centraliza componentes binários, dependências e artefatos publicados.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy configurado para uma origem privada requer autenticação remota. Que cuidado operacional é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Auditar se as credenciais remotas estão corretas e se a URL da origem permanece válida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder acesso anônimo de edição a todos os membros do group.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover a origem para blob store e remover o endereço remoto configurado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar cache de metadados para contornar qualquer falha de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar o proxy até que uma das cópias obtenha acesso sem credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A manutenção de proxies inclui revisar URL remota e autenticação configurada. Cache e duplicação não corrigem credenciais inválidas nem substituem acesso autorizado à origem.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve a finalidade do repositório proxy em relação à disponibilidade de dependências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dependências já armazenadas em cache podem continuar disponíveis mesmo com falha externa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo componente futuro é garantido localmente antes de qualquer solicitação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O proxy mantém uma cópia integral e sincronizada de toda origem remota, incluindo componentes ainda não solicitados e versões futuras que não existem no cache.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mesmo sem cache, o proxy entrega componentes que nunca solicitou ao upstream.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O proxy elimina a necessidade de hosted para publicações da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O proxy pode servir conteúdo que já está em cache, mas não possui os componentes que nunca solicitou e armazenou. Portanto, uma falha externa ainda impede obter um pacote ausente do cache; o cache não é uma cópia integral da origem.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A organização quer evitar que solicitações de um proxy consultem pacotes fora da lista necessária ao projeto. Que recurso pode ser aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Routing rules para permitir apenas os componentes ou caminhos aprovados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Hosted para alterar a resposta do upstream sem guardar arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Group para ignorar os membros conforme a credencial do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Blob store para compilar somente os pacotes permitidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache de metadados para impedir qualquer consulta externa permanentemente, incluindo a primeira solicitação de componentes que ainda não foram baixados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Routing rules limitam solicitações a componentes necessários e podem permitir ou bloquear padrões de caminho. A política reduz exposição e consultas externas desnecessárias.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em repositórios group, qual recomendação sobre a posição dos membros melhora a busca de componentes internos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Posicionar repositórios hosted locais antes das fontes proxy remotas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Posicionar todos os proxies primeiro para que sejam consultados em paralelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alternar hosted e proxy aleatoriamente a cada reinicialização do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar hosted por último porque group sempre prioriza conteúdo local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar apenas pelo nome, já que a lista não afeta a resolução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ordem é usada para procurar sequencialmente. Hosted locais no início aumentam a chance de atender logo componentes internos e evitam buscas remotas desnecessárias.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa um group e depois adiciona mais um repositório membro. Qual benefício administrativo pode ser obtido sem mudar cada cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A URL do group pode continuar sendo o endpoint enquanto a composição muda no servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os clientes recebem acesso irrestrito ao membro novo sem verificar permissões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Nexus renomeia os formatos usados pelos clientes para o nome do membro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O group passa a replicar todos os artefatos para os computadores consumidores e mantém uma cópia física local em cada máquina cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A URL do group deixa de ser válida sempre que sua lista de membros muda.",
+          "correct": false
+        }
+      ],
+      "explanation": "O group oferece um endpoint agregado e administradores podem incluir ou remover membros na configuração. Isso simplifica a configuração dos clientes, embora permissões continuem necessárias.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: em Nexus Repository, o tipo proxy é usado para intermediar uma origem remota, enquanto o tipo hosted guarda conteúdo publicado localmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Proxy consulta uma fonte remota e pode armazenar cache; hosted mantém componentes publicados localmente como conteúdo autoritativo.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: todo componente no Nexus corresponde obrigatoriamente a um único arquivo físico, sem assets relacionados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um componente pode reunir vários assets associados. Um pacote Maven, por exemplo, pode ter JAR e POM para as mesmas coordenadas GAV.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o formato de um repositório e seu tipo hosted, proxy ou group representam a mesma propriedade de configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Formato identifica o ecossistema, como npm ou Maven; tipo define o comportamento do repositório, como armazenar localmente, intermediar origem ou agregar membros.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um group fornece um endpoint para acesso a vários repositórios compatíveis sem que isso implique copiar todos os arquivos dos membros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Group agrega acesso lógico a seus membros sob uma URL; não é por definição uma cópia física dos assets que existem neles.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a idade máxima de cache dos componentes e a idade máxima de cache dos metadados de um proxy são configurações distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Nexus expõe controles de idade para componentes e metadados separadamente; índices de versões podem, portanto, ser atualizados em momento diferente do arquivo do pacote.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a ordem dos membros de um group é irrelevante porque o Nexus consulta todos em paralelo e combina os resultados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Nexus pesquisa os membros sequencialmente na ordem configurada e retorna a primeira correspondência. A ordem também pode influenciar metadados e desempenho.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: privilégios concedidos a um group permitem automaticamente que o usuário acesse diretamente a URL de qualquer membro individual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O privilégio do group aplica-se às requisições direcionadas ao group, inclusive membros transitivos nessa rota. Acesso direto ao membro depende de autorização explícita.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um proxy pode atender uma nova solicitação usando conteúdo já armazenado, reduzindo a necessidade de buscar novamente no upstream.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Depois do primeiro acesso, o conteúdo pode ser servido do cache enquanto sua validade for considerada adequada, reduzindo tráfego e latência externa.",
+      "section": "2. Tipos hosted, proxy e group",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: usar HTTPS para a origem remota de um proxy ajuda a proteger o tráfego entre Nexus e upstream.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. HTTPS protege a comunicação entre Nexus e origem remota contra interceptação no caminho. A escolha desse protocolo protege o transporte; ela não transforma o proxy em hosted nem altera o formato dos pacotes que os clientes consomem.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um blob store é um tipo equivalente a hosted, proxy ou group, selecionado para indicar o protocolo de pacotes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Blob store é o armazenamento das partes binárias dos assets. Hosted, proxy e group são tipos lógicos de repositório, e o protocolo é indicado pelo formato.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: routing rules podem restringir os componentes que um proxy solicita de uma fonte pública.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Regras de roteamento podem permitir somente componentes necessários ou bloquear caminhos, inclusive namespaces internos em fontes públicas.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: adicionar centenas de proxies a um único group tende a tornar toda resolução mais rápida, pois o Nexus ignora membros sem correspondência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A consulta percorre membros em ordem; grupos enormes podem verificar muitas fontes e piorar o tempo de resolução. É melhor limitar o grupo aos proxies necessários.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: nas coordenadas Maven GAV, as letras representam groupId, artifactId e version.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. GAV identifica grupo, artefato e versão. Um componente Maven pode reunir vários assets associados a essas coordenadas.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o estado remoto indisponível de um proxy significa necessariamente que qualquer repositório hosted da instância também está offline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O estado informa a conectividade do proxy com sua origem remota. Não determina, por si só, a disponibilidade de hosted ou de toda a instalação Nexus.",
+      "section": "3. Publicação, consumo e administração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: proxies duplicados para a mesma URL podem aumentar redundância de configuração e devem ser revisados quando não há motivo para mantê-los.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A recomendação é evitar proxies duplicados para a mesma origem e reutilizar um proxy em grupos que necessitem dele, reduzindo configuração redundante.",
+      "section": "4. Cache, grupos e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: Nexus Repository substitui o controle de versão Git porque ambos mantêm histórico de alterações do código-fonte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Nexus Repository gerencia componentes e artefatos binários. Git mantém histórico de código-fonte; são ferramentas complementares com funções distintas.",
+      "section": "1. O papel do Nexus Repository",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Repository Manager Concepts",
+      "publisher": "Sonatype",
+      "reference": "Função do gerenciador, componentes, formatos, proxies, cache e routing rules",
+      "url": "https://help.sonatype.com/en/repository-manager-concepts.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Repository Types",
+      "publisher": "Sonatype",
+      "reference": "Repositórios proxy, hosted e group; cache e ordem dos membros",
+      "url": "https://help.sonatype.com/en/repository-types.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Creating Repositories",
+      "publisher": "Sonatype",
+      "reference": "Privilégios necessários e fluxo de criação por formato e tipo",
+      "url": "https://help.sonatype.com/en/creating-repositories.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Repository Management",
+      "publisher": "Sonatype",
+      "reference": "Privilégios, informações exibidas e estados de repositórios",
+      "url": "https://help.sonatype.com/en/repository-management.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How Components are Defined within Nexus Repository",
+      "publisher": "Sonatype",
+      "reference": "Definição e identificação de componentes por formato",
+      "url": "https://help.sonatype.com/en/nexus-repository-component-definitions.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configurable Repository Fields",
+      "publisher": "Sonatype",
+      "reference": "Nome, formato, tipo, URL e ordem dos membros de group",
+      "url": "https://help.sonatype.com/en/configurable-repository-fields.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

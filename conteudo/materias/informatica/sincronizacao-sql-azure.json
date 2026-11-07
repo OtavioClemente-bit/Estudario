@@ -1,0 +1,1982 @@
+{
+  "id": "informatica.sincronizacao-sql-azure",
+  "subject": "Informática",
+  "title": "Sincronização de Dados SQL para Azure",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sincronização de Dados SQL para Azure",
+    "Azure SQL Data Sync entre bancos",
+    "SQL Data Sync do Azure SQL Database",
+    "Sincronização hub e spoke no Azure SQL",
+    "Replicação de dados com SQL Data Sync",
+    "Sincronizar SQL Server com Azure SQL",
+    "Grupo de sincronização Azure SQL",
+    "Agente local do Azure SQL Data Sync",
+    "Sincronização de bancos SQL na nuvem",
+    "Conflitos no Azure SQL Data Sync",
+    "Configuração de Sync Metadata Database",
+    "Limitações do SQL Data Sync Azure"
+  ],
+  "scope": {
+    "covers": "Serviço Azure SQL Data Sync para sincronizar dados selecionados entre bancos Azure SQL Database e SQL Server: topologia hub-and-spoke, grupos e membros, banco de metadados, direções e agenda, agente local, seleção de tabelas e colunas, rastreamento por triggers, conflitos, requisitos, limitações, monitoramento, segurança e aposentadoria anunciada do serviço.",
+    "excludes": "Replicação transacional do SQL Server em profundidade, Azure Data Factory, migração integral de servidores, desenho de esquemas relacionais, alta disponibilidade e recuperação de desastre como solução completa."
+  },
+  "theoryTitle": "Azure SQL Data Sync: configuração, funcionamento e limites",
+  "chapters": [
+    {
+      "title": "1. O que o Azure SQL Data Sync sincroniza",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode manter um banco operacional no Azure e cópias selecionadas em filiais, ambientes locais ou bancos destinados a relatórios. O **Azure SQL Data Sync** sincroniza dados escolhidos entre bancos compatíveis, em intervalos configurados ou por solicitação. É uma sincronização de dados: não é uma ferramenta de migração integral do servidor, de backup nem de alta disponibilidade.\n\n> **Siglas e termos deste capítulo**\n> - **Azure SQL Database**: serviço de banco de dados relacional gerenciado da Microsoft Azure.\n> - **Data Sync**: serviço do Azure SQL Database que mantém dados selecionados sincronizados entre bancos.\n> - **Grupo de sincronização (sync group)**: conjunto configurado de banco central e bancos membros.\n> - **SQL Server**: sistema gerenciador de banco de dados que pode participar como membro nas versões locais documentadas.\n> - **Consistência eventual**: mudanças podem levar tempo para chegar aos demais bancos; não há uma única transação distribuída garantindo atualização simultânea.\n\n### O serviço e seu estado atual\n\nA Data Sync pode sincronizar dados selecionados nos dois sentidos entre vários bancos, tanto em Azure SQL Database quanto entre nuvem e SQL Server. A topologia usada é hub-and-spoke: cada membro conversa com o hub, não diretamente com os outros membros. A documentação da Microsoft informa aposentadoria em **30 de setembro de 2027**. Como parte do processo, assinaturas Azure que nunca usaram o recurso não podem criar novos grupos; grupos já existentes podem continuar operando até a data de aposentadoria. Uma implementação nova deve avaliar uma alternativa suportada para seu caso.\n\nO serviço não oferece suporte a Azure SQL Managed Instance nem a Azure Synapse Analytics. Azure SQL Database Hyperscale pode ser membro, mas não hub nem banco de metadados.\n\n### Sincronização não é replicação transacional nem backup\n\nData Sync detecta alterações e as propaga de forma assíncrona. A documentação alerta que não há consistência transacional entre os bancos, embora o serviço seja projetado para que as alterações acabem convergindo. Replicação transacional é outra tecnologia, com características próprias de latência e consistência. Backup guarda pontos recuperáveis; Data Sync não substitui cópias de segurança. Tampouco é mecanismo de failover automático ou recuperação de desastre: se o banco falhar para outra região, o grupo para e a configuração precisa ser refeita na região de contingência.\n\n| Necessidade | O que Data Sync oferece | O que não se deve presumir |\n| --- | --- | --- |\n| Cópias selecionadas atualizadas | Sincronização periódica ou manual | Atualização instantânea e transação distribuída |\n| Banco local e banco Azure | SQL Server pode ser membro; há agente local | Sincronização direta entre dois SQL Servers sem hub Azure |\n| Proteção contra perda | Propagação de mudanças | Backup, restauração ou DR automático |\n\n### Como cai na prova\n\n- Se a questão fala em sincronizar dados escolhidos entre Azure SQL Database e SQL Server local, Data Sync é pertinente, desde que respeitadas as condições atuais do serviço.\n- O hub precisa ser Azure SQL Database; o SQL Server local participa como membro por agente.\n- Não confunda sincronização eventual com replicação transacional, nem disponibilidade com recuperação de desastre."
+    },
+    {
+      "title": "2. Hub, membros, metadados e direções",
+      "markdown": "### O problema que este assunto resolve\n\nA configuração organiza cada implantação em torno de um hub e de um ou mais membros. Essa distinção determina o caminho das mudanças e onde ficam as configurações compartilhadas.\n\n> **Siglas e termos deste capítulo**\n> - **Hub**: banco central do grupo; obrigatoriamente Azure SQL Database.\n> - **Membro (member)**: banco participante que sincroniza com o hub.\n> - **Sync Metadata Database**: Azure SQL Database que guarda metadados e logs da Data Sync.\n> - **Direção**: sentido permitido às mudanças entre hub e membro.\n> - **Intervalo de sincronização**: frequência configurada para execução automática.\n\n### Topologia hub-and-spoke\n\nUm grupo possui um banco hub e bancos membros. A sincronização acontece entre hub e cada membro individualmente. Para compartilhar dados entre dois membros, o percurso passa pelo hub. Não há sincronização membro-a-membro direta. O hub é sempre Azure SQL Database; membros podem ser Azure SQL Database ou bancos de instâncias SQL Server compatíveis. SQL Server não pode ser usado como hub.\n\nO grupo também usa um Sync Metadata Database. Ele deve ser um Azure SQL Database na mesma região do hub. É criado e administrado pelo cliente, não é uma base de dados de negócio e recebe tabelas próprias e carga frequente do serviço. A recomendação oficial é usar uma base nova e vazia. Há uma por região e assinatura; não se pode excluir ou renomear enquanto houver grupos ou agentes vinculados. Hyperscale não é suportado para essa função.\n\n### Sentido e frequência\n\nPara cada membro, escolhe-se uma destas direções: **Hub to Member** (hub para membro), **Member to Hub** (membro para hub) ou **Bidirectional** (ambos os sentidos). Portanto, o grupo pode ter membros com direções diferentes. A sincronização automática pode ser ativada e recebe uma frequência; também é possível iniciar uma sincronização manual no portal. A execução inicial ocorre depois do intervalo selecionado desde que a configuração foi salva, não necessariamente no instante da gravação.\n\n### Criação da configuração\n\nNo portal, parte-se de uma base Azure SQL Database para criar o grupo, seleciona-se ou cria-se o banco de metadados e, depois que o grupo existe, adicionam-se membros. Para SQL Server local, cria-se ou seleciona-se um agente, registra-se nele a base local e usa-se essa base como membro. Em seguida, atualiza-se o esquema detectado, escolhem-se tabelas e colunas e salva-se a configuração. A seleção das colunas não dispensa a chave primária.\n\n### Como cai na prova\n\n- Hub e banco de metadados são funções distintas, embora ambos sejam Azure SQL Database.\n- Um membro não envia diretamente a outro: as trocas passam pelo hub.\n- A direção é configurável; bidirecional não é obrigatória. A frequência automática e o comando manual são mecanismos diferentes de iniciar o trabalho."
+    },
+    {
+      "title": "3. Agente local, rastreamento e conflitos",
+      "markdown": "### O problema que este assunto resolve\n\nO serviço Azure precisa chegar a uma base SQL Server que pode estar atrás do firewall da organização. O agente local faz a ponte de comunicação e registra quais bases ele pode atender.\n\n> **Siglas e termos deste capítulo**\n> - **Data Sync Agent**: componente instalado em computador Windows para conectar o serviço a bancos SQL Server locais.\n> - **Agent key**: chave gerada no portal e informada ao agente para associar agente e serviço.\n> - **Trigger**: rotina acionada por inserção, atualização ou exclusão de linhas.\n> - **Conflito**: mudanças concorrentes no mesmo dado que exigem escolher qual valor prevalece.\n\n### Agente e conectividade\n\nPara incluir SQL Server local como membro, instala-se e configura-se o agente de sincronização em uma máquina que alcance a instância. A documentação recomenda que essa máquina seja diferente da que hospeda o SQL Server. No portal, gera-se uma chave para o agente; no aplicativo local, informam-se a chave e a conexão com servidor e banco, testando-a e registrando a base. O firewall precisa permitir a comunicação de saída TCP pela porta 1433 para o agente alcançar o servidor do serviço. O agente usa conexões criptografadas e chave/token próprio.\n\nA autenticação de conexão do Data Sync com hub e membros é SQL Authentication; Microsoft Entra ID não é suportada. Na instância SQL Server, a função DataSync_Executor é criada para o acesso do serviço/agente; o usuário que os utiliza deve receber a função conforme a configuração. A documentação atual sinaliza que o agente está depreciado e não é recomendado para novas instalações, em coerência com a aposentadoria do serviço.\n\n### Como as alterações são acompanhadas\n\nData Sync usa triggers de inserção, atualização e exclusão e tabelas auxiliares no banco para registrar mudanças. Isso acrescenta carga à base. Um `BULK INSERT` comum não dispara triggers por padrão; sem a opção `FIRE_TRIGGERS`, inserções em massa podem não ser rastreadas. `TRUNCATE TABLE` também não é uma operação acompanhada pelo mecanismo. Mudanças de esquema não são replicadas automaticamente: a estrutura deve ser tratada e sincronizada separadamente.\n\n### Resolução de conflitos\n\nA política do grupo pode ser **Hub wins** ou **Member wins**. Hub wins faz o valor do hub prevalecer sobre a mudança concorrente no membro. Member wins faz prevalecer o membro; havendo vários membros, o resultado final depende de qual deles sincroniza primeiro. Assim, Member wins não significa que um membro predeterminado sempre vence os demais. A escolha deve refletir o papel operacional de cada banco, pois pode sobrescrever dados.\n\n### Como cai na prova\n\n- Agente é necessário para o SQL Server local, não para um membro que já seja Azure SQL Database.\n- Triggers explicam a captura e a carga adicional; operações que não disparam esses triggers podem deixar mudanças fora do rastreamento.\n- A política de conflito escolhe Hub wins ou Member wins; não cria um algoritmo de mesclagem campo a campo."
+    },
+    {
+      "title": "4. Requisitos, limites e operação segura",
+      "markdown": "### O problema que este assunto resolve\n\nNem toda tabela ou operação pode ser colocada num grupo. Conhecer os requisitos evita uma implantação que falha ao provisionar ou que aparenta sincronizar enquanto alterações específicas não são capturadas.\n\n> **Siglas e termos deste capítulo**\n> - **Chave primária (PK)**: identificador que permite reconhecer a linha correspondente entre bancos.\n> - **Provisionamento**: preparação de estruturas e metadados para o grupo e seus membros.\n> - **Collation**: regras de comparação e ordenação de texto.\n> - **Private endpoint**: conexão privada gerenciada que pode ser configurada para a comunicação do serviço.\n\n### Requisitos de tabela e compatibilidade\n\nCada tabela sincronizada precisa ter chave primária. Não se deve alterar o valor de uma chave primária existente: a documentação alerta que isso pode causar perda de dados entre hub e membro sem que a sincronização reporte o problema. Se o identificador precisa mudar, exclui-se a linha e recria-se com o novo valor. Se a mesma tabela já existe nos dois lados, as colunas da chave primária precisam ter a mesma collation.\n\nHá limites adicionais: tabela não pode ter coluna identity que não seja a própria chave primária; tipos como `sql_variant`, `binary`, `varbinary`, `image` e `xml` não podem compor a chave primária. Colunas calculadas e colunas geradas pelo sistema não são sincronizadas. Tipos FileStream, SQL/CLR UDT, RowVersion/Timestamp e Hierarchyid estão entre os não suportados. Tabelas otimizadas para memória e bancos ledger também não são suportados.\n\nNomes de objetos têm restrições de caracteres e limite de 50 caracteres para nomes de bancos, tabelas, esquemas e colunas. A documentação atual limita o grupo a 30 endpoints, 5 dos quais no máximo locais, 500 tabelas e 1000 colunas por tabela; o tamanho de linha é limitado a 24 MB. Uma base pode participar de até cinco grupos.\n\n### Rede, esquema e operação\n\nPode-se configurar private link gerenciado pelo serviço para conexão segura; a solicitação do endpoint privado precisa ser aprovada. Outra configuração documentada é permitir que serviços Azure acessem o servidor. Avalie as regras de rede conforme a implantação, sem expor mais acesso do que o necessário. O Data Sync exige SQL Authentication, portanto credenciais e rotação de senhas merecem cuidado.\n\nAntes de sincronizar, atualiza-se o esquema no grupo, selecionam-se tabelas e desmarcam-se colunas que não devem participar, mantendo a chave primária. A sincronização pode ser manual ou agendada. Convém acompanhar erros e impacto de carga: triggers, tabelas auxiliares e provisionamento consomem recursos. A frequência não transforma o mecanismo em tempo real.\n\n### Limitações que mudam a escolha da solução\n\nData Sync não sincroniza automaticamente seu próprio estado de grupo e não implementa failover/DR. Não se deve escolhê-lo para Azure SQL Managed Instance, Synapse, rede com perímetro de segurança de rede incompatível ou requisitos de consistência transacional. Como será aposentado em 2027 e novas implantações estão restritas, planeje migração para solução alternativa adequada.\n\n### Como cai na prova\n\n- A chave primária é requisito por tabela, e alteração de seu valor pode causar perda silenciosa.\n- Truncate, mudanças de esquema e inserção em massa sem disparar triggers são exemplos de operações que não se comportam como uma alteração rastreada comum.\n- Não atribua ao Data Sync alta disponibilidade, recuperação de desastre ou sincronização de esquema automática."
+    }
+  ],
+  "summary": "Azure SQL Data Sync mantém dados selecionados entre um hub Azure SQL Database e membros Azure SQL Database ou SQL Server compatível, numa topologia hub-and-spoke. Cada membro tem direção configurável (hub para membro, membro para hub ou bidirecional), e a frequência pode ser automática ou manual. Um Sync Metadata Database Azure SQL fica na mesma região do hub. SQL Server local requer o Data Sync Agent e SQL Authentication. Triggers capturam inserções, atualizações e exclusões, o que gera carga; alterações de esquema, TRUNCATE e bulk insert sem FIRE_TRIGGERS não são capturados como uma mudança normal. Cada tabela requer chave primária e existem restrições de tipos, limites e endpoints. Conflitos são resolvidos por Hub wins ou Member wins. O serviço não substitui backup, replicação transacional ou DR. A Microsoft anunciou aposentadoria em 30/09/2027 e restringiu novos grupos em assinaturas que nunca usaram o serviço.",
+  "flashcards": [
+    {
+      "front": "Qual é a topologia do Azure SQL Data Sync?",
+      "back": "Hub-and-spoke: cada membro sincroniza com o hub, não diretamente com outros membros."
+    },
+    {
+      "front": "Que serviço deve ser o hub?",
+      "back": "Azure SQL Database."
+    },
+    {
+      "front": "Quais bancos podem ser membros?",
+      "back": "Azure SQL Database ou bancos de instâncias SQL Server compatíveis."
+    },
+    {
+      "front": "Para que serve o Sync Metadata Database?",
+      "back": "Guarda metadados e logs da Data Sync; deve ser Azure SQL Database na mesma região do hub."
+    },
+    {
+      "front": "Como podem fluir as mudanças?",
+      "back": "Hub para membro, membro para hub ou bidirecional."
+    },
+    {
+      "front": "Como iniciar uma sincronização?",
+      "back": "Por agenda automática configurada ou manualmente pelo portal."
+    },
+    {
+      "front": "Quando ocorre a primeira execução agendada?",
+      "back": "Após transcorrer o intervalo escolhido desde que a configuração foi salva."
+    },
+    {
+      "front": "O que é necessário para SQL Server local?",
+      "back": "Instalar e configurar o Data Sync Agent e registrar o banco como membro."
+    },
+    {
+      "front": "Qual porta de saída é indicada para o agente local?",
+      "back": "TCP 1433 para comunicar com o serviço."
+    },
+    {
+      "front": "Qual autenticação de banco o Data Sync exige?",
+      "back": "SQL Authentication; Microsoft Entra ID não é suportada."
+    },
+    {
+      "front": "Como as alterações comuns são rastreadas?",
+      "back": "Triggers de INSERT, UPDATE e DELETE registram mudanças em tabelas auxiliares."
+    },
+    {
+      "front": "BULK INSERT dispara os triggers por padrão?",
+      "back": "Não; FIRE_TRIGGERS precisa ser especificado para dispará-los."
+    },
+    {
+      "front": "TRUNCATE é rastreado como exclusão comum?",
+      "back": "Não; TRUNCATE TABLE não é operação suportada pelo rastreamento."
+    },
+    {
+      "front": "A Data Sync replica automaticamente mudanças no esquema?",
+      "back": "Não; alterações de esquema não são replicadas automaticamente."
+    },
+    {
+      "front": "Quais são as políticas de conflito?",
+      "back": "Hub wins e Member wins."
+    },
+    {
+      "front": "O que ocorre com Hub wins?",
+      "back": "A mudança do hub prevalece sobre a mudança concorrente no membro."
+    },
+    {
+      "front": "O que ocorre com Member wins em grupo com vários membros?",
+      "back": "Um membro prevalece sobre o hub; o resultado final pode depender de qual membro sincroniza primeiro."
+    },
+    {
+      "front": "Qual requisito cada tabela sincronizada deve cumprir?",
+      "back": "Ter uma chave primária."
+    },
+    {
+      "front": "Pode-se alterar o valor da PK de uma linha existente?",
+      "back": "Não é recomendado; pode causar perda de dados sem alerta. Exclua e recrie a linha."
+    },
+    {
+      "front": "Data Sync é solução de backup ou DR?",
+      "back": "Não; não substitui backup e não oferece failover/DR automático."
+    },
+    {
+      "front": "Qual é a data anunciada de aposentadoria?",
+      "back": "30 de setembro de 2027."
+    },
+    {
+      "front": "Hyperscale pode ser hub?",
+      "back": "Não; pode participar como membro, mas não como hub ou banco de metadados."
+    }
+  ],
+  "tips": [
+    "Desenhe o hub no centro: até a comunicação entre dois membros passa por ele.",
+    "Leia a direção de cada membro separadamente; o grupo não precisa ser bidirecional em todos os endpoints.",
+    "Agente local, SQL Authentication e TCP 1433 são pistas de integração com SQL Server atrás do firewall.",
+    "Associe triggers a INSERT, UPDATE e DELETE e lembre que BULK INSERT precisa de FIRE_TRIGGERS.",
+    "Trate PK, esquema, TRUNCATE e colunas calculadas como limites que não se resolvem apenas mudando a frequência.",
+    "Considere a aposentadoria e a restrição a novas assinaturas ao avaliar o Data Sync para uma implantação."
+  ],
+  "traps": [
+    "Confundir o hub com o Sync Metadata Database: são funções diferentes.",
+    "Supor que SQL Server local pode ser hub ou sincronizar diretamente com outro SQL Server.",
+    "Interpretar bidirecional como consistência transacional ou atualização instantânea.",
+    "Acreditar que a sincronização propaga mudanças de esquema junto com os dados.",
+    "Supor que TRUNCATE ou BULK INSERT sem opção especial serão rastreados pelos triggers.",
+    "Tratar Data Sync como backup, alta disponibilidade ou recuperação automática de desastre."
+  ],
+  "activeRecall": [
+    "Explique o percurso de uma alteração feita em um membro até outro membro.",
+    "Diferencie hub e Sync Metadata Database quanto a função e localização.",
+    "Quais são as três direções possíveis de sincronização de um membro?",
+    "Descreva o cadastro de uma base SQL Server local usando o agente.",
+    "Como o serviço acompanha mudanças e por que isso afeta o desempenho?",
+    "Compare Hub wins e Member wins quando dois bancos alteram o mesmo registro.",
+    "Cite três operações ou estruturas incompatíveis com o rastreamento comum.",
+    "Quais são os limites do papel do Data Sync em disponibilidade e recuperação?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Topologia e papéis",
+      "summary": "Hub, membros e banco de metadados têm papéis distintos; a troca entre membros passa pelo hub."
+    },
+    {
+      "key": "e2",
+      "title": "Captura das mudanças",
+      "summary": "Triggers rastreiam operações comuns, mas não fazem o mecanismo capturar automaticamente operações não disparadoras nem mudanças de esquema."
+    },
+    {
+      "key": "e3",
+      "title": "Conflito e consistência",
+      "summary": "A política escolhe qual lado prevalece; sincronização eventual não equivale a transação distribuída."
+    },
+    {
+      "key": "e4",
+      "title": "Requisitos e limites do produto",
+      "summary": "PK, tipos, endpoints, autenticação, casos não suportados e aposentadoria limitam o uso do serviço."
+    },
+    {
+      "key": "e5",
+      "title": "Disponibilidade e proteção",
+      "summary": "Data Sync não fornece backup, failover nem recuperação de desastre automática."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual arquitetura descreve a comunicação de um grupo Azure SQL Data Sync?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada membro sincroniza diretamente com todos os outros membros do grupo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um hub central sincroniza individualmente com cada membro do grupo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um agente local atua como hub obrigatório para todos os bancos Azure.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O banco de metadados transmite os dados de negócio entre membros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um serviço de replicação transacional conecta os bancos em malha completa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O grupo usa topologia hub-and-spoke. O hub troca dados com cada membro; membros não sincronizam diretamente entre si. Assim, um membro alcança outro por meio do banco central, sem formar conexões diretas entre todos os endpoints.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual requisito se aplica ao banco escolhido como hub?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deve ser uma instância local do SQL Server com agente instalado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode ser Azure SQL Managed Instance se estiver na mesma região.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Azure SQL Database; SQL Server local é membro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Deve ser uma base Azure Synapse com tabelas relacionais selecionadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pode ser qualquer membro, desde que tenha autenticação Microsoft Entra.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hub obrigatoriamente é Azure SQL Database. SQL Server local pode participar como membro, enquanto Managed Instance e Synapse não têm suporte para esse serviço.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve o Sync Metadata Database em um grupo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guarda metadados e logs em Azure SQL Database na região do hub.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substitui o hub e recebe diretamente todas as alterações dos membros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mantém cópias integrais para restauração temporal de cada membro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte automaticamente o esquema SQL Server para o esquema Azure.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executa a autenticação Microsoft Entra em nome dos bancos participantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O banco de metadados mantém informações e logs da Data Sync e deve ser Azure SQL Database na mesma região do hub. Ele não substitui o hub nem é backup dos bancos de negócio.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que alterações de uma base local cheguem a uma base Azure, sem que mudanças Azure retornem à base local. Qual direção deve configurar para esse membro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hub to Member, para enviar mudanças do Azure ao banco local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bidirectional, para permitir que o serviço escolha o sentido a cada execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Member to Member, opção que conecta os dois endpoints sem passar pelo hub.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Member to Hub, se a base local for membro e Azure for o hub.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Hub wins, pois essa opção define que dados locais sempre sobem ao Azure.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com SQL Server local como membro e Azure SQL Database como hub, Member to Hub envia as alterações do membro para o hub. Hub wins é política de conflito, não direção.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição representa corretamente as opções de direção de um membro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente leitura, somente escrita e atualização transacional simultânea.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Upload local, replicação em cascata e restauração para o hub.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hub para membro, membro para hub ou fluxo bidirecional.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Hub para agente, agente para metadados ou fluxo entre agentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicação contínua, exportação integral ou cópia de segurança diferencial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A direção pode ser From the Hub, To the Hub ou bidirecional. As demais opções confundem fluxo de sincronização com backup, agente ou modalidade transacional.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao habilitar sincronização automática e escolher um intervalo, quando a primeira sincronização agendada começa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Imediatamente ao salvar, antes de qualquer período do intervalo configurado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Depois de transcorrido o intervalo escolhido desde o salvamento da configuração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente depois que todas as bases tiverem sido reiniciadas manualmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na próxima janela fixa diária, independentemente da frequência selecionada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Após o usuário registrar um agente local, mesmo sem membro SQL Server.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação informa que a primeira execução ocorre depois do intervalo configurado a partir do momento em que a configuração é salva. Também é possível iniciar manualmente.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para adicionar uma base SQL Server local como membro, que componente faz a ponte com o serviço Azure?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma réplica secundária do banco de metadados instalada na rede local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um linked server criado automaticamente pelo portal do Azure.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma conta Microsoft Entra com permissão de administrador global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um gateway de replicação transacional embutido no SQL Server.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Data Sync Agent instalado e configurado para registrar a base local.",
+          "correct": true
+        }
+      ],
+      "explanation": "O SQL Server local requer o agente local: ele é configurado com a chave gerada pelo serviço e com a conexão do banco que será membro.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que medida de conectividade a documentação orienta para o agente local alcançar o serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir tráfego de entrada TCP 1433 do Azure para qualquer computador da rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Abrir UDP 1433 entre o agente e todos os membros do grupo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma conexão de entrada na porta 443 no SQL Server local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Liberar TCP 1433 de saída para a comunicação do agente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar o firewall do servidor SQL durante todas as sincronizações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tutorial oficial indica liberar a porta TCP 1433 de saída no firewall para permitir que o agente cliente comunique com o servidor. Não é instrução para desativar o firewall nem abrir acesso indiscriminado de entrada.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo de autenticação o Azure SQL Data Sync exige para conexões com hub e membros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação SQL; Microsoft Entra ID não é suportada pelo serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente autenticação Microsoft Entra com identidade gerenciada do agente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autenticação integrada Kerberos, sem credenciais SQL configuradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Certificado cliente obrigatório, sem login de banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autenticação anônima protegida apenas pela chave do grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "As conexões aos bancos usam SQL Authentication. Microsoft Entra ID e identidade gerenciada não são suportadas pela Data Sync; a chave do agente não substitui as credenciais do banco.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a Data Sync acompanha operações comuns realizadas nas tabelas selecionadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lê continuamente o transaction log e aplica cada transação em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Triggers de INSERT, UPDATE e DELETE gravam mudanças em tabelas auxiliares.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Compara cópias integrais das bases sem instalar objetos auxiliares.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exige que o aplicativo publique cada linha alterada em uma fila externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usa somente snapshots noturnos e descarta alterações entre snapshots.",
+          "correct": false
+        }
+      ],
+      "explanation": "O mecanismo usa triggers de INSERT, UPDATE e DELETE e tabelas laterais para registrar mudanças. Essa atividade traz impacto de desempenho e não equivale a captura transacional em tempo real.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe executa BULK INSERT na tabela sincronizada e precisa que os inserts sejam acompanhados pelo Data Sync. O que deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Data Sync converte automaticamente toda carga em alterações detectadas pelo log.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A carga deve ocorrer apenas no banco de metadados para ser propagada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BULK INSERT dispara triggers por padrão se a tabela tiver chave primária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A opção de replicação transacional precisa ser habilitada no grupo hub-and-spoke.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar FIRE_TRIGGERS, pois BULK INSERT não dispara triggers por padrão.",
+          "correct": true
+        }
+      ],
+      "explanation": "BULK INSERT não dispara triggers por padrão. Para que os triggers usados pelo Data Sync registrem essas inserções, deve-se especificar FIRE_TRIGGERS.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas bases alteram simultaneamente o mesmo registro. Que resultado define a política Hub wins?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O membro que enviar primeiro conserva sempre seu valor no hub.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os valores são mesclados coluna a coluna pelo agente local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor do hub prevalece sobre a mudança concorrente do membro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O serviço mantém as duas linhas e cria automaticamente uma tabela de conflitos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A alteração mais recente vence com base no relógio local de cada servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na política Hub wins, o valor do hub sobrescreve a mudança concorrente no membro. A regra não é mesclagem de campos nem comparação de relógios locais; ela define qual lado prevalece no conflito detectado.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo usa Member wins e tem vários membros que alteraram o mesmo registro. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço combina automaticamente os valores dos membros, preservando todas as colunas alteradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O hub sempre prevalece, mas mantém cópia das mudanças recusadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O membro criado primeiro no portal tem prioridade permanente sobre os demais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma mudança de membro prevalece sobre a do hub; com vários membros, a ordem de sincronização pode afetar o valor final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A política só se aplica ao banco de metadados, sem afetar dados de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Member wins dá precedência às alterações do membro sobre as do hub. Com mais de um membro concorrente, a documentação ressalta que o valor final depende de qual membro sincroniza primeiro.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela sem chave primária pode ser incluída normalmente no grupo, desde que todas as colunas estejam selecionadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada tabela sincronizada precisa de uma chave primária, usada para identificar as linhas correspondentes entre os bancos. Selecionar todas as colunas não elimina esse requisito estrutural.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela que já existe no hub e no membro deve ter a mesma collation nas colunas de sua chave primária para implantação bem-sucedida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando a tabela já está presente nos dois bancos, a documentação exige collation igual para as colunas da chave primária; não estende essa condição a todas as demais colunas.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alterar o valor da chave primária de uma linha já existente é uma forma segura de renomear sua identidade durante a sincronização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A Microsoft alerta que mudar o valor de uma chave existente pode causar perda de dados entre hub e membro sem erro informado. A orientação é excluir a linha e criá-la novamente com a nova chave.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Azure SQL Data Sync replica automaticamente para todos os membros as mudanças feitas na definição de tabelas e colunas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mudanças de esquema não são replicadas automaticamente. A configuração de tabelas e colunas precisa ser atualizada e alterações estruturais tratadas à parte.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução TRUNCATE TABLE é rastreada pelo Data Sync como uma série de exclusões individuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TRUNCATE não é operação suportada para rastreamento pelo Data Sync; as alterações não são capturadas dessa forma.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Colunas calculadas e colunas geradas pelo sistema, como certas colunas temporais, não são sincronizadas pelo Data Sync.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O serviço não sincroniza colunas somente de leitura ou geradas pelo sistema, entre elas colunas calculadas e algumas colunas de tabelas temporais.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um membro SQL Server local deve ser registrado por agente; o agente usa conexões criptografadas e chave/token próprio na comunicação com o serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O agente local evita comunicação direta do serviço com bancos atrás de firewall e autentica sua associação com chave/token, usando conexões criptografadas.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O banco de metadados pode ser Azure SQL Database Hyperscale se estiver na mesma região do hub.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Azure SQL Database Hyperscale pode participar como membro, mas não é suportado como hub nem como Sync Metadata Database. A função central e a base auxiliar exigem tipos de banco compatíveis distintos.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância Azure SQL Managed Instance pode ser adicionada como membro de um grupo Azure SQL Data Sync.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação informa que Data Sync não oferece suporte a Azure SQL Managed Instance nem a Azure Synapse Analytics.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O limite documentado de endpoints em um único grupo é de 30, com no máximo cinco endpoints locais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação apresenta máximo de 30 endpoints por grupo e até cinco endpoints locais. Também limita grupos, tabelas e colunas sincronizadas.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base que participa de vários sync groups conta como um único endpoint no limite agregado, independentemente do número de grupos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se uma base pertence a vários grupos, conta como múltiplos endpoints, não como um só, para o limite total de endpoints.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SQL Data Sync fornece consistência transacional entre hub e membros, pois cada execução aplica uma única transação distribuída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A Data Sync tem consistência eventual e não oferece consistência transacional entre bancos. As mudanças são propagadas posteriormente.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma base SQL Server local for membro, ela pode ser conectada diretamente a outro SQL Server membro sem passar pelo hub Azure.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A Data Sync não sincroniza dois SQL Servers diretamente; é possível fazê-lo indiretamente por meio de um hub Azure SQL Database.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Data Sync oferece failover automático do grupo para outra região se o banco Azure falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A Data Sync não oferece failover ou recuperação de desastre automática. Após failover do banco para outra região, o grupo para; é necessário recriar o grupo com as configurações na região de contingência.",
+      "section": "1. O que o Azure SQL Data Sync sincroniza",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação da Microsoft informa aposentadoria do Azure SQL Data Sync em 30 de setembro de 2027 e restringe a criação de novos grupos em assinaturas que nunca usaram o serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O aviso de aposentadoria aponta 30/09/2027. Como parte da aposentadoria, assinaturas sem uso prévio não podem criar novos grupos; grupos existentes podem operar até a data indicada.",
+      "section": "1. O que o Azure SQL Data Sync sincroniza",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração permite excluir algumas colunas de uma tabela sincronizada sem perder a identificação das linhas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desmarcar também a chave primária, pois o serviço reconstrói sua correspondência pelo nome da tabela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir a tabela do membro e deixar que o serviço calcule a estrutura de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter todas as colunas e filtrar registros apenas pela política de conflitos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar somente as colunas de negócio e deixar o esquema sem chave nos membros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desmarcar colunas não necessárias, mantendo selecionada a coluna de chave primária.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na configuração das tabelas, as colunas vêm selecionadas por padrão e podem ser desmarcadas, mas a chave primária deve permanecer selecionada para identificar as linhas.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O banco de metadados está ligado a grupos ativos e a equipe pretende renomeá-lo para adequar uma convenção interna. Qual avaliação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome pode ser alterado a qualquer momento, pois os grupos consultam somente o nome do hub.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A base não pode ser renomeada enquanto houver grupos de sincronização ou agentes vinculados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A renomeação é automática ao mudar a direção de cada membro para bidirecional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Basta apagar as tabelas auxiliares, pois os logs são reconstruídos sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome precisa ser igual ao do hub, então a equipe deve renomear ambos juntos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O banco de metadados não pode ser excluído ou renomeado enquanto existirem grupos ou agentes de sincronização. Ele é uma base separada do hub e deve ser planejado antes da implantação.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe busca sincronizar somente os dados de uma base SQL Server local para outra base SQL Server local. Que desenho é compatível com Data Sync?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma conexão direta entre os dois SQL Servers e usar o agente apenas para autenticação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar um dos servidores locais como hub e dispensar recursos Azure.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar Azure SQL Database como hub e adicionar os SQL Servers como membros.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar Azure Synapse como hub e criar um agente para cada tabela local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronizar apenas pelo banco de metadados, sem selecionar um hub de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dois SQL Servers não se sincronizam diretamente pela Data Sync. Eles podem trocar dados indiretamente por meio de Azure SQL Database como hub, com os bancos locais cadastrados como membros.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação caracteriza melhor o efeito de desempenho da Data Sync?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Triggers de rastreamento e tabelas auxiliares acrescentam trabalho à base e devem ser considerados na capacidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O serviço opera fora dos bancos e não cria carga no SQL durante captura ou provisionamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda alteração é mantida somente no agente, sem escrita adicional nos bancos envolvidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A carga ocorre exclusivamente na base de metadados, sem afetar os membros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O impacto é eliminado ao reduzir a frequência, sem relação com o número de tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Triggers e tabelas auxiliares são criados nos bancos para acompanhar alterações; provisionamento e sincronização também podem afetar desempenho. A capacidade e a carga devem ser avaliadas.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa de consistência transacional estrita entre bancos e baixa latência como requisito central. Qual conclusão sobre Data Sync é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É apropriada, desde que o intervalo automático seja configurado para poucos segundos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É apropriada porque Hub wins torna cada alteração uma transação distribuída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É apropriada se o grupo tiver somente um membro e usar SQL Authentication.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não atende por si só: sua consistência é eventual e não transacional entre os bancos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Não atende apenas porque requer um banco de metadados em região separada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Data Sync não garante consistência transacional entre hub e membros; as mudanças convergem de forma eventual. Um intervalo curto não transforma o serviço em transação distribuída nem assegura baixa latência transacional.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela já existe no hub e no membro com nomes iguais, mas a collation das colunas da PK diverge. O que deve ser verificado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A Data Sync compara apenas collation de colunas que não participam da chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A implantação não tem restrição, pois o agente converte a collation durante o envio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A política Member wins ajusta automaticamente a definição da chave primária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A frequência precisa ser aumentada até que as collations se igualem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As colunas da chave primária precisam ter a mesma collation nos dois bancos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando uma tabela sincronizada já existe em hub e membro, as colunas de chave primária precisam apresentar a mesma collation para que o grupo seja implantado com sucesso.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deseja sincronizar uma tabela que contém uma coluna identity não usada como chave primária. Qual limitação se aplica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A coluna é aceita, desde que a tabela tenha outra chave primária composta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tabela não pode ter identity que não seja a própria chave primária.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A coluna pode ser sincronizada somente na direção do membro para o hub.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O problema é resolvido escolhendo Member wins para os conflitos de identity.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A Data Sync remove a propriedade identity automaticamente durante o provisionamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Entre as limitações documentadas está a proibição de tabela com coluna identity que não seja a chave primária. Direção e política de conflito não alteram essa restrição estrutural.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto contém somente tecnologias ou serviços que a documentação exclui do suporte da Data Sync?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Azure SQL Database, SQL Server em Windows e membros de duas assinaturas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SQL Server local com agente, Azure SQL Database Hyperscale como membro e grupo agendado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Azure SQL Managed Instance, Azure Synapse Analytics e tabelas otimizadas para memória.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Hub em Azure SQL Database, autenticação SQL e direção somente para o hub.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bancos Azure em grupos distintos e banco de metadados na mesma região do hub.",
+          "correct": false
+        }
+      ],
+      "explanation": "Data Sync não oferece suporte a Managed Instance nem Synapse e não sincroniza tabelas memory-optimized. As outras alternativas descrevem elementos documentados como compatíveis, sob as condições aplicáveis.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa já tem grupos funcionando em uma assinatura Azure. Qual enunciado reflete o aviso atual de aposentadoria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço já foi desligado e todos os grupos existentes deixaram de sincronizar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Grupos existentes podem funcionar até 30/09/2027, enquanto a empresa planeja migração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Novos grupos estão liberados em qualquer assinatura até o dia da aposentadoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A data anunciada aplica-se somente ao agente local, e não ao serviço de nuvem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aposentadoria afeta apenas o banco de metadados; a sincronização continua sem grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Microsoft informa aposentadoria do SQL Data Sync em 30 de setembro de 2027; grupos existentes podem operar até essa data, e a orientação é migrar antes. Assinaturas que nunca utilizaram o serviço não podem criar grupos novos.",
+      "section": "1. O que o Azure SQL Data Sync sincroniza",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O banco hub falha para outra região. O grupo de Data Sync passa a operar automaticamente nessa região usando o failover da base.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O serviço não oferece recuperação de desastre automática. Se o banco falha para outra região, o grupo para e deve ser recriado manualmente com configuração equivalente na região de contingência.",
+      "section": "1. O que o Azure SQL Data Sync sincroniza",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela sincronizada pode conter até 1000 colunas segundo os limites documentados do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O limite documentado é de 1000 colunas por tabela no grupo. O mesmo conjunto de limites informa, entre outros, até 500 tabelas e tamanho de linha de 24 MB.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sincronização manual pode ser iniciada pela página do grupo no portal Azure, mesmo quando existe uma agenda automática configurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Além da execução automática configurável, a documentação descreve iniciar manualmente uma sincronização pela página do grupo no portal.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço de Data Sync é gratuito, logo não há custos associados ao tráfego de dados entre as bases Azure.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação informa que não há cobrança pelo serviço Data Sync em si, mas podem existir cobranças de transferência de dados de entrada e saída das bases SQL Database.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Data Sync pode ser usada como cópia de segurança, pois cada alteração propagada mantém uma versão histórica recuperável da linha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Data Sync não é backup nem mecanismo de recuperação temporal. Ela propaga mudanças selecionadas; cópias de segurança devem ser tratadas por recursos próprios de backup e restauração.",
+      "section": "1. O que o Azure SQL Data Sync sincroniza",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento deve ser feito depois que o grupo e seus membros forem implantados para definir os dados que participarão da sincronização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar um linked server para cada coluna que será transferida entre os bancos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar a autenticação Microsoft Entra e deixar que o serviço escolha todas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar um backup completo e importar o arquivo no banco de metadados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atualizar o esquema, escolher as tabelas e colunas e manter a chave primária selecionada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Renomear todas as tabelas locais para corresponder ao nome do sync group.",
+          "correct": false
+        }
+      ],
+      "explanation": "Após a implantação dos membros, atualiza-se o esquema na página Tables, selecionam-se tabelas e colunas e salva-se a escolha. A chave primária deve permanecer selecionada para permitir a correspondência das linhas.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o comportamento do limite de grupos por banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O limite é contado somente para bancos que atuam como hub, nunca para membros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de grupos é limitado pelo número de tabelas, sem limite próprio para cada banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O limite de grupos é ilimitado se cada grupo usar uma região Azure diferente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A Data Sync permite até trinta grupos por banco, desde que sejam somente de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um banco pode pertencer a até cinco grupos; sua participação em grupos distintos conta como endpoints distintos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação estabelece até cinco grupos por banco. Além disso, se o banco participa de mais de um grupo, cada participação conta como endpoint distinto nos limites agregados de endpoints.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa diferencia corretamente o agente local do banco de metadados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O agente conecta SQL Server local ao serviço; o banco de metadados guarda logs e metadados do sync.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ambos são instalados dentro do SQL Server local e podem ser usados como hub.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O agente armazena os backups e o banco de metadados executa os triggers nas tabelas de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O agente define a política de conflito e o banco de metadados escolhe a direção dos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O agente substitui o hub quando o grupo tem membros de duas assinaturas diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Data Sync Agent é a ponte de comunicação para bancos SQL Server locais. O Sync Metadata Database, por sua vez, armazena metadados e logs do serviço; nenhum deles substitui o hub de dados.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração permite sincronizar dados entre bancos Azure SQL Database em assinaturas distintas, desde que o grupo e seus endpoints sejam configurados corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação permite configurar sincronização entre bancos de assinaturas diferentes, inclusive em resource groups distintos. Cada endpoint continua sujeito aos requisitos de conexão e configuração do serviço.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação Microsoft Entra ID é suportada para as conexões de banco do SQL Data Sync, desde que o agente use uma identidade gerenciada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O serviço requer SQL Authentication para conexão ao hub e aos membros; Microsoft Entra ID e identidade gerenciada não são opções suportadas para essas conexões.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SQL Data Sync suporta tabelas otimizadas para memória e bancos ledger desde que todas as tabelas tenham chave primária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Chave primária é requisito geral, mas não supera outras limitações: tabelas memory-optimized e bancos ledger não têm suporte no Data Sync.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de um endpoint privado gerenciado para o Data Sync pode exigir aprovação manual da conexão privada durante a implantação do grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de configuração informa que o endpoint privado gerenciado pelo serviço precisa ser aprovado na página de conexões de endpoint privado durante a implantação ou por ferramenta de gerenciamento.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O banco de metadados é compartilhado como recurso de Data Sync por região e assinatura, e recebe tabelas próprias e carga frequente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O banco de metadados é uma base do cliente compartilhada para os grupos daquela região e assinatura; o serviço cria tabelas e executa nela uma carga recorrente.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Data Sync acompanha automaticamente uma operação de exclusão em massa executada com TRUNCATE TABLE, pois a instrução dispara um trigger para cada linha removida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TRUNCATE TABLE não é operação suportada pelo rastreamento da Data Sync e não dispara o mecanismo como uma sequência de exclusões rastreadas por linha.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Data Sync Agent é recomendado hoje como componente estratégico para toda nova instalação, sem ressalva sobre a aposentadoria do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação atual indica que o agente está depreciado e não é mais recomendado para instalação. O próprio serviço será aposentado, então novas arquiteturas devem considerar alternativas.",
+      "section": "1. O que o Azure SQL Data Sync sincroniza",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção Hub wins transforma uma sincronização eventual em uma transação atômica que confirma ao mesmo tempo no hub e em todos os membros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hub wins só define a precedência em conflitos. A Data Sync continua sem consistência transacional distribuída, e as mudanças chegam aos membros de forma eventual.",
+      "section": "3. Agente local, rastreamento e conflitos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Data Sync pode ser usado com base Azure SQL Hyperscale como membro, mas não como hub ou banco de metadados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Azure SQL Database Hyperscale pode participar como membro do grupo, mas não pode ocupar o papel de hub nem ser o Sync Metadata Database. Essas funções exigem uma configuração de base suportada pelo serviço.",
+      "section": "2. Hub, membros, metadados e direções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O limite documentado para o tamanho de linha de uma tabela sincronizada é de 24 MB.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A tabela oficial de limites apresenta 24 MB como tamanho máximo de linha. Ela também lista limites distintos para quantidade de endpoints, tabelas sincronizadas e colunas em cada tabela.",
+      "section": "4. Requisitos, limites e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What is SQL Data Sync for Azure?",
+      "publisher": "Microsoft Learn",
+      "reference": "Visão geral, topologia, direções, conflitos, rastreamento, limitações e aposentadoria do serviço",
+      "url": "https://learn.microsoft.com/en-us/azure/sql-database/sql-database-sync-data",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Tutorial: Set up SQL Data Sync between databases in Azure SQL Database and SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Criação do grupo, configuração do hub e do banco de metadados, cadastro de membros e agente local",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-data-sync-sql-server-configure?view=azuresql",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Data Sync Agent for SQL Data Sync",
+      "publisher": "Microsoft Learn",
+      "reference": "Instalação, autenticação, suporte e operação do agente local",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-data-sync-agent-overview?view=azuresql",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is SQL Data Sync for Azure? Requirements and limitations",
+      "publisher": "Microsoft Learn",
+      "reference": "Requisitos de tabelas, limites de serviço, consistência, desempenho e casos sem suporte",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-data-sync-data-sql-server-sql-database?view=azuresql",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Data Sync retirement migration",
+      "publisher": "Microsoft Learn",
+      "reference": "Aposentadoria do Data Sync e alternativas para migração",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-data-sync-retirement-migration?view=azuresql",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

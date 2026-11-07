@@ -1,0 +1,1936 @@
+{
+  "id": "informatica.computacao-alto-desempenho-paralelismo-distribuida",
+  "subject": "Informática",
+  "title": "Computação de alto desempenho: paralelismo, sistemas distribuídos, clusters e grids",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura de computadores e computação de alto desempenho",
+    "Concorrência, paralelismo e computação distribuída",
+    "Computação de alto desempenho e paralelismo",
+    "Arquitetura paralela e sistemas distribuídos",
+    "Sistemas de computação paralela e distribuída",
+    "Computação em clusters e grids",
+    "Clusters e grades computacionais distribuídas",
+    "Processamento concorrente em sistemas de alto desempenho",
+    "Paralelismo em computadores e processamento distribuído",
+    "Desempenho de clusters e grades computacionais"
+  ],
+  "scope": {
+    "covers": "Fundamentos de computação de alto desempenho; distinção entre concorrência, paralelismo e distribuição; granularidade, decomposição de tarefas, processos, threads e memória; taxonomia de Flynn (SISD, SIMD, MISD, MIMD); arquiteturas de memória compartilhada e distribuída; comunicação por passagem de mensagens e MPI; sincronização, dependências, condições de corrida e consistência; speedup, eficiência, escalabilidade, overhead, latência, largura de banda, lei de Amdahl e balanceamento de carga; sistemas distribuídos, tolerância a falhas e heterogeneidade; conceitos, arquitetura, usos e limitações de clusters e grids.",
+    "excludes": "Programação detalhada de CUDA e GPUs, administração de Kubernetes e nuvem, configuração de redes e sistemas operacionais, algoritmos específicos de aplicações científicas e provas formais de complexidade."
+  },
+  "theoryTitle": "Do paralelismo local às grades de computadores",
+  "chapters": [
+    {
+      "title": "1. Concorrência, paralelismo e modelos de execução",
+      "markdown": "### O problema que este assunto resolve\n\nUma tarefa pode levar tempo por fazer muitas operações, esperar por entrada e saída ou depender de resultados anteriores. Computação de alto desempenho (HPC, *high-performance computing*) busca reduzir o tempo de solução ou processar problemas maiores usando recursos computacionais de forma coordenada. A primeira decisão é separar conceitos próximos: **concorrência** descreve tarefas cujas execuções se sobrepõem no tempo; **paralelismo** significa executar partes ao mesmo tempo em unidades de processamento distintas; e **computação distribuída** coordena computadores autônomos conectados por uma rede. Um programa concorrente pode alternar tarefas em um único núcleo sem paralelismo físico.\n\n> **Siglas e termos deste capítulo**\n> - **HPC**: computação de alto desempenho, voltada a cálculos intensivos, grandes dados ou menor tempo de resposta.\n> - **Núcleo (core)**: unidade de execução de instruções dentro do processador.\n> - **Thread**: fluxo de execução que compartilha recursos de um processo.\n> - **Processo**: programa em execução com espaço de endereçamento próprio.\n> - **Flynn**: classificação de arquiteturas pelo número de fluxos de instruções e de dados.\n\n### Decompor para executar\n\nUma computação só se beneficia de paralelismo quando pode ser dividida em partes com dependências controladas. Em uma soma de um vetor, vários blocos podem ser somados separadamente e depois combinados; em uma sequência em que cada passo precisa do resultado do anterior, dividir o trabalho pode não acelerar. A **granularidade** indica o tamanho das partes: tarefas muito pequenas podem custar mais para distribuir e sincronizar do que o cálculo que realizam.\n\nNa taxonomia de Flynn, **SISD** tem um fluxo de instruções e um fluxo de dados, modelo clássico de execução sequencial; **SIMD** aplica uma instrução a vários elementos de dados, como operações vetoriais; **MISD** combina múltiplos fluxos de instrução sobre um fluxo de dados, configuração rara; **MIMD** executa fluxos distintos sobre dados distintos, comum em multicore e sistemas com vários nós. SIMD é adequado a operações uniformes sobre vetores; MIMD permite tarefas independentes ou diferentes.\n\n### Memória define a forma de cooperação\n\nEm **memória compartilhada**, threads acessam um espaço de endereçamento comum. É natural compartilhar estruturas, mas escritas simultâneas precisam de sincronização. Em **memória distribuída**, cada processo ou nó tem memória local; dados passam pela rede por mensagens. Máquinas modernas frequentemente são híbridas: memória compartilhada dentro do nó e passagem de mensagens entre nós. A escolha de decomposição deve considerar onde os dados estão, quanto custa movê-los e como combinar resultados.\n\n| Modelo | Como os participantes trocam dados | Custo e risco típico |\n| --- | --- | --- |\n| Memória compartilhada | Leitura e escrita em endereços comuns | Corrida, contenção e sincronização |\n| Memória distribuída | Mensagens explícitas entre processos | Latência, volume transferido e deadlock |\n| Híbrido | Threads no nó, mensagens entre nós | Exige coordenar os dois níveis |\n\n### Como cai na prova\n\n- Concorrência não garante simultaneidade física; paralelismo pressupõe execução simultânea em recursos distintos.\n- Flynn classifica fluxos de instrução e de dados, não quantidade de processadores por si só.\n- Memória compartilhada facilita comunicação, mas não elimina condições de corrida.\n- Sistemas distribuídos têm máquinas independentes e comunicação por rede; um multicore não se torna distribuído apenas por ter várias threads."
+    },
+    {
+      "title": "2. Coordenação, comunicação e desempenho paralelo",
+      "markdown": "### O problema que este assunto resolve\n\nDividir o cálculo é só parte do trabalho. Os participantes precisam saber quais dados processar, trocar resultados e terminar em uma ordem segura. **Sincronização** coordena acessos ou pontos de encontro. Um **mutex** protege uma região crítica; uma barreira faz os participantes aguardarem até que todos alcancem aquele ponto. Sincronização excessiva serializa o programa e reduz o ganho.\n\n> **Siglas e termos deste capítulo**\n> - **Condição de corrida**: resultado depende da ordem imprevisível de acessos concorrentes a estado compartilhado.\n> - **Região crítica**: trecho que acessa recurso compartilhado e requer exclusão mútua ou outra disciplina.\n> - **Speedup**: tempo sequencial dividido pelo tempo paralelo para o mesmo trabalho.\n> - **Eficiência**: speedup dividido pelo número de unidades de processamento.\n> - **Latência**: tempo para iniciar ou completar uma comunicação/operação.\n> - **Largura de banda**: quantidade de dados transferida por unidade de tempo.\n\n### Passagem de mensagens: o caso de MPI\n\nMPI (*Message Passing Interface*) é um padrão de interface para comunicação entre processos, muito usado em HPC. O MPI Forum publica o padrão; MPI não é, por si só, um único programa ou uma rede. Processos participantes pertencem a **comunicadores**, que definem o grupo e o contexto da comunicação. Em comunicação ponto a ponto, um processo envia e outro recebe. Operações coletivas envolvem um grupo: *broadcast* distribui um valor de uma raiz para os participantes; *scatter* reparte dados da raiz; *gather* reúne partes em uma raiz; *reduce* combina valores com uma operação, como soma; barreira sincroniza o grupo. A comunicação coletiva não deve ser confundida automaticamente com uma barreira: nem toda operação coletiva exige que todos fiquem bloqueados até a conclusão global do mesmo modo.\n\n### Medir o ganho e entender limites\n\nSe uma fração do programa necessariamente permanece sequencial, aumentar o número de processadores não reduz essa parte. A lei de Amdahl expressa esse limite: para fração sequencial (s) e (p) processadores, speedup ideal é (1/(s+(1-s)/p)). Com muitos processadores, o limite tende a (1/s). Na prática, comunicação, sincronização, desequilíbrio de carga, inicialização e acesso à memória adicionam overhead e pioram o resultado.\n\n**Escalabilidade forte** pergunta como o tempo muda ao aumentar processadores mantendo fixo o tamanho do problema. **Escalabilidade fraca** aumenta problema e recursos em proporção, avaliando se o tempo se mantém semelhante. Balanceamento de carga distribui trabalho para evitar que alguns participantes fiquem ociosos enquanto outros atrasam a conclusão. Uma rede com grande largura de banda ainda pode sofrer com alta latência em muitas mensagens pequenas; agrupar mensagens reduz inícios, mas pode atrasar o envio de dados prontos.\n\n| Medida | Fórmula/ideia | Leitura cuidadosa |\n| --- | --- | --- |\n| Speedup | (T_1/T_p) | Ganho de tempo frente à execução sequencial |\n| Eficiência | (S_p/p) | Fração do ganho ideal por processador |\n| Latência | Atraso por operação | Afeta sobretudo mensagens pequenas e frequentes |\n| Largura de banda | Dados por tempo | Afeta transferências volumosas |\n\n### Como cai na prova\n\n- Uma região crítica sem proteção permite que duas atualizações se percam; usar lock corrige a disputa, mas acrescenta custo.\n- Amdahl limita o ganho pelo trecho sequencial, mesmo com mais núcleos.\n- MPI oferece comunicação ponto a ponto e coletiva entre processos; não elimina a necessidade de projetar a decomposição.\n- Mais processadores não garantem menor tempo: overhead e desbalanceamento podem superar o trabalho paralelizado."
+    },
+    {
+      "title": "3. Computação distribuída e organização em clusters",
+      "markdown": "### O problema que este assunto resolve\n\nQuando um computador único não oferece memória, capacidade de cálculo ou disponibilidade suficientes, o sistema pode ser repartido entre vários computadores conectados. Em um **sistema distribuído**, componentes em máquinas diferentes comunicam-se por mensagens e cooperam para oferecer um serviço ou resolver um problema. Cada máquina tem relógio e falhas próprios; não há memória global automaticamente coerente. A rede pode atrasar, perder ou duplicar mensagens, e uma falha de comunicação pode ser difícil de distinguir da falha do processo remoto.\n\n> **Siglas e termos deste capítulo**\n> - **Nó**: computador participante de um sistema ou cluster.\n> - **Cluster**: conjunto coordenado de computadores, normalmente próximos e administrados como um recurso integrado.\n> - **Escalonador**: componente que decide onde e quando tarefas serão executadas.\n> - **Tolerância a falhas**: capacidade de continuar ou se recuperar diante de falhas previstas.\n> - **Alta disponibilidade**: reduzir interrupções de serviço por redundância e recuperação.\n\n### Cluster: muitos nós, administração coordenada\n\nUm cluster reúne nós ligados por rede e software de gerenciamento. Em um **cluster HPC**, o escalonador aloca nós a um trabalho paralelo; a aplicação pode iniciar processos MPI em vários nós e trocar mensagens pela interconexão. Em um **cluster de alta disponibilidade**, serviços ou dados podem ser replicados ou transferidos para outro nó após falha. Em um **cluster de balanceamento de carga**, requisições são distribuídas entre servidores para aumentar capacidade e evitar sobrecarga individual. Essas categorias descrevem objetivos e podem coexistir, mas não são sinônimos.\n\nUm cluster tende a ter controle administrativo comum e infraestrutura relativamente integrada, embora os nós possam ser heterogêneos. O uso de rede rápida e configuração previsível facilita trabalhos fortemente acoplados, nos quais os processos trocam dados com frequência. Se os nós calculam muito e comunicam pouco, a rede se torna menos determinante; se há muitas trocas sincronizadas, latência e contenção podem limitar o ganho.\n\n### Falhas e desempenho distribuído\n\nEm memória distribuída, copiar dados custa tempo e exige protocolo explícito. Replicação pode melhorar disponibilidade ou leituras, mas exige lidar com divergência e atualização. Particionar dados distribui capacidade, mas pode criar desbalanceamento. Um timeout não prova que o processo remoto morreu: talvez esteja apenas lento ou isolado. Por isso sistemas distribuídos usam detecção imperfeita, repetição idempotente quando possível, checkpoints e recuperação conforme o tipo de trabalho. Em aplicações numéricas longas, um checkpoint grava estado recuperável para não recomeçar do zero.\n\n### Como cai na prova\n\n- Cluster de HPC, cluster de alta disponibilidade e cluster de balanceamento de carga têm objetivos diferentes.\n- Falha de rede e falha do nó não são sempre distinguíveis de imediato pelo cliente.\n- Replicar dados pode elevar disponibilidade, mas introduz coordenação de atualizações.\n- Um cluster é composto por computadores conectados; memória compartilhada local não se estende automaticamente a todos os nós."
+    },
+    {
+      "title": "4. Grades computacionais: recursos entre domínios",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode ter recursos ociosos e outra possuir um problema que excede sua capacidade local. A **computação em grade** (grid computing) organiza recursos distribuídos para que sejam alocados flexível e dinamicamente a uma tarefa, inclusive entre organizações. O Open Grid Forum descreve grades como forma de organizar recursos computacionais acessados e alocados dinamicamente; podem incluir processadores, armazenamento, rede, bancos de dados, aplicações e sensores. Middleware coordena descoberta, autorização, submissão e acompanhamento de trabalhos.\n\n> **Siglas e termos deste capítulo**\n> - **Grid/grade**: compartilhamento coordenado de recursos distribuídos, potencialmente de diferentes domínios administrativos.\n> - **Domínio administrativo**: conjunto de recursos sob políticas e responsáveis próprios.\n> - **Middleware**: camada que intermedeia acesso, descoberta e coordenação de recursos.\n> - **Throughput**: quantidade de tarefas concluídas por período, distinta do tempo de uma tarefa individual.\n> - **Heterogeneidade**: diferenças de hardware, software, desempenho ou política entre recursos.\n\n### Grade não é apenas um cluster espalhado\n\nEm geral, um cluster é mais coeso: administração e alocação centralizadas, nós conectados como uma instalação. Uma grade pode atravessar redes, instituições, políticas de segurança e arquiteturas heterogêneas. O usuário ou sistema submete trabalhos ao middleware, que encontra recursos disponíveis e aplica regras de acesso. A grade pode combinar clusters e outros recursos. O compartilhamento não torna os computadores uma máquina de memória uniforme nem garante baixa latência.\n\n| Aspecto | Cluster | Grid\n| --- | --- | --- |\n| Administração | Em regra, coordenada por uma organização | Pode envolver vários domínios |\n| Infraestrutura | Mais integrada e previsível | Mais heterogênea e distribuída |\n| Uso típico | HPC fortemente acoplado, serviço ou capacidade local | Compartilhamento e execução de lotes em recursos dispersos |\n| Comunicação | Rede local de alto desempenho é comum | Latência e políticas variam entre locais |\n\nGrades são especialmente úteis para workloads que podem ser particionados em tarefas relativamente independentes, como varreduras de parâmetros, processamento em lote ou análises que toleram comunicação menos frequente. Trabalhos fortemente acoplados, que sincronizam a cada etapa, podem sofrer com a latência entre sítios. Autenticação, autorização, contabilização, transferência de dados e políticas locais são partes concretas do problema, não detalhes opcionais.\n\n### Como cai na prova\n\n- Grid organiza compartilhamento dinâmico de recursos; não é sinônimo de um único supercomputador nem exige que tudo pertença à mesma instituição.\n- A grade pode agregar CPU, armazenamento, rede e aplicações, sob políticas diferentes.\n- Cluster costuma ser mais integrado e administrado como instalação; grade pode unir organizações e recursos heterogêneos.\n- A tarefa ideal para grade aproveita recursos remotos sem comunicação frequente e sensível à latência."
+    }
+  ],
+  "summary": "Computação de alto desempenho distribui cálculos entre recursos para reduzir tempo ou resolver problemas maiores. Concorrência permite sobreposição de tarefas; paralelismo executa partes simultaneamente; distribuição coordena máquinas autônomas por rede. Flynn classifica fluxos de instrução e dados em SISD, SIMD, MISD e MIMD. Memória compartilhada favorece comunicação entre threads, mas requer controle de corridas; memória distribuída exige troca explícita de mensagens. MPI define comunicação ponto a ponto e coletiva entre processos. Speedup e eficiência medem ganho; lei de Amdahl limita a aceleração pelo trecho sequencial, e overhead, latência, largura de banda e balanceamento afetam o desempenho. Clusters são conjuntos coordenados de nós com administração relativamente integrada, usados para HPC, alta disponibilidade ou balanceamento. Grids compartilham recursos potencialmente heterogêneos entre domínios administrativos, com middleware para descoberta e alocação; adequam-se a tarefas distribuíveis com comunicação menos acoplada.",
+  "flashcards": [
+    {
+      "front": "Concorrência e paralelismo são sinônimos?",
+      "back": "Não. Concorrência é sobreposição de progresso de tarefas; paralelismo é execução simultânea em unidades distintas."
+    },
+    {
+      "front": "O que caracteriza um sistema distribuído?",
+      "back": "Componentes em computadores autônomos cooperam por comunicação em rede, sem memória global automaticamente compartilhada."
+    },
+    {
+      "front": "O que significam SISD e SIMD?",
+      "back": "SISD: um fluxo de instruções e um de dados; SIMD: uma instrução opera sobre múltiplos dados."
+    },
+    {
+      "front": "O que significa MIMD?",
+      "back": "Múltiplos fluxos de instrução operam sobre múltiplos fluxos de dados, como em sistemas multicore ou multinó."
+    },
+    {
+      "front": "Qual modelo Flynn é raro em sistemas gerais?",
+      "back": "MISD, com múltiplos fluxos de instrução sobre um fluxo de dados."
+    },
+    {
+      "front": "O que é condição de corrida?",
+      "back": "A saída depende da ordem não controlada de acessos concorrentes a um estado compartilhado."
+    },
+    {
+      "front": "Para que serve uma barreira?",
+      "back": "Faz participantes aguardarem em um ponto até que os demais participantes previstos também o alcancem."
+    },
+    {
+      "front": "O que é granularidade paralela?",
+      "back": "Tamanho das unidades de trabalho distribuídas; tarefas muito pequenas podem ter overhead desproporcional."
+    },
+    {
+      "front": "O que é speedup?",
+      "back": "Razão entre tempo sequencial e tempo paralelo para realizar o mesmo trabalho."
+    },
+    {
+      "front": "Como se calcula eficiência paralela?",
+      "back": "Speedup dividido pelo número de processadores ou unidades de processamento usados."
+    },
+    {
+      "front": "Qual limite a lei de Amdahl evidencia?",
+      "back": "A parte sequencial impõe teto ao speedup, mesmo com muitos processadores."
+    },
+    {
+      "front": "Latência e largura de banda diferem como?",
+      "back": "Latência é o atraso de comunicação; largura de banda é o volume transferível por unidade de tempo."
+    },
+    {
+      "front": "O que é balanceamento de carga?",
+      "back": "Distribuir tarefas para reduzir ociosidade e evitar que um participante atrase a conclusão."
+    },
+    {
+      "front": "O que é MPI?",
+      "back": "Padrão de interface para comunicação entre processos, comum em programas paralelos de memória distribuída."
+    },
+    {
+      "front": "O que define um comunicador MPI?",
+      "back": "Grupo de processos e contexto válidos para as operações de comunicação."
+    },
+    {
+      "front": "O que faz broadcast em MPI?",
+      "back": "Distribui um dado de um processo raiz para os participantes do grupo."
+    },
+    {
+      "front": "O que faz reduce em MPI?",
+      "back": "Combina valores dos processos por uma operação, como soma ou máximo, entregando o resultado ao destino previsto."
+    },
+    {
+      "front": "O que é cluster?",
+      "back": "Conjunto coordenado de computadores conectados, usualmente administrado como recurso integrado."
+    },
+    {
+      "front": "Quais objetivos comuns têm clusters?",
+      "back": "HPC, alta disponibilidade e balanceamento de carga; são objetivos distintos e podem coexistir."
+    },
+    {
+      "front": "O que distingue grid de cluster?",
+      "back": "Grid pode compartilhar recursos heterogêneos de múltiplos domínios administrativos; cluster tende a ser mais integrado."
+    },
+    {
+      "front": "Qual o papel do middleware em uma grade?",
+      "back": "Intermediar descoberta, acesso, autorização, submissão e acompanhamento de recursos e tarefas."
+    },
+    {
+      "front": "Que tipo de tarefa tende a caber bem numa grade?",
+      "back": "Lotes ou tarefas independentes que precisam de pouca comunicação sensível à latência."
+    },
+    {
+      "front": "Uma barreira MPI e toda operação coletiva são iguais?",
+      "back": "Não. Barreira sincroniza; coletivas também podem distribuir, reunir ou combinar dados."
+    },
+    {
+      "front": "O que é escalabilidade forte?",
+      "back": "Avaliar o tempo ao aumentar recursos mantendo fixo o tamanho do problema."
+    },
+    {
+      "front": "O que é escalabilidade fraca?",
+      "back": "Aumentar problema e recursos proporcionalmente e observar se o tempo se mantém próximo."
+    }
+  ],
+  "tips": [
+    "Associe SISD, SIMD, MISD e MIMD contando fluxos de instruções antes de olhar o exemplo.",
+    "Pergunte se há simultaneidade física: isso separa paralelismo de concorrência por alternância.",
+    "Em desempenho, procure a fração sequencial, a comunicação e o participante mais lento.",
+    "MPI é interface padrão; a implementação concreta e a rede são componentes separados.",
+    "Identifique se o cenário pede capacidade de cálculo, disponibilidade ou distribuição de requisições para classificar o cluster.",
+    "Se aparecerem várias instituições, políticas e recursos heterogêneos, pense em grid e middleware."
+  ],
+  "traps": [
+    "A prova pode dizer que concorrência sempre executa simultaneamente. Concorrência também pode alternar tarefas em um núcleo.",
+    "SIMD não quer dizer que uma única operação processe um único dado; o nome indica múltiplos dados sob instrução comum.",
+    "Mais processadores não removem a fração sequencial nem garantem speedup linear.",
+    "Memória compartilhada não torna atualizações concorrentes automaticamente seguras.",
+    "Nem toda coletiva MPI é uma barreira: broadcast e reduce têm finalidade de movimentação ou combinação.",
+    "Grid não é apenas outro nome para cluster maior: administração e heterogeneidade são diferenças centrais."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre concorrência, paralelismo e distribuição.",
+      "answer": "Concorrência permite sobreposição de tarefas; paralelismo executa partes simultaneamente em unidades distintas; distribuição coordena máquinas autônomas comunicando-se pela rede."
+    },
+    {
+      "question": "Dê um exemplo de decomposição SIMD e outro em que dependências dificultam paralelizar.",
+      "answer": "Aplicar a mesma soma a elementos de vetores é SIMD; uma sequência em que cada passo depende do resultado anterior oferece pouco paralelismo direto."
+    },
+    {
+      "question": "Como memória compartilhada e distribuída alteram a comunicação?",
+      "answer": "Na compartilhada, participantes acessam endereços comuns e sincronizam escritas; na distribuída, cada processo tem memória local e troca mensagens explícitas."
+    },
+    {
+      "question": "Por que a lei de Amdahl limita o ganho?",
+      "answer": "A parcela que permanece sequencial continua levando tempo mesmo quando outras partes ganham processadores; essa fração limita o speedup máximo."
+    },
+    {
+      "question": "Compare latência, largura de banda e overhead de comunicação.",
+      "answer": "Latência é atraso inicial ou por operação; largura de banda é volume por tempo; overhead é o custo total de comunicar, coordenar e preparar trabalho."
+    },
+    {
+      "question": "Quais operações coletivas MPI deve reconhecer?",
+      "answer": "Broadcast distribui da raiz; scatter reparte; gather reúne; reduce combina; barreira sincroniza participantes."
+    },
+    {
+      "question": "Compare cluster HPC e cluster de alta disponibilidade.",
+      "answer": "HPC aloca recursos para cálculos paralelos; alta disponibilidade mantém serviço ou recuperação diante de falha usando redundância e transferência."
+    },
+    {
+      "question": "Por que um timeout não prova que um nó remoto falhou?",
+      "answer": "A mensagem ou o processo pode estar atrasado ou isolado; o observador não consegue inferir falha apenas pela ausência de resposta no prazo."
+    },
+    {
+      "question": "Como um grid organiza recursos entre instituições?",
+      "answer": "Middleware descobre e coordena recursos de domínios diferentes, respeitando acesso, políticas, heterogeneidade e transferência de dados."
+    },
+    {
+      "question": "Que workload tende a escalar melhor em grid do que um cálculo fortemente acoplado?",
+      "answer": "Lotes de tarefas independentes ou varreduras de parâmetros, porque necessitam de menos comunicação sincronizada entre locais."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Concorrência confundida com paralelismo",
+      "summary": "Concorrência trata da sobreposição de progresso; pode ocorrer por alternância. Paralelismo exige execução simultânea em recursos distintos."
+    },
+    {
+      "key": "e2",
+      "title": "Taxonomia de Flynn decorada sem os fluxos",
+      "summary": "SISD, SIMD, MISD e MIMD classificam fluxos de instruções e dados; SIMD é uma instrução sobre vários dados e MIMD envolve múltiplos fluxos de ambos."
+    },
+    {
+      "key": "e3",
+      "title": "Ganho ideal ignorando dependências e overhead",
+      "summary": "Speedup não cresce indefinidamente: fração sequencial, comunicação, sincronização e desequilíbrio reduzem o ganho real."
+    },
+    {
+      "key": "e4",
+      "title": "Comunicação MPI tratada como sincronização única",
+      "summary": "Ponto a ponto e coletivas movimentam ou combinam dados; uma barreira é uma operação específica de sincronização."
+    },
+    {
+      "key": "e5",
+      "title": "Cluster e grid usados como sinônimos",
+      "summary": "Cluster tende a instalação integrada e administração coordenada; grid agrega recursos heterogêneos que podem pertencer a múltiplos domínios."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação alterna duas tarefas em um único núcleo, mantendo ambas em progresso sem executá-las no mesmo instante. Qual conceito descreve isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Paralelismo de dados com execução física simultânea",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Execução SIMD de instruções sobre vários elementos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Computação distribuída entre dois computadores independentes",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação de processo em memória compartilhada coerente",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concorrência por alternância entre tarefas no mesmo núcleo",
+          "correct": true
+        }
+      ],
+      "explanation": "Há sobreposição do progresso, mas o núcleo alterna as tarefas em vez de executá-las simultaneamente. Isso é concorrência sem paralelismo físico.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina aplica a mesma operação de soma a cada posição de dois vetores independentes. Qual modelo Flynn melhor descreve essa forma de trabalho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SISD, com um fluxo de dados e uma instrução sequencial",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SIMD, com uma instrução aplicada a vários dados",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MISD, com instruções diferentes sobre um dado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MIMD, com instruções e dados necessariamente únicos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMP, categoria de fluxo de instruções da taxonomia de Flynn",
+          "correct": false
+        }
+      ],
+      "explanation": "A mesma operação é aplicada a muitos elementos independentes, padrão de SIMD. SMP descreve multiprocessamento simétrico e não é categoria Flynn.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa caracteriza corretamente uma arquitetura MIMD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um fluxo de instruções percorre um único fluxo de dados",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma instrução opera simultaneamente sobre vários dados",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Vários fluxos de instrução operam sobre vários dados",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Vários fluxos de instrução processam um único fluxo de dados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vários processadores compartilham sempre um endereço global único",
+          "correct": false
+        }
+      ],
+      "explanation": "MIMD significa múltiplos fluxos de instrução e múltiplos fluxos de dados. Não determina por si só se a memória será compartilhada ou distribuída.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma soma paralela, cada thread atualiza sem proteção a mesma variável acumuladora. Qual risco é mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumento obrigatório da largura de banda da rede",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conversão automática da aplicação para SIMD",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atraso causado pelo escalonador de um grid remoto",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Condição de corrida que pode perder atualizações",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Conversão de memória local em armazenamento persistente",
+          "correct": false
+        }
+      ],
+      "explanation": "As leituras e escritas concorrentes da acumuladora podem intercalar-se e sobrescrever resultados. É uma condição de corrida; redução ou exclusão mútua pode resolver, com custos próprios.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe grãos de trabalho minúsculos e passa mais tempo criando tarefas e sincronizando do que calculando. Que diagnóstico é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A granularidade fina garantiu speedup linear em qualquer máquina",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A granularidade fina aumentou overhead em relação ao cálculo útil",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A rede converteu automaticamente tarefas em instruções SIMD",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A memória compartilhada eliminou os custos de sincronização",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O problema passou a ser escalabilidade fraca por definição",
+          "correct": false
+        }
+      ],
+      "explanation": "Tarefas muito pequenas têm custo proporcional de criação, escalonamento e coordenação. Aumentar a granularidade pode amortizar esse overhead, sem garantir que toda divisão seja eficiente.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre concorrência, paralelismo e computação distribuída, julgue: concorrência pode existir em um único núcleo por alternância, enquanto paralelismo descreve execução simultânea em recursos distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A concorrência permite progresso sobreposto, inclusive por alternância; paralelismo implica simultaneidade física em unidades de execução distintas.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na taxonomia de Flynn, SISD corresponde a múltiplos fluxos de instruções operando sobre múltiplos fluxos de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SISD é um fluxo de instruções e um fluxo de dados. Múltiplos fluxos de ambos caracterizam MIMD; a questão atribuiu a SISD a descrição do modelo MIMD.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A memória compartilhada entre threads torna qualquer atualização simultânea segura, dispensando sincronização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Compartilhar endereços facilita comunicação, mas escritas concorrentes podem causar corridas; é necessário disciplinar acessos, por exemplo com locks ou reduções.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura híbrida comum, threads podem cooperar em memória compartilhada dentro de um nó, enquanto processos MPI trocam mensagens entre nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sistemas de vários nós frequentemente combinam memória compartilhada local com comunicação por passagem de mensagens entre processos em nós diferentes.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MISD é o modelo dominante em computadores de uso geral e descreve uma instrução aplicada a muitos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma instrução aplicada a vários dados é SIMD. MISD designa múltiplas instruções sobre um fluxo de dados e é raro em sistemas gerais.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação tem uma parte sequencial fixa e paraleliza o restante. Qual afirmação descreve corretamente o limite de escala?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A parte sequencial desaparece quando a rede tem alta largura de banda",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duplicar processadores sempre reduz o tempo total pela metade",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A parte sequencial impõe um teto ao speedup com muitos processadores",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A lei de Amdahl mede apenas a capacidade de armazenamento do cluster",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O speedup depende só do número de nós, nunca do algoritmo",
+          "correct": false
+        }
+      ],
+      "explanation": "A fração serial continua sendo executada sequencialmente e limita o ganho máximo, como formaliza a lei de Amdahl. Rede mais rápida não remove dependências do algoritmo.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mantém o tamanho do problema fixo e mede o efeito de acrescentar processadores. Que tipo de escalabilidade está avaliando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalabilidade fraca, pois aumenta problema e recursos juntos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escalabilidade forte, pois conserva o tamanho do problema",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tolerância a falhas, pois mede retomada após pane",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Largura de banda, pois mede bytes transferidos por tempo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Throughput distribuído, pois conta tarefas independentes",
+          "correct": false
+        }
+      ],
+      "explanation": "Escalabilidade forte mantém fixo o problema e observa o tempo com mais recursos. A fraca aumenta trabalho e recursos proporcionalmente.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa registra poucos bytes por mensagem, mas faz milhares de envios remotos. Qual fator pode dominar o custo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A velocidade do escalonador de tarefas locais somente",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A largura de banda máxima, independentemente do volume",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A capacidade do disco, mesmo sem entrada ou saída",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de instruções SIMD por vetor",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A latência acumulada em muitas mensagens",
+          "correct": true
+        }
+      ],
+      "explanation": "Mensagens pequenas e numerosas pagam repetidamente o atraso de início de cada operação. Agrupá-las pode reduzir esse custo, embora possa introduzir espera adicional.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em MPI, uma operação collective reduce combina valores de processos participantes segundo uma operação, como soma ou máximo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Reduce aplica uma operação de combinação aos valores do grupo e entrega o resultado conforme a operação e o destino especificados.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em MPI, broadcast envia dados de todos os processos para uma raiz, onde são reunidos em um vetor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Broadcast distribui um valor da raiz para os participantes. Gather reúne dados dos processos em uma raiz, e scatter reparte dados da raiz entre os processos.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A barreira faz participantes aguardarem um ponto comum, enquanto broadcast e gather movimentam dados com finalidades próprias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Barreira é uma operação de sincronização; broadcast distribui da raiz e gather coleta partes para a raiz. Nem toda coletiva equivale a uma barreira geral.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar a largura de banda elimina todo custo de comunicação, mesmo quando há milhares de mensagens pequenas e frequentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Largura de banda trata do volume transferido por tempo, mas cada mensagem ainda pode pagar latência e overhead de coordenação.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o speedup com oito processadores é seis, qual é a eficiência paralela correspondente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,25, pois se divide o número de processadores pelo speedup",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,50, pois o speedup é metade do número de unidades",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,75: eficiência é speedup dividido por processadores",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "6,00, pois eficiência é igual ao speedup medido",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "8,00, pois eficiência é igual ao número de processadores",
+          "correct": false
+        }
+      ],
+      "explanation": "Eficiência é speedup dividido pelo número de processadores: 6/8 = 0,75, ou 75%. Isso significa que o ganho observado corresponde a três quartos do speedup ideal para oito processadores.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo MPI fica aguardando uma resposta de outro que, por sua vez, aguarda uma resposta do primeiro. Qual problema pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Condição SIMD provocada por dados independentes",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Speedup superlinear causado pelo tamanho dos comunicadores",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escalabilidade fraca decorrente de replicação de dados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Deadlock por dependência circular entre operações bloqueantes",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alta disponibilidade obtida sem redundância de serviço",
+          "correct": false
+        }
+      ],
+      "explanation": "Se ambos aguardam uma ação que o outro ainda não pode realizar, forma-se espera circular e o programa pode ficar bloqueado. A ordem de envio e recebimento deve evitar esse deadlock.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma equipe paralela, vários participantes terminam cedo e ficam ociosos esperando a partição de um participante muito mais lento. Qual ajuste é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Balancear a carga para distribuir trabalho conforme capacidade e duração",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a fração sequencial para uniformizar as etapas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar uma operação reduce por broadcast sem avaliar os dados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Migrar necessariamente para SISD, preservando todas as partições",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar latência para que os participantes iniciem juntos",
+          "correct": false
+        }
+      ],
+      "explanation": "O tempo do conjunto pode ser determinado pelo participante mais lento. Repartir trabalho ou ajustar atribuições melhora balanceamento e reduz ociosidade.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MPI define uma interface padrão de comunicação; não é, por si só, sinônimo de um único produto de software ou de uma rede física específica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O MPI Forum publica a especificação da interface. Há implementações distintas que podem usar diferentes redes e mecanismos de transporte.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A eficiência paralela é o speedup dividido pelo número de processadores e pode ser interpretada em relação ao ganho ideal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A razão entre speedup e processadores mede quão próximo o sistema chega ao speedup ideal, sob as definições usuais de mesma carga.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para evitar desbalanceamento, o melhor é sempre atribuir a mesma quantidade de trabalho a cada nó, mesmo que eles tenham velocidades diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quantidades iguais podem deixar nós rápidos ociosos e nós lentos atrasando o conjunto. O balanceamento considera capacidade, custo da tarefa e comunicação.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente um sistema distribuído de um computador multicore com memória compartilhada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O distribuído possui uma memória global coerente por definição",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O multicore sempre usa um computador por organização administrativa",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O distribuído coordena máquinas autônomas por rede, com memórias locais",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O multicore comunica exclusivamente por mensagens de longa distância",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema distribuído não pode combinar processos paralelos",
+          "correct": false
+        }
+      ],
+      "explanation": "Sistemas distribuídos são compostos por máquinas autônomas que se comunicam por rede; cada nó possui memória local. Multicore pode compartilhar memória dentro de uma máquina.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa continuar disponível se o servidor ativo falhar. Qual objetivo de cluster está mais diretamente relacionado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cluster MISD para manter cópias sequenciais",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cluster SIMD para operar cada requisição sobre vetores",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cluster de grade para impedir falha de rede",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cluster de alta disponibilidade com redundância e recuperação",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cluster de throughput sem réplicas ou transferência",
+          "correct": false
+        }
+      ],
+      "explanation": "Alta disponibilidade reduz interrupções usando redundância, detecção e recuperação ou transferência do serviço. Isso não elimina falhas, mas permite continuidade ou retomada.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um escalonador distribui tarefas de cálculo para nós de um cluster HPC. Qual é seu papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter toda mensagem de rede em uma instrução vetorial",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Decidir onde e quando os trabalhos serão executados",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Garantir que todos os nós tenham a mesma memória física",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a aplicação paralela por backup de armazenamento",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar dependências do algoritmo por balanceamento",
+          "correct": false
+        }
+      ],
+      "explanation": "O escalonador aloca recursos e coloca trabalhos em execução de acordo com disponibilidade e políticas. Não modifica a natureza do algoritmo nem unifica as memórias dos nós.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente não recebeu resposta de um nó dentro do timeout configurado. O que pode concluir com segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nó está definitivamente desligado e não pode se recuperar",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ausência de resposta pode decorrer de lentidão ou isolamento",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A rede confirmou que o processo remoto foi encerrado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O timeout converteu a operação em transação atômica",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação passou automaticamente a usar memória compartilhada",
+          "correct": false
+        }
+      ],
+      "explanation": "Um timeout é uma observação local de falta de resposta no prazo, não uma prova absoluta de falha. O processo remoto pode estar lento ou a comunicação pode estar interrompida.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster de balanceamento de carga, qual é a finalidade típica do distribuidor de requisições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encaminhar tráfego entre servidores para reduzir concentração em um nó",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicar toda instrução de CPU como operação SIMD",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sincronizar relógios físicos com precisão perfeita",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distribuir memória global transparente entre organizações",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter cada servidor em processo MPI de um único comunicador",
+          "correct": false
+        }
+      ],
+      "explanation": "O balanceador direciona requisições entre instâncias para distribuir carga e aproveitar capacidade. Isso não implica sincronização perfeita nem memória global compartilhada.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação longa, checkpoint periódico pode reduzir o trabalho perdido após falha ao gravar estado recuperável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um checkpoint preserva estado suficiente para retomar do ponto salvo ou próximo dele, evitando reiniciar necessariamente toda a computação.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um cluster possui vários nós, todos compartilham automaticamente um único espaço de endereçamento sem software ou hardware adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada nó normalmente mantém memória local. A comunicação entre nós ocorre pela rede, por mensagens ou mecanismos próprios de software e hardware.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação melhora disponibilidade e leituras sem exigir coordenação das atualizações nem lidar com divergência entre cópias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Réplicas podem elevar disponibilidade ou capacidade de leitura, mas atualizações precisam ser coordenadas e falhas de comunicação podem deixar as cópias divergentes temporariamente.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em cluster HPC fortemente acoplado, a aplicação pode executar processos MPI em vários nós e trocar mensagens pela interconexão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um escalonador reserva recursos e a aplicação distribuída inicia processos em nós distintos; MPI permite comunicação explícita entre eles.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster de alta disponibilidade, um cluster HPC e um cluster de balanceamento são nomes intercambiáveis para uma única função obrigatória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Alta disponibilidade busca continuidade, HPC acelera cálculos e balanceamento distribui carga de serviço. Uma implantação pode combinar objetivos, mas eles não são sinônimos.",
+      "section": "3. Computação distribuída e organização em clusters",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação científica pode submeter tarefas independentes a recursos de várias universidades, sujeitos a políticas locais. Qual paradigma se encaixa melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cluster local, que por definição pertence a vários países",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SISD, que é uma rede institucional de nós homogêneos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Barreira, que aloca recursos e valida credenciais",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Memória compartilhada, que elimina domínio administrativo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Grid, que coordena recursos distribuídos entre domínios administrativos",
+          "correct": true
+        }
+      ],
+      "explanation": "A grade permite compartilhar e alocar recursos heterogêneos entre domínios, usando middleware e respeitando políticas de cada instituição. Tarefas independentes toleram melhor a distribuição ampla.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente de uma grade costuma intermediar descoberta, autorização e submissão de tarefas a recursos diversos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um único núcleo SIMD instalado em cada organização",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma barreira de memória compartilhada entre todos os países",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um sistema operacional único obrigatório para todos os nós",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O protocolo de cache coerente do processador local",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Middleware de coordenação e acesso aos recursos",
+          "correct": true
+        }
+      ],
+      "explanation": "Middleware intermedeia a descoberta e o uso de recursos, incluindo credenciais, autorização, submissão e acompanhamento. A grade não pressupõe hardware ou sistema operacional uniforme.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual workload tende a aproveitar melhor uma grade com recursos geograficamente dispersos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Algoritmo serial cuja próxima etapa depende sempre da anterior",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Simulação que sincroniza cada operação por mensagens entre continentes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicação que requer memória física uniforme em todos os nós",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Grande lote de análises independentes com pouca troca durante cada tarefa",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Serviço que exige latência de rede local para cada instrução",
+          "correct": false
+        }
+      ],
+      "explanation": "Tarefas independentes precisam de menos comunicação frequente e sensível à latência, aproveitando capacidade distribuída em lote. Trabalhos fortemente acoplados podem ser prejudicados pela distância.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A definição de grid do Open Grid Forum permite organizar recursos como processadores, armazenamento, rede, bases de dados e aplicações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A grade pode disponibilizar dinamicamente diferentes tipos de recursos, não apenas ciclos de CPU, para uso coordenado em tarefas distribuídas.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma grade computacional exige que todos os recursos estejam sob a mesma administração e usem hardware idêntico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Grids podem cruzar domínios administrativos e combinar recursos heterogêneos. Middleware e políticas de acesso coordenam o compartilhamento.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma grade torna os recursos remotos uma memória compartilhada uniforme e garante que a comunicação entre sítios tenha baixa latência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A grade coordena recursos distribuídos, mas não elimina distância, latência, autonomia ou heterogeneidade. Os participantes continuam sujeitos às características de suas redes e políticas.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença prática favorece cluster para uma aplicação com troca sincronizada frequente entre nós?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Integração local e rede previsível tendem a reduzir custo de comunicação",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Clusters eliminam toda latência e toda falha de máquina",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Clusters não precisam de escalonamento ou administração",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Grades são incapazes de executar qualquer cálculo paralelo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um cluster converte automaticamente memória distribuída em SIMD",
+          "correct": false
+        }
+      ],
+      "explanation": "Clusters HPC costumam reunir nós sob administração coordenada e interconexão de alto desempenho, o que favorece aplicações fortemente acopladas. Ainda existem custos e falhas; a vantagem é relativa.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A grade pode compor recursos de vários clusters, mas isso não transforma automaticamente todos os nós em uma única máquina de memória compartilhada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma grade pode agregar clusters e outros recursos por middleware. A memória permanece distribuída e a comunicação entre recursos ocorre por mecanismos explícitos.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma grade pode melhorar o throughput do conjunto de tarefas sem reduzir proporcionalmente a latência de cada tarefa individual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Distribuir muitos trabalhos independentes pode aumentar tarefas concluídas por período, embora cada trabalho ainda sofra seu próprio tempo de fila, transferência e execução.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição quer compartilhar equipamentos e dados com uma comunidade externa. Além do escalonamento, quais preocupações são inerentes à grade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação, autorização, políticas locais e transferência de dados",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente escolher a instrução SIMD mais curta para cada CPU",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar diferenças de sistema operacional por sincronização de barreira",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir toda rede remota por barramento de memória local",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantir por definição que todos os recursos estejam sempre ociosos",
+          "correct": false
+        }
+      ],
+      "explanation": "Compartilhar recursos de domínios distintos exige identificar usuários, autorizar operações e respeitar políticas locais. Transferência de dados e acompanhamento também integram a coordenação de trabalhos.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa numérico usa threads para dividir a soma de partes de um vetor em uma máquina multicore. Qual benefício e cuidado descrevem melhor essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Threads compartilham o espaço do processo, mas escritas comuns precisam de coordenação",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Threads criam uma grade entre instituições com políticas autônomas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Threads compartilham dados locais, e uma redução combina somas parciais",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Threads dispensam dependências e garantem speedup proporcional ao seu número",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Threads convertem automaticamente uma soma em comunicação MPI coletiva",
+          "correct": false
+        }
+      ],
+      "explanation": "Threads do mesmo processo podem acessar dados compartilhados. Uma estratégia de redução calcula somas parciais e as combina, evitando que todas as threads atualizem sem proteção o mesmo acumulador.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um benchmark conclui quatro vezes mais tarefas por hora após distribuir trabalhos independentes, embora cada tarefa ainda leve aproximadamente o mesmo tempo. Qual métrica melhorou?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Latência individual, pois aumentou a quantidade concluída no período",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Throughput, pois cresceu a quantidade concluída por unidade de tempo",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Largura de banda, mesmo sem dados transferidos pela rede",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Speedup individual, pois a duração de cada trabalho caiu quatro vezes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eficiência, pois o número de processadores necessariamente caiu",
+          "correct": false
+        }
+      ],
+      "explanation": "Throughput mede trabalhos concluídos por período. Como a duração observada de cada tarefa permaneceu semelhante, o ganho descrito é de capacidade agregada, não de latência individual.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um algoritmo divide uma matriz por linhas entre nós que têm velocidades e quantidades diferentes de núcleos. Que política tende a reduzir a espera desigual no fim?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir sempre linhas em quantidades iguais, sem observar capacidade",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sincronizar todos após cada elemento para igualar o progresso",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicar toda a matriz em cada nó e suspender os nós mais rápidos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repartir a carga considerando capacidade e custo de comunicação",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar todo o cálculo no nó mais lento para uniformizar o tempo",
+          "correct": false
+        }
+      ],
+      "explanation": "O balanceamento deve considerar diferenças de capacidade e o custo de mover dados. Partições iguais podem ser inadequadas quando os nós não têm desempenho igual.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer medir escalabilidade fraca de um solucionador paralelo. Qual experimento corresponde a essa medida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o problema fixo e acrescentar processadores para comparar o tempo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir o problema enquanto mantém fixo o número de processadores",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir somente bytes transferidos por segundo em uma mensagem",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar nós sucessivamente para medir recuperação do serviço",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar problema e recursos proporcionalmente e observar o tempo",
+          "correct": true
+        }
+      ],
+      "explanation": "Na escalabilidade fraca, cresce-se o tamanho do trabalho junto com os recursos, em proporção, e observa-se se o tempo permanece semelhante. Manter o problema fixo caracteriza escalabilidade forte.",
+      "section": "2. Coordenação, comunicação e desempenho paralelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação distribuída, algumas operações só podem começar depois do resultado anterior. Que propriedade limita a divisão dessas operações em paralelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dependência de dados entre etapas sucessivas",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Largura de banda entre mensagens sem relação com os dados",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Heterogeneidade das placas de rede exclusivamente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Throughput de tarefas independentes já concluídas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Disponibilidade de armazenamento de checkpoints",
+          "correct": false
+        }
+      ],
+      "explanation": "Se uma etapa depende do resultado da anterior, elas não podem ser executadas simultaneamente sem transformar o algoritmo. Dependências expõem uma parcela serial que limita o paralelismo.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pesquisador pretende usar OpenMP em um laço de memória compartilhada. Qual descrição geral da API está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Padrão de passagem de mensagens apenas entre instituições distintas",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interface que exige um processo independente para cada núcleo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "API portátil para programação paralela de memória compartilhada",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Sistema de arquivos distribuído para armazenar resultados científicos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Taxonomia de Flynn para classificar fluxos de instruções",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenMP define uma API portátil de programação paralela de memória compartilhada, incluindo C, C++ e Fortran. A especificação não é um padrão MPI nem uma classificação de arquitetura.",
+      "section": "1. Concorrência, paralelismo e modelos de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de grade transfere grandes arquivos de entrada para um local remoto antes de cada tarefa curta. Qual fator pode inviabilizar o ganho esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tempo de transferência pode superar o cálculo distribuído economizado",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A disponibilidade de recursos remotos sempre elimina custo de rede",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A grade converte arquivos em dados compartilhados sem transmissão",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A heterogeneidade faz a aplicação executar em memória uniforme",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O middleware reduz a latência física a zero por autorização",
+          "correct": false
+        }
+      ],
+      "explanation": "A transferência dos dados também integra o tempo total. Para tarefas curtas e entradas volumosas, mover dados pela rede pode custar mais do que executar localmente; a estratégia de colocação de dados importa.",
+      "section": "4. Grades computacionais: recursos entre domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MPI Documents",
+      "publisher": "MPI Forum",
+      "reference": "Padrão MPI, comunicação ponto a ponto e coletiva, comunicadores e processos; MPI 5.0 aprovado em 2025.",
+      "url": "https://www.mpi-forum.org/docs/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenMP Specifications",
+      "publisher": "OpenMP Architecture Review Board",
+      "reference": "API e modelo de programação paralela de memória compartilhada em C, C++ e Fortran.",
+      "url": "https://www.openmp.org/specifications/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Grid Computing: Requirements",
+      "publisher": "Open Grid Forum",
+      "reference": "GFD-I.031: definição de grid, alocação dinâmica e compartilhamento de processadores, armazenamento, rede, bancos e aplicações.",
+      "url": "https://ogf.org/documents/GFD.31.pdf",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Grid Computing",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Contexto de grades para composição dinâmica de recursos distribuídos e avaliação de confiabilidade e robustez.",
+      "url": "https://www.nist.gov/itl/ai/grid-computing",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

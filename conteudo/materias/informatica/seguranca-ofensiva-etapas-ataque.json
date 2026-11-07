@@ -1,0 +1,2630 @@
+{
+  "id": "informatica.seguranca-ofensiva-etapas-ataque",
+  "subject": "Informática",
+  "title": "Segurança ofensiva: etapas do ataque e padrões CAPEC",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Segurança ofensiva e etapas do ataque",
+    "Etapas de um ataque cibernético",
+    "Reconhecimento e varredura de redes",
+    "Enumeração e acesso inicial",
+    "Elevação de privilégios e persistência",
+    "Ocultação de rastros em ataques",
+    "Negação de serviço e disponibilidade",
+    "Padrões de ataque CAPEC do MITRE",
+    "Mecanismos de ataque do CAPEC",
+    "Domínios de ataque do CAPEC",
+    "MITRE CAPEC e padrões ofensivos",
+    "Fases de um teste de segurança autorizado"
+  ],
+  "scope": {
+    "covers": "Segurança ofensiva em avaliações autorizadas: escopo e regras de engajamento; reconhecimento, varredura, enumeração, obtenção de acesso, elevação de privilégios, persistência, ocultação de rastros e negação de serviço; distinção entre fases didáticas e táticas do MITRE ATT&CK; CAPEC como catálogo de padrões de ataque, níveis de abstração, fluxo explore-experiment-exploit, fraquezas relacionadas, mecanismos e domínios de ataque; exemplos e uso do CAPEC em modelagem de ameaças e defesa.",
+    "excludes": "Instruções operacionais para invadir sistemas, explorar alvos reais, ocultar atividade de defensores ou executar negação de serviço; catálogo de técnicas ATT&CK em detalhe; exploração prática de vulnerabilidades; legislação penal e procedimentos de perícia."
+  },
+  "theoryTitle": "Do reconhecimento aos padrões de ataque",
+  "chapters": [
+    {
+      "title": "1. Segurança ofensiva e sequência de avaliação",
+      "markdown": "### O problema que este assunto resolve\n\nSegurança ofensiva avalia sistemas pela perspectiva de quem tentaria comprometer seus objetivos. Em uma **avaliação autorizada**, profissionais simulam comportamentos adversários dentro de limites acordados para descobrir falhas, estimar impactos e orientar correções. O propósito é reduzir risco: todo alvo, horário, técnica e limite precisa estar coberto por autorização expressa.\n\nUm roteiro didático comum segue reconhecimento, varredura, enumeração, acesso, elevação de privilégios, persistência, ocultação de rastros e avaliação de impacto, que pode incluir negação de serviço controlada. Essas etapas ajudam a organizar o raciocínio, mas não são uma sequência universal: um teste pode pular etapas, voltar a uma anterior ou terminar ao confirmar uma falha. Nem todo ataque usa todas elas.\n\n> **Siglas e termos deste capítulo**\n> - **Escopo**: sistemas, contas, redes, períodos e técnicas autorizados para a avaliação.\n> - **Regras de engajamento**: condições operacionais, limites, contatos e procedimentos de interrupção do teste.\n> - **Ativo**: dado, serviço, equipamento ou identidade cujo risco está sendo avaliado.\n> - **Teste de intrusão (pentest)**: avaliação controlada que tenta validar se falhas podem ser encadeadas em impacto.\n> - **ATT&CK**: base do MITRE que organiza comportamentos adversários por táticas, técnicas e subtécnicas.\n\n### Fases são lentes de trabalho, não uma receita fixa\n\n| Etapa didática | Pergunta respondida | Resultado típico da avaliação |\n| --- | --- | --- |\n| Reconhecimento | Que informações públicas e autorizadas existem sobre o alvo? | Superfície e hipóteses de exposição |\n| Varredura | Quais hosts, serviços ou interfaces respondem? | Inventário técnico inicial |\n| Enumeração | Que recursos, versões, nomes ou permissões podem ser identificados? | Detalhes que refinam o risco |\n| Acesso | Uma fraqueza permite entrada dentro do cenário autorizado? | Evidência de acesso controlado |\n| Elevação | O acesso inicial permite permissões maiores por uma falha? | Limites de privilégio demonstrados |\n| Persistência | Uma sessão poderia continuar após mudanças ou reinício? | Risco de permanência, sem implantá-la fora do teste |\n| Ocultação | Quais controles registram ou deixam de registrar ações? | Lacunas de detecção e auditoria |\n| Impacto/DoS | A disponibilidade pode ser afetada? | Impacto avaliado com limites de segurança |\n\nA autorização deve cobrir também terceiros e serviços compartilhados. Um domínio público pode apontar para provedor externo; estar visível na internet não significa que esteja autorizado para teste. Antes de qualquer ação com potencial de indisponibilidade, definem-se limites, janela, monitoramento e critérios de parada.\n\n### Como isso se relaciona com o MITRE ATT&CK\n\nO ATT&CK chama de **tática** o objetivo de uma ação adversária, o “por quê”; técnicas descrevem como esse objetivo pode ser alcançado. Entre as táticas Enterprise estão Reconnaissance, Initial Access, Persistence, Privilege Escalation, Stealth, Discovery e Impact. Elas não formam uma cadeia obrigatória. “Enumeração”, por exemplo, aparece como atividade de descoberta, e não como uma etapa universal formal do ATT&CK. O roteiro de avaliação e a matriz ATT&CK têm finalidades relacionadas, mas classificações diferentes.\n\n### Como cai na prova\n\n- Visibilidade pública não equivale a autorização: o escopo e as regras de engajamento limitam a avaliação.\n- Uma lista de fases é um modelo de organização, não uma sequência que todo ataque obrigatoriamente percorre.\n- No ATT&CK, tática representa objetivo; técnica representa um modo de alcançar esse objetivo."
+    },
+    {
+      "title": "2. Reconhecimento, varredura e enumeração",
+      "markdown": "### O problema que este assunto resolve\n\nAntes de avaliar uma fraqueza, é preciso entender o alvo permitido. As três primeiras atividades têm granularidades diferentes: reconhecimento reúne contexto; varredura localiza sistemas e serviços que respondem; enumeração aprofunda o que esses serviços revelam. Confundi-las leva a conclusões apressadas, como tratar uma porta aberta como prova de vulnerabilidade.\n\n> **Siglas e termos deste capítulo**\n> - **OSINT**: inteligência obtida de fontes abertas, como registros públicos e páginas institucionais.\n> - **Host**: equipamento ou instância identificável em uma rede.\n> - **Porta**: ponto lógico de comunicação associado a um serviço de rede.\n> - **Serviço**: função que responde a pedidos, como hospedagem web ou correio eletrônico.\n> - **Enumeração**: coleta estruturada de detalhes fornecidos por sistemas e serviços acessíveis.\n\n### Reconhecimento: formar hipóteses\n\nNo reconhecimento passivo, examinam-se dados que já estão publicados, sem enviar sondas ao alvo: nomes de domínio, documentos públicos, anúncios de vagas e informações institucionais podem indicar tecnologias, relações entre organizações e possíveis dependências. O reconhecimento ativo interage com a infraestrutura permitida e pode gerar registros ou alertas. A distinção relevante é a interação com o alvo, não se a atividade parece discreta.\n\nO produto dessa fase é uma hipótese verificável, não uma prova de falha. Um registro DNS pode apontar para um endereço, mas não demonstra que o serviço esteja vulnerável. Fontes podem estar desatualizadas, referir-se a fornecedores ou expor dados sem confirmar que pertencem ao escopo.\n\n### Varredura: localizar a superfície responsiva\n\nA varredura identifica hosts alcançáveis, portas que respondem, serviços aparentes e características observáveis. Uma resposta indica uma superfície a investigar; silêncio pode decorrer de filtragem, indisponibilidade temporária ou rota bloqueada. Uma porta aberta não revela, sozinha, a versão real nem a existência de uma vulnerabilidade explorável. Resultados dependem de horário, filtros, configuração e método de observação.\n\n### Enumeração: detalhar recursos e relações\n\nNa enumeração, o avaliador consulta de forma controlada o serviço permitido para identificar, por exemplo, nomes de recursos compartilhados, métodos de uma API documentada, informações de certificado ou versões declaradas. Ela produz detalhes sobre “o que existe” e “como está organizado”. Mesmo um banner com número de versão não basta para afirmar vulnerabilidade: é necessário confirmar contexto, configuração, correções aplicadas e exposição real.\n\n| Observação | O que permite concluir | O que não prova sozinha |\n| --- | --- | --- |\n| Nome encontrado em fonte pública | Há uma pista de possível ativo ou relação | Que o ativo pertence ao escopo atual |\n| Porta responde | Existe comunicação observável naquele ponto | Que o serviço esteja vulnerável |\n| Serviço informa uma versão | O serviço declarou aquela identificação | Que não recebeu correções retroportadas |\n| Recurso é enumerável | O recurso foi exposto no contexto observado | Que uma conta tenha autorização para usá-lo |\n\n### Como cai na prova\n\n- Reconhecimento constrói contexto; varredura identifica superfícies responsivas; enumeração obtém detalhes sobre elas.\n- A ausência de resposta não prova inexistência de host, porque filtragem e falhas de rota também explicam o resultado.\n- Banner, porta e versão são evidências para análise, não veredictos automáticos de vulnerabilidade."
+    },
+    {
+      "title": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de mapear uma superfície, uma avaliação pode verificar se uma fraqueza permite acesso e quais consequências ela teria. A prova deve demonstrar o risco com a menor intervenção necessária. A meta não é causar dano: é obter evidência suficiente, preservar dados e interromper o teste quando o limite acordado for atingido.\n\n> **Siglas e termos deste capítulo**\n> - **Acesso inicial**: entrada inicial em uma conta, aplicação, equipamento ou rede.\n> - **Privilégio**: conjunto de ações permitidas a uma identidade ou processo.\n> - **Persistência**: capacidade de manter acesso ao longo do tempo ou após eventos como reinício.\n> - **Rastro**: registro de atividade em logs, telemetria ou artefatos de auditoria.\n> - **DoS/DDoS**: negação de serviço causada por sobrecarga ou esgotamento de recursos; distribuída quando várias origens participam.\n\n### Acesso e elevação são resultados diferentes\n\nAcesso inicial confirma que uma fronteira de entrada foi atravessada, por exemplo devido a uma falha de autenticação ou configuração no cenário de teste. Ele não significa automaticamente controle administrativo. A elevação de privilégios ocorre quando uma identidade ou processo obtém permissões superiores às que tinha. O ATT&CK descreve essa tática como busca por permissões de nível mais alto; exemplos de contexto incluem permissões de administrador local, root ou funções privilegiadas em serviços.\n\nPermissão excessiva, falha de isolamento ou componente vulnerável podem explicar a elevação. Uma avaliação registra o nível inicial, o nível alcançado e a condição que permitiu a mudança, evitando tratar “consegui entrar” como sinônimo de “controlei tudo”.\n\n### Persistência e ocultação indicam riscos distintos\n\nPersistência é a manutenção de uma presença ou capacidade de acesso depois da entrada inicial. No ATT&CK, ela é uma tática própria; algumas técnicas podem também operar com privilégios elevados. Em um teste legítimo, a persistência pode ser analisada por configuração, revisão de controles ou demonstração reversível acordada, sem deixar mecanismo ativo ao terminar.\n\nOcultar rastros ou reduzir a visibilidade corresponde a comportamentos de furtividade/evasão. Para a defesa, logs centralizados, trilhas protegidas contra alteração, alertas e correlação entre fontes ajudam a detectar lacunas. O avaliador documenta que registros foram gerados e quais controles os observaram; apagar ou adulterar evidência não é objetivo legítimo do teste.\n\n### Negação de serviço exige controle de impacto\n\nNegação de serviço afeta a disponibilidade, por exemplo quando pedidos ou trabalho excedem a capacidade de um serviço ou de uma dependência. Um DoS pode partir de uma origem; um DDoS envolve múltiplas origens coordenadas. A sobrecarga também pode resultar de uma operação custosa, sem grande volume de tráfego. CAPEC trata DoS como consequência que pode ser causada por diversos padrões, não como um único padrão de ataque.\n\nTestes de disponibilidade podem derrubar produção e afetar usuários ou terceiros. Por isso, escopo explícito, ambiente isolado ou janela aprovada, limite de carga, supervisão e critério de interrupção são controles essenciais. Se tais condições não estiverem estabelecidas, o avaliador não executa a carga. Medidas defensivas incluem limitação de taxa, escalabilidade, filtragem, redundância, proteção de dependências e plano de resposta.\n\n### Como cai na prova\n\n- Acesso inicial e elevação de privilégios descrevem mudanças diferentes de posição e permissão.\n- Persistência trata da continuidade de acesso; ocultação trata da visibilidade das ações.\n- DoS é impacto sobre disponibilidade e uma consequência que pode decorrer de vários padrões; uma prova de carga precisa de limites aprovados."
+    },
+    {
+      "title": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "markdown": "### O problema que este assunto resolve\n\nCAPEC significa **Common Attack Pattern Enumeration and Classification**. Mantido pelo MITRE como catálogo público, descreve padrões recorrentes pelos quais adversários exploram fraquezas em aplicações e outras capacidades digitais. Um padrão registra uma abordagem e ajuda equipes a reconhecer riscos, discutir cenários, orientar mitigação e planejar avaliações. Não é uma lista de vulnerabilidades específicas nem um manual de autorização.\n\n> **Siglas e termos deste capítulo**\n> - **CAPEC**: catálogo de padrões comuns de ataque.\n> - **CWE**: Common Weakness Enumeration, catálogo de tipos de fraqueza de software.\n> - **CVE**: Common Vulnerabilities and Exposures, identificador de vulnerabilidades divulgadas.\n> - **Mecanismo de ataque**: forma ou meio empregado para explorar uma fraqueza.\n> - **Domínio de ataque**: área ou tipo de alvo ao qual o padrão se aplica.\n> - **Abstração**: nível de generalidade com que um padrão é descrito.\n\n### Padrão, fraqueza e vulnerabilidade não são sinônimos\n\nCAPEC descreve o **como** recorrente de um ataque; CWE classifica uma fraqueza que pode torná-lo possível; CVE identifica uma vulnerabilidade divulgada em um produto ou versão. A relação não é necessariamente um para um: um padrão pode explorar uma ou mais fraquezas, e uma fraqueza pode participar de diferentes padrões. Um identificador CAPEC não codifica severidade e seu número serve para identificar a entrada no catálogo.\n\nUm exemplo do catálogo é **CAPEC-66, SQL Injection**: dados fornecidos à aplicação são tratados como parte de uma instrução SQL em vez de apenas como dados. **CAPEC-62, Cross-Site Request Forgery**, trata de induzir um navegador autenticado a enviar uma solicitação não pretendida. Esses nomes permitem discutir condições e mitigação sem confundir o padrão com um CVE de produto específico.\n\n### Níveis de abstração e fluxo de execução\n\nAs representações hierárquicas do CAPEC incluem categoria, meta, padrão padrão (*standard*) e detalhado (*detailed*). Categoria agrupa entradas por característica comum; meta descreve uma abordagem ampla; padrão padrão descreve uma metodologia mais específica; detalhado vincula técnica e tecnologia com maior granularidade. Os níveis organizam o catálogo, mas não são uma escala de gravidade.\n\nMuitas entradas descrevem o fluxo **Explore → Experiment → Exploit**: buscar um alvo potencial, verificar se a fraqueza está presente e então executar a exploração descrita. São fases de descrição do padrão; nem todo caso precisa percorrer todas, e seu conteúdo serve para compreender e prevenir a abordagem, sempre dentro de um contexto autorizado. A entrada pode ainda relacionar pré-condições, consequências, fraquezas e mitigação.\n\n### Mecanismos e domínios respondem perguntas diferentes\n\nA visualização **Mechanisms of Attack** agrupa padrões segundo mecanismos frequentemente empregados para explorar fraquezas. Entre os rótulos usados no esquema e nas representações do CAPEC estão injeção, força bruta, análise, abuso de API, inundação, modificação de recursos, manipulação de protocolo, engenharia social, falsificação e tempo/estado. A lista e a hierarquia são taxonomias do catálogo, não fases cronológicas.\n\nA visualização **Domains of Attack** organiza padrões pelo domínio-alvo. A representação inclui domínios como Software, Mobile e ICS (sistemas de controle industrial), além de categorias e padrões em níveis mais específicos. Portanto, mecanismo responde “por qual abordagem?”; domínio responde “em que tipo de alvo?”. Um mesmo padrão pode aparecer relacionado a diferentes agrupamentos.\n\n### CAPEC e ATT&CK se complementam\n\nCAPEC concentra-se em padrões de exploração de fraquezas e em aplicações/capacidades digitais; ATT&CK organiza comportamentos adversários por objetivos (táticas) e técnicas em contextos como Enterprise, Mobile e ICS. O MITRE mantém referências cruzadas entre entradas relacionadas. CAPEC ajuda a estruturar análise de ameaças e prevenção no projeto; ATT&CK ajuda a contextualizar ações em um ciclo operacional e a planejar detecção e defesa. Nenhum dos dois substitui validação contextual ou controles de segurança.\n\n### Como cai na prova\n\n- CAPEC é catálogo de padrões; CWE classifica fraquezas; CVE identifica vulnerabilidades divulgadas.\n- Explore, Experiment e Exploit descrevem um fluxo típico de uma entrada CAPEC.\n- Em CAPEC, mecanismo e domínio não são intercambiáveis: meio de exploração versus tipo de alvo.\n- DoS é consequência possível, não um padrão único que substitui os diversos meios de causá-la."
+    }
+  ],
+  "summary": "Segurança ofensiva autorizada organiza avaliações em reconhecimento, varredura, enumeração, acesso, elevação de privilégios, persistência, observação de rastros e impacto. A sequência é um modelo didático, não universal; escopo e regras de engajamento limitam toda ação. No ATT&CK, táticas representam objetivos, como Reconnaissance, Persistence, Privilege Escalation e Impact. CAPEC cataloga padrões comuns de exploração: relaciona abordagens a fraquezas (CWE), pode descrever Explore, Experiment e Exploit, e organiza padrões por abstração, mecanismos e domínios. Mecanismo explica como a fraqueza é explorada; domínio identifica o tipo de alvo. CAPEC-66 é SQL Injection e CAPEC-62 é Cross-Site Request Forgery. DoS é consequência de diferentes padrões e testes de disponibilidade exigem limites, supervisão e critério de parada.",
+  "flashcards": [
+    {
+      "front": "O que delimita uma avaliação ofensiva autorizada?",
+      "back": "O escopo aprovado e as regras de engajamento, incluindo ativos, período, técnicas e limites."
+    },
+    {
+      "front": "Reconhecimento responde a qual pergunta?",
+      "back": "Que informações e relações sobre o alvo podem orientar hipóteses de avaliação?"
+    },
+    {
+      "front": "O que caracteriza reconhecimento passivo?",
+      "back": "Uso de informação já publicada sem interação direta com a infraestrutura alvo."
+    },
+    {
+      "front": "O que a varredura procura?",
+      "back": "Hosts, portas, serviços e interfaces que respondem dentro do escopo."
+    },
+    {
+      "front": "O que a enumeração acrescenta à varredura?",
+      "back": "Detalhes estruturados sobre recursos, nomes, versões aparentes ou permissões expostas."
+    },
+    {
+      "front": "Uma porta aberta prova que o serviço é vulnerável?",
+      "back": "Não; indica uma superfície responsiva que ainda precisa de análise contextual."
+    },
+    {
+      "front": "O que é acesso inicial?",
+      "back": "A entrada inicial em uma conta, aplicação, equipamento ou rede no cenário avaliado."
+    },
+    {
+      "front": "Como distinguir acesso de elevação de privilégios?",
+      "back": "Acesso atravessa uma fronteira de entrada; elevação obtém permissões superiores às iniciais."
+    },
+    {
+      "front": "O que caracteriza persistência?",
+      "back": "Manter presença ou capacidade de acesso ao longo do tempo ou após certos eventos."
+    },
+    {
+      "front": "O que significa ocultação de rastros em análise defensiva?",
+      "back": "Comportamentos que reduzem a visibilidade de ações em logs e controles de segurança."
+    },
+    {
+      "front": "Qual propriedade de segurança é atingida por DoS?",
+      "back": "Disponibilidade do serviço ou recurso."
+    },
+    {
+      "front": "Como DoS difere de DDoS?",
+      "back": "DDoS usa várias origens coordenadas; DoS não exige distribuição."
+    },
+    {
+      "front": "O que é CAPEC?",
+      "back": "Catálogo do MITRE que descreve padrões comuns empregados para explorar fraquezas digitais."
+    },
+    {
+      "front": "O que CWE representa?",
+      "back": "Tipos de fraquezas que podem contribuir para vulnerabilidades de software."
+    },
+    {
+      "front": "O que CVE identifica?",
+      "back": "Vulnerabilidades divulgadas, geralmente associadas a produtos ou versões."
+    },
+    {
+      "front": "O que descreve o fluxo Explore-Experiment-Exploit?",
+      "back": "Busca de alvo, verificação da fraqueza e exploração descritas por um padrão CAPEC."
+    },
+    {
+      "front": "Quais são os quatro níveis hierárquicos comuns nas vistas CAPEC?",
+      "back": "Categoria, meta, padrão padrão (standard) e detalhado."
+    },
+    {
+      "front": "O que organiza a vista Mechanisms of Attack?",
+      "back": "Padrões por mecanismos frequentemente empregados na exploração de fraquezas."
+    },
+    {
+      "front": "O que organiza a vista Domains of Attack?",
+      "back": "Padrões pelo domínio ou tipo de alvo, como software, mobile ou ICS."
+    },
+    {
+      "front": "Qual padrão é identificado pelo CAPEC-66?",
+      "back": "SQL Injection."
+    },
+    {
+      "front": "CAPEC e ATT&CK têm a mesma finalidade?",
+      "back": "Não; CAPEC cataloga padrões de exploração e ATT&CK organiza objetivos e comportamentos adversários."
+    },
+    {
+      "front": "O que deve limitar um teste de disponibilidade?",
+      "back": "Escopo, limite de carga, supervisão, janela aprovada e critério explícito de interrupção."
+    }
+  ],
+  "tips": [
+    "Separe os verbos: reconhecimento contextualiza, varredura localiza e enumeração detalha.",
+    "Não conclua vulnerabilidade a partir de porta aberta ou banner: confirme configuração, correções e exposição.",
+    "Memorize o contraste do CAPEC: mecanismo = abordagem; domínio = alvo.",
+    "Associe Explore, Experiment e Exploit a busca, confirmação e exploração no fluxo de uma entrada CAPEC.",
+    "Ao ler ATT&CK, pergunte primeiro qual é o objetivo da ação; isso identifica a tática.",
+    "Trate DoS como impacto sobre disponibilidade e avalie qualquer teste de carga com limites e parada definidos."
+  ],
+  "traps": [
+    "Tratar a sequência das fases como obrigatória: ela é um roteiro didático e os caminhos reais variam.",
+    "Confundir enumeração com varredura: a primeira aprofunda informações sobre superfícies já identificadas.",
+    "Confundir acesso inicial com privilégio administrativo: são resultados distintos.",
+    "Confundir persistência com ocultação: uma mantém acesso; a outra reduz visibilidade.",
+    "Ler número CAPEC como gravidade ou CVE: ele identifica uma entrada do catálogo de padrões.",
+    "Afirmar que existe um padrão CAPEC único chamado DoS: a negação de serviço é consequência de múltiplos padrões."
+  ],
+  "activeRecall": [
+    "Explique por que um domínio publicamente acessível ainda pode estar fora do escopo de um teste.",
+    "Dê um exemplo de evidência de reconhecimento que não prove vulnerabilidade.",
+    "Compare varredura e enumeração por objetivo e resultado esperado.",
+    "Explique por que uma porta aberta ou uma versão declarada não bastam para afirmar que há vulnerabilidade.",
+    "Diferencie acesso inicial, elevação de privilégios e persistência.",
+    "Descreva dois controles defensivos úteis para perceber lacunas de rastros.",
+    "Compare as perguntas respondidas pelas vistas de mecanismos e domínios do CAPEC.",
+    "Diferencie CAPEC, CWE e CVE e relacione CAPEC com ATT&CK."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Etapas tratadas como sequência universal",
+      "summary": "Reconhecimento, varredura, enumeração, acesso e atividades posteriores são lentes didáticas; o caminho pode variar e depende de autorização e escopo."
+    },
+    {
+      "key": "e2",
+      "title": "Resultados de acesso e pós-acesso confundidos",
+      "summary": "Acesso inicial, elevação, persistência, ocultação e impacto designam objetivos diferentes; evidência de um não prova os demais."
+    },
+    {
+      "key": "e3",
+      "title": "CAPEC, CWE e CVE misturados",
+      "summary": "CAPEC descreve padrões de ataque, CWE tipos de fraqueza, e CVE vulnerabilidades divulgadas; as relações entre eles não são necessariamente um para um."
+    },
+    {
+      "key": "e4",
+      "title": "Mecanismos e domínios trocados",
+      "summary": "Mechanisms of Attack agrupa por abordagem; Domains of Attack agrupa por área ou tipo de alvo. DoS é uma consequência, não um padrão único."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma avaliação ofensiva profissional precisa de autorização e de limites definidos para os ativos e ações incluídos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Escopo e regras de engajamento delimitam ativos, técnicas, período e condições de interrupção. A disponibilidade pública de um sistema não substitui autorização.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo ataque percorre obrigatoriamente reconhecimento, varredura, enumeração, acesso e todas as fases posteriores nessa ordem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa sequência é um roteiro didático. Um ataque pode omitir etapas, alterar a ordem ou retornar a uma fase anterior, e nem todo cenário inclui todas elas.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MITRE ATT&CK, uma tática expressa o objetivo que motiva uma ação adversária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ATT&CK usa táticas para representar o porquê da ação; técnicas e subtécnicas descrevem comportamentos empregados para alcançar o objetivo.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço visível na internet está automaticamente autorizado para um teste de intrusão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Visibilidade não define propriedade nem autorização. Um ativo pode pertencer a fornecedor ou terceiro e só pode ser testado se estiver incluído no escopo aprovado.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No reconhecimento passivo, o avaliador obtém contexto em fontes existentes sem sondar diretamente a infraestrutura alvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Consultar informações já publicadas caracteriza a abordagem passiva. A interação direta com a infraestrutura é característica do reconhecimento ativo.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta em determinada porta confirma que o serviço exposto contém uma vulnerabilidade explorável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A resposta demonstra uma superfície de comunicação observável. É preciso analisar serviço, configuração, versão efetiva, correções e contexto para avaliar vulnerabilidade.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A varredura pode identificar hosts e serviços que respondem, enquanto a enumeração busca detalhes estruturados sobre esses recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Varredura mapeia a superfície responsiva; enumeração aprofunda informações como nomes, recursos, versões declaradas ou permissões expostas.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de resposta em uma varredura pode decorrer de filtragem e não prova que o host inexista.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Filtragem, rota indisponível, janela de observação ou falha temporária também podem explicar o silêncio. A observação não prova inexistência do host.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banner de versão basta para concluir que o serviço não recebeu correções retroportadas pelo fornecedor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O banner pode não refletir correções aplicadas ou a configuração real. A avaliação precisa verificar o estado efetivo e a exposição, não inferir vulnerabilidade apenas da identificação declarada.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Acesso inicial e elevação de privilégios descrevem o mesmo resultado: obter acesso administrativo já na primeira entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Acesso inicial é a entrada; elevação é a obtenção posterior de permissões superiores às iniciais. O primeiro resultado não implica automaticamente o segundo.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Persistência refere-se à manutenção de uma presença ou capacidade de acesso ao longo do tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Persistência trata de conservar acesso ou presença após a entrada inicial e pode envolver continuidade depois de certos eventos no ambiente.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ocultação de rastros e persistência são sinônimos, pois ambos significam manter uma sessão aberta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Persistência busca continuidade de acesso; ocultação busca reduzir a visibilidade das ações. Podem aparecer no mesmo cenário, mas são objetivos distintos.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de negação de serviço deve ter limites de carga, supervisão e critério de interrupção aprovados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A atividade pode interromper serviços e afetar terceiros. Limites, janela aprovada, monitoramento e parada protegem usuários e mantêm o teste dentro do escopo.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CAPEC descreve padrões comuns de exploração, ao passo que CWE organiza tipos de fraqueza de software.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CAPEC cataloga abordagens de ataque; CWE classifica fraquezas que podem ser exploradas por esses padrões. As relações não precisam ser um para um.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O número de uma entrada CAPEC representa diretamente a gravidade técnica do padrão nela descrito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O identificador numérico diferencia a entrada do catálogo e não codifica gravidade ou severidade. A avaliação de risco depende do contexto e das consequências.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na descrição típica de um fluxo CAPEC, Explore procura um alvo, Experiment verifica a fraqueza e Exploit representa a exploração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O MITRE descreve essas três fases para muitos fluxos de execução do catálogo: exploração do contexto, verificação da condição e execução da abordagem descrita.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A visualização Domains of Attack agrupa padrões principalmente pela técnica ou mecanismo empregado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Domains of Attack organiza padrões pelo domínio ou tipo de alvo. A vista Mechanisms of Attack agrupa padrões por mecanismos usados para explorar fraquezas.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No CAPEC, a negação de serviço é uma consequência que pode decorrer de diferentes padrões de ataque.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O próprio material introdutório do MITRE observa que DoS é consequência, não um padrão único: diferentes padrões podem provocar indisponibilidade.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os níveis categoria, meta, padrão padrão e detalhado representam aumento de gravidade à medida que ficam mais específicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. São níveis de abstração e organização. Maior detalhe não significa maior severidade, impacto ou probabilidade do ataque.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe autorizada já delimitou alvos e técnicas. Qual princípio deve orientar uma demonstração de falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reunir evidência suficiente com a menor intervenção necessária",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ampliar a busca a sistemas vizinhos para confirmar propriedade",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter toda atividade ativa até obter controle administrativo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar registrar resultados para reduzir dados de auditoria",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar limites temporais se o serviço responder lentamente",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma avaliação controlada busca evidência suficiente para demonstrar risco sem exceder o escopo. Expandir alvos, prolongar atividades ou evitar registros pode causar dano e comprometer a validade do teste.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer mapear informações já publicadas sobre sua presença digital. Qual atividade corresponde melhor a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enumerar detalhes fornecidos por serviços em execução",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fazer reconhecimento passivo em fontes abertas",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar varredura ativa de portas no ambiente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar acesso inicial em uma aplicação publicada",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar capacidade de resposta sob carga elevada",
+          "correct": false
+        }
+      ],
+      "explanation": "Reconhecimento passivo reúne contexto a partir de fontes existentes sem sondar diretamente a infraestrutura. Varredura, enumeração e validação de acesso interagem com serviços ou recursos do alvo.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após encontrar uma porta que responde, o avaliador precisa obter mais detalhes sobre os recursos expostos. Qual atividade vem a seguir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconhecimento passivo de informações institucionais",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elevação de privilégios da conta observada",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enumeração controlada do serviço identificado",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Persistência para manter uma sessão após reinício",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Análise do impacto de indisponibilidade do serviço",
+          "correct": false
+        }
+      ],
+      "explanation": "Enumeração aprofunda informações sobre uma superfície já identificada, como recursos e nomes expostos. Ela não se confunde com descobrir a porta nem implica acesso ou persistência.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ficha de inventário deve separar a observação de uma porta responsiva da conclusão sobre vulnerabilidade. Por quê?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Portas responsivas pertencem sempre a sistemas fora do escopo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Serviços expostos não podem receber correções do fornecedor",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A enumeração substitui a validação de qualquer fraqueza",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A resposta mostra superfície, não prova explorabilidade",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A varredura identifica somente aplicações web públicas",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta observável indica que existe comunicação naquele ponto. Vulnerabilidade depende de versão efetiva, configuração, correções, exposição e condições de exploração, que precisam ser verificadas.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa autenticada com permissões limitadas obtém direitos de administrador por uma falha de configuração. Qual conceito descreve a mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconhecimento do ambiente e coleta de contexto público",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Varredura da superfície responsiva em uma rede",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acesso inicial por uma fronteira de entrada",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Persistência da sessão após encerramento do sistema",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elevação de privilégios para permissões superiores",
+          "correct": true
+        }
+      ],
+      "explanation": "A mudança de permissões limitadas para direitos administrativos caracteriza elevação de privilégios. A conta já tinha acesso; o resultado novo é o nível de autorização superior.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado descreve melhor a tática Persistence no ATT&CK?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter uma presença ou capacidade de acesso no ambiente",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Localizar domínios e organizações antes de uma operação",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar código ou instruções em um equipamento",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interromper um processo ou destruir dados do alvo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reunir dados de interesse para um objetivo definido",
+          "correct": false
+        }
+      ],
+      "explanation": "A tática Persistence representa a busca por manter acesso ou presença no ambiente. As outras opções descrevem atividades associadas a objetivos diferentes, como reconhecimento, execução, impacto e coleta.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório compara DoS originado por uma fonte com DDoS coordenado por diversas origens. Qual distinção está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DoS afeta integridade e DDoS afeta confidencialidade",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DoS usa várias origens e DDoS usa somente uma",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DDoS é sempre uma falha de autenticação distribuída",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DDoS envolve múltiplas origens; DoS não exige distribuição",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DoS e DDoS designam ataques exclusivamente físicos",
+          "correct": false
+        }
+      ],
+      "explanation": "A distribuição das origens diferencia DDoS de DoS simples. Ambos podem afetar a disponibilidade; a sigla não define por si só uma falha de autenticação nem um impacto sobre confidencialidade.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida auxilia defensores a identificar lacunas ou alterações em registros de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar logs somente no host que gera cada evento",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Centralizar logs e proteger trilhas contra alteração",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar alertas durante a operação normal",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar horários dos eventos para reduzir metadados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar apenas em banners de serviços publicados",
+          "correct": false
+        }
+      ],
+      "explanation": "Centralização e proteção das trilhas ajudam a correlacionar eventos e perceber lacunas ou alterações. A remoção de registros e o desligamento de alertas reduzem a capacidade de detecção.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco de dados processa conteúdo controlado pelo usuário como parte de uma consulta SQL. Qual padrão do CAPEC se relaciona diretamente a esse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CAPEC-62, Cross-Site Request Forgery",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CAPEC-103, Clickjacking",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CAPEC-66, SQL Injection",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CAPEC-34, HTTP Response Splitting",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CAPEC-139, Relative Path Traversal",
+          "correct": false
+        }
+      ],
+      "explanation": "CAPEC-66 é SQL Injection: dados não confiáveis são interpretados como parte de uma instrução SQL. As outras entradas nomeiam padrões diferentes do catálogo.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer agrupar padrões conforme mecanismos frequentemente empregados para explorar fraquezas. Qual vista CAPEC atende a esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mechanisms of Attack",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Domains of Attack",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enterprise Tactics",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CVE Product Dictionary",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CWE Weakness List",
+          "correct": false
+        }
+      ],
+      "explanation": "Mechanisms of Attack organiza padrões conforme os mecanismos usados para explorar fraquezas. Domains of Attack agrupa pelo domínio-alvo, enquanto ATT&CK, CVE e CWE têm objetos de classificação diferentes.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista precisa separar os padrões voltados a software, dispositivos móveis e sistemas industriais. Qual vista do CAPEC é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mechanisms of Attack, agrupados por método de exploração",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "External Mappings, agrupados por referências cruzadas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ATT&CK Enterprise, agrupado por objetivos operacionais",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Domains of Attack, agrupados pelo tipo de alvo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CWE, agrupado por vulnerabilidades de produto divulgadas",
+          "correct": false
+        }
+      ],
+      "explanation": "Domains of Attack organiza entradas conforme o domínio-alvo, com agrupamentos como software, mobile e ICS. Mecanismos organizam pela abordagem, e os demais recursos citados têm propósitos diferentes.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência corresponde às fases típicas de fluxo descritas para muitas entradas CAPEC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconhecimento, varredura, enumeração e contenção",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Explore, Experiment e Exploit",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tática, estratégia e procedimento operacional",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Categoria, domínio e mecanismo de mitigação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identificação, severidade e publicação de vulnerabilidade",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo típico é Explore, Experiment e Exploit: procurar um alvo potencial, avaliar se a fraqueza existe e executar a abordagem. Nem toda situação concreta precisa incluir as três fases.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro CAPEC relaciona um padrão a várias fraquezas, e uma das fraquezas também aparece em outros padrões. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A relação deve ser inválida, pois CAPEC e CWE são um para um",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A relação é possível, pois o mapeamento não é necessariamente um para um",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O padrão precisa receber um novo identificador CVE",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fraqueza passa a designar apenas um produto específico",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O catálogo deve remover a entrada de menor abstração",
+          "correct": false
+        }
+      ],
+      "explanation": "O MITRE esclarece que a relação entre CAPEC e CWE pode envolver uma ou várias fraquezas e não é necessariamente um para um. Os catálogos representam objetos diferentes que podem se relacionar.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova afirma que todo padrão CAPEC detalhado tem gravidade maior que qualquer padrão meta. Como avaliá-la?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta, pois o nível detalhado equivale à severidade",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correta, pois a meta abstrai somente ataques sem impacto",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreta, pois os níveis medem abstração e granularidade",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incorreta, pois o catálogo não diferencia níveis de descrição",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta, pois a gravidade cresce com o número identificador",
+          "correct": false
+        }
+      ],
+      "explanation": "Os níveis meta, padrão e detalhado indicam o grau de abstração e especificidade da descrição. Eles não são uma escala de gravidade ou impacto; estes dependem do cenário avaliado.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe modela ameaças para orientar desenvolvedores sobre padrões de exploração e respectivas mitigações. Qual uso do CAPEC melhor corresponde ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estimar indisponibilidade de redes com base em tráfego real",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificar versões vulneráveis por produto e fornecedor",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir análise de risco e requisitos de segurança",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar somente incidentes confirmados em produção",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estruturar padrões de ataque e orientar mitigação no projeto",
+          "correct": true
+        }
+      ],
+      "explanation": "CAPEC ajuda a entender como fraquezas podem ser exploradas e informa modelagem de ameaças, treinamento, revisão e mitigação. Não substitui identificadores de produto, análise contextual ou registro de incidentes.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação aciona uma operação custosa repetidamente e o serviço deixa de atender usuários. Qual classificação conceitual é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impacto de disponibilidade que pode resultar de diferentes padrões",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Padrão único CAPEC que independe do mecanismo aplicado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evidência automática de elevação de privilégios",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exemplo de reconhecimento passivo sem efeito no serviço",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Domínio de ataque que identifica todo software como vulnerável",
+          "correct": false
+        }
+      ],
+      "explanation": "A indisponibilidade é consequência sobre disponibilidade e pode decorrer de volume de tráfego ou de operações custosas, entre outras abordagens. CAPEC não a reduz a um padrão único.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório cita apenas uma identificação de versão e afirma que ela prova a exploração bem-sucedida. Qual correção melhora a conclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar a versão como prova, desde que o serviço seja público",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desconsiderar a versão e inferir a falha pela porta aberta",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificar o serviço como vulnerável sem validar correções",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar contexto, configuração, correções e exposição efetiva",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter a identificação em um número CAPEC de severidade",
+          "correct": false
+        }
+      ],
+      "explanation": "Versões declaradas podem não representar o estado corrigido ou a configuração efetiva. Uma conclusão defensável verifica contexto e exposição, além de evitar inferir explorabilidade por um único indício.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um exercício aprovado, qual documentação ajuda a interromper uma avaliação antes de afetar usuários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a relação de nomes de domínio publicados",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Regras de engajamento com limites e critérios de parada",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas o inventário de serviços que responderam",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tabela de identificadores de padrões CAPEC",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A matriz de níveis de abstração do catálogo CWE",
+          "correct": false
+        }
+      ],
+      "explanation": "As regras de engajamento descrevem limites operacionais, contatos, supervisão e condições de interrupção. Inventários e catálogos de padrões ajudam a análise, mas não estabelecem por si sós a parada segura.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um navegador autenticado é induzido a enviar uma solicitação que o usuário não pretendia fazer. Qual padrão CAPEC é o mais associado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CAPEC-66, SQL Injection",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CAPEC-100, Buffer Overflow",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CAPEC-139, Relative Path Traversal",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CAPEC-103, Clickjacking",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CAPEC-62, Cross-Site Request Forgery",
+          "correct": true
+        }
+      ],
+      "explanation": "CAPEC-62 descreve Cross-Site Request Forgery: induzir o navegador de um usuário autenticado a enviar uma requisição não pretendida. Clickjacking é outro padrão e os demais se relacionam a classes diferentes.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara táticas de reconhecimento, persistência e impacto para mapear objetivos adversários. Qual base organiza esses conceitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CVE, que descreve objetivos e táticas de intrusão",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CWE, que organiza fases de uma operação adversária",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ATT&CK, que organiza táticas e técnicas adversárias",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CAPEC Domains, que define todos os objetivos táticos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CAPEC Mechanisms, que identifica ativos de uma empresa",
+          "correct": false
+        }
+      ],
+      "explanation": "ATT&CK organiza táticas, técnicas e subtécnicas que representam objetivos e comportamentos adversários. CAPEC concentra-se em padrões de exploração, enquanto CWE e CVE classificam fraquezas e vulnerabilidades divulgadas.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação permite que um identificador de sessão previsível seja aproveitado para assumir uma sessão. Como interpretar a entrada CAPEC relacionada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela descreve um padrão de exploração de identificadores confiáveis",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela identifica necessariamente uma vulnerabilidade CVE do navegador",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela classifica a severidade pelo tamanho do identificador",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela define a tática ATT&CK como negação de serviço",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela prova que toda sessão autenticada será comprometida",
+          "correct": false
+        }
+      ],
+      "explanation": "O CAPEC inclui padrões envolvendo exploração de identificadores confiáveis, como identificadores de sessão. A entrada descreve uma abordagem e contexto de risco, não uma CVE específica, severidade automática ou comprometimento universal.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de avaliação precisa incluir controle industrial como alvo categorial. Qual leitura da vista CAPEC é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ICS é um mecanismo equivalente a injeção",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ICS é um nível de abstração mais detalhado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ICS identifica uma fraqueza específica de software",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ICS representa um domínio de alvo de sistemas industriais",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ICS é uma consequência sinônima de disponibilidade",
+          "correct": false
+        }
+      ],
+      "explanation": "ICS, sistemas de controle industrial, é tratado como domínio de ataque em vistas do catálogo. Não é mecanismo de exploração, fraqueza individual nem sinônimo de impacto.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista quer distinguir categoria, meta, padrão padrão e detalhado em uma árvore CAPEC. O que esses níveis indicam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem em que as fases devem ocorrer em qualquer intrusão",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de mitigação já aplicada ao alvo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O domínio físico em que cada ataque foi observado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O grau de abstração ou especificidade das descrições",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O nível de autorização exigido para testar cada entrada",
+          "correct": false
+        }
+      ],
+      "explanation": "Os níveis estruturam padrões do mais abstrato ao mais específico. Não definem cronologia, mitigação, domínio físico ou autorização: essas informações dependem do cenário e das regras de engajamento.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ativo identificado por fontes públicas pertence a um provedor externo usado pela organização. O que deve ocorrer antes de testá-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluir o ativo por presunção, pois a organização usa o serviço",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confirmar que o escopo e a autorização abrangem o ativo",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar a varredura para descobrir quem responde pelo serviço",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar persistência temporária para provar controle compartilhado",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar o nome público como autorização implícita do provedor",
+          "correct": false
+        }
+      ],
+      "explanation": "O uso de um fornecedor não concede automaticamente permissão para testar sua infraestrutura. O escopo e a autorização precisam abranger explicitamente os ativos de terceiros envolvidos.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação diferencia melhor CAPEC de ATT&CK em uma análise de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CAPEC cataloga padrões de exploração; ATT&CK organiza objetivos e comportamentos",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "CAPEC identifica produtos vulneráveis; ATT&CK substitui CVE e CWE",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CAPEC define autorização; ATT&CK registra apenas correções de software",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CAPEC descreve logs; ATT&CK identifica domínios de mecanismo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CAPEC e ATT&CK são catálogos idênticos com nomes alternativos",
+          "correct": false
+        }
+      ],
+      "explanation": "CAPEC descreve padrões comuns usados para explorar fraquezas; ATT&CK organiza táticas, técnicas e comportamentos adversários em domínios como Enterprise, Mobile e ICS. Há referências cruzadas, mas os focos são diferentes.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante o teste, o serviço apresenta sinais de degradação antes do limite planejado. Qual procedimento melhor respeita as regras de engajamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a carga para medir precisamente o ponto de falha",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar para outro ativo do mesmo provedor sem autorização",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Interromper conforme o critério de parada e comunicar a equipe",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Prosseguir até a interrupção total para registrar o impacto",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar os registros de carga para proteger a disponibilidade",
+          "correct": false
+        }
+      ],
+      "explanation": "A degradação indica risco ao serviço. O critério de parada permite interromper antes de causar indisponibilidade maior e comunicar os responsáveis, conforme o plano aprovado.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma análise de resultados, qual afirmação separa corretamente mecanismo de ataque e domínio de ataque no CAPEC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mecanismo é o nível de severidade; domínio é o código de vulnerabilidade",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mecanismo descreve a abordagem; domínio descreve o tipo de alvo",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mecanismo descreve a autorização; domínio define a janela do teste",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mecanismo e domínio representam fases cronológicas equivalentes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mecanismo identifica CVEs; domínio classifica fraquezas CWE",
+          "correct": false
+        }
+      ],
+      "explanation": "Mechanisms of Attack organiza por meio empregado na exploração; Domains of Attack organiza pelo domínio do alvo. Essas vistas oferecem perspectivas diferentes sobre os padrões catalogados.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise encontra um padrão CAPEC ligado a duas fraquezas distintas. Qual conclusão é sustentada pelo modelo do catálogo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O padrão pode relacionar-se a várias fraquezas ou a um subconjunto delas",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada entrada CAPEC deve apontar para uma única CWE obrigatória",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma das fraquezas deve ser reclassificada como tática ATT&CK",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O padrão deve ser removido por não identificar uma CVE",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As fraquezas deixam de ser válidas quando mapeadas em CAPEC",
+          "correct": false
+        }
+      ],
+      "explanation": "O mapeamento CAPEC-CWE não é necessariamente um para um. Um padrão pode depender de todas, de um subconjunto ou de apenas uma das fraquezas relacionadas.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa avalia se um recurso compartilhado expõe nomes e permissões. Qual etapa corresponde melhor à coleta desses detalhes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconhecimento, por análise de páginas públicas",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acesso inicial, por cruzar a fronteira de entrada",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elevação, por obter direitos administrativos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enumeração, por detalhar recursos e permissões expostos",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Persistência, por continuar após o reinício",
+          "correct": false
+        }
+      ],
+      "explanation": "Enumeração consiste em obter detalhes estruturados sobre recursos acessíveis, como nomes e permissões. As demais etapas tratam de contexto público, entrada, mudança de privilégio ou continuidade de acesso.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer testar se um fornecedor pode manter indisponível um serviço compartilhado. Qual salvaguarda é essencial antes de qualquer carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar o risco, pois o teste avalia somente um serviço",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Realizar a carga fora do horário sem avisar responsáveis",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Obter autorização, definir limites, supervisão e parada",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar origens distintas para reduzir o volume em cada uma",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o serviço do inventário após iniciar o teste",
+          "correct": false
+        }
+      ],
+      "explanation": "Serviços compartilhados podem afetar outros clientes e terceiros. É necessário obter autorização pertinente e definir limites, supervisão e critérios de interrupção antes de testar disponibilidade.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova pede a diferença entre uma vulnerabilidade divulgada e uma abordagem recorrente para explorá-la. Qual distinção está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CVE descreve o padrão; CAPEC identifica o produto",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CWE identifica divulgação; CVE descreve o mecanismo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ATT&CK identifica a fraqueza; CWE define o objetivo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CAPEC identifica a falha; CWE identifica o fornecedor",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CVE identifica vulnerabilidade divulgada; CAPEC descreve padrão de ataque",
+          "correct": true
+        }
+      ],
+      "explanation": "CVE é um identificador de vulnerabilidade divulgada; CAPEC descreve um padrão de ataque. CWE, por sua vez, classifica o tipo de fraqueza subjacente.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar dois padrões, uma analista vê que um descreve uma abordagem abstrata e outro detalha tecnologia e fluxo. Qual leitura é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "São níveis de autorização de teste diferentes",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "São níveis de abstração e granularidade distintos",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O padrão detalhado tem necessariamente mais impacto",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A entrada abstrata não pode ter relação com fraquezas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O fluxo detalhado constitui uma classificação CVE",
+          "correct": false
+        }
+      ],
+      "explanation": "CAPEC usa níveis de abstração, do meta ao detalhado, para organizar o grau de especificidade da descrição. O nível não determina autorização, impacto ou tipo de identificador.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo pertence ao grupo de atividades de reconhecimento e não demonstra, por si só, uma falha explorável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relacionar informações institucionais publicadas e domínios",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar permissões elevadas após uma falha autorizada",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter acesso aprovado após uma reinicialização controlada",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interromper tráfego após exceder limite de carga aprovado",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar uma fraqueza em um recurso incluído no teste",
+          "correct": false
+        }
+      ],
+      "explanation": "Relacionar dados institucionais e domínios publicados forma contexto de reconhecimento. Não demonstra que um ativo está no escopo, vulnerável ou explorável.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação distingue recursos de detecção de comportamentos que reduzem a visibilidade das ações. Qual categoria de comportamento está sendo analisada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconhecimento passivo de fontes já publicadas",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enumeração de recursos e versões aparentes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ocultação ou evasão de controles defensivos",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Acesso inicial por uma fronteira de autenticação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Disponibilidade medida em ensaio de carga aprovado",
+          "correct": false
+        }
+      ],
+      "explanation": "Ocultação ou furtividade busca reduzir a visibilidade de ações em controles e registros. ATT&CK separa esse objetivo de reconhecimento, enumeração, acesso e impacto.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização planeja revisar uma hipótese sobre serviço exposto sem afirmar que já encontrou vulnerabilidade. Qual sequência de raciocínio é mais sólida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tomar o domínio público como prova de propriedade e testar",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o banner como prova e publicar o risco confirmado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar escopo porque a consulta inicial foi passiva",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar escopo, observar resposta e validar contexto",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Classificar a hipótese como CVE antes de verificar a falha",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma hipótese deve ser verificada sem presumir propriedade ou vulnerabilidade. Primeiro se confirma a autorização, depois se observa o comportamento e se valida o contexto antes de formular uma conclusão.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise usa CAPEC para organizar meios de exploração e ATT&CK para contextualizar objetivos em ambiente Enterprise. Qual combinação de fontes é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mechanisms of Attack e táticas Enterprise",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Domains of Attack e identificadores CVE",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CWE e níveis de abstração Enterprise",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CVE e padrões de mecanismo do ATT&CK",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regras de engajamento e categorias CWE",
+          "correct": false
+        }
+      ],
+      "explanation": "Mechanisms of Attack oferece agrupamento CAPEC por mecanismos, enquanto as táticas Enterprise do ATT&CK representam objetivos adversários. A combinação respeita o foco complementar de cada base.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve adequadamente o papel de um padrão CAPEC em prevenção de software?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele substitui requisitos e análise contextual de risco",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele garante que o ataque sempre terá sucesso",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele define a autorização legal para um teste",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele identifica diretamente todos os produtos vulneráveis",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele ajuda a entender abordagens e escolher mitigações",
+          "correct": true
+        }
+      ],
+      "explanation": "CAPEC documenta abordagens comuns e pode apoiar treinamento, modelagem de ameaças, revisão e mitigação. Não garante sucesso, autorização ou identificação automática de produtos vulneráveis.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista observa que a etapa de enumeração revelou nomes de recursos, mas não testou acesso. Qual conclusão deve registrar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso inicial foi comprovado pelos nomes encontrados",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os nomes revelam detalhes, sem provar autorização ou acesso",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A elevação foi demonstrada por qualquer recurso enumerável",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Persistência foi estabelecida porque os nomes continuam publicados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma vulnerabilidade CVE foi criada durante a enumeração",
+          "correct": false
+        }
+      ],
+      "explanation": "Enumeração revela informações, mas não demonstra que o avaliador possa usar o recurso, obter permissões ou manter acesso. As conclusões precisam corresponder exatamente à evidência coletada.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa apresentar à administração a diferença entre um padrão amplo e uma entrada detalhada do CAPEC. Qual explicação é precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nível amplo indica menor severidade e menor prioridade",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nível detalhado identifica uma vulnerabilidade CVE individual",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nível amplo abstrai a abordagem; o detalhado a especifica mais",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nível detalhado equivale à etapa Exploit do fluxo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nível amplo corresponde sempre a um domínio Mobile",
+          "correct": false
+        }
+      ],
+      "explanation": "Meta é uma caracterização abstrata de metodologia; entradas detalhadas especificam técnica e tecnologia com maior granularidade. Isso não equivale a severidade, CVE, fase ou domínio.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar uma operação adversária, qual objetivo se relaciona a Impact no ATT&CK?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reunir informação pública para planejar operações futuras",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descobrir contas, serviços e recursos do ambiente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter uma presença após o acesso inicial",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manipular, interromper ou destruir sistemas e dados",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Estabelecer recursos de apoio antes da operação",
+          "correct": false
+        }
+      ],
+      "explanation": "A tática Impact representa objetivos de manipulação, interrupção ou destruição de sistemas e dados. Disponibilidade é um dos impactos possíveis, embora não seja o único.",
+      "section": "1. Segurança ofensiva e sequência de avaliação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa compara mitigação de injeção com identificação de fraquezas subjacentes. Qual associação de catálogos está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CAPEC descreve padrões; CWE descreve fraquezas relacionadas",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "CWE descreve padrões; CAPEC atribui números CVE",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ATT&CK descreve fraquezas de código; CWE descreve táticas",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CVE descreve os mecanismos; CAPEC descreve os fornecedores",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Domains of Attack substitui CWE e seus tipos de fraqueza",
+          "correct": false
+        }
+      ],
+      "explanation": "CAPEC documenta padrões de ataque, como injeção; CWE classifica fraquezas que podem viabilizar esses padrões. CVE identifica vulnerabilidades divulgadas e ATT&CK organiza comportamentos adversários.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma avaliação, reinicialização é usada como evento de referência para discutir a continuidade do acesso, sem deixar mecanismo ativo. Que conceito está sendo medido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconhecimento, por coletar dados públicos do sistema",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Varredura, por identificar portas após reiniciar",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enumeração, por listar recursos acessíveis",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocultação, por retirar eventos de auditoria",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Persistência, por avaliar continuidade de presença",
+          "correct": true
+        }
+      ],
+      "explanation": "A continuidade de presença após eventos como reinicialização relaciona-se ao conceito de persistência. A avaliação pode medir controles de forma reversível e documentada, sem manter mecanismo após o teste.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova confunde método de exploração com tipo de sistema alvo. Qual exemplo esclarece a diferença nas vistas CAPEC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Software é mecanismo; injeção é domínio de ataque",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Injeção é mecanismo; software pode ser domínio de ataque",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mobile é mecanismo; análise é domínio de ataque",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CVE é mecanismo; ICS é identificador de padrão",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Persistência é domínio; Enterprise é mecanismo de ataque",
+          "correct": false
+        }
+      ],
+      "explanation": "Injeção descreve uma abordagem de exploração; software é exemplo de domínio-alvo. Mobile e ICS também são domínios, enquanto identificadores e táticas têm outras funções.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer usar padrões comuns para orientar treinamento, modelagem de ameaças e verificação defensiva. Qual recurso é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CAPEC, como catálogo público de padrões de ataque",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "CVE, como roteiro de autorização para testes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CWE, como lista de técnicas Enterprise",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ATT&CK, como inventário de falhas por fornecedor",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DoS, como catálogo hierárquico de vulnerabilidades",
+          "correct": false
+        }
+      ],
+      "explanation": "CAPEC fornece descrições de padrões que apoiam treinamento, requisitos, análise de arquitetura, verificação e prevenção. CVE e CWE catalogam outros objetos; ATT&CK organiza táticas e técnicas.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe planeja verificar disponibilidade de um ambiente de homologação isolado. Qual conjunto de condições torna o exercício mais controlado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso administrativo amplo e ausência de supervisão",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Limite de carga, monitoramento e critério de parada",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Varredura irrestrita de provedores relacionados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remoção dos logs para evitar falsos positivos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Execução contínua até reproduzir indisponibilidade total",
+          "correct": false
+        }
+      ],
+      "explanation": "Mesmo em homologação isolada, limites, monitoramento e critério de parada reduzem risco e permitem interromper o ensaio diante de efeitos imprevistos. A atividade permanece sujeita a escopo e autorização.",
+      "section": "3. Acesso, privilégios, persistência, ocultação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cadeia conceitual, como se conectam CAPEC, CWE e CVE sem presumir equivalência entre eles?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CVE é padrão, CWE é produto e CAPEC é gravidade",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CAPEC é vulnerabilidade, CWE é ataque e CVE é fraqueza",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CWE pode descrever fraqueza explorada por padrão CAPEC em vulnerabilidade divulgada como CVE",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CWE e CVE são técnicas ATT&CK com diferentes plataformas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CAPEC substitui CVE sempre que há mitigação documentada",
+          "correct": false
+        }
+      ],
+      "explanation": "Um padrão CAPEC pode explorar uma fraqueza CWE e relacionar-se a vulnerabilidades divulgadas com identificadores CVE. Os mapeamentos dependem do caso e os catálogos não são sinônimos.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atividade coleta nomes de usuários e serviços publicados para planejar etapas futuras, sem interagir com os sistemas. Qual classificação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elevação de privilégios em ambiente local",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Persistência após acesso bem-sucedido",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impacto por interrupção de serviço",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconhecimento passivo com informação pública",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Exploração de fraqueza confirmada em aplicação",
+          "correct": false
+        }
+      ],
+      "explanation": "A coleta de informações públicas sem sondar a infraestrutura é reconhecimento passivo. O resultado ajuda a planejar hipóteses, mas não confirma acesso nem exploração.",
+      "section": "2. Reconhecimento, varredura e enumeração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão descreve uma abordagem para aproveitar uma fraqueza e pergunta como ela é classificada no CAPEC. Qual resposta conceitual é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como padrão de ataque que descreve abordagem recorrente",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como CVE que enumera todas as táticas possíveis",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como domínio de ataque que mede severidade",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como regra de engajamento que libera exploração",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como CWE que define um produto afetado",
+          "correct": false
+        }
+      ],
+      "explanation": "CAPEC descreve padrões e atributos comuns das abordagens usadas para explorar fraquezas. Ele ajuda a compreender e mitigar ataques, mas não concede autorização nem identifica sozinho produtos afetados.",
+      "section": "4. CAPEC: padrões, mecanismos e domínios de ataque",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "CAPEC List",
+      "publisher": "MITRE",
+      "reference": "Catálogo público de padrões, vistas Mechanisms of Attack e Domains of Attack e domínios Software, Mobile e ICS",
+      "url": "https://capec.mitre.org/data/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "About CAPEC",
+      "publisher": "MITRE",
+      "reference": "Objetivo do catálogo, utilidades, relação entre padrões e fraquezas e exemplos",
+      "url": "https://capec.mitre.org/about/index.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "New to CAPEC?",
+      "publisher": "MITRE",
+      "reference": "Fluxo Explore, Experiment e Exploit; níveis de abstração; relação com CWE e consequência de DoS",
+      "url": "https://capec.mitre.org/about/new_to_capec.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ATT&CK Enterprise Tactics",
+      "publisher": "MITRE",
+      "reference": "Definição de tática como objetivo adversário e lista de táticas Enterprise",
+      "url": "https://attack.mitre.org/tactics/enterprise/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Privilege Escalation, Tactic TA0004",
+      "publisher": "MITRE",
+      "reference": "Definição e exemplos de elevação de privilégios",
+      "url": "https://attack.mitre.org/tactics/TA0004/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-115: Technical Guide to Information Security Testing and Assessment",
+      "publisher": "NIST",
+      "reference": "Orientação para planejar e conduzir testes e avaliações de segurança da informação",
+      "url": "https://csrc.nist.gov/pubs/sp/800/115/final",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

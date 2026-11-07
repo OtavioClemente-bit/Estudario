@@ -1,0 +1,1902 @@
+{
+  "id": "informatica.gpu-infraestrutura-ia-alto-desempenho",
+  "subject": "Informática",
+  "title": "GPU e infraestrutura de IA de alto desempenho",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "GPU para inteligência artificial e alto desempenho",
+    "Infraestrutura NVIDIA para aprendizagem profunda",
+    "CUDA, cuDNN e operação de GPUs",
+    "Gerenciamento de GPU com NVIDIA SMI",
+    "Instalação e diagnóstico da biblioteca cuDNN",
+    "Ambientes de IA com múltiplas GPUs NVIDIA",
+    "Dimensionamento de infraestrutura para cargas de IA",
+    "Quantização de modelos LLM em GPU",
+    "Contêineres e virtualização com suporte a GPU",
+    "Arquiteturas NVIDIA para visão computacional e dados",
+    "Compatibilidade entre drivers CUDA e frameworks de IA",
+    "Fundamentos de GPU para processamento de alto desempenho"
+  ],
+  "scope": {
+    "covers": "Fundamentos e arquitetura de GPU NVIDIA para HPC e IA; aplicações em aprendizagem profunda, visão computacional e ciência de dados; quantização de LLMs; execução CUDA com kernels, grids, blocks e threads; distinção entre driver, toolkit e runtime e compatibilidade com frameworks; papel, instalação, configuração e diagnóstico da cuDNN; leitura e uso operacional do nvidia-smi para temperatura, memória, processos e seleção de dispositivos; dimensionamento, drivers, contêineres e virtualização com GPU; diagnóstico de inicialização e desempenho em sistemas multi-GPU.",
+    "excludes": "Programação avançada de kernels, benchmark comparativo de modelos comerciais, administração de cluster específico, comandos de instalação dependentes de uma distribuição ou versão particular e detalhes de licenciamento."
+  },
+  "theoryTitle": "GPU NVIDIA na operação de ambientes de IA",
+  "chapters": [
+    {
+      "title": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "markdown": "### O problema que este assunto resolve\n\nUma CPU costuma ter poucos núcleos complexos, bons em controlar fluxos variados. Uma GPU reúne muitos processadores que executam operações semelhantes em paralelo. Isso é útil em multiplicações de matrizes e convoluções, presentes em redes neurais, transformação de imagens e análise numérica. A GPU não acelera automaticamente todo programa: leitura de dados, preparação em CPU, cópias pela interface PCIe, sincronizações e operações sequenciais podem dominar o tempo total.\n\n> **Siglas e termos deste capítulo**\n> - **GPU**: processador gráfico também usado em computação paralela.\n> - **SM**: multiprocessador de streaming, unidade que agenda warps e executa blocos de threads.\n> - **Tensor Core**: unidade especializada em operações matriciais de baixa precisão em arquiteturas compatíveis.\n> - **VRAM**: memória local da placa, usada para pesos, ativações, lotes e caches.\n> - **HPC**: computação de alto desempenho em cargas científicas e de engenharia.\n\n### Arquitetura e usos\n\nNVIDIA organiza dispositivos CUDA em multiprocessadores (SMs), com registradores, unidades de execução e recursos de memória. As gerações mudam capacidade, largura de banda, formatos numéricos e recursos. Volta introduziu Tensor Cores; Ampere ampliou operações de precisão reduzida e, em modelos de centro de dados, pode oferecer MIG para particionar recursos; Hopper e Blackwell acrescentam recursos próprios de gerações posteriores. O nome da arquitetura não substitui a ficha do modelo: placas da mesma geração podem ter diferentes VRAM, largura de banda, potência e suporte a formatos.\n\n| Carga | Trabalho paralelo comum | Gargalo que merece medição |\n| --- | --- | --- |\n| Aprendizagem profunda | Matrizes, convoluções e atenção | VRAM, largura de banda, lote e comunicação entre GPUs |\n| Visão computacional | Convoluções, filtros e transformações de imagem | Resolução, lote, entrada e saída de dados |\n| Ciência de dados | Álgebra linear, agrupamento e operações vetoriais | Transferência, formato dos dados e etapas seriais |\n| LLM | Multiplicações de matrizes e atenção | Pesos, cache KV, contexto, lote e precisão |\n\n### Quantização de LLMs\n\nQuantizar é representar pesos e, conforme a técnica, ativações com formatos de menor precisão, como INT8, INT4 ou FP8, geralmente acompanhados de escalas. Menos bits podem reduzir memória de pesos e tráfego e, em hardware e software compatíveis, acelerar inferência. Não significa que todo o uso de memória caia na mesma proporção: cache KV, ativações, buffers e metadados continuam consumindo memória. A qualidade pode degradar, sobretudo com calibração ou método inadequado. Quantização pós-treinamento (PTQ) transforma um modelo já treinado; quantização consciente durante treinamento (QAT) inclui o efeito da quantização no ajuste. Verifique formato, granularidade, kernels suportados, GPU, mecanismo de inferência e qualidade no conjunto representativo.\n\n### Como cai na prova\n\n- GPU oferece paralelismo de dados; não substitui CPU em toda tarefa.\n- Tensor Cores e formatos de baixa precisão podem acelerar operações matriciais, mas compatibilidade e resultado precisam ser medidos.\n- VRAM limita o modelo, o lote e o contexto; quantizar pesos ajuda, mas não apaga os demais custos.\n- Geração da arquitetura, quantidade de VRAM e capacidade de computação são dados distintos."
+    },
+    {
+      "title": "2. CUDA na prática: execução e compatibilidade",
+      "markdown": "### O problema que este assunto resolve\n\nCUDA é a plataforma de computação paralela da NVIDIA. Um programa normalmente inicia na CPU (host), transfere ou prepara dados, despacha funções para a GPU (device) e sincroniza quando precisa do resultado. Uma função executada no device é um **kernel**. Na configuração de lançamento, uma grade (grid) contém blocos (blocks); cada bloco contém threads. Índices `blockIdx`, `blockDim` e `threadIdx` permitem que cada thread calcule qual parte dos dados tratar. Por exemplo, para vetor unidimensional, `i = blockIdx.x * blockDim.x + threadIdx.x`; a thread deve testar `i < N` antes de acessar vetor de tamanho N, pois a grade pode ter threads excedentes.\n\n> **Siglas e termos deste capítulo**\n> - **Host/device**: CPU e GPU no modelo de execução CUDA.\n> - **Kernel**: função lançada para execução paralela na GPU.\n> - **Grid/block/thread**: hierarquia de lançamento do kernel, do conjunto de blocos à thread individual.\n> - **Warp**: grupo de threads executado em conjunto pelo hardware; divergência de fluxo pode reduzir eficiência.\n> - **Driver**: componente de sistema que comunica aplicações e dispositivo NVIDIA.\n> - **Runtime/Toolkit**: API e bibliotecas de execução; toolkit também inclui compilador e ferramentas de desenvolvimento.\n\nThreads de um mesmo bloco podem cooperar e sincronizar usando recursos próprios; blocos distintos são concebidos para executar sem dependência global implícita. Não se deve supor que dois blocos executem em ordem fixa. Transferências host-device e lançamentos podem ser assíncronos; sincronização explícita ou uma operação de leitura pode revelar erros que ocorreram antes.\n\n### Driver, runtime, toolkit e framework\n\nO driver instalado no sistema inclui componentes de modo kernel e de usuário (como a interface CUDA do driver). O runtime CUDA é a camada de API usada por aplicações; o toolkit inclui compilador `nvcc`, headers, bibliotecas e ferramentas. Um framework pode distribuir dependências CUDA de espaço de usuário em seus pacotes, mas ainda precisa de um driver compatível e de GPU suportada. Assim, “CUDA Version” exibida por `nvidia-smi` representa a capacidade máxima de CUDA associada ao driver, não prova que aquele toolkit completo esteja instalado. O comando `nvcc --version` consulta o compilador disponível no ambiente atual, o que pode ser diferente do framework instalado.\n\nA compatibilidade é uma matriz, não igualdade obrigatória de números: modelo e arquitetura da GPU, versão do driver, runtime ou toolkit, bibliotecas, versão do framework, sistema operacional e pacote instalado precisam combinar. Drivers mais novos tendem a manter compatibilidade retroativa com aplicações CUDA antigas. A compatibilidade menor entre versões da mesma família de toolkit tem limites; recursos recentes ou código PTX podem exigir driver mais novo. Consulte notas e matriz da versão concreta do framework e da CUDA.\n\n### Como cai na prova\n\n- `threadIdx` identifica a thread no bloco; `blockIdx` identifica o bloco na grid; `blockDim` dá o tamanho do bloco.\n- Driver, toolkit, runtime e framework são componentes relacionados, mas não sinônimos.\n- `nvidia-smi` informa a capacidade do driver; não confirma sozinho `nvcc`, bibliotecas do ambiente Python ou importação bem-sucedida do framework.\n- Um erro de incompatibilidade deve ser reproduzido no mesmo ambiente e investigado pela combinação das versões efetivamente carregadas."
+    },
+    {
+      "title": "3. cuDNN: instalação e incompatibilidades",
+      "markdown": "### O problema que este assunto resolve\n\ncuDNN é uma biblioteca NVIDIA de primitivas aceleradas de deep learning para GPUs. Frameworks podem chamar suas operações para convoluções, atenção, normalização e outras rotinas, em vez de implementar cada kernel do zero. Instalar o pacote não basta: biblioteca, runtime CUDA, driver, arquitetura da GPU, sistema operacional e framework precisam ser compatíveis. A forma de distribuição também varia: pacote do sistema, arquivo local, Conda, pip ou imagem de contêiner podem instalar cópias diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **cuDNN**: biblioteca de primitivas para redes neurais profundas em GPUs NVIDIA.\n> - **ABI**: convenção binária que permite componentes compilados interoperarem.\n> - **SONAME**: nome de biblioteca compartilhada usado pelo carregador dinâmico no Linux.\n> - **PATH/LD_LIBRARY_PATH**: variáveis usadas, respectivamente, para localizar executáveis e bibliotecas no ambiente.\n> - **Matriz de suporte**: tabela oficial que relaciona combinações suportadas de versões e plataformas.\n\n### Procedimento confiável de instalação e verificação\n\nComece pelo framework e versão que a aplicação realmente usará; consulte a documentação e matriz de suporte da cuDNN para localizar versões de CUDA, driver, sistema operacional e GPU admitidas. Escolha um único método de instalação documentado para aquele ambiente. No Linux, bibliotecas compartilhadas precisam estar visíveis ao carregador; em Windows, DLLs devem ser localizadas pelo processo. Em Conda, pip ou contêiner, confirme o ambiente ativo: instalar no Python global não altera necessariamente o ambiente virtual, e uma biblioteca do host não substitui automaticamente a que a imagem espera. Evite misturar arquivos de instalações antigas em diretórios de busca diferentes.\n\nValide em camadas: (1) o sistema enumera a GPU e o driver funciona; (2) o framework instalado reconhece suporte CUDA e detecta o dispositivo; (3) uma operação representativa de rede neural executa; (4) logs e ferramentas mostram qual biblioteca foi carregada. A disponibilidade de um arquivo `libcudnn` não garante que a versão correta foi carregada nem que a combinação seja suportada. Reiniciar processo ou contêiner após alterar bibliotecas evita que ele continue com uma cópia já carregada em memória.\n\n### Diagnóstico por sintoma\n\n“Library not found” ou erro de carregamento sugere caminho de busca ausente, pacote faltando ou dependência transitiva não resolvida. “Symbol not found” costuma apontar incompatibilidade binária ou mistura de versões. Framework que só mostra CPU pode ter pacote CPU-only instalado, driver inacessível, GPU ocultada no ambiente, ou inicialização CUDA falha. “Unsupported configuration” pode decorrer de GPU, formato ou operação não suportados pela versão selecionada. Registre comando, ambiente Python, versões do framework/CUDA/cuDNN/driver, modelo da GPU e mensagem integral; compare com a matriz oficial antes de reinstalar às cegas.\n\n### Como cai na prova\n\n- cuDNN é biblioteca de primitivas; não é driver nem substitui runtime CUDA.\n- A correção depende da combinação suportada e de qual ambiente carrega as bibliotecas.\n- Diagnosticar começa pela mensagem e versões efetivamente instaladas; atualizar tudo sem conferir pode criar nova incompatibilidade."
+    },
+    {
+      "title": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "markdown": "### O problema que este assunto resolve\n\nOperar uma máquina com GPU exige responder: os dispositivos foram reconhecidos? Há memória disponível? Um processo ocupa a placa? A GPU está quente, limitada por energia ou ociosa enquanto a CPU prepara dados? A ferramenta `nvidia-smi` consulta o driver/NVML e mostra inventário e telemetria compatíveis com aquele produto. A saída varia por geração e plataforma. `nvidia-smi -L` lista GPUs e UUIDs; `nvidia-smi` oferece uma visão resumida de utilização, memória, temperatura, potência e processos; opções de consulta e `pmon` ajudam a observar campos ou processos ao longo do tempo. Nem todos os sensores ou comandos estão disponíveis em todos os modelos.\n\n> **Siglas e termos deste capítulo**\n> - **UUID/PCI bus ID**: identificadores mais estáveis do dispositivo que o índice enumerado.\n> - **VRAM**: memória da GPU usada por tensores, parâmetros, cache e buffers.\n> - **MIG**: particionamento de uma GPU compatível em instâncias isoladas de computação e memória.\n> - **PCIe/NVLink**: tecnologias de conexão usadas na transferência e comunicação entre dispositivos.\n> - **Container Toolkit**: integração NVIDIA que disponibiliza dispositivos e componentes do driver a contêineres.\n\n### Como dimensionar\n\nDimensione por carga medida, não apenas pelo nome do modelo. Para inferência de LLM, considere pesos na precisão escolhida, cache KV que cresce com contexto e concorrência, ativações, buffers do mecanismo e espaço para fragmentação. Para treinamento, some parâmetros, gradientes, estados do otimizador, ativações guardadas para retropropagação, lote e comunicação. Para visão, entram resolução, tamanho do lote, pré-processamento e dados em trânsito. Compare com VRAM utilizável, banda da memória, capacidade de computação, refrigeração, potência e conectividade entre GPUs. Faça ensaio com carga representativa e margem operacional; uma placa com mais FLOPS pode ficar subutilizada por leitura lenta, CPU, armazenamento ou interconexão.\n\n### Dispositivos, contêineres e várias GPUs\n\nEm Linux, `CUDA_VISIBLE_DEVICES` pode restringir quais GPUs um processo CUDA enxerga e reordená-las para aquele processo. Portanto, o índice lógico dentro do processo pode não ser o índice físico exibido pelo sistema; registre UUIDs quando precisar de identificação estável. Em contêineres, o runtime precisa expor dispositivos e bibliotecas de driver do host; a imagem inclui componentes de espaço de usuário conforme sua configuração. Uma ferramenta CUDA dentro da imagem não instala o driver do kernel no host. Em VM, passthrough ou vGPU dependem de suporte do hipervisor, perfil e licenciamento aplicável; a GPU não fica disponível automaticamente por simplesmente instalar uma imagem com CUDA.\n\nEm múltiplas GPUs, confirme primeiro que cada placa aparece individualmente, que o processo vê o conjunto esperado e que o framework executa um teste mínimo em cada dispositivo. Depois confira seleção do dispositivo, VRAM por placa, topologia PCIe/NVLink, energia, processos concorrentes, permissões e comunicação coletiva. Não presuma que memória se some numa única GPU: particionar um modelo entre dispositivos exige suporte do framework e comunicação, consumindo memória e tempo. Falha apenas ao iniciar na GPU secundária pode apontar seleção/visibilidade, driver, topologia, falta de memória ou inicialização distribuída. Lentidão pode vir de sincronizações, transferência inter-GPU, carga desbalanceada, throttling térmico/energético ou baixa ocupação; compare métricas por dispositivo sob a mesma carga.\n\n### Como cai na prova\n\n- Monitore temperatura, memória, utilização e processos juntos; um único percentual não explica gargalo.\n- UUID ou PCI bus ID são mais estáveis que índice ordinal, cuja enumeração pode mudar.\n- `CUDA_VISIBLE_DEVICES` restringe/ordena a visão do processo; não renumera o inventário global.\n- Em contêiner, driver e dispositivo vêm da integração com o host; toolkit da imagem não equivale a driver de kernel.\n- Em multi-GPU, diagnostique detecção individual, visibilidade, memória, topologia, comunicação e carga antes de atribuir defeito ao framework."
+    }
+  ],
+  "summary": "GPUs executam em paralelo operações matriciais comuns em deep learning, visão computacional e ciência de dados, mas desempenho depende também de memória, transferências, alimentação e software compatível. CUDA organiza execução em grids, blocks e threads; driver, runtime, toolkit e framework têm papéis distintos. cuDNN oferece primitivas de redes neurais e deve corresponder às versões suportadas. nvidia-smi observa dispositivos, memória, temperatura, utilização e processos. Dimensione cargas com medições reais; em contêineres e sistemas multi-GPU, confira a visibilidade e a comunicação de cada dispositivo. Quantização reduz a precisão e pode reduzir memória e acelerar inferência, com impacto de qualidade e suporte dependentes do método e hardware.",
+  "flashcards": [
+    {
+      "front": "O que distingue host e device em CUDA?",
+      "back": "Host é a CPU que prepara e despacha trabalho; device é a GPU em que kernels CUDA executam."
+    },
+    {
+      "front": "Qual é a hierarquia básica de lançamento CUDA?",
+      "back": "Threads compõem blocks, e blocks compõem uma grid."
+    },
+    {
+      "front": "Para que serve threadIdx?",
+      "back": "Identifica a posição da thread dentro do bloco atual."
+    },
+    {
+      "front": "Para que serve blockIdx?",
+      "back": "Identifica a posição do bloco dentro da grid."
+    },
+    {
+      "front": "O que descreve blockDim?",
+      "back": "O tamanho do bloco em cada dimensão."
+    },
+    {
+      "front": "O que é um kernel CUDA?",
+      "back": "Uma função lançada para execução na GPU por várias threads."
+    },
+    {
+      "front": "O que é um SM?",
+      "back": "Multiprocessador de streaming que agenda e executa trabalho de blocos e warps."
+    },
+    {
+      "front": "Qual o papel de Tensor Cores?",
+      "back": "Acelerar operações matriciais em formatos suportados pela arquitetura e pelo software."
+    },
+    {
+      "front": "O que o driver NVIDIA faz para CUDA?",
+      "back": "Oferece a interface de sistema que permite ao software comunicar-se com a GPU."
+    },
+    {
+      "front": "O que inclui o CUDA Toolkit?",
+      "back": "Entre outros componentes, compilador nvcc, headers, bibliotecas e ferramentas de desenvolvimento."
+    },
+    {
+      "front": "O que significa CUDA Version em nvidia-smi?",
+      "back": "A capacidade máxima de CUDA associada ao driver; não comprova a instalação do toolkit completo."
+    },
+    {
+      "front": "Qual é a função da cuDNN?",
+      "back": "Fornece primitivas otimizadas para operações de deep learning em GPUs NVIDIA."
+    },
+    {
+      "front": "O que fazer diante de Symbol not found ao carregar cuDNN?",
+      "back": "Investigar ABI e versões misturadas ou incompatíveis, verificando qual biblioteca foi carregada."
+    },
+    {
+      "front": "O que mede a VRAM disponível para uma carga de IA?",
+      "back": "Memória local da GPU para pesos, ativações, cache, buffers e outros dados do processo."
+    },
+    {
+      "front": "O que faz a quantização de um LLM?",
+      "back": "Representa certos valores com menor precisão, podendo reduzir memória e custo de inferência com possíveis perdas de qualidade."
+    },
+    {
+      "front": "Qual comando lista GPUs com nvidia-smi?",
+      "back": "nvidia-smi -L lista os dispositivos, normalmente com índice, nome e UUID."
+    },
+    {
+      "front": "Por que UUID é útil na seleção de GPU?",
+      "back": "É um identificador estável em cenários onde a ordem dos índices pode variar."
+    },
+    {
+      "front": "O que controla CUDA_VISIBLE_DEVICES?",
+      "back": "Quais dispositivos CUDA um processo vê e a ordem lógica em que os enumera."
+    },
+    {
+      "front": "O que faz o NVIDIA Container Toolkit?",
+      "back": "Integra o runtime de contêiner com GPUs e componentes do driver fornecidos pelo host."
+    },
+    {
+      "front": "O que verificar primeiro em falha multi-GPU?",
+      "back": "Detecção individual, visibilidade para o processo, memória, topologia, driver, permissões e inicialização do framework."
+    }
+  ],
+  "tips": [
+    "Anote versões do driver, framework, runtime CUDA e cuDNN a partir do ambiente que realmente executa a aplicação.",
+    "Use UUID ou PCI bus ID em scripts operacionais persistentes quando a identidade da placa for importante.",
+    "Dimensione LLM incluindo cache KV e buffers, além dos pesos quantizados.",
+    "Meça o processo completo: transferências, preparação em CPU, sincronização e inferência.",
+    "Em contêiner, confirme explicitamente se a GPU foi exposta ao runtime e se o processo a detecta.",
+    "Em multi-GPU, inspecione métricas de cada placa e comunicação entre elas, não só a utilização média do servidor."
+  ],
+  "traps": [
+    "A versão de CUDA mostrada pelo nvidia-smi não significa que o compilador nvcc daquela versão esteja instalado.",
+    "Instalar cuDNN não corrige um driver incompatível nem garante que o framework carregue aquela cópia da biblioteca.",
+    "Quantizar pesos não elimina o custo do cache KV, ativações, buffers e contexto de um LLM.",
+    "Índices CUDA podem ser reordenados por CUDA_VISIBLE_DEVICES e não correspondem sempre ao inventário físico.",
+    "Mais GPUs não somam automaticamente VRAM para um processo; é preciso paralelizar modelo e comunicação.",
+    "Alta utilização de GPU não demonstra bom desempenho se temperatura, energia ou transferências limitarem a execução."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a relação entre grid, block e thread e como uma thread localiza seu elemento em um vetor.",
+      "answer": "A grid contém blocks e cada block contém threads. Em uma dimensão, o índice é blockIdx.x vezes blockDim.x mais threadIdx.x; a thread precisa testar se o índice está dentro do tamanho do vetor."
+    },
+    {
+      "question": "Por que driver, runtime, toolkit e framework devem ser verificados separadamente?",
+      "answer": "São componentes com funções e versões diferentes: o driver controla acesso de sistema à GPU; runtime fornece APIs; toolkit inclui compilador e ferramentas; framework depende de uma combinação suportada de bibliotecas e driver."
+    },
+    {
+      "question": "Como investigar framework de IA que não encontra cuDNN?",
+      "answer": "Reunir a mensagem completa, identificar ambiente e cópia carregada, comparar versões de framework, cuDNN, CUDA, driver, GPU e sistema operacional com a matriz oficial, depois corrigir o método ou caminho de instalação."
+    },
+    {
+      "question": "Que itens entram no dimensionamento de inferência de LLM?",
+      "answer": "Pesos na precisão escolhida, cache KV conforme contexto e concorrência, ativações, buffers, lote, VRAM, largura de banda e capacidade de cálculo."
+    },
+    {
+      "question": "Como diferenciar ausência de GPU no host de GPU não exposta ao contêiner?",
+      "answer": "Primeiro verifique inventário e driver com ferramentas no host; depois confira a configuração do runtime do contêiner e se nvidia-smi/framework dentro dele veem o dispositivo."
+    },
+    {
+      "question": "Que sequência ajuda a diagnosticar inicialização falha em uma segunda GPU?",
+      "answer": "Verifique se a placa aparece individualmente, se o processo a enxerga, seleção lógica, memória, permissões, driver, topologia, inicialização do framework e configuração de comunicação."
+    },
+    {
+      "question": "Quais benefícios e custos acompanham quantização?",
+      "answer": "Ela reduz bits de representações e pode diminuir memória e acelerar operações compatíveis, mas pode degradar qualidade e requer suporte do hardware, kernels e mecanismo de inferência."
+    },
+    {
+      "question": "O que nvidia-smi ajuda a correlacionar num problema de lentidão?",
+      "answer": "Utilização, memória, temperatura, potência/estado operacional e processos por GPU, que devem ser analisados junto a transferência, CPU e comunicação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir componentes CUDA",
+      "summary": "Driver, runtime, toolkit e framework se relacionam, mas não são o mesmo software. Um framework pode trazer bibliotecas de espaço de usuário e ainda depender do driver do host."
+    },
+    {
+      "key": "e2",
+      "title": "Supor compatibilidade pelo número exibido",
+      "summary": "A saída de nvidia-smi não valida toda a instalação. A compatibilidade depende de versões, GPU, sistema, bibliotecas e recursos utilizados."
+    },
+    {
+      "key": "e3",
+      "title": "Tratar quantização como memória total reduzida",
+      "summary": "Quantização pode reduzir o armazenamento de pesos, mas cache KV, ativações e buffers permanecem e variam com contexto, lote e execução."
+    },
+    {
+      "key": "e4",
+      "title": "Confundir inventário físico com visão do processo",
+      "summary": "CUDA_VISIBLE_DEVICES limita e pode reordenar dispositivos para um processo; seus índices lógicos diferem do índice global do nvidia-smi."
+    },
+    {
+      "key": "e5",
+      "title": "Presumir que múltiplas GPUs agem como uma só",
+      "summary": "Somar recursos requer paralelismo explícito, compatibilidade e comunicação. Topologia, transferência e sincronização podem limitar escalabilidade."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Na execução CUDA, cada bloco de threads pertence a uma grid, e cada thread tem índice próprio dentro do seu bloco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A hierarquia de lançamento organiza as threads em blocos e os blocos em grids. O índice local identifica uma thread dentro do bloco, enquanto o índice do bloco a situa na grid.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O índice threadIdx.x identifica o bloco em execução dentro da grid CUDA, enquanto blockIdx.x identifica a thread no bloco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Os papéis são o inverso: threadIdx identifica a thread dentro do bloco, e blockIdx identifica o bloco dentro da grid. A distinção permite calcular índices globais de dados.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um kernel unidimensional que processa vetor, convém verificar se o índice global calculado é menor que N antes de acessar o elemento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A grid costuma ser arredondada para blocos inteiros, podendo lançar mais threads que elementos. A condição de limite impede leituras ou gravações fora do vetor.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Threads pertencentes a blocos distintos têm, por definição, uma ordem global fixa de execução dentro da grid.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A ordem de execução dos blocos não é fixa. Kernels normalmente devem evitar dependências entre blocos que pressuponham execução ordenada, usando mecanismos apropriados quando há coordenação necessária.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Driver NVIDIA e CUDA Toolkit são componentes diferentes, embora aplicações CUDA precisem de driver compatível para acessar a GPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O driver faz a ponte entre sistema e GPU; o toolkit reúne recursos de desenvolvimento, como compilador e bibliotecas. Uma aplicação pode exigir driver mesmo quando o toolkit não está instalado na máquina de execução.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A indicação CUDA Version do nvidia-smi comprova que o compilador nvcc da mesma versão está instalado no PATH do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O campo informa a capacidade de CUDA associada ao driver, não o conteúdo do toolkit instalado. Para consultar o compilador disponível, verifica-se o nvcc do ambiente, e frameworks também podem usar pacotes próprios.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver mais novo costuma manter compatibilidade com aplicações compiladas com toolkits CUDA anteriores, respeitadas as dependências da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A compatibilidade retroativa do driver permite em geral executar aplicações CUDA antigas em drivers posteriores. Ainda devem ser consideradas bibliotecas, GPU e requisitos específicos da aplicação.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A compatibilidade entre versões menores de CUDA garante todos os recursos novos e execução de qualquer código PTX em um driver antigo da mesma família.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A compatibilidade menor tem limites de recursos; certas funcionalidades exigem driver mais recente, e aplicações que dependem de PTX podem falhar em drivers antigos. Deve-se consultar a matriz e as notas da versão.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "cuDNN oferece primitivas aceleradas de deep learning e não substitui o driver de dispositivo NVIDIA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Frameworks podem usar cuDNN para operações de redes neurais, mas o acesso ao hardware ainda depende de um driver funcional e de uma combinação compatível de software.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Encontrar um arquivo libcudnn no sistema basta para assegurar que o framework carregará uma versão suportada e iniciará CUDA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O arquivo pode estar fora do caminho de busca, ter ABI incompatível ou não ser a cópia carregada pelo processo. Framework, bibliotecas, driver, CUDA e GPU precisam corresponder à matriz aplicável.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Misturar cópias distintas de cuDNN nos caminhos de busca pode fazer um processo carregar uma biblioteca diferente da planejada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O carregador dinâmico resolve bibliotecas por caminhos e nomes disponíveis no ambiente. Versões antigas ou duplicadas podem ser selecionadas e causar erro de símbolo ou comportamento incompatível.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um erro de símbolo ausente ao carregar cuDNN é resolvido de forma confiável reinstalando sempre o driver, sem verificar versões ou bibliotecas carregadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Símbolo ausente sugere incompatibilidade binária ou versão incorreta carregada, entre outras causas. O diagnóstico deve identificar ambiente, biblioteca resolvida e dependências antes de escolher uma correção.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de alterar bibliotecas usadas por um processo de longa duração, reiniciar o processo pode ser necessário para que ele carregue a nova cópia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Bibliotecas compartilhadas são carregadas no processo e podem permanecer mapeadas enquanto ele executa. Reiniciar o processo ou contêiner permite testar a resolução atualizada do carregador.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um framework que não detecta CUDA pode estar instalado como pacote somente CPU, mesmo que o host tenha GPU e driver funcionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A instalação do framework é parte da cadeia. Uma compilação CPU-only não passa a usar CUDA só porque o hardware existe; também se verificam ambiente, driver e visibilidade da GPU.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se nvidia-smi informa baixa utilização média, isso prova que o kernel tem desempenho ideal e que nenhum gargalo está fora da GPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Baixa utilização pode decorrer de CPU lenta, transferências, lote pequeno, sincronizações ou espera por armazenamento. É necessário observar métricas e medir a aplicação completa para localizar o gargalo.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A variável CUDA_VISIBLE_DEVICES pode limitar quais placas CUDA um processo enxerga e alterar a ordem lógica apresentada a esse processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A variável configura a visibilidade para o processo CUDA. Por isso, o índice lógico de um dispositivo dentro da aplicação pode não coincidir com a enumeração física global do host.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual relação descreve corretamente a hierarquia de execução de um kernel CUDA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Threads formam blocos, e os blocos formam uma grid lançada no dispositivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Grids formam threads, e cada thread coordena blocos do host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Blocos formam warps, e os warps formam o driver CUDA.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kernels formam threads, e as threads formam runtimes do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Drivers formam blocos, e os blocos formam bibliotecas do framework.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração de execução do kernel define uma grid de blocos; cada bloco contém threads. Essa hierarquia permite distribuir partes do trabalho pelos multiprocessadores da GPU.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para calcular a posição de uma thread em vetor unidimensional CUDA, qual expressão combina corretamente seus índices?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "blockIdx.x somado a threadIdx.x e dividido por blockDim.x.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "threadIdx.x vezes gridDim.x somado a blockDim.x.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "blockIdx.x vezes blockDim.x somado a threadIdx.x.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "gridDim.x vezes blockDim.x somado a blockIdx.x.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "blockDim.x vezes threadIdx.x somado a gridDim.x.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada bloco cobre um intervalo de tamanho blockDim.x. Somar o deslocamento do bloco, blockIdx.x vezes blockDim.x, à posição local threadIdx.x produz o índice global da thread.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual verificação evita acesso fora dos limites quando a grid lança mais threads que elementos do vetor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar que blockDim é igual a N mesmo com a grid arredondada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar todas as threads excedentes na CPU após a sincronização final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reduzir blockIdx a zero para que todas leiam o primeiro elemento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar threadIdx apenas no bloco final e ignorar os demais índices.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar se o índice global é menor que N antes de acessar o vetor.",
+          "correct": true
+        }
+      ],
+      "explanation": "O número de blocos costuma ser arredondado para cobrir o vetor e pode deixar threads excedentes no último bloco. Uma condição de limite impede que essas threads acessem posições inválidas.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente driver NVIDIA e CUDA Toolkit?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O toolkit controla energia da placa; o driver fornece somente o compilador nvcc.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Driver conecta software e GPU; toolkit reúne ferramentas de desenvolvimento CUDA.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O driver contém apenas cuDNN; o toolkit enumera processos gráficos do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O toolkit é o firmware da GPU; o driver fornece os kernels do framework.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Driver e toolkit são nomes equivalentes para o mesmo pacote de instalação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O driver oferece componentes de sistema que habilitam comunicação com o dispositivo. O toolkit fornece compilador, bibliotecas e ferramentas usadas para desenvolver ou executar aplicações CUDA.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao conferir nvidia-smi e nvcc, qual interpretação dos campos de versão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A saída de nvcc sempre corresponde à biblioteca CUDA embutida no framework.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "nvcc informa o modelo físico da placa; nvidia-smi informa o pacote Python do framework.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos informam somente a versão do firmware, embora em formatos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "nvidia-smi prova que cuDNN está carregada; nvcc confirma o driver ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "nvcc informa o compilador do ambiente; nvidia-smi relata a capacidade CUDA do driver.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os comandos observam componentes distintos: nvcc é o compilador do toolkit encontrado no ambiente, enquanto a versão CUDA de nvidia-smi representa o suporte reportado pelo driver. Nenhum deles, isoladamente, confirma toda a pilha do framework.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento é mais seguro ao suspeitar de incompatibilidade entre driver e framework CUDA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar simultaneamente todos os componentes sem registrar suas versões atuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reinstalar apenas o framework e presumir que o driver seja irrelevante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir GPU, driver, runtime e framework nas matrizes oficiais aplicáveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar a versão indicada pelo nvidia-smi como prova de toolkit e cuDNN instalados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a verificação de dispositivo do framework para forçar execução CUDA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compatibilidade depende da combinação efetiva de hardware, driver e componentes de usuário, e também da versão do framework. Consultar matrizes e reproduzir o erro no mesmo ambiente evita mudanças às cegas.",
+      "section": "2. CUDA na prática: execução e compatibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel mais característico da biblioteca cuDNN em uma aplicação de aprendizagem profunda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar o módulo de kernel NVIDIA durante cada chamada de convolução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o framework e armazenar os dados de treinamento em VRAM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Controlar a seleção física da GPU e a ordem dos índices CUDA.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Oferecer primitivas aceleradas de deep learning aos frameworks.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter qualquer modelo em código independente de arquitetura e driver.",
+          "correct": false
+        }
+      ],
+      "explanation": "cuDNN implementa rotinas otimizadas de deep learning, como operações de rede neural, que podem ser chamadas por frameworks. Ela integra a pilha de software e depende de driver e componentes compatíveis.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a instalação de cuDNN, qual prática reduz problemas de carregamento no ambiente de IA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar todas as versões encontradas para vários diretórios de busca do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar método documentado e matriz compatível com o ambiente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Instalar cuDNN no Python global mesmo quando a aplicação usa outro ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar driver e GPU porque cuDNN inclui firmware para qualquer dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear manualmente bibliotecas antigas para que pareçam da versão atual.",
+          "correct": false
+        }
+      ],
+      "explanation": "A instalação deve corresponder à combinação suportada e ao ambiente efetivamente usado pelo processo. Misturar cópias ou instalar fora do ambiente ativo pode fazer o carregador selecionar uma dependência errada.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço inicia, mas o framework acusa biblioteca cuDNN ausente. Qual dado ajuda a localizar a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome comercial da GPU, sem dados do processo ou ambiente ativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A temperatura da CPU medida depois que o serviço foi encerrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de threads do kernel antes de conferir a mensagem do carregador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A versão do monitor nvidia-smi, sem verificar caminhos de bibliotecas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar o erro completo, o ambiente ativo e a biblioteca carregada.",
+          "correct": true
+        }
+      ],
+      "explanation": "A falha pode decorrer de pacote ausente, caminho de busca, dependência transitiva ou ambiente diferente daquele onde a biblioteca foi instalada. A mensagem integral e a resolução real do carregador distinguem essas hipóteses.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência diferencia melhor erro de biblioteca carregada de ausência de GPU no framework?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar um segundo driver dentro do ambiente Python e reiniciar apenas o shell.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar a resolução da tela e repetir a execução sem consultar logs do framework.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o tamanho do lote até a aplicação parar de emitir mensagens de erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar logs CUDA e considerar que a execução sem exceção usou GPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir host, ambiente do framework, dispositivo e uma operação mínima.",
+          "correct": true
+        }
+      ],
+      "explanation": "A checagem em camadas confirma se o dispositivo existe no host, se o processo o enxerga, qual pacote do framework está instalado e se uma operação realmente executa. Isso separa falha de driver, visibilidade, pacote CPU-only e carregamento de biblioteca.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que pode ser inferido corretamente de um erro de símbolo ausente em uma biblioteca compartilhada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A placa necessariamente superaqueceu e desligou sem registrar temperatura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O vetor de entrada ultrapassou blockDim e corrompeu a tabela de processos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode haver incompatibilidade binária ou cópia de biblioteca diferente da esperada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantização foi aplicada ao modelo sem escalas para qualquer camada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A memória física do host foi convertida para VRAM pelo carregador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Símbolos fazem parte da interface binária. Uma biblioteca compilada para outra versão ou outra cópia encontrada no caminho de busca pode não exportar o símbolo que o consumidor espera.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um pacote CPU-only de framework não utiliza a GPU só porque o driver NVIDIA está instalado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque temperatura alta bloqueia por projeto todo o runtime CUDA do host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque o driver converte automaticamente toda biblioteca CPU em kernels CUDA.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque cuDNN exige sempre que as operações sejam calculadas primeiro na CPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque o pacote precisa incluir ou acessar componentes CUDA compatíveis para o dispositivo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque os índices CUDA só existem depois de quantizar todos os parâmetros do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O driver habilita acesso ao hardware, mas o pacote do framework também precisa oferecer suporte CUDA e dependências adequadas. Um build apenas CPU não contém o caminho de execução GPU esperado.",
+      "section": "3. cuDNN: instalação e incompatibilidades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve custos de memória que permanecem relevantes ao quantizar pesos de um LLM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A memória do disco de instalação, que sempre é copiada integralmente para cada token.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas a memória de vídeo do monitor ligado ao servidor de inferência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente os registradores da CPU usados para iniciar o processo Python.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O espaço reservado ao firmware do driver, sem relação com lote ou contexto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache KV, ativações, buffers e metadados continuam consumindo memória.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quantização diminui bits de certos tensores, em particular pesos. Cache de atenção, estados intermediários, buffers e contexto seguem exigindo recursos e podem limitar lote e tamanho de sequência.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual benefício e ressalva descrevem corretamente quantização de LLM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela elimina a necessidade de driver e torna todos os kernels compatíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela pode reduzir memória e acelerar operações suportadas, com possível perda de qualidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela aumenta sempre a precisão numérica e exige mais bits por peso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela transforma qualquer modelo autoregressivo em execução sem cache KV.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela garante a mesma latência em GPUs diferentes e para todo tamanho de lote.",
+          "correct": false
+        }
+      ],
+      "explanation": "Representações de menor precisão podem reduzir custo de memória e acelerar inferência quando hardware e software têm suporte. O efeito na qualidade e na velocidade varia com método, formato, modelo e carga.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher uma GPU para inferência de LLM com contexto longo, qual fator não pode ser ignorado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cor da ventoinha, que determina diretamente os tokens por segundo do modelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A frequência nominal da CPU, que torna irrelevante a memória da placa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tamanho do cache KV, que cresce conforme contexto e concorrência da inferência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O número de saídas de vídeo, que define quantos pesos cabem na VRAM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A versão do editor de texto, usada pelo kernel para alocar ativações automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contexto maior mantém mais estados de atenção, e requisições concorrentes multiplicam esse custo. Dimensionamento deve incluir cache KV, além de pesos, buffers e precisão escolhida.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que distinção descreve melhor CPU e GPU em cargas paralelas de ciência de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A CPU só armazena dados, enquanto a GPU somente apresenta imagens ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A CPU tem muitos SMs e a GPU executa todos os fluxos sequenciais do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A GPU elimina transferências e sincronizações quando o cálculo usa matrizes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A CPU controla o sistema; a GPU oferece paralelismo para operações adequadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A GPU substitui a CPU sempre que um conjunto de dados cabe em memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "A CPU é um processador de propósito geral e costuma controlar a aplicação; a GPU fornece grande paralelismo para operações que podem ser distribuídas. Preparação, fluxo serial e transferências ainda influenciam o tempo total.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual análise ajuda a explicar por que uma GPU com muitos recursos computacionais fica pouco ocupada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar somente a geração comercial, pois gargalos de dados não afetam ocupação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir CPU, transferências, lote, sincronizações e espera por armazenamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desconsiderar uso de memória, já que capacidade de cálculo determina todo desempenho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar temperatura permitida sem verificar potência ou condição de refrigeração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reinstalar cuDNN mesmo quando o processo não inicia nenhuma operação CUDA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma GPU pode esperar por trabalho, dados ou sincronização. Medir o caminho completo identifica se gargalo está em CPU, lote, cópias, entrada/saída ou no próprio kernel.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao planejar treinamento distribuído em GPU, qual conjunto de recursos é relevante além dos pesos do modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente espaço de armazenamento da imagem de contêiner e tamanho do monitor conectado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas VRAM livre antes da inicialização, sem observar lote ou otimizador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache do navegador, pois gradientes são mantidos exclusivamente no armazenamento local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Frequência da CPU, que representa toda comunicação entre placas aceleradoras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gradientes, estados do otimizador, ativações e memória de comunicação entre dispositivos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Treinamento mantém tensores além dos pesos: gradientes, estados de otimização e ativações para retropropagação. Execução distribuída também exige buffers e comunicação que afetam memória e desempenho.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de dados é mais útil para diagnosticar falta de memória durante inferência de visão computacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resolução, tamanho do lote, tensores intermediários, buffers e memória livre por GPU.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o tamanho do executável, sem registrar forma ou precisão dos tensores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantidade de portas USB, pois ela limita a memória de ativações do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Versão do sistema de arquivos, que define o número de threads de cada grid.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nome do dataset, sem conferir resolução ou pré-processamento das imagens.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resolução altera dimensões dos tensores e ativações; lote e buffers ampliam o uso de VRAM. Comparar esses dados com alocação por processo ajuda a localizar o pico de consumo.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação deve ser observada em nvidia-smi ao investigar um processo que parece sem memória disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o identificador do host, sem observar dispositivo ou processos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A temperatura da CPU e os diretórios de instalação do toolkit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uso de memória da GPU e processos que mantêm recursos alocados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de arquivos fonte CUDA no diretório atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A versão do framework registrada no cache do navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ferramenta mostra memória usada e, quando suportado, processos associados a recursos do dispositivo. Isso ajuda a verificar se outra aplicação ou instância ocupa a GPU.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que UUID pode ser preferível ao índice ordinal da GPU em automação persistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "UUID aumenta fisicamente a VRAM e impede que outros processos usem a placa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O índice ordinal é criptografado, enquanto UUID contém a temperatura absoluta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "UUID transforma uma GPU em instância MIG mesmo sem suporte de hardware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ordem de enumeração pode variar; UUID identifica o dispositivo de forma mais estável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O identificador elimina a necessidade de driver e de conferir visibilidade do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ordem natural dos índices não é garantida entre reinicializações ou configurações. UUID ou PCI bus ID facilita associar uma seleção persistente ao dispositivo pretendido.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o uso correto de nvidia-smi -L em uma checagem inicial do host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Listar dispositivos GPU reconhecidos, com identificadores como índice e UUID.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compilar kernels da aplicação com arquitetura automaticamente detectada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Instalar o driver de kernel e reiniciar o serviço CUDA do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exibir somente as bibliotecas cuDNN presentes no ambiente Python ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir automaticamente um modelo entre todas as placas listadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção -L apresenta a lista de GPUs e seus identificadores. Ela confirma o inventário visível ao driver, mas não verifica por si só que um framework específico executa kernels.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que combinação de observações ajuda a investigar throttling térmico ou energético de GPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas uso de VRAM, pois temperatura e potência não afetam frequência operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Temperatura, potência, estado de desempenho, clocks e carga da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Nome do usuário e tamanho do diretório de logs, sem métricas do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente versão do driver, que revela diretamente toda a condição de refrigeração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uso médio do servidor, que substitui medições por dispositivo e por processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Condições térmicas ou limites de potência podem reduzir clocks e desempenho. Correlacionar telemetria com carga e estado da placa permite distinguir limitação física de falha de software.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um contêiner, o CUDA Toolkit da imagem instala automaticamente no host o módulo de kernel do driver NVIDIA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O driver de kernel pertence ao host. A integração de contêiner disponibiliza dispositivos e componentes necessários ao processo, mas instalar toolkit na imagem não instala o driver do host.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se nvidia-smi lista uma placa no host, é necessário ainda conferir se o runtime do contêiner a expõe à aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A visibilidade do host não implica que o contêiner receba acesso aos dispositivos. A configuração do runtime e as permissões definem o que o processo dentro da imagem consegue usar.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A memória VRAM de várias GPUs fica automaticamente unificada para qualquer processo só porque as placas estão instaladas no mesmo servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Memória pertence a dispositivos distintos. Um framework ou aplicação precisa distribuir trabalho e tensores entre as GPUs; comunicação e particionamento têm custos e não ocorrem automaticamente em todo programa.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de inicialização apenas na GPU secundária pode exigir verificar seleção, visibilidade, memória, topologia e permissões além do driver.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A placa pode ser enumerada e ainda não estar visível ou acessível ao processo. Seleção de dispositivo, memória disponível, conexão, permissões e configuração distribuída são causas distintas a investigar.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em operação com múltiplas GPUs, observar somente a utilização média do servidor pode esconder desequilíbrio entre placas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma média pode combinar dispositivo saturado e outro ocioso. Métricas por placa, processos, memória e comunicação mostram distribuição e ajudam a identificar gargalo ou falha localizada.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O paralelismo de dados torna desnecessário considerar PCIe, NVLink e sincronização ao escalar de uma GPU para várias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Comunicação e sincronização podem consumir tempo e limitar escalabilidade. A topologia da máquina e a quantidade de dados trocados entre dispositivos devem ser avaliadas com carga representativa.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual orientação de dimensionamento para cargas de IA evita selecionar GPU apenas por um indicador isolado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar pelo pico de FLOPS e desconsiderar VRAM, banda e interconexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher pelo menor índice ordinal e assumir que ele indica maior desempenho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Avaliar memória, largura de banda, cálculo, energia, refrigeração e carga medida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Considerar somente o tamanho do modelo no disco e ignorar lote e contexto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar mais placas sem verificar slots, fonte ou comunicação entre dispositivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desempenho depende da combinação da carga com memória, capacidade computacional, largura de banda, alimentação, refrigeração e conectividade. Um teste representativo revela gargalos que especificações isoladas não mostram.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual evidência confirma melhor que uma operação de framework realmente executou em GPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aparecer um nome de GPU na tela inicial do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma operação CUDA representativa terminar e o framework reportar o dispositivo usado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O toolkit estar instalado em diretório padrão, mesmo com pacote CPU-only ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A placa girar suas ventoinhas durante a inicialização do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arquivo de modelo ter extensão reconhecida pelo mecanismo de inferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inventário e instalação não provam uso pelo processo. Uma operação representativa, combinada à confirmação do framework e à observação da atividade do dispositivo, valida a cadeia de execução.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço multi-GPU apresenta lentidão apesar de detectar todas as placas. Qual investigação é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar o host repetidamente sem capturar estado de processos ou telemetria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o número de processos sem observar cópias ou contenção de VRAM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar todas as verificações do framework e considerar a detecção como sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir carga, memória e comunicação separadamente em cada GPU.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Comparar apenas temperatura média do gabinete, sem identificar cada placa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Detecção não garante escalabilidade eficiente. A carga pode estar desequilibrada ou limitada por comunicação, sincronizações, memória, throttling e preparação de dados; métricas por dispositivo e medições do fluxo ajudam a localizar a causa.",
+      "section": "4. NVIDIA SMI, dimensionamento e operação multi-GPU",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em caso de erro de memória apenas após aumentar contexto e requisições concorrentes de LLM, qual causa é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cache KV cresceu com sequências e concorrência, além de pesos e buffers existentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A versão do driver transformou automaticamente VRAM livre em memória de disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O UUID da GPU mudou de comprimento e reduziu a capacidade física da placa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As threads da CPU passaram a ocupar posições na grid da GPU como pesos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantização removeu todos os pesos, mas aumentou a resolução da tela do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contexto e concorrência elevam o espaço necessário ao cache de atenção. Mesmo com pesos quantizados, cache KV e buffers podem esgotar a memória disponível.",
+      "section": "1. GPUs, arquiteturas NVIDIA e cargas de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "CUDA C++ Programming Guide — Thread Hierarchy",
+      "publisher": "NVIDIA",
+      "reference": "Modelo host/device, execução de kernels, grids, blocos e threads",
+      "url": "https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CUDA Compatibility Guide",
+      "publisher": "NVIDIA",
+      "reference": "Compatibilidade entre drivers, runtime e toolkits; limites de compatibilidade menor e compatibilidade retroativa",
+      "url": "https://docs.nvidia.com/deploy/cuda-compatibility/latest/index.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "cuDNN Installation Guide",
+      "publisher": "NVIDIA",
+      "reference": "Instalação e pré-requisitos para backend cuDNN",
+      "url": "https://docs.nvidia.com/cudnn/installation/latest/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "cuDNN Support Matrix",
+      "publisher": "NVIDIA",
+      "reference": "Produtos, versões e requisitos compatíveis de GPU, driver, CUDA, plataforma e biblioteca",
+      "url": "https://docs.nvidia.com/cudnn/latest/reference/support-matrix/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NVIDIA System Management Interface (nvidia-smi)",
+      "publisher": "NVIDIA",
+      "reference": "Inventário, índices, UUID, telemetria térmica, memória e processos de GPU",
+      "url": "https://docs.nvidia.com/deploy/nvidia-smi/index.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NVIDIA Container Toolkit Documentation",
+      "publisher": "NVIDIA",
+      "reference": "Integração do runtime de contêineres com dispositivos e componentes NVIDIA",
+      "url": "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Working with Quantized Types — TensorRT",
+      "publisher": "NVIDIA",
+      "reference": "Quantização, precisão reduzida, benefícios, calibração e tipos suportados",
+      "url": "https://docs.nvidia.com/deeplearning/tensorrt/latest/inference-library/work-with-quantized-types.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Get Started Locally — PyTorch",
+      "publisher": "PyTorch",
+      "reference": "Seleção de build CUDA e verificação de acesso ao driver e dispositivo pela biblioteca",
+      "url": "https://pytorch.org/get-started/locally/",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

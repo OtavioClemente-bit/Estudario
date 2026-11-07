@@ -1,0 +1,1876 @@
+{
+  "id": "informatica.monitoramento-desempenho-sql-server-eventos-estendidos",
+  "subject": "Informática",
+  "title": "Monitoramento de desempenho no SQL Server e eventos estendidos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Monitoramento de desempenho do SQL Server",
+    "Desempenho operacional do SQL Server",
+    "Métricas de desempenho em SQL Server",
+    "Eventos estendidos do SQL Server",
+    "Extended Events para monitoramento SQL",
+    "SQL Server Extended Events e métricas",
+    "Monitoramento operacional do banco SQL",
+    "Contadores de desempenho do SQL Server",
+    "Métricas operacionais do banco de dados",
+    "Eventos estendidos para diagnóstico SQL",
+    "Monitoramento de recursos no SQL Server",
+    "Desempenho e diagnóstico de SQL Server"
+  ],
+  "scope": {
+    "covers": "Monitoramento operacional do SQL Server e interpretação de métricas de desempenho; medição de CPU, memória, E/S, consultas, concorrência e esperas; linhas de base e comparação temporal; ferramentas nativas de monitoramento; arquitetura, sessões, eventos, campos, ações, predicados e destinos de Extended Events; criação, início, consulta e encerramento de sessões; análise de arquivos XEL, ring_buffer e system_health; coleta eficiente, filtragem, retenção e segurança dos dados capturados.",
+    "excludes": "Administração completa de Windows, projeto físico de índices, otimização avançada de consultas, configuração de alta disponibilidade e análise de licenciamento do SQL Server."
+  },
+  "theoryTitle": "Observar, medir e investigar o desempenho do SQL Server",
+  "chapters": [
+    {
+      "title": "1. Desempenho operacional e método de monitoramento",
+      "markdown": "### O problema que este assunto resolve\n\nMonitorar desempenho significa observar o comportamento do mecanismo e dos recursos que o sustentam para localizar mudanças, gargalos e falhas. Um banco lento não revela sozinho a causa: pode haver CPU saturada, leitura física, bloqueio, espera por memória, excesso de chamadas ou um plano de execução que mudou. A investigação começa com sintomas observáveis e dados comparáveis, não com a alteração aleatória de parâmetros.\n\n> **Siglas e termos deste capítulo**\n> - **Carga de trabalho**: consultas, transações e tarefas executadas no sistema.\n> - **Métrica**: medida usada para descrever um aspecto da operação.\n> - **Linha de base**: comportamento de referência em condições conhecidas.\n> - **Gargalo**: recurso ou etapa que limita o resultado da carga.\n> - **DMV**: visão ou função de gerenciamento dinâmico que expõe estado do mecanismo.\n\n### Da pergunta ao diagnóstico\n\nDefina primeiro o que piorou: tempo de resposta, volume processado, taxa de erros ou disponibilidade. Registre o período, a carga e o contexto da medição. Compare períodos equivalentes e observe tendências; uma leitura isolada pode refletir apenas um pico esperado. Relacione o que ocorre na instância com a aplicação e com o sistema operacional. Por exemplo, CPU alta junto de tempo de CPU alto em solicitações pode indicar consumo computacional, enquanto tempo decorrido muito maior que CPU sugere que parte do tempo foi gasta aguardando.\n\n| Sinal | O que informa | Pergunta seguinte |\n| --- | --- | --- |\n| CPU elevada | Trabalho computacional intenso ou concorrência por CPU | Quais consultas e tarefas consomem CPU? |\n| Latência de leitura | Acesso a páginas ou arquivos demora | Há leitura física, fila de disco ou consulta excessiva? |\n| Bloqueio | Uma sessão aguarda recurso protegido por outra | Qual sessão bloqueia e qual transação mantém o bloqueio? |\n| Espera | Uma tarefa não pode prosseguir por algum recurso | A espera é frequente, longa e ligada à carga relevante? |\n\n### Linha de base e contexto\n\nUma linha de base registra métricas em condições representativas, com horário, duração, volume de trabalho e configuração. Ela permite distinguir sazonalidade de regressão. Compare taxas e intervalos consistentes; contadores cumulativos desde a inicialização precisam ser tratados como diferenças entre duas coletas, não como taxa instantânea. A linha de base não é uma meta universal: valores saudáveis dependem do ambiente e do padrão de uso.\n\n### Como cai na prova\n\n- Desempenho operacional é observado por sintomas, tendências e relações entre recursos, não por um número isolado.\n- Tempo decorrido inclui períodos de espera; tempo de CPU mede processamento na CPU.\n- Uma linha de base serve para comparação contextualizada, não para impor o mesmo limite a qualquer servidor."
+    },
+    {
+      "title": "2. Métricas e ferramentas de desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nMétricas ajudam a transformar a impressão de lentidão em evidência. O SQL Server disponibiliza contadores de desempenho, DMVs, estatísticas de espera, planos e histórico de consultas; o Windows Performance Monitor acompanha recursos do sistema. Cada fonte responde a perguntas diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **E/S**: entrada e saída, como leituras e gravações em arquivos.\n> - **CPU**: unidade de processamento; tempo de CPU mede trabalho executado nela.\n> - **Leitura lógica**: acesso a uma página no cache do SQL Server.\n> - **Leitura física**: busca de página no armazenamento.\n> - **Query Store**: repositório por banco de dados de consultas, planos e estatísticas de execução.\n> - **Wait**: período em que uma tarefa aguarda um recurso ou condição.\n\n### Famílias de medidas\n\nCPU, memória, E/S e rede descrevem recursos, mas precisam ser relacionados à carga. Leituras lógicas elevadas podem indicar que a consulta percorreu muitas páginas em memória; leituras físicas mostram páginas trazidas do armazenamento. Duração mede o tempo total percebido pela execução; CPU da solicitação mostra processamento, e a diferença pode incluir espera. Bloqueios descrevem coordenação concorrente, enquanto estatísticas de espera agrupam motivos pelos quais tarefas não avançaram.\n\nA visão `sys.dm_os_performance_counters` expõe contadores SQL Server. Muitos valores são cumulativos desde a inicialização. Para obter uma taxa ou delta, colete duas amostras e considere o intervalo; o campo `cntr_type` ajuda a determinar a forma de interpretação. O objeto `SQLServer:Wait Statistics` agrupa esperas como lock, log write, memory grant, network I/O e page I/O latch. Nem toda espera acumulada representa um problema: correlacione com o período e a carga.\n\n| Fonte | Uso típico | Limite da leitura |\n| --- | --- | --- |\n| Performance Monitor | Séries de recursos do Windows e contadores do SQL Server | Conta ou mede taxas; não substitui o detalhe de cada evento |\n| DMVs | Estado atual e estatísticas internas do mecanismo | Algumas estatísticas são acumuladas, reiniciadas ou voláteis |\n| Query Store | Comparar consultas, planos e estatísticas ao longo do tempo | Escopo principal é histórico de consultas do banco |\n| Activity Monitor | Inspeção ad hoc de processos, bloqueios e atividade atual | Retrato operacional; não é histórico abrangente |\n\n### Como combinar evidências\n\nSe a aplicação relata lentidão, identifique a consulta e compare duração, CPU, leituras e esperas. Query Store ajuda a localizar mudanças de plano e comparar janelas de tempo. `sys.dm_exec_requests` mostra solicitações em execução, incluindo tempo decorrido, CPU, leituras e espera. `sys.dm_os_wait_stats` resume esperas acumuladas da instância; avalie o intervalo e descarte o que não pertence à janela investigada.\n\n### Como cai na prova\n\n- Performance Monitor observa uso e contadores; Extended Events captura ocorrências detalhadas do mecanismo.\n- Query Store retém consultas, planos e estatísticas de runtime para análise histórica.\n- Métrica sem unidade, janela, carga e contexto pode induzir a diagnóstico errado."
+    },
+    {
+      "title": "3. Arquitetura de Extended Events",
+      "markdown": "### O problema que este assunto resolve\n\nExtended Events (XE, também chamado XEvents) é uma infraestrutura leve de monitoramento e solução de problemas do SQL Server. Ela captura ocorrências selecionadas do mecanismo com campos úteis para análise. Ao contrário de um contador que informa uma taxa agregada, um evento pode registrar que uma instrução terminou, quanto durou e dados associados à ocorrência.\n\n> **Siglas e termos deste capítulo**\n> - **Evento**: ocorrência observável, como conclusão de instrução ou aquisição de lock.\n> - **Sessão XE**: definição que seleciona eventos, ações, filtros e destinos.\n> - **Campo**: dado fornecido por um evento.\n> - **Ação**: dado adicional associado à ocorrência, como texto SQL ou identificador de sessão.\n> - **Predicado**: filtro que decide quais ocorrências interessam.\n> - **Destino**: componente que recebe os dados capturados.\n> - **Pacote**: agrupamento que qualifica eventos e demais objetos XE.\n\n### Componentes e fluxo\n\nUma sessão reúne eventos e configurações auxiliares. O evento representa aquilo que se observa; seus campos descrevem a ocorrência. Uma ação acrescenta contexto disponível, por exemplo texto SQL. Um predicado limita a coleta a ocorrências que atendam à condição, como duração acima de um limiar ou determinada sessão. O destino recebe a saída. Assim, uma sessão para investigar consultas demoradas pode selecionar evento de conclusão, coletar duração e texto e aplicar filtro adequado antes de persistir dados.\n\nAs sessões podem ser criadas na interface do SQL Server Management Studio ou com `CREATE EVENT SESSION`. A criação não significa necessariamente que a sessão já esteja coletando: sessões criadas manualmente normalmente precisam ser iniciadas com `ALTER EVENT SESSION ... STATE = START`. O comando correspondente com `STATE = STOP` interrompe a coleta sem apagar a definição.\n\n### Descoberta e metadados\n\nAs visões de catálogo descrevem sessões definidas; DMVs mostram sessões ativas e seus metadados. `sys.dm_xe_packages` lista pacotes e `sys.dm_xe_objects` permite procurar objetos XE, inclusive eventos. Não se deve presumir o nome de um evento: consulte os metadados disponíveis para a versão e plataforma em uso. A sessão de sistema `system_health` é criada por padrão em instalações de SQL Server e é uma fonte prática de diagnóstico, inclusive para eventos relevantes como deadlocks.\n\n### Como cai na prova\n\n- Evento é a ocorrência; campo descreve dados do evento; ação adiciona contexto; predicado filtra; destino recebe os dados.\n- `CREATE EVENT SESSION` define a sessão; `ALTER EVENT SESSION` pode iniciá-la ou pará-la.\n- Uma sessão com coleta ampla e sem filtros pode gerar volume e custo desnecessários."
+    },
+    {
+      "title": "4. Destinos, consulta e ciclo de vida da coleta",
+      "markdown": "### O problema que este assunto resolve\n\nCapturar eventos só é útil se os resultados forem guardados e analisados de modo apropriado. O destino determina como os dados ficam disponíveis. A escolha depende de duração da investigação, necessidade de persistência, volume, forma de consulta e plataforma.\n\n> **Siglas e termos deste capítulo**\n> - **XEL**: formato de arquivo de eventos estendidos do SQL Server.\n> - **`event_file`**: destino que grava eventos em arquivo local ou armazenamento compatível em nuvem.\n> - **`ring_buffer`**: destino em memória que retém eventos recentes.\n> - **`histogram`**: destino que agrega ocorrências em contagens por valor.\n> - **`event_counter`**: destino que conta ocorrências capturadas.\n> - **Roll-over**: criação de novo arquivo e descarte de arquivos antigos conforme política de retenção.\n\n### Escolher o destino\n\n`event_file` persiste a saída em arquivos `.xel`, que podem ser lidos depois e analisados no SSMS ou por funções de leitura de arquivo XE. Pode-se limitar tamanho e quantidade de arquivos para administrar espaço. O padrão de nome recebe sufixo gerado pelo mecanismo. Arquivos podem conter texto SQL e outros dados sensíveis; controle acesso e retenção. Em Azure SQL Database e Managed Instance, arquivos de eventos são armazenados no Azure Storage.\n\n`ring_buffer` guarda os eventos recentes em memória e é útil para inspeção rápida, mas seu conteúdo é volátil e limitado: dados antigos podem ser substituídos ou a estrutura consumida por limite de memória. `histogram` mantém contagens por valores distintos; `event_counter` resume contagens. Esses destinos agregados não preservam necessariamente o detalhe completo de cada evento. `event_stream` pode ser consumido por programas .NET e não é um destino que se adiciona por T-SQL.\n\n### Rotina de investigação\n\nFormule hipótese, escolha eventos e campos mínimos, acrescente ações apenas se necessárias, filtre, escolha destino e limite recursos e retenção. Crie a sessão, inicie-a antes de reproduzir ou observar o problema, aguarde a ocorrência, pare a sessão e leia o resultado. Em SSMS, “Watch Live Data” acompanha eventos chegando; “View Target Data” apresenta dados armazenados e pode exigir nova consulta para atualizar.\n\n### Como cai na prova\n\n- Para análise posterior, arquivo XEL é persistente; o ring buffer serve a observação temporária em memória.\n- `histogram` agrega contagens; não equivale a um log completo de todas as ocorrências.\n- Filtragem, retenção e menor conjunto de ações reduzem volume, custo e exposição de dados."
+    }
+  ],
+  "summary": "O monitoramento de desempenho do SQL Server parte de um sintoma operacional, coleta métricas contextualizadas e compara resultados a uma linha de base. CPU, memória, E/S, duração, leituras, bloqueios e esperas descrevem aspectos diferentes; contadores cumulativos exigem interpretação como diferença ou taxa em uma janela. Performance Monitor acompanha recursos e contadores, DMVs mostram estado ou estatísticas do mecanismo e Query Store guarda consultas, planos e estatísticas de runtime para análise por período. Extended Events captura ocorrências selecionadas por sessões que combinam eventos, campos, ações, predicados e destinos. `event_file` persiste em XEL, `ring_buffer` mantém dados recentes em memória e destinos como `histogram` agregam contagens. Crie sessões focadas, filtre a coleta, inicie e pare explicitamente quando necessário, e proteja os arquivos que possam conter dados sensíveis.",
+  "flashcards": [
+    {
+      "front": "O que é uma linha de base de desempenho?",
+      "back": "Registro contextualizado do comportamento em condições representativas, usado para comparação posterior."
+    },
+    {
+      "front": "O que o tempo decorrido de uma solicitação inclui?",
+      "back": "O tempo total transcorrido, inclusive períodos em que a tarefa aguardou recursos."
+    },
+    {
+      "front": "O que uma leitura lógica representa?",
+      "back": "Acesso a uma página do banco presente no cache do SQL Server."
+    },
+    {
+      "front": "O que uma leitura física representa?",
+      "back": "Busca de página no armazenamento, em vez de atendê-la somente do cache."
+    },
+    {
+      "front": "Para que serve Query Store?",
+      "back": "Guardar histórico de consultas, planos e estatísticas de execução para análise de desempenho."
+    },
+    {
+      "front": "Que tipo de dado entrega `sys.dm_exec_requests`?",
+      "back": "Informações sobre solicitações atualmente em execução, como tempo, CPU, leituras e espera."
+    },
+    {
+      "front": "O que descreve uma estatística de espera?",
+      "back": "Tempo ou quantidade de tarefas que aguardaram uma categoria de recurso ou condição."
+    },
+    {
+      "front": "Qual é a função de um evento XE?",
+      "back": "Representar uma ocorrência monitorável do mecanismo, como conclusão de instrução."
+    },
+    {
+      "front": "Qual é a função de um campo de evento?",
+      "back": "Fornecer um dado que descreve a ocorrência capturada."
+    },
+    {
+      "front": "Para que serve uma ação XE?",
+      "back": "Associar dados contextuais adicionais à ocorrência capturada."
+    },
+    {
+      "front": "O que faz um predicado de Extended Events?",
+      "back": "Filtra ocorrências para que somente as que atendem à condição sejam coletadas."
+    },
+    {
+      "front": "O que recebe eventos capturados por uma sessão XE?",
+      "back": "Um destino, como `event_file` ou `ring_buffer`."
+    },
+    {
+      "front": "Que tipo de persistência oferece `event_file`?",
+      "back": "Grava dados em arquivos de eventos `.xel` para consulta posterior."
+    },
+    {
+      "front": "Qual é a característica principal de `ring_buffer`?",
+      "back": "Mantém em memória eventos recentes, com conteúdo limitado e volátil."
+    },
+    {
+      "front": "O que resume o destino `histogram`?",
+      "back": "Contagens de ocorrências agrupadas por valores distintos de campo ou ação."
+    },
+    {
+      "front": "Como se inicia uma sessão XE criada por T-SQL?",
+      "back": "Use `ALTER EVENT SESSION` com estado `START`."
+    },
+    {
+      "front": "Como se interrompe a coleta sem excluir a definição da sessão?",
+      "back": "Use `ALTER EVENT SESSION` com estado `STOP`."
+    },
+    {
+      "front": "Qual é a utilidade de `system_health`?",
+      "back": "Sessão de sistema padrão que registra eventos úteis para diagnóstico e solução de problemas."
+    },
+    {
+      "front": "O que o Performance Monitor acompanha?",
+      "back": "Recursos do sistema e contadores em séries, como uso de CPU ou atividade de recursos."
+    },
+    {
+      "front": "Por que contextualizar um contador cumulativo?",
+      "back": "Seu total pode acumular desde a inicialização; duas amostras e o intervalo revelam a variação."
+    },
+    {
+      "front": "Quais são quatro peças centrais de uma sessão XE?",
+      "back": "Eventos, ações, predicados e destinos, com campos fornecidos pelos eventos."
+    },
+    {
+      "front": "O que permite descobrir `sys.dm_xe_objects`?",
+      "back": "Metadados de objetos XE, incluindo eventos disponíveis nos pacotes."
+    },
+    {
+      "front": "Que diferença há entre Activity Monitor e Query Store?",
+      "back": "Activity Monitor mostra atividade corrente; Query Store mantém histórico de consultas, planos e runtime."
+    },
+    {
+      "front": "Para que serve limitar arquivos de rollover?",
+      "back": "Controlar retenção e espaço, removendo arquivos antigos quando o limite é excedido."
+    },
+    {
+      "front": "Por que filtrar uma sessão XE?",
+      "back": "Reduzir volume e sobrecarga e concentrar a captura nas ocorrências relevantes."
+    }
+  ],
+  "tips": [
+    "Investigue a janela em que o usuário percebeu a lentidão e compare com período de carga semelhante.",
+    "Leia CPU, duração, leituras e espera em conjunto; cada medida responde a uma pergunta diferente.",
+    "Faça duas coletas de contadores cumulativos e calcule variação por intervalo quando a métrica exigir taxa.",
+    "Em Extended Events, selecione os eventos e ações necessários e aplique predicados para reduzir ruído.",
+    "Use `event_file` quando precisar guardar dados para análise posterior e defina retenção adequada.",
+    "Registre quando a sessão XE começou e terminou para relacionar os eventos à carga examinada."
+  ],
+  "traps": [
+    "Confundir contador agregado de recursos com registro detalhado de cada ocorrência.",
+    "Interpretar o total de um contador cumulativo como taxa por segundo sem usar intervalo.",
+    "Tratar o tempo decorrido de uma consulta como se fosse igual ao tempo de CPU.",
+    "Supor que criar uma sessão XE sempre a inicia automaticamente.",
+    "Esperar que o ring buffer preserve indefinidamente todo o histórico coletado.",
+    "Achar que histogramas e contadores de evento guardam todos os campos de cada ocorrência."
+  ],
+  "activeRecall": [
+    "Diante de uma aplicação lenta, quais quatro evidências operacionais você coletaria antes de alterar a configuração?",
+    "Explique a diferença entre duração total, CPU, leitura lógica e leitura física.",
+    "Como você transformaria dois valores de contador cumulativo numa taxa para um intervalo conhecido?",
+    "Qual ferramenta ajuda a comparar a evolução de planos e estatísticas de consultas em janelas de tempo?",
+    "Descreva o fluxo entre evento, campo, ação, predicado e destino numa sessão XE.",
+    "Que etapas são necessárias para definir, iniciar, observar, parar e consultar uma sessão XE?",
+    "Quando você escolheria `event_file` em vez de `ring_buffer`, e qual limitação deve considerar?",
+    "Por que proteger os arquivos XEL e restringir a duração da coleta?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Duração e CPU não são sinônimos",
+      "summary": "Duração inclui o tempo de espera; CPU contabiliza processamento. Uma diferença grande direciona a investigação para espera e concorrência, sem provar por si só qual recurso é a causa."
+    },
+    {
+      "key": "e2",
+      "title": "Um contador pode ser cumulativo",
+      "summary": "O valor observado pode ser total desde a inicialização. Para inferir uma taxa, compare amostras e considere o intervalo e a semântica do contador."
+    },
+    {
+      "key": "e3",
+      "title": "Cada componente XE tem uma função",
+      "summary": "Eventos selecionam ocorrências; campos as descrevem; ações acrescentam contexto; predicados filtram; destinos recebem os dados. Trocar essas funções leva a interpretações erradas da configuração."
+    },
+    {
+      "key": "e4",
+      "title": "Os destinos preservam dados de maneiras diferentes",
+      "summary": "Arquivo XEL permite persistência; ring buffer é memória volátil e limitada; histogramas agregam. O formato do destino determina o tipo de análise possível."
+    },
+    {
+      "key": "e5",
+      "title": "Coleta ampla tem custo e risco de exposição",
+      "summary": "Eventos e ações desnecessários aumentam volume e uso de recursos; texto e dados capturados podem ser sensíveis. Limite filtros, acesso e retenção."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um sistema apresentou piora no tempo de resposta durante o pico diário. Qual procedimento inicial fornece base mais sólida para investigar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar o período afetado com uma linha de base semelhante e correlacionar CPU, leituras e esperas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar imediatamente a memória alocada e verificar apenas se o tempo médio caiu depois da mudança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o serviço para limpar todas as estatísticas e tomar o novo estado como referência suficiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concluir que a rede é a causa sempre que uma consulta ultrapassa o tempo esperado pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a coleta de métricas durante o pico para evitar que os dados interfiram no diagnóstico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação contextualizada permite distinguir variação normal de regressão e relacionar o sintoma a recursos e esperas. Mudar parâmetros sem evidência ou apagar o contexto com reinicialização pode ocultar a causa.",
+      "section": "1. Desempenho operacional e método de monitoramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao monitorar uma requisição lenta, qual interpretação distingue corretamente duração e CPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A duração mede somente processamento no processador, enquanto CPU inclui o tempo aguardando disco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A duração total pode incluir espera; o tempo de CPU representa trabalho executado na CPU.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A duração e a CPU são sempre iguais quando o SQL Server executa uma consulta em paralelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A CPU registra o tempo entre o envio da consulta pelo cliente e a resposta recebida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A duração exclui bloqueios e esperas, mas a CPU contabiliza o tempo de bloqueio da sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tempo decorrido abrange o intervalo total da execução e pode incluir esperas; CPU quantifica processamento. A diferença entre eles ajuda a formular hipóteses sobre esperas, mas não identifica sozinha a causa.",
+      "section": "1. Desempenho operacional e método de monitoramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de base deve ser formada por medições contextualizadas de uma carga representativa para permitir comparações posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Registrar período, carga e condições torna a referência útil para reconhecer tendências e regressões. Um valor sem contexto não funciona como limite universal.",
+      "section": "1. Desempenho operacional e método de monitoramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura lógica indica necessariamente que o SQL Server buscou a página diretamente no armazenamento físico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Leitura lógica é acesso a uma página no cache do SQL Server; leitura física é a busca da página no armazenamento.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa descobrir se um plano de consulta mudou e comparar estatísticas de execução por períodos. Qual recurso atende diretamente a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O destino `ring_buffer`, que mantém os planos históricos ordenados por data de criação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Activity Monitor, que conserva todas as execuções e planos em histórico permanente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Query Store, que registra consultas, planos e estatísticas de runtime para análise histórica.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O Performance Monitor, que armazena automaticamente o texto completo de cada instrução executada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A sessão `system_health`, que substitui o repositório histórico de consultas de cada banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Query Store conserva histórico de consultas, planos e estatísticas de runtime, permitindo observar diferenças de desempenho e mudanças de plano por janela temporal.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SQL Server expõe contadores de desempenho pela visão `sys.dm_os_performance_counters`; muitos valores devem ser interpretados considerando sua natureza cumulativa e o intervalo entre amostras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para obter uma variação ou taxa de um contador cumulativo, compare amostras e use o tempo transcorrido, interpretando também o tipo do contador.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente Performance Monitor de Extended Events?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Performance Monitor armazena texto e campos de cada evento, enquanto XE calcula somente médias de recursos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos registram exclusivamente consultas SQL, mas usam formatos de arquivo incompatíveis entre si.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Performance Monitor acompanha contagens e taxas de recursos; XE captura ocorrências selecionadas do mecanismo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "XE monitora apenas o sistema operacional, enquanto Performance Monitor acompanha bloqueios do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Performance Monitor substitui as DMVs e o Query Store para investigar qualquer problema de consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Performance Monitor acompanha recursos e contadores; Extended Events registra ocorrências detalhadas escolhidas numa sessão. As fontes são complementares e têm granularidades diferentes.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `sys.dm_exec_requests`, a equipe encontra uma requisição ativa com duração elevada, CPU baixa e uma espera identificada. Qual conclusão é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A consulta está necessariamente limitada por CPU, pois toda duração alta corresponde a processamento intenso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A solicitação pode estar passando tempo aguardando; investigue o tipo de espera e sua causa no contexto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A espera prova que o disco está defeituoso e autoriza substituir o armazenamento sem outra medição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A CPU baixa demonstra que a consulta terminou e que os dados da DMV ficaram permanentemente guardados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A diferença entre duração e CPU deve ser descartada porque as métricas nunca podem ser correlacionadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Duração alta com CPU baixa é compatível com tempo gasto aguardando, e a espera observada orienta a próxima investigação. O tipo de espera não prova isoladamente uma causa física; requer contexto e correlação.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O objeto de contadores `SQLServer:Wait Statistics` organiza categorias de espera, incluindo lock, gravação de log, concessão de memória e E/S de página.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O objeto oferece contadores agrupados para categorias de espera; esses valores servem à investigação quando interpretados para o intervalo e a carga relevantes.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contador aumentou de 8.000 para 8.600 em 30 segundos. Qual é a leitura adequada desse resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O total atual é 8.600 por segundo, portanto essa taxa pode ser atribuída a qualquer janela futura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O contador perdeu 600 ocorrências no intervalo, já que a segunda leitura superou a primeira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A diferença entre as amostras é 600; para uma taxa média, relacione essa variação aos 30 segundos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A diferença prova que houve exatamente 600 consultas lentas, mesmo sem conhecer o contador coletado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O valor inicial deve ser somado ao final para obter a taxa, independentemente da definição do contador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A variação observada é 600 unidades em 30 segundos. A taxa média seria derivada dessa diferença por tempo, desde que a semântica do contador confirme que tal cálculo é apropriado.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão XE define eventos de interesse e a forma como os dados capturados serão disponibilizados para análise.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A definição associa eventos à coleta e indica como reportar ou armazenar os dados por meio de destinos e configurações auxiliares.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa sessão de Extended Events, qual componente testa uma condição e restringe as ocorrências coletadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O predicado filtra ocorrências ao testar uma condição sobre dados do evento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O pacote, que elimina toda ocorrência cujo texto SQL não esteja gravado em um arquivo XEL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O destino, que seleciona o evento por sua duração antes de receber os dados produzidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ação, que define a regra booleana e substitui os campos originais do evento capturado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A DMV, que é executada automaticamente em cada evento e grava apenas as consultas lentas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O predicado testa condições sobre dados do evento e filtra ocorrências. A ação acrescenta contexto, e o destino recebe os dados capturados. Assim, cada componente cumpre uma função diferente na sessão.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O evento `sql_statement_completed` representa a conclusão de uma instrução e pode reportar dados como sua duração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. É um exemplo de evento que representa a conclusão de uma instrução T-SQL e pode disponibilizar campos relacionados à execução.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher `sql_statement_completed` para identificar a consulta e seu contexto, qual associação de componentes está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evento identifica a ocorrência; campos a descrevem; ação pode acrescentar texto SQL; destino recebe os dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Destino identifica a ocorrência; predicado armazena o texto SQL; evento decide o caminho do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ação representa a conclusão; destino filtra duração; o evento fornece somente o nome do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Predicado registra a ocorrência; campo inicia a sessão; a ação exclui os dados sem correspondência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pacote persiste os dados; campo escolhe as sessões ativas; evento aplica a política de retenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ocorrência é representada pelo evento; seus campos a descrevem. Uma ação pode anexar contexto e o destino recebe o resultado da sessão.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Criar uma sessão XE com `CREATE EVENT SESSION` garante, por si só, que a coleta começa imediatamente em todos os cenários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sessões criadas manualmente normalmente não começam em execução automaticamente. Use `ALTER EVENT SESSION` com `STATE = START` para iniciar a coleta.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DBA não sabe se o evento necessário existe na versão instalada e quer consultar os metadados antes de criar a sessão. Qual abordagem é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar metadados XE, como `sys.dm_xe_packages` e `sys.dm_xe_objects`, para descobrir objetos disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que todo evento listado em documentação antiga existe com os mesmos campos em cada plataforma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler `sys.dm_exec_requests`, que enumera todos os eventos definidos em cada pacote instalado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um destino `histogram`, que retorna automaticamente os nomes de eventos não suportados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Iniciar `system_health` e usar seu conteúdo como catálogo completo de objetos disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "As visões de metadados XE permitem descobrir pacotes e objetos disponíveis. A disponibilidade pode variar por versão e plataforma, portanto a consulta ao ambiente é apropriada.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `CREATE EVENT SESSION`, o predicado pode reduzir o volume capturado ao selecionar somente eventos que satisfazem uma condição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O filtro restringe ocorrências e ajuda a manter a coleta focada, reduzindo dados e possível custo operacional. A condição atua nos dados disponíveis para o evento antes de a ocorrência seguir ao destino.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma coleta sobre consultas acima de determinada duração, a equipe acrescenta muitas ações e remove todos os filtros. Que avaliação é mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A configuração é ideal, pois mais ações e eventos sempre reduzem o custo de coleta por ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A configuração pode elevar volume e custo; mantenha apenas eventos, ações e filtros necessários à hipótese.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A configuração não terá efeito, porque predicados só podem ser aplicados depois que os dados viram XEL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A configuração converte automaticamente cada evento em contador cumulativo do Performance Monitor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A configuração impede que o texto da consulta seja incluído, mesmo quando a sessão adiciona ação apropriada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais eventos e ações podem ampliar volume, consumo e exposição de dados. Predicados e coleta mínima ajudam a concentrar a observação no caso investigado.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As visões de catálogo XE descrevem sessões definidas, enquanto DMVs de Extended Events fornecem informações sobre sessões ativas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A distinção geral é entre metadados de definição nas visões de catálogo e informações de execução nas DMVs apropriadas.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa examinar ocorrências detalhadas depois de reproduzir uma falha, mantendo os dados para análise posterior. Qual destino é o mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ring_buffer`, pois preserva indefinidamente toda ocorrência no armazenamento persistente do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`event_counter`, pois guarda todos os campos e textos de cada evento em ordem cronológica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`event_file`, que grava os eventos em arquivo XEL para leitura e análise posterior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`histogram`, que mantém uma cópia completa da instrução e de todos os dados de sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`event_stream`, que escreve diretamente em arquivo local sem consumidor de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "`event_file` persiste os eventos em arquivos XEL, adequados para consulta posterior. Ring buffer é volátil, histogram agrega e event_counter conta ocorrências.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O destino `ring_buffer` conserva em memória ocorrências recentes, e os dados podem se perder ou ser substituídos por causa de limites de memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O ring buffer é um destino em memória, voltado a dados recentes, e não oferece retenção persistente ilimitada. Ele é apropriado para inspeção temporária, não para preservar um histórico completo após o encerramento da instância.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha descreve melhor o destino `histogram` em Extended Events?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele escreve todos os campos de cada ocorrência em um arquivo binário com retenção sem limite.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele agrega contagens de ocorrências por valores distintos de um campo ou ação selecionado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ele transmite dados exclusivamente a qualquer ferramenta T-SQL sem manter agregações internas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele mantém somente o evento mais recente em memória e exclui qualquer contagem anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele converte a ocorrência em uma métrica de CPU do Performance Monitor automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Histogram processa eventos e mantém buckets de contagem por valores distintos. Portanto, é útil para distribuição resumida, não para reter detalhe completo de cada evento.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O destino `event_stream` pode ser adicionado diretamente em uma instrução T-SQL como se fosse um `event_file`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `event_stream` é usado por programas .NET e está implicitamente disponível na sessão; não é adicionado por T-SQL como um destino comum.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão gravará eventos em `event_file` durante uma janela curta. Qual sequência representa um ciclo de coleta coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir sessão, iniciá-la, observar ou reproduzir o problema, pará-la e então analisar os arquivos gerados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Parar a sessão, apagar os arquivos, criá-la novamente e assumir que a coleta passada foi recuperada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar o arquivo antes de iniciar a sessão e usar a leitura como prova de eventos futuros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Iniciar a sessão depois da reprodução e concluir que ela registrou todas as ocorrências anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar sessão e destino, mas nunca iniciar a coleta, pois o destino ativa automaticamente os eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição precisa estar ativa enquanto ocorre a situação observada. Depois da janela de coleta, parar a sessão estabiliza a investigação e os arquivos podem ser analisados.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Arquivos XEL podem conter texto SQL ou outros dados sensíveis, por isso devem ter acesso e retenção controlados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A captura pode incluir conteúdo sensível. Permissões de diretório e arquivo devem limitar leitura, e a coleta deve durar o necessário.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão precisa manter arquivos XEL dentro de um limite de armazenamento, descartando os mais antigos quando o limite é excedido. Qual configuração de destino ajuda nessa política?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir tamanho máximo de arquivo e limite de arquivos de rollover, planejando a retenção dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter o destino em `ring_buffer`, que arquiva automaticamente cada ocorrência em disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `histogram`, que aplica limites de arquivo e remove XEL quando muda o valor agregado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de ações até que o mecanismo passe a limitar o tamanho dos arquivos sozinho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar todos os filtros, pois isso instrui o mecanismo a manter somente os eventos mais recentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "`event_file` oferece parâmetros de tamanho máximo e quantidade de arquivos de rollover, que permitem gerenciar retenção. É necessário confirmar as opções na plataforma usada.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SSMS, `Watch Live Data` acompanha dados que chegam à sessão, enquanto `View Target Data` apresenta os dados armazenados no destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Watch Live Data mostra eventos à medida que chegam; View Target Data exibe a saída armazenada e pode exigir nova visualização para atualizar.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um investigador quer agrupar ocorrências por valor de ação, sem guardar o texto completo de cada evento. Qual destino é compatível com esse objetivo resumido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`event_file`, usado obrigatoriamente para reduzir cada ocorrência a uma única contagem por valor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`event_stream`, que mantém distribuição agregada mesmo sem consumidor .NET conectado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`histogram`, que conta ocorrências por valores distintos recebidos de campo ou ação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`ring_buffer`, que elimina dados individuais e persiste a distribuição em tabelas do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`event_counter`, que identifica automaticamente a distribuição por qualquer valor de ação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Histogram agrupa contagens por valores distintos de campo ou ação. Ele atende ao objetivo resumido, embora não preserve o detalhe de cada ocorrência.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Nas versões e plataformas aplicáveis, o `event_file` usa arquivos `.xel`; em serviços Azure compatíveis, os arquivos de eventos são armazenados no Azure Storage.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do SQL Server indica a extensão XEL para arquivos de eventos; Azure SQL Database e Managed Instance usam Azure Storage para esses arquivos.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um pico, o monitoramento registra simultaneamente CPU elevada e aumento de esperas `ASYNC_NETWORK_IO`. Qual interpretação evita atribuir causa sem evidência suficiente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A espera prova que a placa de rede falhou e torna irrelevante verificar aplicação e consumo de CPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os sinais devem ser correlacionados com consultas, sessões, aplicação e janela; espera isolada não prova defeito físico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A CPU elevada elimina a possibilidade de espera, pois uma sessão não pode processar e aguardar no mesmo intervalo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A espera indica exclusivamente bloqueio por lock, então estatísticas de rede não devem ser analisadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A melhor conclusão é descartar ambas as métricas e substituir o servidor sem coleta adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas simultâneas orientam investigação, mas não confirmam causa por si sós. Correlacione sessões, consultas, recursos e sistema cliente antes de concluir que existe defeito específico.",
+      "section": "1. Desempenho operacional e método de monitoramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma média de CPU da instância, sem período, carga ou comparação histórica, basta para concluir que um servidor está saudável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um valor isolado não contextualiza duração, sazonalidade, carga ou impacto percebido. Combine tendências e sinais correlatos com uma linha de base adequada.",
+      "section": "1. Desempenho operacional e método de monitoramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação ajuda a separar uma consulta que consome processamento de outra que passa a maior parte do tempo esperando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar duração, CPU e espera da solicitação, considerando leituras e a janela em que ela executou.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Comparar somente o tamanho do arquivo de log, sem associar o dado a qualquer consulta ou instante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o total de conexões desde a inicialização como substituto direto para tempo de CPU por consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Analisar apenas a quantidade de índices e presumir que toda espera vem de um índice ausente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar exclusivamente o uso de memória do Windows e inferir todos os demais recursos a partir dele.",
+          "correct": false
+        }
+      ],
+      "explanation": "Duração, CPU e espera oferecem dimensões complementares da execução. Leituras e janela de observação ajudam a contextualizar a hipótese, sem reduzir o diagnóstico a um único sinal.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Estatísticas acumuladas em `sys.dm_os_wait_stats` devem ser lidas levando em conta o período desde que foram acumuladas e as reinicializações ou limpezas ocorridas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Estatísticas acumuladas não descrevem necessariamente apenas o incidente atual. Uma janela de coleta adequada evita atribuir ao problema recente esperas de períodos anteriores.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contador de `SQLServer:Wait Statistics` aumentou durante a investigação. Que passo torna a interpretação mais confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tomar o acumulado desde a inicialização como medida exclusiva do incidente, sem conhecer o tempo de operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relacionar a variação à janela do incidente, à carga e a outras evidências de espera e execução.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter diretamente o contador em número de consultas defeituosas, sem verificar sua unidade ou categoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar o contador sempre que o Activity Monitor mostrar uma sessão ativa no mesmo servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Presumir que toda espera agregada representa bloqueio por lock na tabela mais acessada.",
+          "correct": false
+        }
+      ],
+      "explanation": "As estatísticas de espera são úteis quando isoladas para o intervalo e interpretadas conforme categoria e unidade. A correlação com a carga e outras métricas evita conclusões indevidas.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sessão padrão `system_health` pode ser consultada como uma fonte de eventos úteis à monitoração e à solução de problemas no SQL Server.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `system_health` é uma sessão de sistema criada por padrão em SQL Server e pode fornecer evidências úteis, embora não substitua uma sessão focada para todo cenário.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer capturar instruções concluídas apenas para determinada sessão e anexar o texto SQL à ocorrência. Qual desenho de XE é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar evento de conclusão, aplicar predicado pelo identificador de sessão e adicionar ação de texto SQL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Selecionar o destino primeiro, usar o texto como predicado de retenção e dispensar qualquer evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar uma ação que inicia a sessão, usar o evento como destino e filtrar pelo nome do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar Query Store como evento XE e confiar que sua ação pare o monitoramento ao fim da sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar somente um pacote, porque pacotes executam filtros e armazenam cada instrução capturada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O evento escolhe a ocorrência; o predicado restringe por sessão; uma ação pode fornecer o texto SQL; o destino guarda ou apresenta a saída. Cada componente tem papel próprio.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ação XE e um predicado são equivalentes: ambos acrescentam um campo contextual sem alterar o conjunto de eventos capturados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ação acrescenta dados contextuais à ocorrência; o predicado testa uma condição e filtra quais ocorrências são coletadas.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão em tempo real está gerando tantos eventos que o consumidor .NET não consegue acompanhar o fluxo. Qual resposta reduz o risco de saturação do fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar ainda mais eventos e ações para que o consumidor receba informações adicionais por segundo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover eventos ou ações desnecessários e tornar o predicado mais restritivo para reduzir a taxa de saída.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter `event_stream` em arquivo XEL sem alterar a sessão nem a forma de consumo do programa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o filtro e aguardar que o mecanismo aumente automaticamente a velocidade do cliente .NET.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o Task Manager para analisar a cadeia de espera de `sqlservr.exe` durante a leitura do fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o fluxo produz dados mais rápido do que o cliente os consome, uma coleta mais restrita reduz eventos pendentes. A documentação recomenda remover eventos ou ações ou tornar o predicado mais seletivo.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O alvo `event_file` pode gravar eventos em arquivo local no SQL Server, e o nome-base informado recebe sufixo gerado pelo sistema e extensão XEL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O nome escolhido funciona como prefixo, ao qual são acrescentados valor numérico baseado em data e hora e a extensão XEL.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O destino em Azure recebe arquivos de eventos de uma sessão XE. Qual cuidado operacional é mais relevante para manter a captura protegida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir leitura pública do contêiner, pois o formato XEL impede que texto SQL seja visualizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conceder acesso amplo a qualquer usuário do banco para facilitar a recuperação do histórico completo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restringir permissões de armazenamento e arquivos conforme necessidade, considerando que a captura pode conter dados sensíveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter todas as sessões ativas continuamente, pois a duração da coleta não altera exposição dos eventos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a retenção e registrar as credenciais de acesso no texto das ações da sessão XE.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os arquivos podem conter dados sensíveis; permissões de armazenamento e compartilhamento devem seguir privilégio mínimo. Limitar duração reduz coleta inadvertida de informações.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para monitorar um banco Azure SQL Database, a sessão XE é configurada no escopo de servidor da mesma forma que em uma instância SQL Server local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No Azure SQL Database, as sessões Extended Events têm escopo de banco de dados, enquanto o exemplo de SQL Server usa escopo de servidor. A plataforma define a forma de armazenamento dos arquivos.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa preservar ocorrências detalhadas por alguns dias e controlar o espaço ocupado. Qual configuração atende melhor ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `ring_buffer`, pois sua memória mantém todos os dados após reinicializações e controla arquivos antigos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `histogram`, que grava cada ocorrência completa e aplica uma política de expiração em disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `event_counter`, que retém texto SQL e timestamps individuais em arquivos compactados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `event_file` com limites de tamanho e rollover, protegendo o acesso aos arquivos XEL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar `event_stream`, que persiste automaticamente as ocorrências mesmo sem cliente conectado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`event_file` mantém os dados em XEL e admite parâmetros de tamanho e rollover para administrar espaço. O controle de permissões protege dados capturados que possam ser sensíveis.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha é adequada para resumir ocorrências por valor sem conservar a sequência completa dos eventos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar em `event_file`, que agrega as ocorrências e elimina os campos detalhados antes de escrever XEL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar o destino `histogram`, que mantém buckets de contagem por valores distintos observados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Selecionar `event_stream`, que agrega dados em memória e não exige consumidor para leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `ring_buffer`, que grava uma contagem permanente por valor em tabelas do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `event_counter`, que agrupa automaticamente eventos pelo texto SQL de cada instrução.",
+          "correct": false
+        }
+      ],
+      "explanation": "O destino histogram agrega contagens por valores distintos, oferecendo resumo sem preservar a sequência completa. Para examinar cada ocorrência, seria necessário um destino que retenha os eventos detalhados.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleta deve capturar somente instruções concluídas de uma sessão específica e guardar o texto de cada ocorrência. Qual configuração combina os elementos corretos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar um evento de conclusão, filtrar pelo identificador da sessão e adicionar ação de texto SQL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Selecionar a ação como evento, usar o destino como filtro e remover os campos da ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o pacote como destino, aplicar o texto SQL como regra de retenção e dispensar predicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar somente um contador de Performance Monitor, que inclui texto individual de cada instrução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar Query Store como predicado XE e configurar a DMV para iniciar a sessão automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O evento escolhe a ocorrência, o predicado limita a sessão de interesse e uma ação pode acrescentar texto SQL. O destino recebe os dados capturados.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleta ampla de Extended Events pode aumentar volume, consumo de recursos e exposição de dados capturados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Eventos, ações e duração excessivos ampliam a coleta. Predicados, seleção mínima e controle de acesso reduzem custo e exposição.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Azure SQL Database, a criação de uma sessão XE segue o escopo de servidor local, e os arquivos de evento são gravados somente no disco da máquina cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No Azure SQL Database, as sessões são de escopo do banco; os arquivos de eventos são armazenados no Azure Storage, conforme a plataforma.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para reduzir a possibilidade de o fluxo de eventos exceder o ritmo de leitura de um consumidor .NET, qual ajuste é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acrescentar ações de texto a todos os eventos para acelerar a leitura no processo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover filtros para que o mecanismo entregue eventos mais uniformes à aplicação .NET.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reduzir eventos ou ações e restringir o predicado para diminuir dados pendentes no fluxo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Parar o consumidor e manter `event_stream` ligado, pois o destino armazena o fluxo em arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar a aplicação por Task Manager e analisar a cadeia de espera de `sqlservr.exe`.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo pode ser desconectado se os eventos chegarem mais rápido do que o cliente consome. Reduzir eventos e ações ou tornar o filtro mais seletivo diminui a taxa de saída.",
+      "section": "4. Destinos, consulta e ciclo de vida da coleta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SQL Server cria a sessão `system_health` por padrão, e ela pode auxiliar a monitoração e a solução de problemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A sessão de sistema system_health costuma estar disponível no SQL Server e registra eventos úteis. Ela ajuda no diagnóstico, embora não substitua toda coleta específica.",
+      "section": "3. Arquitetura de Extended Events",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contador cumulativo cresceu durante o período de lentidão. Qual análise evita confundir o total com a taxa do incidente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o total final como eventos por segundo, sem levar em conta a inicialização ou a duração da coleta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Subtrair amostras e relacionar a diferença ao intervalo, interpretando unidade e semântica do contador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somar as duas amostras e dividir pelo número de consultas que a aplicação declarou ter executado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar amostras em intervalo conhecido e interpretar a variação conforme a definição do contador.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Tratar qualquer aumento como prova de que a CPU ficou saturada durante todo o período observado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A variação entre amostras e o intervalo permitem estimar taxa quando a definição do contador admite esse cálculo. O total isolado pode incluir período anterior ao incidente.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ferramenta Activity Monitor é útil para visualizar processos, bloqueios, locks e atividade corrente, mas não equivale ao histórico do Query Store.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Activity Monitor fornece uma visão ad hoc da atividade atual; Query Store conserva histórico de consultas, planos e estatísticas de execução.",
+      "section": "2. Métricas e ferramentas de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Quickstart: Extended Events - SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Conceitos, criação de sessões, eventos, campos, ações, predicados, destinos, início e parada; sessão system_health.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/extended-events/quick-start-extended-events-in-sql-server?view=sql-server-ver16",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Extended Events Targets - SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Destinos event_file, ring_buffer, event_stream e histogram; arquivos XEL e retenção.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/extended-events/targets-for-extended-events-in-sql-server?view=sql-server-ver17",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Performance Monitoring and Tuning Tools - SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Ferramentas de monitoramento, Performance Monitor, Query Store, Activity Monitor e comparação de recursos.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/performance/performance-monitoring-and-tuning-tools?view=sql-server-ver17",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server, Wait Statistics object",
+      "publisher": "Microsoft Learn",
+      "reference": "Contadores de categorias de espera e consulta pela visão sys.dm_os_performance_counters.",
+      "url": "https://learn.microsoft.com/en-us/SQL/relational-databases/performance-monitor/sql-server-wait-statistics-object?view=sql-server-2016",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

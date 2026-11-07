@@ -1,0 +1,2772 @@
+{
+  "id": "informatica.melhoria-continua-ambientes-criticos",
+  "subject": "Informática",
+  "title": "Melhoria contínua em ambientes críticos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Melhoria contínua em ambientes críticos",
+    "Melhoria contínua de serviços críticos de TI",
+    "Melhoria da confiabilidade de sistemas críticos",
+    "Gestão de incidentes em serviços críticos",
+    "SRE e melhoria contínua operacional",
+    "Aprendizado pós-incidente em produção",
+    "Monitoramento de ambientes críticos de TI",
+    "Indicadores de confiabilidade de serviços críticos",
+    "Análise de incidentes e ações corretivas",
+    "Melhoria operacional baseada em evidências"
+  ],
+  "scope": {
+    "covers": "Melhoria contínua de serviços de TI críticos em produção: ciclo de observação, medição, priorização, intervenção e verificação; monitoramento de sintomas e causas, métricas, SLI, SLO e orçamento de erro; alertas acionáveis e fadiga de plantão; resposta coordenada a incidentes; mitigação, recuperação e comunicação; postmortem sem culpabilização, linha do tempo, fatores contribuintes e ações acompanháveis; análise de tendências e recorrência; automação e redução de trabalho operacional repetitivo; planejamento de capacidade, testes e exercícios; aprendizagem incorporada ao desenho do serviço; relação com o NIST CSF 2.0, em especial a categoria de melhoria contínua e os aprendizados de avaliações, testes, incidentes e processos operacionais.",
+    "excludes": "Gestão integral de governança corporativa, catálogo detalhado de práticas ITIL, certificações e requisitos de normas ISO, perícia forense, configuração específica de ferramentas de observabilidade e procedimentos próprios de um setor regulado."
+  },
+  "theoryTitle": "Como melhorar a confiabilidade sem interromper o serviço",
+  "chapters": [
+    {
+      "title": "1. O ciclo de melhoria no serviço crítico",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema crítico pode continuar atendendo hoje e, ainda assim, acumular risco: lentidão nas horas de pico, alertas ignorados, restaurações manuais demoradas ou dependência de uma única pessoa. Melhoria contínua transforma sinais do serviço e experiência dos usuários em mudanças verificáveis. Não é uma campanha ocasional nem uma sequência de mudanças sem controle: é um ciclo repetido de observar, escolher um problema relevante, mudar com segurança e conferir o efeito.\n\n> **Siglas e termos deste capítulo**\n> - **Ambiente crítico**: serviço cuja indisponibilidade, erro ou perda de integridade produz impacto relevante a usuários ou à operação.\n> - **SRE**: engenharia de confiabilidade de serviços; aplica práticas de engenharia à operação de sistemas.\n> - **Métrica**: medida numérica observada ao longo do tempo.\n> - **Linha de base**: medida de referência anterior à intervenção.\n> - **Ação corretiva**: trabalho para remover ou reduzir uma causa ou vulnerabilidade identificada.\n\n### Um ciclo que fecha\n\nA equipe começa por definir qual serviço, usuário e resultado pretende proteger. Em seguida, recolhe sinais relevantes (por exemplo, taxa de requisições bem-sucedidas e latência percebida), identifica uma lacuna, prioriza o risco, escolhe uma intervenção reversível quando possível, valida em teste ou por implantação gradual e compara o resultado com a linha de base. Se a mudança não melhorar o serviço ou introduzir dano, deve ser ajustada ou revertida. Se funcionar, registra-se o aprendizado e incorpora-se a prática ao procedimento, ao código, ao treinamento ou ao desenho técnico.\n\n| Etapa | Pergunta prática | Evidência útil |\n| --- | --- | --- |\n| Observar | O que o usuário está sentindo? | Métricas, registros, relatos e incidentes |\n| Priorizar | Qual risco merece trabalho agora? | Impacto, probabilidade, tendência e dependências |\n| Mudar | Qual intervenção reduz a exposição? | Plano, responsável, teste e reversão |\n| Verificar | O serviço melhorou sem efeito colateral? | Comparação com linha de base e critérios de sucesso |\n| Aprender | Como evitar repetição e preservar o ganho? | Ações concluídas, documentação e automação |\n\nUma métrica sem decisão associada pode virar decoração de painel. A melhoria deve estar ligada a uma hipótese testável, como: “reduzir chamadas repetidas ao banco diminuirá a latência de cauda sem aumentar erros”. Define-se antes como medir sucesso e quais sinais obrigam a parar. Isso reduz o viés de declarar vitória depois de olhar os resultados.\n\n### Como cai na prova\n\n- Ciclo contínuo exige retorno da medição à decisão; instalar uma ferramenta, por si só, não comprova melhoria.\n- Comparar antes e depois requer período, população e métrica comparáveis, além de observar efeitos adversos.\n- Em sistema crítico, mudanças pequenas, controladas e reversíveis limitam o impacto de uma hipótese errada."
+    },
+    {
+      "title": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "markdown": "### O problema que este assunto resolve\n\nOperação crítica precisa detectar impacto real sem acordar pessoas por qualquer oscilação irrelevante. Monitoramento reúne e apresenta dados; uma boa estratégia distingue a experiência observável do usuário dos detalhes internos que ajudam a explicar a falha.\n\n> **Siglas e termos deste capítulo**\n> - **SLI**: indicador de nível de serviço, uma medida definida da experiência ou do comportamento do serviço.\n> - **SLO**: objetivo de nível de serviço, alvo para um SLI em uma janela definida.\n> - **SLA**: compromisso formal de serviço, que pode prever consequências; não é sinônimo de SLO.\n> - **Latência**: tempo para concluir uma operação.\n> - **Cauda de latência**: parte mais lenta da distribuição, observada por percentis altos.\n> - **Monitoramento black-box**: verifica o comportamento externo como o usuário o percebe.\n> - **Monitoramento white-box**: observa sinais internos, como filas, consumo e erros registrados.\n\n### Indicadores e orçamento de erro\n\nUm SLI precisa de definição operacional. Para disponibilidade de uma API, a equipe pode contar respostas válidas entre as requisições elegíveis; para latência, pode medir a fração de requisições abaixo de um limite acordado. O SLO especifica o alvo e o período. A diferença entre o nível perfeito e o SLO representa um orçamento de erro: uma forma de tornar explícito quanto de falha é compatível com o objetivo. Se o orçamento é consumido depressa, a equipe pode reduzir mudanças arriscadas e priorizar confiabilidade; não deve ocultar a degradação alterando a métrica depois do fato.\n\nMédias escondem extremos. Um serviço pode ter média baixa e ainda deixar uma parcela de usuários esperando muito. Percentis como p95 ou p99 ajudam a enxergar a cauda, desde que a população e a janela estejam claras. Métricas de tráfego, erros, latência e saturação ajudam a avaliar comportamento, mas não substituem a pergunta: “a operação importante do usuário foi concluída?”.\n\n### Sinal e ação\n\nO monitoramento black-box percebe, por exemplo, que a compra de teste não termina; o white-box pode revelar esgotamento do pool de conexões. Os dois se complementam: um descreve o que quebrou, o outro ajuda a investigar por quê. Um alerta de página deve exigir atenção humana imediata e indicar uma ação possível. Um aviso que pode esperar entra numa fila de trabalho com prioridade; alertas sem destinatário, consequência ou ação provável criam ruído e fadiga. Se uma resposta é sempre mecânica e segura, automatizá-la costuma ser melhor que paginar repetidamente.\n\n### Como cai na prova\n\n- SLI é a medida; SLO é o alvo sobre essa medida; SLA é o compromisso formal que pode envolver consequências.\n- Alerta por sintoma de usuário e métrica interna de causa cumprem funções diferentes.\n- Aumentar o número de alertas não equivale a aumentar a confiabilidade; páginas precisam ser acionáveis."
+    },
+    {
+      "title": "3. Incidentes, recuperação e postmortem",
+      "markdown": "### O problema que este assunto resolve\n\nDurante uma falha grave, primeiro é preciso limitar o impacto e recuperar o serviço. A investigação detalhada vem depois da estabilização. Equipes sem papéis claros podem duplicar ações, perder a linha do tempo ou executar mudanças conflitantes.\n\n> **Siglas e termos deste capítulo**\n> - **Incidente**: evento que degrada ou ameaça um serviço e requer coordenação operacional.\n> - **Mitigação**: medida para reduzir o impacto, mesmo antes de remover a causa definitiva.\n> - **Postmortem**: registro estruturado do incidente, seu impacto, resposta, fatores contribuintes e ações de acompanhamento.\n> - **MTTR**: indicador de tempo de recuperação ou reparo; a definição exata deve ser documentada pela equipe.\n> - **Fator contribuinte**: condição que, combinada com outras, tornou o evento possível ou ampliou seu impacto.\n\n### Responder, estabilizar, aprender\n\nUma resposta útil declara quem coordena, quem investiga, quem executa mudanças e quem comunica. O coordenador mantém objetivo comum e evita que cada pessoa altere o sistema sem registrar a decisão. A equipe identifica alcance e impacto, escolhe uma mitigação segura (como reverter uma implantação ou redirecionar tráfego), confirma recuperação por sinais do serviço e mantém atualizações compreensíveis para áreas afetadas. Mitigar não significa que a causa foi eliminada: uma correção definitiva pode exigir mudança posterior, teste e janela controlada.\n\nO postmortem registra impacto observado, horários importantes, detecção, decisões e ações realizadas, fatores técnicos e organizacionais, o que funcionou e o que falhou. Em cultura sem culpabilização, a análise pergunta que informações, ferramentas, permissões e condições de trabalho estavam disponíveis; evita concluir que “erro humano” explica sozinho um incidente. Isso não elimina responsabilidade por conduta deliberada. O propósito operacional é tornar o sistema e o processo menos propensos à repetição.\n\nAções de acompanhamento devem ter descrição verificável, responsável, prioridade e critério de conclusão. “Melhorar monitoramento” é vago; “adicionar verificação sintética do fluxo de pagamento e alertar quando a taxa de sucesso cair abaixo do SLO” pode ser revisado e concluído. O registro só gera aprendizado se as ações entram na fila de trabalho, recebem capacidade e têm sua eficácia conferida.\n\n### Como cai na prova\n\n- Recuperação e redução de impacto vêm antes da investigação exaustiva durante o incidente ativo.\n- Postmortem sem culpabilização examina fatores e condições do sistema; não é ausência de rigor ou de responsabilidade.\n- Incidentes significativos, perda de dados, degradação percebida e falha de monitoramento são bons critérios previamente definidos para revisão."
+    },
+    {
+      "title": "4. Fazer a melhoria persistir e não criar novo risco",
+      "markdown": "### O problema que este assunto resolve\n\nUma correção local pode deslocar a falha para outro componente, criar uma dependência frágil ou desaparecer quando a equipe troca de plantão. Melhoria sustentável considera dependências, capacidade, segurança, continuidade e pessoas que operam o sistema.\n\n> **Siglas e termos deste capítulo**\n> - **Capacidade**: recursos que o serviço pode oferecer sob determinada carga e configuração.\n> - **Teste de carga**: exercício controlado que mede o comportamento sob volume de trabalho.\n> - **Exercício de contingência**: simulação de falha ou recuperação para avaliar pessoas, procedimentos e tecnologia.\n> - **Toil**: trabalho operacional repetitivo, manual e escalável que consome capacidade de engenharia.\n> - **CSF**: NIST Cybersecurity Framework, estrutura para organizar resultados de gestão de risco cibernético.\n\n### Testar hipóteses e sustentar o ganho\n\nPlanejamento de capacidade usa previsões confrontadas com demanda observada e testes, em vez de confiar apenas em tradição. Uma prova de carga deve ser representativa, ter limites de segurança e observar dependências; não se deve sobrecarregar produção sem autorização e contenção. Exercícios de recuperação verificam se cópias, contatos, permissões e procedimentos funcionam de fato. O resultado pode gerar melhorias para continuidade, recuperação de desastre e resposta a incidentes, inclusive junto a fornecedores críticos.\n\nAções manuais frequentes indicam oportunidade de remover a causa ou automatizar uma resposta segura. Antes de automatizar, define-se condição de disparo, limites, registro, possibilidade de interromper e comportamento em falha. Automação de mitigação errada pode multiplicar o impacto. Acompanhar recorrência, tempo de detecção e recuperação, consumo do orçamento de erro e volume de trabalho repetitivo ajuda a conferir tendência, mas nenhum indicador isolado mede todo o risco.\n\nNo NIST CSF 2.0, a função Identify inclui a categoria Improvement (ID.IM). Ela trata melhorias identificadas a partir de avaliações, testes e exercícios, execução de processos operacionais, procedimentos e atividades, além de planos e lições de incidentes. Exemplos incluem autoavaliação de serviços críticos, auditoria independente, exercícios de resposta e continuidade, e análise de métricas. O framework organiza resultados de risco; não prescreve uma única ferramenta nem elimina a adaptação ao contexto.\n\n### Como cai na prova\n\n- Testes e exercícios devem produzir achados e melhorias para ciclos futuros; realizar o exercício sem registrar ações perde seu valor.\n- Automatizar trabalho repetitivo é útil quando a resposta é compreendida, limitada e observável.\n- Capacidade e resiliência precisam ser verificadas com dados de demanda e testes seguros, não presumidas pela configuração nominal."
+    }
+  ],
+  "summary": "Melhoria contínua em serviços críticos é um ciclo de observação, priorização, intervenção segura e verificação. Defina o resultado do usuário, a linha de base e o critério de sucesso antes de mudar. SLI é uma medida; SLO é o alvo para ela em uma janela; SLA é compromisso formal. Monitoramento black-box testa comportamento externo, enquanto white-box ajuda a investigar sinais internos. Alertas de página devem ser acionáveis e urgentes; ruído gera fadiga. Durante incidente, coordene papéis, mitigue impacto, confirme recuperação e comunique. Depois, registre impacto, linha do tempo, decisões, fatores contribuintes e ações com responsável e critério de conclusão. Postmortem sem culpabilização examina o sistema e as condições de trabalho para prevenir recorrência. Testes, exercícios, dados de capacidade e automatização segura alimentam novas melhorias. O NIST CSF 2.0 inclui a categoria Improvement (ID.IM), com achados vindos de avaliações, testes, exercícios, processos operacionais e incidentes.",
+  "flashcards": [
+    {
+      "front": "Quais são as etapas essenciais de um ciclo de melhoria contínua?",
+      "back": "Observar o serviço, priorizar uma lacuna, planejar e executar uma mudança segura, medir o efeito e incorporar o aprendizado."
+    },
+    {
+      "front": "O que diferencia uma métrica de uma linha de base?",
+      "back": "Métrica é uma medida; linha de base é o valor ou comportamento de referência usado para comparar a intervenção."
+    },
+    {
+      "front": "O que é um SLI?",
+      "back": "Um indicador definido para medir um aspecto do serviço, como sucesso de requisições ou latência percebida."
+    },
+    {
+      "front": "O que é um SLO?",
+      "back": "Um alvo acordado para um SLI durante uma janela definida."
+    },
+    {
+      "front": "SLO e SLA são sinônimos?",
+      "back": "Não. SLA é um compromisso formal que pode prever consequências; SLO é um objetivo mensurável do serviço."
+    },
+    {
+      "front": "Por que a latência média pode ser insuficiente?",
+      "back": "Ela pode esconder uma cauda de requisições muito lentas que afeta parte dos usuários."
+    },
+    {
+      "front": "O que o monitoramento black-box observa?",
+      "back": "Comportamento externo do serviço, como um usuário ou cliente o percebe."
+    },
+    {
+      "front": "O que o monitoramento white-box acrescenta?",
+      "back": "Sinais internos, como filas, consumo, erros e dependências, que ajudam a explicar sintomas."
+    },
+    {
+      "front": "Quando um alerta deve paginar uma pessoa?",
+      "back": "Quando requer ação humana imediata e a página aponta um problema acionável."
+    },
+    {
+      "front": "O que é fadiga de alertas?",
+      "back": "Perda de atenção causada por volume ou repetição de avisos, inclusive páginas sem ação urgente."
+    },
+    {
+      "front": "Para que serve o orçamento de erro?",
+      "back": "Explicita a margem de falha compatível com o SLO e informa decisões sobre risco e ritmo de mudanças."
+    },
+    {
+      "front": "Qual é a prioridade durante um incidente ativo?",
+      "back": "Coordenar a resposta e reduzir o impacto, confirmando a recuperação pelos sinais do serviço."
+    },
+    {
+      "front": "O que deve constar em um postmortem?",
+      "back": "Impacto, linha do tempo, detecção, resposta, fatores contribuintes, o que funcionou e ações de acompanhamento."
+    },
+    {
+      "front": "O que caracteriza um postmortem sem culpabilização?",
+      "back": "Investiga condições e fatores do sistema sem atribuir o evento a uma pessoa como explicação suficiente."
+    },
+    {
+      "front": "Por que ‘erro humano’ é uma análise incompleta?",
+      "back": "Não explica as condições, ferramentas, informação e barreiras que permitiram que o erro produzisse impacto."
+    },
+    {
+      "front": "Como tornar uma ação de postmortem verificável?",
+      "back": "Definir entrega observável, responsável, prioridade e critério de conclusão."
+    },
+    {
+      "front": "O que um teste de carga deve verificar?",
+      "back": "Comportamento do serviço e dependências sob carga representativa, com limites de segurança."
+    },
+    {
+      "front": "Por que exercitar recuperação de desastre?",
+      "back": "Para verificar se dados, acessos, contatos e procedimentos permitem recuperar o serviço na prática."
+    },
+    {
+      "front": "O que é toil em operações?",
+      "back": "Trabalho repetitivo e manual que cresce com a escala e consome capacidade de engenharia."
+    },
+    {
+      "front": "O que precisa ser definido antes de automatizar uma mitigação?",
+      "back": "Condição de disparo, limites, registro, comportamento em falha e forma de interromper a automação."
+    },
+    {
+      "front": "Qual categoria do NIST CSF 2.0 trata de melhorias?",
+      "back": "Improvement, identificada como ID.IM dentro da função Identify."
+    },
+    {
+      "front": "Que fontes alimentam ID.IM no NIST CSF 2.0?",
+      "back": "Avaliações, testes e exercícios, processos operacionais e lições de incidentes."
+    },
+    {
+      "front": "O que é mitigação de incidente?",
+      "back": "Uma ação que reduz impacto ou exposição, mesmo que a causa definitiva ainda não tenha sido removida."
+    },
+    {
+      "front": "Como verificar se uma intervenção melhorou o serviço?",
+      "back": "Comparar métricas predefinidas com a linha de base, observando efeitos colaterais e critérios de parada."
+    }
+  ],
+  "tips": [
+    "Comece pela jornada do usuário: uma métrica interna só tem valor se ajudar a explicar ou proteger um resultado do serviço.",
+    "Defina janela, população e critério de sucesso antes da mudança; isso torna a comparação auditável.",
+    "Use p95 ou p99 para enxergar lentidão de cauda quando a média encobre usuários afetados.",
+    "Converta recomendações do postmortem em entregas com responsável e verificação, não em slogans genéricos.",
+    "Separe mitigação imediata da correção duradoura: restaurar o serviço encerra a urgência, não necessariamente o risco.",
+    "Em questões do NIST CSF 2.0, associe ID.IM a melhorias vindas de avaliações, exercícios, incidentes e operação."
+  ],
+  "traps": [
+    "Confundir SLI, SLO e SLA: medida, objetivo e compromisso formal têm papéis distintos.",
+    "Supor que mais alertas significam melhor monitoramento; páginas não acionáveis alimentam fadiga.",
+    "Tratar a causa raiz como sempre única: incidentes complexos podem ter vários fatores contribuintes.",
+    "Confundir postmortem sem culpabilização com ausência de rigor; a análise precisa de evidências e ações cobradas.",
+    "Considerar incidente mitigado como definitivamente corrigido; a causa pode persistir e voltar.",
+    "Automatizar uma resposta sem limites ou teste; um erro automatizado pode se propagar mais rápido."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva um ciclo completo de melhoria para a lentidão de uma operação crítica.",
+      "answer": "Definir o usuário e a operação, medir uma linha de base, priorizar o impacto, propor uma mudança controlada, testar e monitorar métricas e efeitos colaterais, reverter se necessário e registrar o resultado."
+    },
+    {
+      "question": "Como você distinguiria sintoma de causa em um painel de produção?",
+      "answer": "O sintoma representa o que o usuário experimenta, como falha ou atraso; sinais internos como fila saturada podem ajudar a explicar por que ocorreu."
+    },
+    {
+      "question": "Que dados tornam um postmortem útil para uma equipe que não estava no plantão?",
+      "answer": "Impacto, linha do tempo, sinais de detecção, decisões, mitigação, fatores contribuintes, incertezas, o que funcionou e ações com responsáveis e critérios de conclusão."
+    },
+    {
+      "question": "Quando um alerta deve gerar página e quando deve gerar tarefa?",
+      "answer": "Página quando a ação humana é imediata e urgente; tarefa quando a análise ou correção pode aguardar uma fila priorizada."
+    },
+    {
+      "question": "Como um exercício de recuperação gera melhoria concreta?",
+      "answer": "Registra falhas observadas em dados, acesso, procedimento ou comunicação e cria ações priorizadas; depois um novo exercício verifica se foram corrigidas."
+    },
+    {
+      "question": "Por que o NIST CSF 2.0 associa melhoria a múltiplas fontes?",
+      "answer": "Porque avaliações, testes, incidentes e a execução operacional revelam lacunas diferentes que devem retroalimentar a gestão de risco."
+    },
+    {
+      "question": "Que salvaguardas ajudam a automatizar uma ação operacional?",
+      "answer": "Gatilhos claros, limites de impacto, telemetria, tratamento seguro de falhas, revisão, possibilidade de parada e testes."
+    },
+    {
+      "question": "Como evitar declarar sucesso por uma alteração que apenas deslocou a falha?",
+      "answer": "Medir o resultado pretendido e sinais de dependências e efeitos colaterais, em janela adequada, com critérios definidos antes da implantação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Indicador, alvo e compromisso confundidos",
+      "summary": "SLI é a medida; SLO é o alvo numa janela; SLA é compromisso formal que pode prever consequências."
+    },
+    {
+      "key": "e2",
+      "title": "Alertas sem ação",
+      "summary": "Página serve para evento urgente que exige ação humana. Aviso rotineiro ou repetitivo deve ser tarefa, removido ou automatizado com segurança."
+    },
+    {
+      "key": "e3",
+      "title": "Causa única e culpabilização",
+      "summary": "Eventos complexos podem reunir fatores técnicos e organizacionais. Postmortem rigoroso registra condições, evidências e ações, sem culpar indivíduos como explicação simplista."
+    },
+    {
+      "key": "e4",
+      "title": "Mitigação tomada como correção final",
+      "summary": "Reverter ou redirecionar pode restaurar serviço sem eliminar a vulnerabilidade. Ação corretiva e verificação ainda podem ser necessárias."
+    },
+    {
+      "key": "e5",
+      "title": "Melhoria sem confirmação",
+      "summary": "Uma mudança só demonstra ganho quando critérios e linha de base permitem verificar resultado, efeitos colaterais e sustentabilidade."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer reduzir a lentidão de um serviço de pagamentos e comparar o resultado de uma mudança. Qual prática permite avaliar a melhoria com evidência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir métrica e janela antes da mudança e comparar com uma linha de base.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contar quantas implantações a equipe concluiu na semana após a mudança, usando volume de entregas como substituto do efeito no serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Perguntar ao desenvolvedor responsável se o código parece mais simples, sem confrontar a percepção com os dados de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar temporariamente os alertas de latência para evitar ruído, sem definir outro sinal que proteja a experiência durante a mudança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a disponibilidade média anual como única medida de desempenho, embora a alteração tenha sido proposta para corrigir lentidão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A linha de base e a métrica definida previamente permitem comparar o mesmo resultado antes e depois. Volume de implantações, impressão do autor, silenciamento de alertas e uma média ampla não demonstram que a lentidão melhorou.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ciclo de melhoria, a equipe mede os efeitos de uma intervenção e usa os achados para decidir a próxima ação. Essa retroalimentação caracteriza a continuidade do ciclo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A medição retorna à priorização e ao planejamento. Sem verificar o resultado, a equipe não sabe se deve manter, ajustar ou reverter a intervenção.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação apresenta lentidão apenas em horário de pico, mas a equipe avalia a proposta de cache apenas com uma execução curta em horário ocioso. Qual lacuna compromete a avaliação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A equipe não escolheu um novo nome para a métrica de latência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A equipe não publicou um painel para cada desenvolvedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A amostra não representa a carga e o período que geram o problema.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O cache precisa ser habilitado em todos os componentes ao mesmo tempo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma intervenção de desempenho não pode ser medida em produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação precisa incluir condições representativas do pico, com limites de segurança. Um teste ocioso pode não revelar contenção ou saturação. Nomear métricas, multiplicar painéis ou alterar todos os componentes não corrige a amostragem inadequada.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma mudança de alto risco, definir previamente sinais de parada e uma forma de reversão ajuda a limitar o impacto se a hipótese estiver errada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Critérios de parada e reversão fazem parte de uma intervenção controlada, especialmente em serviço crítico, e permitem interromper a exposição quando surgem efeitos adversos.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente SLI, SLO e SLA em uma operação crítica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SLI é compromisso jurídico com consequência, SLO é painel operacional e SLA é uma medida técnica do serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SLI é uma medida, SLO é um alvo para ela e SLA é compromisso formal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SLI é plano de recuperação, SLO é registro cronológico de incidente e SLA é um alerta enviado ao plantão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SLI é limite de capacidade do sistema, SLO é uma causa técnica e SLA é a linha de base de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SLI é acordo comercial entre equipes, SLO é obrigação legal e SLA é um percentil de latência observado.",
+          "correct": false
+        }
+      ],
+      "explanation": "SLI mede um aspecto do serviço, SLO estabelece o objetivo para essa medida e SLA é compromisso formal que pode prever consequências. Painel, plano, causa e percentil não são essas definições.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API alcança baixa latência média, mas uma parcela de requisições fica muito lenta. Qual abordagem revela melhor esse problema de cauda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acompanhar percentis altos de latência para a população afetada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir a latência pela contagem total de servidores ativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somar a latência de todos os dias sem separar cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir somente a média das requisições mais rápidas do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar valores lentos porque não representam a mediana.",
+          "correct": false
+        }
+      ],
+      "explanation": "Percentis altos, como p95 ou p99, mostram a experiência de requisições lentas que a média pode ocultar. Contagem de servidores e médias agregadas não identificam diretamente essa cauda.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste externo que realiza uma compra sintética e um painel que mostra o esgotamento de conexões são formas complementares de monitoramento black-box e white-box, respectivamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A compra sintética testa o fluxo visível ao usuário; o painel de conexões observa um estado interno que pode explicar o sintoma.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O orçamento de erro de um serviço está sendo consumido rapidamente. Qual decisão é coerente com seu uso como ferramenta de confiabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o SLO retroativamente para apagar o consumo registrado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Parar toda observação porque o limite já foi ultrapassado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ocultar falhas de usuário que decorreram de fornecedores externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Priorizar trabalho de confiabilidade e rever o ritmo de mudanças arriscadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trocar o SLI por número de implantações para liberar a equipe.",
+          "correct": false
+        }
+      ],
+      "explanation": "O orçamento de erro torna explícita a margem de falha associada ao SLO. Consumo acelerado informa decisões de risco, como priorizar confiabilidade ou conter mudanças arriscadas. Alterar metas retrospectivamente e ocultar falhas destrói a utilidade da medida.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta repetido exige sempre uma página humana, mesmo quando a equipe conhece a resposta mecânica e segura para o evento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Páginas devem ser urgentes e acionáveis. Uma resposta rotineira e segura pode ser automatizada ou tratada como tarefa, evitando fadiga e liberando atenção humana.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alerta merece interromper imediatamente o plantão de uma equipe responsável por um serviço crítico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um aviso semanal de capacidade que ainda possui folga operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um relatório diário de erros já encaminhado para análise posterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma queda confirmada do fluxo essencial que requer mitigação agora.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma diferença de formatação detectada em um painel de equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tarefa de documentação sem relação com impacto corrente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A página deve corresponder a um problema urgente e acionável, como interrupção de uma jornada essencial. Aviso de tendência e documentação podem ser priorizados em uma fila de trabalho.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Enviar avisos operacionais por e-mail sem classificar urgência nem definir destinatário responsável pode levar a equipe a ignorar também alertas importantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Alertas sem ação clara ou responsabilidade geram ruído e fadiga. A equipe deve distinguir páginas urgentes de tarefas que podem aguardar e atribuir um destino operacional.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um incidente com impacto crescente, qual sequência favorece uma resposta coordenada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Investigar tudo em detalhe, corrigir a causa e depois avisar os usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir coordenação, reduzir impacto, confirmar recuperação e comunicar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Permitir mudanças paralelas sem registro para acelerar qualquer correção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Esperar a causa definitiva antes de executar uma mitigação reversível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Suspender a coleta de métricas até que o serviço esteja normalizado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta deve coordenar papéis, mitigar impacto e confirmar a saúde do serviço, mantendo comunicação. A análise detalhada pode continuar após a estabilização; mudanças não coordenadas aumentam o risco.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mitigar um incidente sempre prova que a causa técnica foi eliminada e que o evento não pode voltar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mitigação reduz o impacto, por exemplo revertendo uma implantação. A causa subjacente pode continuar e exigir investigação e correção posteriores.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um incidente severo, diferentes especialistas executam mudanças concorrentes sem um coordenador. Qual risco operacional é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A equipe obterá uma linha do tempo automaticamente mais completa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A recuperação ficará garantida pela diversidade de intervenções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As decisões e alterações podem conflitar e dificultar a recuperação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A comunicação externa passará a ser desnecessária durante a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O postmortem poderá ser substituído pelas mensagens do plantão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem coordenação e registro, mudanças podem se contradizer, repetir trabalho ou ampliar o impacto. Ter especialistas não substitui uma direção comum nem a manutenção da linha do tempo.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deve definir critérios para postmortem antes que um incidente ocorra, para que os participantes saibam quando a análise formal é esperada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Critérios prévios reduzem decisões inconsistentes após eventos estressantes. Impacto ao usuário, perda de dados, intervenção de plantão e falha de monitoramento são exemplos possíveis de gatilhos.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro de pós-incidente tende a permitir aprendizado e acompanhamento mais concretos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma narrativa com impacto, horários, decisões, fatores e ações verificáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma lista de nomes dos operadores que estavam no plantão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um resumo que omite falhas de detecção para proteger a equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma captura de tela do painel sem contexto sobre usuários afetados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma nota de encerramento sem responsáveis ou critérios de conclusão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um postmortem útil registra impacto, linha do tempo, decisões, fatores contribuintes e ações verificáveis. Atribuir nomes ou omitir falhas reduz o aprendizado; uma imagem sem contexto e ações vagas não permite acompanhar a prevenção.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A abordagem sem culpabilização exige que a equipe evite registrar decisões equivocadas ou falhas de procedimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A análise deve ser rigorosa e registrar decisões, procedimentos e condições que contribuíram. O que se evita é reduzir a explicação a acusação individual, o que inibe a exposição de problemas sistêmicos.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ação de postmortem diz ‘melhorar o monitoramento’. Qual reformulação é mais verificável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pedir a todos que prestem mais atenção aos painéis existentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar a cultura de operação na próxima reunião trimestral.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar um painel geral sem definir fluxo ou responsável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar teste sintético do fluxo afetado e alertar pela queda de sucesso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o volume de registros sem definir quem os analisa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ação reformulada descreve uma entrega observável e associada ao sintoma que faltou detectar. Atenção genérica, reunião, painel sem objetivo e mais registros não definem um critério de conclusão nem uma resposta.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um postmortem pode identificar mais de um fator contribuinte, como automação insuficiente, falha de software e teste inadequado de configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Incidentes podem resultar de fatores combinados; tratar a primeira causa encontrada como explicação completa pode deixar vulnerabilidades importantes sem correção.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma reversão, as métricas voltam ao patamar esperado. Qual conclusão é mais cuidadosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A reversão mitigou o impacto; a causa da mudança ainda deve ser analisada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A recuperação prova que a versão anterior não contém risco algum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O incidente terminou e ações posteriores deixam de ser necessárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SLO deve ser ajustado para considerar a falha como sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe deve reaplicar imediatamente a implantação revertida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A reversão pode restaurar o serviço sem explicar por que a nova versão falhou ou se a versão anterior tem outros riscos. Análise e ação corretiva permanecem necessárias quando cabíveis.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mensagens do canal de incidente substituem automaticamente um postmortem porque registram a sequência cronológica dos fatos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mensagens podem ajudar a reconstruir a linha do tempo, mas raramente organizam sozinhas impacto, fatores contribuintes, lições, ações, responsáveis e critérios de conclusão.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual iniciativa ajuda a testar se um plano de recuperação funciona sob condições reais de operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar a formatação do documento sem exercitar seus passos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Realizar exercício controlado e registrar lacunas e ações.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Presumir que a cópia de segurança prova a restauração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Delegar toda a recuperação ao fornecedor sem validar contatos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arquivar o plano após a aprovação inicial da arquitetura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um exercício controlado revela se dados, acessos, contatos, comunicação e passos de recuperação funcionam. A existência de um documento ou cópia não demonstra que o serviço pode ser restaurado.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma previsão de capacidade deve ser confrontada com demanda observada e resultados de testes, em vez de ser mantida apenas por tradição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Comparar previsão e realidade evidencia erro de estimativa e risco de falta ou excesso de recursos. Testes ajudam a atualizar a relação entre carga e capacidade.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa manual é repetida diariamente para liberar uma fila após saturação. Qual abordagem representa melhoria sustentável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a frequência da tarefa manual e mantê-la sem registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ensinar a mesma operação a mais pessoas sem investigar a causa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Investigar a saturação e automatizar uma resposta segura se apropriado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover a métrica da fila para reduzir o volume de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar alerta de página para cada execução diária da rotina.",
+          "correct": false
+        }
+      ],
+      "explanation": "Repetição frequente indica toil e pode apontar uma causa removível. A equipe deve investigar a saturação e, se automatizar, definir gatilho, limites, registro e proteção contra efeitos adversos.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No NIST CSF 2.0, a categoria Improvement (ID.IM) reúne resultados de melhoria identificados em avaliações, testes, exercícios e execução operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ID.IM integra a função Identify e contempla melhorias identificadas em avaliações, testes e exercícios, processos operacionais e lições de incidentes.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual salvaguarda deve acompanhar a automação de uma ação que altera o comportamento de um serviço crítico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar sem limites para que a resposta automática seja mais rápida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover os registros para evitar que a automação gere ruído.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impedir qualquer interrupção manual depois do primeiro disparo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar em todos os componentes antes de avaliar o primeiro resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir gatilhos, limites, telemetria, testes e forma de interromper.",
+          "correct": true
+        }
+      ],
+      "explanation": "Automação pode propagar um erro rapidamente. Gatilhos claros, limites de impacto, telemetria, teste e possibilidade de parada tornam a intervenção observável e controlável.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um exercício conjunto com fornecedor crítico pode revelar melhorias para continuidade, recuperação de desastre e resposta a incidentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Exercícios com provedores e terceiros relevantes podem expor falhas de coordenação, comunicação, dependências e recuperação que não aparecem em testes internos isolados.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe de um sistema crítico quer testar o limite de capacidade em produção durante o pico, sem autorização ou mecanismo de contenção. Qual alternativa é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o teste, pois a carga de pico é o dado mais representativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o teste por uma estimativa informal de infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar dependências para que o serviço suporte mais requisições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Planejar teste representativo com autorização, limites e contenção.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Repetir o teste até ocorrer indisponibilidade e então medir o dano.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste de carga deve produzir evidência sem expor usuários a risco descontrolado. Planejamento, autorização, limites e contenção permitem representar condições relevantes com segurança.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A categoria de melhoria contínua do NIST CSF determina uma ferramenta única de monitoramento que toda organização deve instalar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O framework organiza resultados de gestão de risco e fontes de melhoria; não prescreve uma ferramenta única. A implementação depende do contexto e das necessidades da organização.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um exercício de continuidade, a equipe identifica que credenciais de recuperação estão inacessíveis e abre uma ação com responsável e critério de reteste. Qual princípio foi aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter achado de exercício em melhoria verificável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir resposta a incidentes por um inventário anual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar teste de recuperação como comprovação de capacidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encerrar risco porque existe um procedimento documentado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Classificar credenciais como métrica de experiência do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O achado passa a ser uma ação acompanhável e terá reteste para verificar se a lacuna foi fechada. A mera existência de procedimento não prova que a recuperação funcionará.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time pode remover uma regra de alerta rara sem análise, pois alertas pouco frequentes nunca detectam falhas reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Regras raramente exercitadas podem merecer revisão, mas frequência baixa não prova inutilidade. É preciso avaliar finalidade, cobertura, acionabilidade e se há alternativa antes de remover proteção.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara a taxa de sucesso de uma operação em períodos diferentes, mas mudou a definição de requisição elegível entre os períodos. Qual problema surge?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O painel deixa de ser black-box por conter percentuais, mesmo que continue consultando o serviço pela interface externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A comparação pode ser inválida porque a população da métrica mudou.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O SLO passa automaticamente a ser um SLA contratual, sem depender de compromisso formal ou definição acordada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa se torna uma medida de capacidade física do servidor, embora continue contando sucesso entre requisições elegíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A linha de base deixa de exigir uma janela temporal definida, ainda que compare resultados de períodos distintos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma comparação exige definições consistentes de população e evento. Se a equipe muda o que conta como requisição elegível, uma diferença pode refletir a fórmula e não a saúde do serviço.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deve acompanhar somente disponibilidade, pois latência, erros e saturação não ajudam a avaliar a saúde de um serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Disponibilidade é importante, mas latência, erros, tráfego e saturação podem revelar degradação e risco antes ou além de uma indisponibilidade total. A seleção depende do serviço e da jornada do usuário.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um incidente é detectado manualmente por usuários, embora a aplicação registrasse sinais internos de falha. Qual aprendizado merece entrar na revisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar os sinais internos para evitar que alertas sejam redundantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar o relato externo como prova de erro do usuário final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Revisar lacuna de detecção e criar alerta ligado ao impacto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Encerrar a investigação porque a aplicação produziu registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acionar página para qualquer registro interno gerado no sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sinais coletados não bastam se não são expostos ou usados para detectar impacto. A equipe pode criar monitoramento e alerta acionável ligado à experiência, evitando tanto a ausência de detecção quanto páginas para todo registro.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um postmortem sem culpabilização impede que a organização aplique qualquer consequência a uma violação deliberada de política.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A abordagem evita atribuir falhas sistêmicas a uma acusação simplista e busca condições contribuintes; não equivale a imunidade para conduta deliberada. O escopo da análise operacional é aprender e prevenir recorrência.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual indicador ajuda a equipe a perceber que incidentes frequentes estão consumindo a capacidade destinada à engenharia de confiabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Frequência de eventos de plantão por período e equipe.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quantidade de páginas de documentação no repositório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Número total de contas criadas por clientes desde o lançamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quantidade de commits sem relacionar o trabalho operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tamanho do painel em pixels no monitor do plantonista.",
+          "correct": false
+        }
+      ],
+      "explanation": "Frequência de eventos de plantão mostra carga operacional e pode revelar interrupções recorrentes e risco de fadiga. Métricas sem relação com eventos não indicam diretamente esse consumo de capacidade.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Melhoria contínua pode exigir aceitar uma pequena redução temporária de disponibilidade para corrigir uma fragilidade que causa falhas recorrentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma decisão controlada pode trocar um custo curto e conhecido por melhor estabilidade futura, desde que impacto, risco e comunicação sejam avaliados. A escolha não deve ser automática nem ocultar consequências aos usuários.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma equipe pode avaliar se a redução do tempo de recuperação está realmente melhorando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar início e recuperação com definição consistente e acompanhar a tendência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contar somente incidentes que foram resolvidos por uma pessoa específica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir apenas duração de reuniões realizadas após cada incidente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o tempo por uma estimativa anual de disponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover eventos longos para manter estável a média publicada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma medida de tempo de recuperação exige marcos definidos e registro consistente ao longo dos incidentes. Excluir eventos longos distorce o indicador e medidas sem relação não mostram a velocidade de restauração.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O acompanhamento de ações corretivas deve incluir a verificação de que a entrega foi concluída e de que ela reduziu a vulnerabilidade identificada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Fechar uma tarefa não prova automaticamente eficácia. A equipe deve conferir se a ação foi entregue e se o risco ou modo de falha foi reduzido conforme o critério definido.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um novo painel exibe centenas de métricas, mas nenhuma alimenta decisão, alerta ou investigação definida. Qual ajuste favorece monitoramento sustentável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter todas as métricas porque dados adicionais sempre reduzem risco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar sinal por sinal e priorizar o que informa ação ou diagnóstico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transformar cada série temporal em uma página de plantão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover todas as métricas internas e depender só de usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar o painel em ferramentas diferentes para aumentar cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sinais sem uso aumentam complexidade e manutenção. Revisar se cada dado informa uma decisão, alerta ou investigação mantém monitoramento mais simples e útil, sem descartar observabilidade interna necessária.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Exercícios e avaliações independentes podem revelar melhorias de segurança e resposta que não apareceram em incidentes reais recentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A categoria ID.IM inclui melhorias identificadas em avaliações e testes, mesmo quando não houve um incidente real recente. Exercícios permitem encontrar lacunas em condições controladas.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de dependência externa degrada o serviço, embora os componentes internos permaneçam disponíveis. Qual medida de melhoria é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir a dependência do cálculo para preservar a disponibilidade interna.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a capacidade interna sem testar o comportamento degradado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir comportamento degradado, limites e sinais sobre a jornada afetada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desligar métricas de usuário porque a falha ocorreu fora do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acionar alerta apenas quando todos os servidores internos pararem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A confiabilidade percebida inclui dependências. Definir comportamento degradado e monitorar a jornada identifica impacto e permite resposta proporcional; excluir a dependência esconde a falha, e capacidade interna não resolve indisponibilidade externa.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pode considerar concluída uma melhoria assim que o código é implantado, ainda que os indicadores de serviço não sejam revisados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Implantação é uma entrega, não evidência de benefício. É necessário observar o efeito contra os critérios e a linha de base, inclusive eventuais efeitos colaterais.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço tem boa disponibilidade, mas usuários não concluem uma operação essencial devido a erros de validação. O que revela essa divergência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disponibilidade de componentes pode não representar sucesso da jornada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A operação deve ser excluída do SLI por ser específica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Erros de validação não afetam a confiabilidade de um serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SLO deve medir somente se servidores respondem a ping.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe deve aumentar páginas sem rever a definição do indicador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um serviço pode responder tecnicamente e ainda falhar na tarefa que importa ao usuário. O SLI deve representar a operação relevante, além de métricas de disponibilidade de componentes.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A função Recover do NIST CSF 2.0 descreve atividades de restauração, enquanto aprendizados de resposta e exercícios podem alimentar melhorias em ID.IM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Recover trata da restauração de serviços e operações afetados; resultados de incidentes, testes e exercícios podem ser fontes para identificar melhorias em ID.IM.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço apresenta páginas frequentes para condições conhecidas e respostas previsíveis. Qual medida ataca melhor a causa da fadiga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de pessoas copiadas em cada notificação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar nova página para cada etapa da mesma resposta rotineira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reduzir o turno do plantão sem revisar as regras de alerta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover ou automatizar alertas não urgentes após análise de risco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Agrupar todas as páginas em um resumo diário por e-mail.",
+          "correct": false
+        }
+      ],
+      "explanation": "A equipe deve rever se cada página é urgente e acionável e se uma resposta repetitiva pode ser tratada como tarefa ou automação segura. Mais destinatários ou páginas agravam a carga; um resumo diário pode atrasar uma condição realmente urgente.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Definir claramente o início e o fim usados para calcular o tempo de recuperação torna comparações entre incidentes mais consistentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Métricas de tempo dependem de marcos operacionais consistentes. Sem definições, equipes podem medir intervalos diferentes e interpretar tendências de forma enganosa.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem reduz a chance de uma mudança bem-intencionada causar uma falha ampla em um sistema crítico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Implantar a alteração simultaneamente em todos os componentes e regiões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar gradualmente, observar critérios e interromper se houver dano.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar monitoramento durante a implantação para evitar distração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar testes para não reproduzir carga fora do ambiente real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adiar qualquer avaliação até que todos os usuários reportem problemas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Implantação gradual com sinais de saúde e critério de parada limita a exposição e permite interromper antes que o impacto se amplie. Implantação simultânea e monitoramento desligado retiram essas salvaguardas.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A análise de causa de um incidente pode encontrar uma combinação de falha de monitoramento, automação insuficiente e comportamento inesperado do software.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Eventos podem ter múltiplas causas e fatores contribuintes. Tratar cada condição corrigível aumenta a confiança de que o mesmo modo de falha será menos provável.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ação de recuperação depende de um fornecedor externo cuja equipe não participou dos exercícios. Qual próximo passo melhora a preparação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar a dependência do inventário para reduzir o risco documentado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que o contrato garante resposta em qualquer cenário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Coordenar exercício e validar contatos, responsabilidades e recuperação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aguardar incidente real para verificar o processo conjunto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar o fornecedor sem avaliar integração ou operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exercício conjunto verifica coordenação, contatos, papéis e procedimentos de recuperação da dependência crítica. Contrato ou fornecedor alternativo não provam por si que a transição funcionará.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise baseada em dados deve considerar também a possibilidade de que a mudança tenha transferido carga ou risco para outra dependência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Melhorias locais podem deslocar saturação ou falha. Medir efeitos colaterais nas dependências ajuda a verificar o resultado do sistema como um todo.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer priorizar entre várias falhas recorrentes. Qual critério oferece base mais defensável para a ordem do trabalho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem em que cada desenvolvedor apresentou sua proposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O impacto observado, a probabilidade, a tendência e as dependências.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de linhas de código envolvidas em cada correção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A facilidade de demonstrar a solução em uma apresentação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A preferência por falhas recentes, sem considerar recorrência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Impacto, probabilidade, tendência e dependências ajudam a priorizar risco de forma explícita. Ordem de apresentação, tamanho de código e facilidade de demonstração não refletem necessariamente a criticidade para o serviço.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma melhoria pode ser sustentada incorporando o aprendizado ao código, ao procedimento, ao treinamento ou ao desenho técnico do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O formato da mudança depende da causa encontrada. Incorporar o aprendizado às práticas usadas no trabalho reduz a dependência de memória individual e ajuda a preservar o ganho.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após vários incidentes, a equipe descobre que um procedimento de contingência funciona apenas quando certo operador está presente. Qual melhoria é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar o nome do operador como pré-requisito permanente do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir a observabilidade para evitar dependência de plantonistas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Documentar e exercitar o procedimento, removendo dependências pessoais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter a contingência informal, pois sua execução já foi demonstrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transferir todos os alertas para o operador mais experiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Procedimento dependente de uma pessoa é uma fragilidade operacional. Documentação acessível, treinamento cruzado e exercício verificam se a equipe consegue executar a recuperação de modo repetível.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CSF 2.0 trata a melhoria como atividade que pode ser informada pela execução de processos, procedimentos e atividades operacionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A categoria ID.IM inclui melhorias identificadas a partir da execução operacional, além de avaliações, exercícios e incidentes. A operação cotidiana também fornece evidências sobre lacunas.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica é útil para melhoria mesmo sem definição de como será coletada, pois cada equipe pode interpretá-la de forma própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Definição operacional, população, janela e método de coleta precisam ser claros para que comparações entre períodos e equipes sejam interpretáveis.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de leitura fica lenta porque a fila do serviço cresce e as conexões ao banco se esgotam. Qual plano de monitoramento separa melhor experiência e investigação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir somente CPU e presumir que sua utilização representa o sucesso da leitura para todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acompanhar apenas a fila interna e presumir que sinais do servidor dispensam testar a jornada externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Testar a leitura externamente e observar fila e conexões internamente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar somente chamados de usuários e descartar séries temporais técnicas que poderiam explicar a degradação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar contagens de conexões e respostas sem definir janela ou população.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste externo mede o resultado percebido; filas e conexões ajudam a localizar a causa interna. Combiná-los permite detectar impacto e investigar sem confundir sintoma com explicação.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança reduz a latência no serviço principal, mas aumenta erros numa dependência a jusante. A equipe deve declarar sucesso sem avaliar outros componentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma melhoria local pode deslocar risco. A verificação precisa incluir efeitos colaterais e dependências relevantes para a operação completa antes de declarar sucesso.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de ações transforma achados de vários incidentes em redução de recorrência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Juntar relatórios anuais e arquivá-los sem comparar causas comuns, impacto ou recorrência entre serviços.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher a última falha e descartar padrões semelhantes que aparecem em outras equipes e dependências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Priorizar reparos apenas pela ordem de abertura dos chamados, sem comparar impacto, risco ou recorrência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agrupar modos de falha, atribuir ações verificáveis e conferir recorrência.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar metas de serviço depois de cada falha para reduzir desvios visíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Analisar padrões entre eventos pode revelar vulnerabilidades comuns. Ações verificáveis e acompanhamento de recorrência testam se o sistema mudou; arquivar relatórios ou ajustar metas não corrige os modos de falha.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SLO pode ser comparado entre períodos sem indicar qual medida e janela temporal ele define.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um objetivo sobre o serviço precisa estar ligado a um indicador definido e a um período, para orientar observação e decisão.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão é mais prudente quando a causa de uma degradação ainda não foi identificada, mas há uma mitigação conhecida e reversível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adiar qualquer ação até que todos os fatores internos estejam provados por uma investigação completa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar mitigação coordenada, registrar a decisão e continuar investigando.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Permitir alterações simultâneas para testar várias hipóteses em produção sem isolar seus efeitos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar encerramento para proteger a métrica de duração, antes de verificar a recuperação do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar o monitoramento durante a intervenção para que sinais de piora não gerem alertas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reduzir impacto pode ter prioridade sobre a investigação completa. Uma mitigação reversível e coordenada pode estabilizar o serviço enquanto a equipe registra e avalia a causa.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe constatou que uma ação automatizada pode reiniciar instâncias em cascata. Antes de habilitá-la, deve testar limites e condições de parada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A automação pode propagar o impacto. Simular condições, impor limites e permitir interrupção tornam a resposta mais segura e observável.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe define o SLI de conclusão de pedidos como pedidos concluídos com sucesso entre tentativas elegíveis. O alvo desse indicador numa janela mensal é chamado de quê?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um log de auditoria que descreve cada pedido individual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um SLA automaticamente válido para qualquer cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma linha de base técnica sem objetivo de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um SLO, isto é, um objetivo sobre o indicador definido.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um postmortem que registra incidentes de pedidos anteriores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O alvo aplicado ao SLI, com período definido, é o SLO. A medida continua sendo a taxa de sucesso; log e postmortem têm funções diferentes, e um SLA é um compromisso formal.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deve aguardar falhas reais antes de exercitar procedimentos, pois simulações não produzem informação válida sobre recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exercícios e testes controlados revelam lacunas sem depender de dano real. Devem ser planejados para o risco e convertidos em ações de melhoria.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida ajuda a identificar uma tendência de risco de capacidade antes da indisponibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar demanda observada, previsão e capacidade validada por testes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter a estimativa original porque foi aprovada na implantação inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Monitorar somente o número de máquinas, sem relacionar carga servida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aguardar que os usuários relatem lentidão durante o próximo pico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar recursos em todos os ambientes sem rever a distribuição da carga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Confrontar previsão e demanda real e testar a relação entre carga e recursos ajuda a detectar desvio antes que vire falta de capacidade. A contagem de máquinas isolada não mede a capacidade útil.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma meta de disponibilidade pode ser interpretada sem saber quais requisições são consideradas elegíveis, desde que o percentual esteja publicado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Numerador, denominador, população e janela precisam ser compreendidos. Um percentual sem definição operacional pode ocultar exclusões ou mudanças na medição.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conteúdo de comunicação durante um incidente ajuda usuários e equipes dependentes a tomar decisões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma hipótese técnica apresentada como fato antes de validação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Detalhes internos extensos sem indicar impacto ou próximo informe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impacto conhecido, serviços afetados, medidas atuais e atualização prevista.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma mensagem final enviada somente depois da recuperação completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A lista de operadores sem informação sobre a experiência dos usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comunicação operacional útil descreve o impacto conhecido, o que está sendo feito e quando haverá nova informação, sem especular além das evidências. Isso ajuda usuários e dependências a planejar.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tempo de recuperação, isoladamente, descreve impacto, segurança e toda a experiência dos usuários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um indicador ilumina uma dimensão delimitada. Avaliação confiável combina medidas com impacto, contexto, risco e comportamento do serviço.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo é um resultado de melhoria derivado de um processo operacional, no sentido da categoria ID.IM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de gráficos sem atribuir uso ou interpretação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar dados de falhas de rotina e corrigir uma etapa vulnerável.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Registrar somente a compra de ferramenta, sem avaliar seu resultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transferir a revisão de riscos para uma auditoria sem acesso à operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o nome do processo sem alterar sua execução ou controles.",
+          "correct": false
+        }
+      ],
+      "explanation": "ID.IM contempla melhorias identificadas na execução de processos e atividades operacionais. Analisar falhas rotineiras e corrigir uma etapa vulnerável transforma evidência operacional em mudança.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma vez que um SLO foi publicado, ele não deve ser revisto mesmo quando o serviço, os usuários e as necessidades operacionais mudam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Objetivos devem permanecer transparentes e não ser alterados para esconder falhas, mas podem ser revistos de forma governada quando contexto, serviço ou necessidades mudam.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ação corretiva foi marcada como concluída, mas não houve novo teste do cenário que causou a falha. Qual lacuna permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falta confirmar se a ação reduz a vulnerabilidade sob a condição original.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A métrica SLO deve ser tratada como um registro de configuração do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O postmortem deixou de registrar o nome de todos os usuários que foram afetados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mudança só pode ser considerada concluída depois de nova falha com impacto real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O procedimento precisa substituir testes técnicos por auditoria anual independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conclusão da tarefa não demonstra eficácia. Reproduzir ou exercitar o cenário de forma segura ajuda a verificar se a vulnerabilidade foi reduzida sem depender de nova falha real.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta que sinaliza uma condição acionável, mas que pode aguardar horário comercial sem aumentar impacto, pode ser encaminhado como tarefa priorizada em vez de página imediata.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Nem todo sinal relevante exige interrupção imediata. A urgência, a ação necessária e o risco de aguardar orientam página ou fila de tarefas.",
+      "section": "2. Sinais, SLI, SLO e alertas que ajudam",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interrupção atinge apenas uma região, enquanto as demais continuam atendendo. Qual dado precisa aparecer na avaliação do incidente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a contagem de servidores ativos na região, sem relacioná-la a usuários ou operações afetadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de implantações feitas por todas as equipes no mês, sem separar o período da interrupção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O custo de armazenamento dos registros técnicos acumulados, sem identificar o escopo do impacto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escopo geográfico, usuários afetados e resultado das rotas alternativas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A latência média global sem discriminar tráfego por região nem a jornada do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Impacto deve descrever quem e quais operações foram afetadas. A média global pode diluir uma falha regional, e contagem de servidores não representa a experiência nem a efetividade do redirecionamento.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um incidente, ações de melhoria podem incluir mudança técnica, atualização de procedimento, treinamento e ajuste de monitoramento, conforme os fatores encontrados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A forma de ação decorre do fator identificado. Uma solução pode envolver desenho técnico, procedimento, treinamento ou sinais de detecção, e pode combinar mais de uma dessas frentes.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual uso do histórico de implantações contribui diretamente para investigar uma degradação que começou logo após uma mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir métricas de serviço por uma lista de autores de código.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correlacionar horário da mudança com sinais, impacto e reversões.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Provar causalidade apenas porque uma implantação ocorreu antes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar dependências para limitar a investigação ao repositório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reaplicar a mudança para confirmar se a degradação se repete em usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Histórico ajuda a correlacionar eventos e orientar investigação, mas precedência temporal isolada não prova causa. Sinais de impacto, dependências e comportamento durante reversão acrescentam evidências.",
+      "section": "3. Incidentes, recuperação e postmortem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação independente de serviço crítico pode identificar uma oportunidade de melhoria mesmo sem falha ou exercício recente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Avaliações e auditorias independentes podem revelar fragilidades latentes. A melhoria não depende exclusivamente de incidentes já ocorridos.",
+      "section": "4. Fazer a melhoria persistir e não criar novo risco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar uma regressão de desempenho, qual evidência apoia melhor uma decisão de reverter a mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A opinião de que o código novo parece mais complexo que o anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A coincidência de uma reunião com o horário da implantação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sinais de latência e erro ultrapassam critérios definidos após a implantação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma preferência estética por manter a versão antiga em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A redução do tamanho do painel de observabilidade durante a mudança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Critérios observáveis de saúde permitem interromper uma mudança quando ela degrada o serviço. Preferência estética ou coincidência não demonstram impacto operacional.",
+      "section": "1. O ciclo de melhoria no serviço crítico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Google SRE — Monitoring Distributed Systems",
+      "publisher": "Google",
+      "reference": "Monitoramento, sintomas e causas, black-box e white-box, alertas acionáveis e simplicidade",
+      "url": "https://sre.google/sre-book/monitoring-distributed-systems/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Google SRE — Postmortem Culture: Learning from Failure",
+      "publisher": "Google",
+      "reference": "Conteúdo de postmortem, critérios de revisão, fatores contribuintes e cultura sem culpabilização",
+      "url": "https://sre.google/sre-book/postmortem-culture/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Google SRE — Service Best Practices",
+      "publisher": "Google",
+      "reference": "Postmortems, alertas, planejamento de capacidade e decisões de confiabilidade",
+      "url": "https://sre.google/sre-book/service-best-practices/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST Cybersecurity Framework 2.0 — CSRC",
+      "publisher": "NIST",
+      "reference": "Categoria ID.IM: melhorias a partir de avaliações, testes, exercícios, operações e incidentes",
+      "url": "https://csrc.nist.gov/Projects/cybersecurity-framework/filters",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-61 Revision 3 — Incident Response Recommendations and Considerations",
+      "publisher": "NIST",
+      "reference": "Integração de resposta a incidentes com gestão de risco e funções do CSF 2.0",
+      "url": "https://csrc.nist.gov/projects/incident-response",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

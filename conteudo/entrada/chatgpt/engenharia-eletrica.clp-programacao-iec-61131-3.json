@@ -1,0 +1,1872 @@
+{
+  "id": "engenharia-eletrica.clp-programacao-iec-61131-3",
+  "subject": "Engenharia Elétrica",
+  "title": "CLPs: Ladder e Lista de Instruções na IEC 61131-3",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programação de CLPs: IEC 61131-3, Ladder e IL",
+    "Programação de Controladores Lógicos Programáveis (CLPs) conforme a norma IEC 61131-3 (diagrama ladder, lista de instruções)."
+  ],
+  "scope": {
+    "covers": "CLPs, linguagens IEC 61131-3 e atualização de 2025; álgebra Ladder, redes, contatos, bobinas, selagem, set/reset, temporizadores e contadores; IL histórica, operações no acumulador, equivalência com Ladder, POUs, tarefas, testes, diagnóstico e segurança.",
+    "excludes": "Dimensionamento elétrico de painéis, comandos de segurança certificados, protocolos industriais em profundidade, parametrização proprietária de fabricantes, desenvolvimento avançado de ST e detalhes de normas de segurança fora do escopo de programação."
+  },
+  "theoryTitle": "Programação de CLPs segundo a IEC 61131-3: Ladder, IL e aplicações",
+  "chapters": [
+    {
+      "title": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "markdown": "## Objetivo e âmbito normativo\n\nUm controlador lógico programável (CLP, ou PLC) é um equipamento industrial que recebe sinais, executa uma aplicação de controle e produz comandos de saída. O CLP não é sinônimo de linguagem de programação: o equipamento possui processador, memória, módulos de entradas e saídas, comunicação e mecanismos de execução; sua aplicação pode ser escrita em linguagens distintas. A série **IEC 61131** contempla aspectos diferentes dos controladores, enquanto a **IEC 61131-3** estabelece regras de **sintaxe e semântica** das linguagens de programação e dos elementos de organização de aplicações. Não é uma norma de fiação elétrica, nem um regulamento que obrigue cada fabricante a fornecer interfaces idênticas.\n\n### Atenção à edição de 2025\n\nEste tópico de edital menciona expressamente **lista de instruções (IL, *Instruction List*)**, exigindo leitura histórica criteriosa. A **terceira edição, IEC 61131-3:2013**, descrevia duas linguagens textuais, **IL e ST (Structured Text)**, e duas gráficas, **LD (Ladder Diagram)** e **FBD (Function Block Diagram)**; empregava também **SFC** para estruturar sequências. A IL já era considerada **obsoleta/depreciada para projetos novos** em recomendações de engenharia. A **quarta edição, IEC 61131-3:2025**, publicada em maio de 2025, declara em seu escopo apenas **ST, LD e FBD** como linguagens da suíte; mantém os elementos de **SFC**. A **IL não integra a lista de linguagens definida no escopo da edição vigente**. Isso não apaga programas legados nem elimina automaticamente ferramentas que ainda os executam. Em prova, diferencie a pergunta sobre a edição de 2013 daquela sobre o padrão de 2025.\n\n### Modelo operacional didático\n\nNo CLP clássico, a lógica é frequentemente explicada por três etapas: **aquisição das entradas**, **execução da aplicação** e **atualização das saídas**. Esse é um modelo de varredura útil para exercícios, não uma garantia universal de que todas as entradas, saídas, interrupções e tarefas seguem exatamente uma única sequência: controladores reais podem ter tarefas periódicas, eventos, E/S remotas, atualização imediata e prioridades. A memória de imagem de entradas pode apresentar um retrato amostrado, enquanto uma variável interna escrita no programa pode ter seu novo valor disponível ainda durante o mesmo ciclo de tarefa. A **temporização de tarefa**, o **tempo de varredura**, o **watchdog** e o tempo de resposta de E/S influenciam o comportamento observado.\n\n### Como reconhecer os elementos\n\n- **LD**: redes (rungs) com contatos, bobinas, ramos e eventualmente blocos funcionais; lembra esquemas de relés.\n- **FBD**: caixas com entradas e saídas conectadas por linhas de sinal.\n- **ST**: expressões e comandos textuais estruturados, como atribuições e condicionais.\n- **IL legada**: mnemônicos em linhas, geralmente associados a um acumulador de operação.\n- **SFC**: etapas, transições e ações que organizam sequências; não se confunde com contato ou bobina.\n\n**Pegadinha recorrente:** “LD” pode designar o *Ladder Diagram* em uma lista de linguagens, mas **`LD` também é mnemônico de carregar (*load*) um operando na IL**. A interpretação depende do contexto. Além disso, normalizar a linguagem não significa padronizar integralmente endereçamento físico, recursos de fabricante, desempenho, instruções estendidas ou protocolos de comunicação.\n\n### Leitura de enunciados\n\nSe a banca disser “a IEC 61131-3 prevê IL e ST como linguagens textuais”, verifique a **edição**. A frase descreve corretamente o quadro de 2013; é inadequada quando apresentada como relação das linguagens da edição de 2025. Se afirmar que Ladder é linguagem textual por usar identificadores, a conclusão é errada: os símbolos e conexões do programa caracterizam sua natureza **gráfica**. Aplicações industriais devem ser avaliadas pela norma pertinente à versão, pelo manual da plataforma e pelo comportamento testado em campo."
+    },
+    {
+      "title": "Ladder: contatos, bobinas e álgebra booleana",
+      "markdown": "## Interpretação lógica de redes Ladder\n\nO **Ladder Diagram (LD)** representa redes de lógica com dois barramentos e caminhos compostos por **contatos** e **bobinas**. O fluxo gráfico da esquerda para a direita é uma **abstração de condição lógica**, não prova de que circula corrente elétrica real dentro do desenho do programa. O barramento esquerdo funciona como condição lógica disponível; os contatos determinam se essa condição chega à bobina. Cada contato ou bobina é associado, nos exemplos usuais, a uma variável booleana. A conexão e a composição dos elementos é que determinam o valor escrito.\n\n### Contato normalmente aberto e contato negado\n\nO contato **normalmente aberto (NA)**, representado de forma textual simplificada por `--| |--`, é logicamente verdadeiro quando sua **variável associada é TRUE**. O contato **normalmente fechado/negado (NF)**, indicado por `--|/|--`, conduz a condição lógica quando sua **variável é FALSE**. **A variável de software não equivale automaticamente à posição física de um contato de campo.** Um botão de parada cabeado como NF pode produzir entrada `TRUE` em situação normal; ao pressioná-lo, a entrada se torna `FALSE`. A leitura Ladder depende do valor da variável e do símbolo programado, e não apenas do nome “parada”.\n\n**Exemplo:** uma bobina `Motor` precedida por contatos NA de `Permissao` e NF de `Falha` expressa `Motor := Permissao AND NOT Falha`. Se `Permissao=TRUE` e `Falha=FALSE`, o caminho está verdadeiro; se `Falha=TRUE`, o contato negado bloqueia a continuidade. Em provas, “normalmente fechado” não significa que a variável seja permanentemente verdadeira.\n\n### Composição das redes\n\n**Contatos em série** implementam **AND (E)**: todos precisam satisfazer sua condição. **Ramos em paralelo** implementam **OR (OU)**: basta um dos caminhos alternativos permitir a passagem da condição. Uma mistura dos dois exige observar os agrupamentos, tal como na álgebra booleana. Considere `A` em série com um desvio no qual `B` e `C` estão em paralelo: a expressão é `A AND (B OR C)`, e não `(A AND B) OR C`. A ordem dos ramos não altera a tabela-verdade de um conjunto puramente combinacional, embora a ordem de execução de redes com escritas e estados possa influir no resultado geral.\n\n### Bobina convencional e escrita\n\nUma **bobina comum** realiza uma atribuição do estado lógico que chega a ela: se a rede for falsa, a variável de saída é escrita como falsa; se verdadeira, como verdadeira. Ela **não memoriza sozinha** o último estado verdadeiro. A retenção em uma lógica de comando pode ser construída com um **ramo de selagem**, com **bobinas de set/reset** ou com blocos de memória. Isso difere da propriedade de **variável retentiva após reinício**, um tema de armazenamento e inicialização.\n\n**Representação textual de duas redes:**\n\n```text\n[ A ] -- [ B ]  ------------ ( Q1 )     -> Q1 = A AND B\n       +-- [ C ] --+\n[ A ]--+           +-------- ( Q2 )     -> Q2 = A AND (B OR C)\n       +-- [ B ] --+\n```\n\nA notação acima serve apenas à aprendizagem; em um editor real, as conexões são desenhadas graficamente. Observe que `Q2` usa `A` antes de uma bifurcação. Acrescentar o contato negado `D` em série à saída dos ramos produz `A AND (B OR C) AND NOT D`.\n\n### Boas práticas de interpretação\n\nTransforme primeiro os símbolos em literais (`A`, `NOT B`) e os caminhos em operadores (`AND`, `OR`). Depois use a tabela de estados. Em especial, confira **o que é contato e o que é bobina**: um contato lê uma variável; uma bobina altera uma variável. O sinal de um sensor de campo pode passar por inversão elétrica, parametrização de módulo e tratamento de software, de modo que a lógica precisa ser validada com a especificação do sistema. Distinguir essas camadas elimina muitos erros de bancas de concursos."
+    },
+    {
+      "title": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "markdown": "## Memória lógica, retenção e sequência de comando\n\nEm acionamentos de motores, é frequente o circuito de **selagem**: um contato do botão de partida é colocado em **paralelo** com um contato associado à própria variável de comando da bobina. Com permissões de segurança e parada em série, o motor permanece comandado quando o botão de partida deixa de ser pressionado, porque o contato de realimentação logicamente sustenta o caminho. A parada deve interromper o caminho de selagem. Na análise, admita estado inicial desligado e entradas estáveis, salvo indicação contrária.\n\nA forma conceitual `Comando := ParadaOK AND Permissao AND (Partida OR Comando)` explicita a realimentação lógica. Apesar da semelhança com circuitos elétricos, **essa selagem não substitui circuitos independentes de proteção de pessoas**. O contato programado como “parada” é apenas uma condição de controle, e o acionamento físico seguro depende da arquitetura de segurança exigida pela análise de risco.\n\n### Bobinas de set e reset\n\nA **bobina S (set)** estabelece uma variável em verdadeiro quando habilitada; a **bobina R (reset)** estabelece falso quando habilitada. Quando a condição de S ou R não atua, a memória pode conservar o estado, conforme a implementação e a construção do circuito. Os blocos bistáveis **SR** e **RS** apresentam **prioridades distintas quando os comandos de ligar e desligar ocorrem ao mesmo tempo**: nos blocos convencionais, **SR prioriza set**; **RS prioriza reset**. Uma questão pode tentar inverter essas prioridades. É boa prática tornar inequívoca a prioridade de parada em projetos que a exijam, e evitar múltiplos pontos de escrita não controlada sobre a mesma saída.\n\n### Temporizadores como blocos com estado\n\nO bloco **TON (on-delay)** atrasa o **ligamento**: após `IN` permanecer verdadeiro pelo tempo `PT`, `Q` passa a verdadeiro; se `IN` voltar a falso antes de completar a temporização, o TON convencional reinicializa seu tempo e sua saída. O bloco **TOF (off-delay)** atrasa o **desligamento**: quando `IN` vai a falso, `Q` pode continuar verdadeiro durante `PT`. O **TP** produz um pulso temporizado a partir de evento de entrada, conforme o modelo da biblioteca utilizada. `PT` representa o tempo pré-ajustado; `ET`, o tempo decorrido; `Q`, a indicação booleana de estado do temporizador. `T#3s` é exemplo didático de literal temporal empregado em ambientes IEC.\n\n**Caso de prova:** uma ventilação deve iniciar apenas após detecção contínua de pressão por três segundos. Um TON comandado por `PressaoOK` modela naturalmente esse requisito. Usar TOF, nesse caso, manteria a saída após perda do sinal e resolveria uma finalidade distinta. O instante real em que a saída física se modifica ainda depende da tarefa, do módulo de E/S e da execução.\n\n### Contadores e detecção de borda\n\nO **CTU** realiza contagem crescente ligada aos eventos de entrada; em bibliotecas usuais, cada **borda de subida** em `CU` incrementa `CV`, e `RESET` reinicia o valor. `PV` é a referência, e `Q` indica a condição de contagem atingida (`CV >= PV` no bloco documentado). Manter o botão pressionado não deve ser interpretado como um novo pulso a cada varredura. O **R_TRIG** detecta transição de falso para verdadeiro; o **F_TRIG** detecta transição de verdadeiro para falso. Ambos precisam de histórico de estado entre chamadas para diferenciar borda de nível.\n\n### Intertravamento\n\nDois contatores de reversão de motor, por exemplo, não podem permanecer acionados simultaneamente. Uma solução de controle inclui condição `NOT Reverso` no comando `Direto` e vice-versa, acompanhada dos meios elétricos e mecânicos apropriados ao equipamento. Esse exemplo mostra diferença entre **intertravamento de software** e **intertravamento físico**: o primeiro reduz comandos incompatíveis na aplicação; o segundo acrescenta barreiras fora da decisão exclusiva do software. Em situações com risco, somente a análise de segurança determina a arquitetura exigida."
+    },
+    {
+      "title": "Lista de instruções (IL): acumulador e operações",
+      "markdown": "## Instruction List (IL): importância histórica e sintaxe\n\nA **Instruction List** é uma linguagem **textual, de baixo nível e formato mnemônico**, associada às edições anteriores da IEC 61131-3. Sua leitura é indispensável na manutenção de aplicações legadas e ainda pode figurar em editais que não especificam a edição normativa. Entretanto, **a edição IEC 61131-3:2025 não a inclui entre as linguagens previstas em seu escopo**. Logo, conhecer a sintaxe **não** equivale a recomendar seu uso para novos projetos. Bancas podem misturar as duas épocas para testar a atenção do candidato.\n\n### Acumulador e fluxo de dados\n\nA IL usa frequentemente o **resultado corrente**, chamado didaticamente de **acumulador**. A instrução **`LD X`**, neste contexto, significa **carregar o valor de X**, e não escolher a linguagem Ladder. Instruções como **`AND Y`** e **`OR Z`** combinam o acumulador com outro operando. A instrução **`ST Destino`** grava o resultado corrente em uma variável, enquanto **`LDN`**, **`ANDN`** e **`ORN`** representam variantes com negação do operando, conforme a sintaxe histórica suportada.\n\n```text\nLD   A\nAND  B\nST   Motor\n```\n\nA leitura é: carregar `A`; combinar logicamente com `B` por E; escrever em `Motor`. Resultado: `Motor := A AND B`. Se `A=TRUE` e `B=FALSE`, a variável escrita é `FALSE`. Nessa notação, `ST` é **store** (armazenar), e não a sigla da linguagem **Structured Text**. Compare com a expressão ST de mesma função, `Motor := A AND B;`, que usa atribuição e ponto e vírgula.\n\n```text\nLD   A\nANDN Falha\nST   Permitir\n```\n\nA segunda sequência exprime `Permitir := A AND NOT Falha`. O modificador `N` atua sobre o operando da instrução correspondente; não se deve presumir que ele negue toda a expressão acumulada. Em exercícios mais complexos, o uso de parênteses e de resultados intermediários deve respeitar a convenção específica da implementação IL.\n\n### Operações adicionais\n\nEm ambientes IL legados, mnemônicos podem representar **comparações** (`EQ`, `NE`, `GT`, `GE`, `LT`, `LE`) e operações aritméticas. Os saltos **`JMP`** e **`JMPC`** podem alterar o fluxo de execução; em modelos usuais, o primeiro é incondicional e o segundo depende do resultado lógico corrente. Rotinas baseadas em muitos saltos dificultam a análise de caminhos e exigem atenção à possibilidade de tarefas bloqueadas ou resultados não atualizados. Não suponha, sem o manual da plataforma, que um mnemônico proprietário seja intercambiável com qualquer outro equipamento.\n\n### Set, reset e blocos na IL\n\nAlguns dialetos legados empregam instruções associadas a **set/reset** e **chamadas de blocos funcionais**, porém a sintaxe exata e as restrições do editor devem ser conferidas na ferramenta. Os exemplos de `LD`, `AND`, `ANDN`, `OR`, `ST` bastam para a maioria das traduções lógicas elementares. Diferencie **a instrução `ST` de gravação** da linguagem **ST**, pois uma pergunta pode explorar precisamente essa polissemia.\n\n### Cuidado com afirmações gerais\n\nA IL não é um diagrama de contatos, ainda que descreva as mesmas funções booleanas simples. Sua estrutura textual e mnemônica não a transforma em linguagem de alto nível como ST. A posição do valor no acumulador afeta o resultado de cada instrução. Para resolver questões, execute a sequência **linha por linha**, registrando o valor corrente após cada operação, em vez de traduzir os comandos na ordem que parecer visualmente mais familiar."
+    },
+    {
+      "title": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "markdown": "## Tradução entre notações e modularidade\n\nA IEC 61131-3 promove a organização da aplicação em **unidades de organização de programa (POUs)**, como **programas, funções e blocos funcionais**. Essa estrutura evita tratar todo o software como uma única rede interminável e ajuda na reutilização e nos testes. Uma **função** tende a produzir um resultado a partir dos argumentos fornecidos, sem a memória de estado interno típica de um bloco funcional; um **bloco funcional (FB)** possui **instâncias** e pode preservar valores internos entre execuções. A aplicação concreta depende da biblioteca, da edição e do modelo de execução.\n\n### Traduções booleanas confiáveis\n\nA sequência histórica\n\n```text\nLD   A\nOR   B\nANDN Bloqueio\nST   Saida\n```\n\npode ser lida, **na ordem mostrada**, como `Saida := (A OR B) AND NOT Bloqueio`. Em Ladder, isso corresponde a contatos `A` e `B` **em paralelo**, seguidos de um contato negado `Bloqueio` **em série**, comandando a bobina `Saida`. Em Structured Text, a lógica ficaria `Saida := (A OR B) AND NOT Bloqueio;`. A tradução é funcionalmente simples por não haver memória, saltos, efeitos colaterais ou múltiplas escritas.\n\nOutro exemplo: `LD A; AND B; OR C; ST Q` resulta em `(A AND B) OR C`: uma via com `A` e `B` em série paralela a uma via com `C`. Isso **não** é igual a `A AND (B OR C)` para todas as combinações. Tome `A=FALSE`, `B=FALSE` e `C=TRUE`: a primeira expressão é verdadeira; a segunda é falsa. Contraexemplos desse tipo são excelentes para anular equivalências mal formuladas.\n\n### Instâncias e estados\n\nEm uma máquina com duas esteiras, empregar **duas instâncias** de um bloco de temporização permite históricos independentes. Reutilizar uma única instância para dois comportamentos distintos, sem projeto explícito, mistura estados e chamadas. A instância do TON contém informações necessárias para representar o tempo decorrido e seu estado `Q`; um contato booleano isolado não armazena esse histórico. A distinção aparece em questões sobre modularização e reutilização.\n\n### Variáveis e interface das POUs\n\nEm projetos IEC, variáveis podem ser declaradas com tipo apropriado, inclusive booleanos, inteiros e tempos; a interface da unidade pode distinguir entradas, saídas e parâmetros de entrada/saída. Comandos de saída devem evitar **dois escritores independentes** cuja ordem decida, involuntariamente, o resultado. Um programa com `Motor := TRUE` em uma rede e `Motor := FALSE` em outra, se ambas executadas nessa ordem, pode terminar o ciclo com `FALSE`; tal comportamento de escrita precisa ser analisado e não deve ser mascarado pela aparência gráfica.\n\n### Portabilidade não é execução idêntica\n\nA normalização de linguagens e elementos favorece portabilidade conceitual, mas não garante que um projeto inteiro possa ser aberto sem alterações em todos os fabricantes. Bibliotecas adicionais, configuração das tarefas, endereços de E/S, blocos proprietários e características temporais podem diferir. Migrar IL para LD ou ST pressupõe testes de equivalência sobre **estados, temporização, reinicialização, prioridades, bordas e falhas**, e não apenas tradução de textos.\n\n### Enfoque de concursos\n\nPara questões de equivalência, comece identificando a **saída** e as **condições de habilitação**. Em seguida, anote a tabela de estados e converta combinações série/paralelo para AND/OR. Se houver `S`, `R`, TON, CTU ou chamada com memória, não simplifique indiscriminadamente para álgebra combinacional. Uma equivalência algébrica entre duas expressões não é prova de equivalência temporal entre duas aplicações completas."
+    },
+    {
+      "title": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "markdown": "## Execução real, diagnóstico e segurança\n\nA correção de um controle não se limita a obter a expressão booleana adequada. Um CLP executa aplicações em ambiente de **tempo real industrial** com tarefas, prioridades, memória, entradas e saídas. O ciclo de varredura descrito em livros é uma referência útil, mas **não equivale a uma regra universal** sobre a atualização de todas as variáveis. Uma tarefa rápida e outra lenta podem observar estados diferentes; entradas filtradas podem apresentar atraso; uma saída física só responde depois das etapas de processamento e do circuito de acionamento.\n\n### Varredura, eventos e prioridades\n\nO **tempo de varredura** é um indicador operacional, não o prazo isolado entre uma mudança física de entrada e a reação completa de um atuador. Para estimar o pior caso de resposta, considere a amostragem, a agenda das tarefas, a lógica de execução, a atualização da saída, os atrasos de comunicação, os módulos, os relés e o processo físico. Uma mudança de variável interna pode repercutir em rede posterior da mesma tarefa; a E/S física pode aguardar outra fase. O **watchdog** serve para supervisionar limites de execução e identificar condições anormais conforme a configuração do CLP.\n\n### Diagnóstico de falhas lógicas\n\nEm caso de motor que não parte, faça um roteiro: confirme **alimentação e estado dos módulos**, valide a **entrada observada**, verifique permissões e intertravamentos, acompanhe o **caminho lógico** até a bobina, observe a **variável de saída** e, por fim, confira o **módulo e o circuito de potência**. Uma bobina lógica em `TRUE` não comprova que o contator fechou: fusíveis, interfaces, cabos e falhas de atuadores podem impedir o efeito físico. De modo inverso, uma medição inadequada pode levar a erro de diagnóstico da lógica.\n\n### Retenção e reinicialização\n\nA variável que permanece verdadeira após o botão de partida ser liberado por **selagem** não é necessariamente **retentiva diante de falta de energia**. A retenção através de reinício depende da declaração, da configuração, da memória utilizada e do tipo de reinicialização do controlador. Para estado seguro de partida, determine explicitamente se um comando pode ou não ser restaurado após retorno de energia. Nem uma bobina `S` nem uma ligação de realimentação garantem, isoladamente, armazenamento não volátil.\n\n### Segurança funcional versus controle convencional\n\nUma malha de parada de emergência não deve ser considerada segura apenas por possuir um contato negado no Ladder. A proteção de pessoas requer análise de riscos, arquitetura adequada, componentes, diagnósticos e validação de segurança apropriados. O **programa Ladder convencional** pode controlar uma máquina, mas não certifica automaticamente a função de segurança. Relés de segurança, controladores de segurança e dispositivos físicos são definidos pelo projeto de proteção, não por presunção extraída da sintaxe IEC 61131-3.\n\n### Qualidade e testes\n\nAdote nomes claros (`PortaFechada`, `BombaLigada`, `FalhaSensor`), documentação de estados e comentários que expliquem o propósito da rede. Revise permissões, prioridades e escritos concorrentes; faça testes de **partida**, **parada**, **falha**, **retorno de energia**, **perda de comunicação**, **variações de tempo** e **transições de borda**. Instrumente o diagnóstico com atenção: forçar entradas ou saídas em ambiente produtivo exige procedimento autorizado porque pode alterar comandos e gerar riscos.\n\n### Revisão final da versão normativa\n\nEm 2013, **IL figurava explicitamente entre as linguagens textuais**. Na edição **2025**, o escopo enumera **ST, LD e FBD**, e a IL não aparece na suíte vigente. Em exercícios históricos de IL, interprete seus mnemônicos com precisão; em perguntas atuais sobre a norma, não afirme que IL permanece oficialmente na relação de linguagens de 2025. Essa dupla leitura concilia a realidade dos sistemas legados com a atualização do edital."
+    }
+  ],
+  "summary": "## Revisão estratégica — CLPs e IEC 61131-3\n\nA **IEC 61131-3** trata da sintaxe, semântica e organização das linguagens de programação de CLPs. Uma atualização especialmente cobrável: a edição **2013** incluía a **Instruction List (IL)** entre as linguagens textuais; a edição **2025** lista **Structured Text (ST), Ladder Diagram (LD) e Function Block Diagram (FBD)**, com elementos **SFC** para estruturar sequências, mas **não apresenta IL entre as linguagens de seu escopo**. A IL permanece importante para compreender programas legados.\n\nEm **Ladder**, contatos NA conduzem lógica quando o bit está `TRUE`, contatos negados quando está `FALSE`; ligações **em série equivalem a AND**, e ligações **em paralelo equivalem a OR**. A bobina comum escreve o valor da rede, sem retenção automática. Selagem é realimentação lógica; **retenção após falta de energia** depende de memória e configuração.\n\nNos blocos funcionais, **TON atrasa o ligamento**, **TOF atrasa o desligamento**, **CTU conta bordas de subida**, **R_TRIG reconhece borda ascendente** e **F_TRIG, descendente**. Os bistáveis **SR** e **RS** têm prioridades diferentes para comandos simultâneos: set e reset, respectivamente.\n\nNa **IL histórica**, `LD X` carrega X, `AND Y` e `OR Y` combinam com o resultado corrente, `ANDN Y` combina com `NOT Y` e `ST Z` **armazena em Z**. Não confunda `LD` como instrução de carregamento com a sigla da linguagem Ladder, nem `ST` como instrução de armazenamento com o nome Structured Text. Traduções entre IL, Ladder e ST exigem respeitar **ordem e agrupamento**; aplicações com memória e temporização demandam testes adicionais.\n\nPor fim, **comando lógico não é atuação física**, e **um contato de parada no software não é comprovação de segurança funcional**. Verifique varredura, prioridades, E/S, reinicialização, intertravamentos, diagnóstico e procedimentos de validação.",
+  "flashcards": [
+    {
+      "front": "Qual é o objeto principal da IEC 61131-3?",
+      "back": "Sintaxe e semântica das linguagens de CLP e elementos para organizar programas; não padroniza integralmente hardware ou tempo de resposta."
+    },
+    {
+      "front": "Quais linguagens figuram no escopo da IEC 61131-3:2025?",
+      "back": "Structured Text (ST), Ladder Diagram (LD) e Function Block Diagram (FBD); SFC fornece elementos de estruturação."
+    },
+    {
+      "front": "Qual é o cuidado com Instruction List em provas atuais?",
+      "back": "IL constava do escopo da edição de 2013, mas não da lista de linguagens apresentada na edição de 2025; é relevante para aplicações legadas."
+    },
+    {
+      "front": "Em Ladder, contatos NA em série correspondem a qual operação?",
+      "back": "AND: todas as condições precisam ser verdadeiras."
+    },
+    {
+      "front": "Em Ladder, contatos NA em paralelo correspondem a qual operação?",
+      "back": "OR: ao menos um caminho precisa ser verdadeiro."
+    },
+    {
+      "front": "Quando o contato negado em Ladder conduz logicamente?",
+      "back": "Quando a variável associada tem valor FALSE, independentemente do nome físico do dispositivo."
+    },
+    {
+      "front": "O que faz uma bobina convencional quando a rede é falsa?",
+      "back": "Escreve FALSE na variável atribuída, sem conservar automaticamente o último TRUE."
+    },
+    {
+      "front": "O que significa selagem?",
+      "back": "Um caminho de realimentação, tipicamente paralelo à partida, que mantém o comando enquanto as permissões permanecerem satisfeitas."
+    },
+    {
+      "front": "Set e reset comuns equivalem a memória retentiva após queda de energia?",
+      "back": "Não. Set/reset estabelece estado lógico; retenção após energia depende do sistema e da configuração."
+    },
+    {
+      "front": "Quem prevalece quando SET e RESET são simultâneos em SR e RS?",
+      "back": "No SR convencional prevalece set; no RS convencional, reset."
+    },
+    {
+      "front": "Qual função do TON?",
+      "back": "Temporizador que atrasa o acionamento: Q só se torna verdadeiro após IN permanecer verdadeiro pelo tempo PT."
+    },
+    {
+      "front": "Qual função do TOF?",
+      "back": "Temporizador que atrasa o desligamento: Q permanece ativo durante certo intervalo após IN ir para falso."
+    },
+    {
+      "front": "O que representam PT e ET em temporizadores?",
+      "back": "PT é o tempo predefinido; ET é o tempo transcorrido informado pelo bloco."
+    },
+    {
+      "front": "Como o CTU convencional incrementa?",
+      "back": "A cada borda de subida no sinal CU, não a cada varredura com CU continuamente TRUE."
+    },
+    {
+      "front": "O que significam R_TRIG e F_TRIG?",
+      "back": "Reconhecem, respectivamente, bordas de subida e de descida de um sinal booleano."
+    },
+    {
+      "front": "O que faz LD X em Instruction List?",
+      "back": "Carrega o valor X para o resultado corrente/acumulador; não significa selecionar a linguagem Ladder."
+    },
+    {
+      "front": "O que faz ST Q na Instruction List?",
+      "back": "Armazena o resultado corrente na variável Q; ST aqui não é a linguagem Structured Text."
+    },
+    {
+      "front": "Qual expressão gera 'LD A; OR B; ANDN F; ST Q'?",
+      "back": "Q := (A OR B) AND NOT F."
+    },
+    {
+      "front": "Qual expressão gera 'LD A; AND B; OR C; ST Q'?",
+      "back": "Q := (A AND B) OR C."
+    },
+    {
+      "front": "O que caracteriza um bloco funcional em comparação a uma função?",
+      "back": "O bloco funcional possui instâncias e pode conservar estado interno entre chamadas."
+    },
+    {
+      "front": "Por que usar duas instâncias TON para duas esteiras?",
+      "back": "Para separar seus estados, tempos decorridos e saídas, evitando interferência entre chamadas."
+    },
+    {
+      "front": "Uma bobina TRUE prova acionamento do motor?",
+      "back": "Não. É preciso conferir módulo de saída, alimentação, fiação, contator e processo físico."
+    },
+    {
+      "front": "Um contato negado de parada no programa substitui segurança funcional?",
+      "back": "Não. Segurança requer análise de riscos, arquitetura, dispositivos e validação adequados."
+    },
+    {
+      "front": "Portabilidade de sintaxe significa portabilidade integral do projeto?",
+      "back": "Não. Bibliotecas, configurações de tarefas, endereçamento, estados e tempos podem divergir."
+    }
+  ],
+  "tips": [
+    "Em questões normativas, procure a **edição**: IL em 2013 não autoriza dizer que ela integra o escopo de 2025.",
+    "Desenhe o agrupamento lógico antes de calcular: série = AND; paralelo = OR; contato negado = NOT.",
+    "Para resolver IL, mantenha uma coluna mental de 'resultado corrente' e atualize-a após cada instrução.",
+    "Separe **memória em execução** (selagem, bloco bistável) de **retentividade após desligamento**.",
+    "Em temporizadores e contadores, diferencie nível contínuo de borda, e PT de ET e PV de CV.",
+    "Nas questões de migração, cheque equivalência temporal e estados, não somente equações booleanas."
+  ],
+  "traps": [
+    "Confundir a edição IEC 61131-3:2013 com a de 2025 e apresentar a IL como linguagem da suíte atual.",
+    "Confundir a sigla LD (Ladder Diagram) com o mnemônico IL 'LD' (carregar).",
+    "Confundir o mnemônico IL 'ST' (armazenar) com a linguagem Structured Text.",
+    "Trocar contatos NA e negados por simples associação com a fiação física do botão.",
+    "Afirmar que a bobina comum mantém TRUE quando a condição de rede cai, sem selagem ou set.",
+    "Presumir que lógica e intertravamento de software, isoladamente, certificam parada de emergência.",
+    "Afirmar que CTU soma uma unidade por varredura mesmo sem nova borda em CU.",
+    "Tomar equivalência de expressões por equivalência completa de tarefas, tempo e reinicialização."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare a lista de linguagens de 2013 e 2025.",
+      "answer": "Em 2013: IL, ST, LD e FBD; em 2025: ST, LD e FBD, além de elementos SFC de estruturação. IL não figura na lista do escopo vigente."
+    },
+    {
+      "question": "Uma saída Q depende de A verdadeiro e B falso. Qual rede Ladder simples representa isso?",
+      "answer": "Contato NA de A em série com contato negado de B, dirigindo uma bobina convencional Q."
+    },
+    {
+      "question": "A=FALSE, B=TRUE, C=TRUE. Compare (A AND B) OR C e A AND (B OR C).",
+      "answer": "A primeira expressão é TRUE, e a segunda é FALSE. Portanto, não são equivalentes."
+    },
+    {
+      "question": "Por que um TON não serve de modo natural ao retardo no desligamento?",
+      "answer": "TON atrasa a passagem de Q para TRUE quando IN permanece TRUE; o bloco tipicamente usado para manter Q após a queda de IN é TOF."
+    },
+    {
+      "question": "Em CTU, um sinal CU fica TRUE durante dez varreduras. Quantos eventos de subida isso representa, sem outros pulsos?",
+      "answer": "Um evento de subida quando CU mudou de FALSE para TRUE; manter TRUE não gera novas bordas."
+    },
+    {
+      "question": "Traduza 'LD A; OR B; ANDN F; ST Saida' para expressão.",
+      "answer": "Saida := (A OR B) AND NOT F."
+    },
+    {
+      "question": "Como diagnosticar Q lógica TRUE e contator que não fecha?",
+      "answer": "Conferir comando e módulo de saída, alimentação, proteção, fiação e contator; não presumir atuação física a partir de um bit."
+    },
+    {
+      "question": "Por que set de uma bobina não prova retenção após desligamento?",
+      "answer": "Porque a escrita lógica e a persistência em memória durante a queda de energia são mecanismos diferentes, dependentes da plataforma e da configuração."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre versões da IEC 61131-3",
+      "summary": "IL constava do escopo de 2013, mas não é enumerada entre as linguagens no escopo da edição de 2025. SFC estrutura sequências sem substituir Ladder."
+    },
+    {
+      "key": "e2",
+      "title": "Álgebra booleana e contatos Ladder",
+      "summary": "Série corresponde a AND, paralelo a OR; contato negado conduz quando a variável é FALSE. Não se deve confundir símbolo lógico com o estado físico de um botão."
+    },
+    {
+      "key": "e3",
+      "title": "Estado, selagem e blocos temporizados",
+      "summary": "Bobina comum não memoriza; TON e TOF diferem no evento retardado; CTU conta bordas; SR e RS têm prioridades distintas; retenção após energia é outro assunto."
+    },
+    {
+      "key": "e4",
+      "title": "Mnemônicos e agrupamento em Instruction List",
+      "summary": "LD em IL carrega, ST grava, e as operações alteram o resultado corrente na ordem executada. A tradução Ladder exige preservar operadores e agrupamento."
+    },
+    {
+      "key": "e5",
+      "title": "Execução real, migração e segurança",
+      "summary": "Equivalência lógica não implica identidade temporal. Tarefas, inicialização, E/S, blocos, proteção física e validação influenciam a operação do CLP."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A IEC 61131-3 estabelece regras para linguagens de programação de controladores, sem que isso implique uniformidade completa dos endereços físicos de entrada e saída entre fabricantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A norma disciplina sintaxe, semântica e elementos de organização de programas, mas a configuração de hardware, o mapeamento de E/S e recursos proprietários variam entre plataformas. Confundir padronização de linguagem com identidade de equipamento torna o item incorreto.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma comissão de concurso pede a relação de linguagens explicitamente descritas no escopo da IEC 61131-3:2025. Qual resposta atende à edição vigente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Structured Text, Ladder Diagram e Function Block Diagram.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Instruction List, Structured Text, Ladder Diagram e Function Block Diagram, obrigatoriamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente Instruction List e Ladder Diagram, por serem as linguagens fundamentais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sequential Function Chart e Instruction List, exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ladder Diagram e um código de montagem específico do fabricante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A quarta edição enumera ST, LD e FBD; também define elementos SFC de estruturação. A IL constava da edição de 2013, mas não da relação de linguagens do escopo de 2025. As demais propostas confundem edições ou eliminam linguagens expressamente previstas.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A edição de 2013 da IEC 61131-3 já excluía a lista de instruções de sua relação de linguagens, razão pela qual aplicações antigas em IL nunca se basearam nessa norma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A terceira edição de 2013 incluía IL e ST como linguagens textuais, ao lado de LD e FBD como gráficas. A retirada de IL da relação do escopo é característica da edição de 2025. A existência de software legado é compatível com a história da norma.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao inspecionar documentação de um CLP, um técnico encontra a sigla LD associada a diagramas com contatos e bobinas. Em outra rotina, aparece a linha textual 'LD Sensor'. A interpretação correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas as ocorrências identificam obrigatoriamente a linguagem Ladder.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na primeira ocorrência, LD indica Ladder Diagram; na segunda, uma instrução de carregamento de IL legada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Na primeira ocorrência, LD significa lista de instruções; na segunda, diagrama de relés.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As duas ocorrências são comandos de saída física, equivalentes à bobina S.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A primeira ocorrência identifica uma linguagem textual, e a segunda identifica um temporizador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sigla LD identifica a linguagem gráfica Ladder Diagram em classificações de linguagens, mas também é mnemônico de load na IL histórica. O significado deriva do contexto. As demais leituras confundem linguagem, instrução e função de saída.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura clássica de varredura, ler entradas, executar a lógica e atualizar saídas é um modelo didático útil; contudo, controladores podem possuir tarefas periódicas ou acionadas por eventos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo de imagem de entradas, execução e atualização de saídas é usual, mas não cobre todas as arquiteturas: podem existir tarefas concorrentes, prioridades, interrupções e atualizações específicas. A generalização de uma única varredura para qualquer CLP seria indevida.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova afirma que a finalidade central da IEC 61131-3 é uniformizar uma característica dos CLPs. Que característica é essa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A dimensão física e a capacidade elétrica dos bornes de todas as entradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O protocolo exclusivo de comunicação com supervisórios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A sintaxe e a semântica de linguagens e componentes de programação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A posição dos contatos auxiliares e de potência nos painéis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tempo de varredura idêntico para todos os controladores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O foco da parte 3 é a padronização das linguagens e elementos de software. Montagem de painéis, características elétricas, redes e desempenho não se tornam idênticos pelo fato de a aplicação utilizar sintaxe padronizada.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na IEC 61131-3:2025, o SFC substituiu integralmente o Ladder, de modo que o diagrama de contatos deixou de integrar as linguagens reconhecidas pela norma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O Ladder continua entre as linguagens gráficas reconhecidas em 2025. SFC fornece elementos para estruturar sequências com etapas e transições, sem excluir LD nem desempenhar o papel de uma bobina ou contato. O item troca estruturação sequencial por substituição de linguagem.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa pretende migrar aplicação antiga em IL para plataforma nova. Antes de iniciar o trabalho, qual premissa normativa é a mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que a IL é obrigatória em qualquer compilador aderente à edição de 2025.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar a IL como linguagem gráfica que não exige tradução textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Presumir identidade de temporizações e de mapeamento físico após copiar o código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconhecer a IL como linguagem legada de edições anteriores e verificar a plataforma de destino.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Excluir a documentação das funções antigas porque toda migração é automática.",
+          "correct": false
+        }
+      ],
+      "explanation": "A IL foi contemplada historicamente, mas não integra a relação de linguagens do escopo de 2025. Portar a aplicação requer examinar recursos, blocos, tarefas e estados da plataforma. As demais respostas atribuem portabilidade irrestrita ou ignoram validação.",
+      "section": "IEC 61131-3, arquitetura do CLP e evolução normativa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede Ladder combinacional, dois contatos normalmente abertos associados às variáveis A e B, conectados em série, implementam a condição A AND B para a bobina convencional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Contatos NA conduzem a condição lógica quando sua variável é verdadeira. Em série, a continuidade até a bobina exige ambas as variáveis verdadeiras; a bobina comum reproduz o estado lógico resultante. Uma relação OR exigiria ramos alternativos.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma bobina Q recebe dois contatos NA, A e B, em paralelo, seguidos de um contato negado F em série. Qual expressão descreve corretamente Q?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Q = A AND B AND F.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Q = NOT (A OR B) AND F.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Q = (A AND B) OR F.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Q = A OR (B AND F).",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Q = (A OR B) AND NOT F.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os contatos em paralelo tornam a condição verdadeira quando A ou B vale TRUE; o contato negado F em série só permite a passagem quando F vale FALSE. As outras expressões alteram agrupamento, operadores ou o sentido da negação.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contato normalmente fechado desenhado em Ladder conduz a condição lógica quando a variável associada está em TRUE, pois reproduz necessariamente a posição mecânica do botão de campo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O contato negado em LD é logicamente verdadeiro quando a variável correspondente é FALSE. A relação entre posição mecânica de um botão e bit observado depende da fiação e do módulo de entrada. Confundir contato lógico NF com estado físico leva à conclusão oposta.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede apenas combinacional, a sequência formada por A em série com dois ramos paralelos B e C corresponde a:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A AND (B OR C).",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "(A AND B) OR C, sem qualquer condição adicional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A OR (B AND C).",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "(A OR B) AND C.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NOT A AND B AND C.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contato A fica antes da bifurcação e condiciona ambos os caminhos. Por isso ele se combina por AND com o grupo paralelo B OR C. As opções incorretas deslocam a associação ou introduzem negação inexistente.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma bobina convencional em Ladder, quando alcançada por condição lógica falsa em uma rede executada, conserva automaticamente o último valor TRUE, dispensando selagem ou memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A bobina convencional escreve o valor lógico que recebe: se a condição da rede é falsa, escreve FALSE. Para manter comando após cessar um pulso, é necessária realimentação, set/reset ou outra estrutura com estado. O item atribui memória inerente à bobina simples.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dada a rede Q = A AND NOT B, qual combinação de entradas produz Q = TRUE?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A = TRUE e B = TRUE.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A = TRUE e B = FALSE.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A = FALSE e B = FALSE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A = FALSE e B = TRUE.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer estado de A, desde que B = TRUE.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição exige simultaneamente a habilitação A e a ausência de B. Assim, a única combinação válida é A verdadeiro e B falso. Nas demais, ou falta habilitação ou a negação de B bloqueia a passagem até a bobina.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Ladder, um contato lê a condição de uma variável, enquanto a bobina convencional atribui o resultado lógico recebido à variável a que está associada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O contato é elemento de teste e transmissão da condição, e a bobina é elemento de escrita do resultado da rede. A distinção ajuda a analisar redes sem confundir aquisição de estados com comando de saídas. Ambos podem referir-se a variáveis internas, não apenas a pontos físicos.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao elaborar tabela-verdade para uma rede Ladder, um candidato afirma que ramos paralelos correspondem a AND e contatos em série correspondem a OR. A correção necessária é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a associação apresentada, pois as duas operações são equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar todos os contatos NA por bobinas de memória, independentemente das variáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inverter essa correspondência: série representa AND; paralelo representa OR.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Considerar que apenas os ramos paralelos podem ser interpretados logicamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir todo ramo por um temporizador de retardo no desligamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na rede combinacional, uma sequência em série exige todas as condições, como a conjunção AND. Em paralelo, uma rota verdadeira basta, como a disjunção OR. As demais medidas não corrigem a álgebra booleana e inserem efeitos de memória alheios ao problema.",
+      "section": "Ladder: contatos, bobinas e álgebra booleana",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na selagem típica de comando de motor, o contato de realimentação associado ao comando é inserido em paralelo ao contato de partida, enquanto a parada permanece em série com o conjunto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A realimentação paralela mantém um caminho verdadeiro depois da liberação do botão de partida. A parada em série interrompe tanto o caminho da partida quanto o da selagem, permitindo desligar o comando. Colocar a parada só em um ramo deixaria via indevida.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma esteira deve ligar somente quando o sinal PressaoOK permanecer continuamente verdadeiro por três segundos. Qual bloco funcional atende diretamente à condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TOF, porque mantém a saída verdadeira após a queda de PressaoOK.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CTU, porque conta todas as varreduras em que PressaoOK estiver verdadeiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "R_TRIG isolado, porque memoriza automaticamente três segundos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TON, com IN ligado a PressaoOK e PT ajustado para três segundos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma bobina comum, porque possui atraso intrínseco no ligamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O TON é temporizador de atraso no acionamento e ativa Q após IN permanecer verdadeiro durante PT. O TOF atrasa desligamento, CTU conta eventos e R_TRIG detecta borda; bobina simples não mede tempo. A configuração deve ser testada na tarefa real.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No bloco convencional TON, uma queda de IN para FALSE, antes de se completar o tempo PT, não interfere no tempo acumulado, que sempre prossegue até alcançar PT.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O TON não retentivo convencional interrompe e reinicializa a temporização quando IN fica FALSE. Portanto, uma sequência de sinais verdadeiros curtos não se soma automaticamente até PT. O item confunde TON com técnicas de temporização retentiva.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em blocos bistáveis usuais, as entradas de set e reset tornam-se verdadeiras ao mesmo tempo. Qual afirmação sobre prioridade é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tanto SR quanto RS priorizam set em qualquer situação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tanto SR quanto RS priorizam reset em qualquer situação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O bloco SR é um contador, e o RS é um temporizador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As duas saídas tornam-se necessariamente indefinidas, sem prioridade padronizada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bloco SR prioriza set, enquanto o RS prioriza reset.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os nomes convencionais diferenciam a condição dominante: SR privilegia set e RS privilegia reset em comando simultâneo. Os blocos são bistáveis, não contadores ou temporizadores. Na prática, é necessário confirmar a biblioteca e o projeto de controle.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o valor de CU permanecer TRUE durante cinco varreduras consecutivas, um contador crescente CTU convencional necessariamente registrará cinco novos eventos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O CTU convencional incrementa com borda de subida, não a cada execução enquanto o sinal permanece alto. Sem novas transições de FALSE para TRUE, o mesmo pulso mantido não representa cinco eventos. O item confunde nível lógico com detecção de borda.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor gera pulsos e uma máquina precisa contabilizar quantas peças passaram, reiniciando a contagem por ordem do operador. Qual conjunto de sinais de um CTU é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CU para pulsos, RESET para zerar, CV para valor corrente e PV para referência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IN para iniciar temporização, ET para peças e PT para zerar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SET para amostragem, Q para total numérico e TOF para redefinição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LD para incremento, ST para retenção e JMPC para quantidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "R_TRIG como acumulador numérico, sem contador ou variável de estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O CTU usa CU para eventos de contagem, RESET para reinicialização, CV para valor atual e PV para limite de referência. As demais respostas misturam interfaces de temporizadores, instruções IL ou detectores de borda com os sinais próprios de contagem.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A função R_TRIG destina-se a reconhecer a transição de FALSE para TRUE em um sinal, diferentemente da função F_TRIG, associada à transição de TRUE para FALSE.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "R_TRIG detecta a borda ascendente; F_TRIG, a descendente. Ambas dependem do estado anterior para reconhecer transições entre chamadas. Confundir esses elementos com contatos comuns faz tratar pulsos de uma execução como níveis mantidos.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma reversão de motor, duas saídas, Direto e Reverso, não devem ser comandadas simultaneamente. Qual estratégia de lógica é adequada ao controle, sem dispensar proteção física?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar os dois comandos em paralelo para que sempre liguem juntos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impedir Direto quando Reverso estiver ativo e impedir Reverso quando Direto estiver ativo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Utilizar apenas uma bobina negada na saída de potência, sem qualquer condição de controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir todos os sinais de falha por temporizadores TP, tornando o acionamento seguro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retirar os contatos de intertravamento e confiar exclusivamente no tempo de varredura.",
+          "correct": false
+        }
+      ],
+      "explanation": "O intertravamento cruzado evita comandos de direções conflitantes no software. A segurança e a integridade do conjunto podem exigir intertravamentos físicos ou outros dispositivos apropriados. As demais opções autorizam conflito ou confundem lógica com proteção.",
+      "section": "Ladder: selagem, intertravamentos e blocos funcionais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na lista de instruções legada, a sequência 'LD A; AND B; ST Q' escreve em Q o resultado lógico A AND B, considerando o significado usual desses mnemônicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "LD carrega A no resultado corrente, AND combina esse valor com B, e ST armazena o resultado em Q. O cálculo corresponde a uma rede Ladder com A e B em série comandando uma bobina convencional, não a uma operação OR.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere a rotina IL histórica: 'LD A; OR B; ANDN F; ST Q'. Qual expressão representa o resultado escrito em Q?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Q = A AND B AND F.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Q = NOT A OR (B AND F).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Q = (A OR B) AND NOT F.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Q = (A AND NOT B) OR F.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Q = A OR B OR F.",
+          "correct": false
+        }
+      ],
+      "explanation": "LD carrega A; OR B produz A OR B; ANDN F combina esse resultado com a negação de F; ST escreve o resultado. Nas demais expressões há troca de operador, negação aplicada ao operando errado ou agrupamento incompatível.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em IL, o mnemônico ST utilizado após operações no acumulador significa Structured Text e inicia uma nova seção de código nessa linguagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Na lista de instruções, ST é o comando de armazenar o resultado corrente em um destino. Structured Text também é abreviado ST, mas é outra linguagem, com sintaxe própria. A questão explora a ambiguidade da sigla fora do contexto.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável 'Bloqueio' está em TRUE. O trecho 'LD Permissao; ANDN Bloqueio; ST Q' é executado com Permissao = TRUE. Qual será o valor de Q?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TRUE, porque ANDN inverte a saída inteira após armazená-la.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TRUE, porque LD sempre força o acumulador a valor verdadeiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indefinido, porque ST não admite operandos booleanos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FALSE, porque ANDN combina a permissão com a negação do bloqueio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TRUE, pois ANDN corresponde a uma disjunção exclusiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "A negação de Bloqueio é FALSE quando Bloqueio está TRUE. O AND desse resultado com Permissao TRUE é FALSE, que ST grava em Q. Os distratores atribuem à instrução efeitos não presentes ou substituem AND por outra operação.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando JMP, na IL histórica, é empregado como salto incondicional, ao passo que JMPC pode realizar salto condicionado ao valor lógico corrente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "JMP desvia o fluxo sem depender da condição de comparação; JMPC considera a condição corrente para decidir o desvio. Isso torna a ordem de execução relevante. Confundir esses saltos dificulta analisar caminhos não executados e saídas antigas.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao ler 'LD X; AND Y; ST Z' em um programa legado, qual operação deve ocorrer imediatamente antes do armazenamento em Z?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A temporização do sinal X por um período definido em Y.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A gravação automática de TRUE em todas as variáveis booleanas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A operação OR entre X e Y, independentemente do mnemônico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conversão da linguagem IL para um diagrama gráfico de funções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A combinação por AND do valor carregado de X com Y.",
+          "correct": true
+        }
+      ],
+      "explanation": "A instrução AND atua sobre o resultado corrente, que havia recebido X por LD, e o combina com Y. Só depois ST grava em Z. Temporização, conversão de linguagem e operação OR não estão implícitas nessa sequência.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A lista de instruções é uma linguagem gráfica, pois seus mnemônicos representavam contatos e bobinas de relés em desenhos distribuídos em redes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "IL é uma linguagem textual baseada em comandos mnemônicos e no resultado corrente. A representação gráfica de contatos, ramos e bobinas caracteriza Ladder. Uma semelhança funcional entre duas linguagens não transforma texto em diagrama.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica representa maior cautela ao examinar um trecho IL legado que contém numerosos saltos condicionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificar os caminhos realmente executados, pois saltos podem evitar escritas e chamadas em certas condições.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Admitir que a ordem das instruções jamais interfere no resultado do programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter cada JMP em uma entrada analógica física obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Presumir que todo salto executa automaticamente todas as instruções ignoradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar os saltos equivalentes a contatos paralelos comutativos em qualquer situação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Saltos alteram o percurso de execução e podem deixar destinos sem nova atribuição ou alterar a frequência de chamadas de blocos. Não basta aplicar álgebra de redes combinacionais; é preciso seguir o fluxo e verificar efeitos de estado.",
+      "section": "Lista de instruções (IL): acumulador e operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas instâncias distintas de um temporizador do tipo TON podem manter históricos de temporização independentes, ainda que ambas sejam do mesmo tipo de bloco funcional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Blocos funcionais possuem instâncias com estado associado. Duas instâncias de TON permitem acompanhar tempos e saídas diferentes. Reutilizar uma única instância sem planejamento pode misturar a evolução temporal de máquinas ou comandos distintos.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sequência IL 'LD A; AND B; OR C; ST Q' deve ser representada por qual arranjo Ladder combinacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A em série com B e C em paralelo, comandando Q.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um ramo com A e B em série, em paralelo com outro ramo contendo C, comandando Q.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A, B e C em série, comandando Q.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A e B em paralelo, seguidos de C em série, comandando Q.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Três contatos negados em paralelo, comandando Q.",
+          "correct": false
+        }
+      ],
+      "explanation": "Após LD A, AND B forma A AND B; OR C acrescenta alternativa pelo OR. Assim, o caminho A-B está em paralelo com C. As outras topologias correspondem a expressões diferentes e podem falhar em combinações como A falso e C verdadeiro.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função e um bloco funcional são sempre equivalentes quanto à persistência de estado: ambos têm, por definição, memória interna de instância entre chamadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Blocos funcionais usualmente têm instâncias e podem preservar estado; funções não têm, por definição, esse mesmo modelo de memória de instância. A confusão afeta a análise de temporizadores, contadores e demais comportamentos dependentes do histórico.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um controle possui duas esteiras que exigem atrasos de partida independentes. Qual modelagem evita mistura involuntária dos estados de temporização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar a mesma instância do TON para as duas esteiras sem critério de separação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas uma bobina comum sem qualquer sinal de tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar e utilizar duas instâncias separadas do bloco TON, uma por esteira.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar um contato NF compartilhado como se fosse relógio independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter um único acumulador IL sem armazenar os resultados em variáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada instância de TON conserva informações como ET e Q para sua aplicação. Ter instâncias distintas torna os atrasos independentes. Um único bloco chamado para comandos diferentes pode reutilizar o mesmo estado, enquanto contatos e bobinas não substituem temporização.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equivalência de expressões booleanas em Ladder e IL garante, sem testes adicionais, a mesma temporização e os mesmos resultados de inicialização em diferentes plataformas de CLP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A álgebra combinacional não cobre comportamento temporal, tarefas, inicialização, memória de instância, E/S e bibliotecas proprietárias. Uma migração exige testes de sequência, falhas, reset e tempos. O item generaliza uma equivalência parcial para aplicações completas.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na conversão de 'LD A; OR B; AND C; ST Q' de IL para Ladder, qual expressão precisa ser preservada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A OR (B AND C).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A AND (B OR C).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "(A AND B) OR C.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "(A OR B) AND C.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "NOT (A OR B OR C).",
+          "correct": false
+        }
+      ],
+      "explanation": "Após OR B, o resultado corrente é A OR B; em seguida AND C opera sobre esse conjunto. O agrupamento correto é (A OR B) AND C. As demais alternativas antecipam AND ou deslocam a negação e não conservam a sequência de instruções.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na organização de uma aplicação segundo conceitos da IEC 61131-3, programas, funções e blocos funcionais podem ser tratados como unidades de organização de programa, ou POUs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "POUs estruturam e modularizam o código em categorias como programas, funções e blocos funcionais. Essa divisão favorece reuso e manutenção, embora não garanta que recursos proprietários ou a configuração de tarefas sejam idênticos entre fabricantes.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa Ladder escreve a variável Bomba em duas redes sequenciais: a primeira atribui TRUE; a segunda, executada depois, atribui FALSE. Considerando essas duas escritas sem outras intervenções, qual observação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A primeira escrita tem prioridade absoluta, qualquer que seja o ambiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As duas escritas produzem obrigatoriamente um erro físico no módulo de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A linguagem Ladder ignora todas as redes posteriores à primeira escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma bobina convencional converte automaticamente conflitos em set/reset com prioridade definida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A última escrita executada pode definir o valor final da variável na tarefa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em execução sequencial, uma atribuição posterior ao mesmo destino pode sobrescrever a anterior. Por isso múltiplas escritas exigem análise de ordem e prioridade. Não se pode inferir prioridade da primeira rede nem memória especial de uma bobina convencional.",
+      "section": "Equivalência entre IL e Ladder, POUs e organização do software",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor TRUE na variável lógica associada à bobina de um motor comprova o comando no programa, mas não garante, isoladamente, o fechamento do contator ou a rotação do eixo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O bit verdadeiro mostra o comando lógico observado, não o efeito físico. Módulo de saída, alimentação, cabeamento, contator ou motor podem impedir a atuação. A confirmação do funcionamento depende de diagnóstico de campo e realimentação quando prevista.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um CLP com tarefas periódicas de diferentes prioridades, a mudança em uma entrada física deve ser avaliada levando em conta:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Amostragem, escalonamento de tarefas, atualização de saídas e atrasos dos dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas a expressão booleana impressa na rede, sem qualquer efeito de tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um único ciclo fixo de todos os CLPs, invariável entre fabricantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A posição do texto de comentário, que determina a prioridade do módulo físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exclusivamente a corrente nominal do barramento de alimentação do controlador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta ao processo inclui aquisição de sinais, execução de tarefas, comunicação e atuação física. Tempo de varredura e lógica são apenas partes do comportamento. Ignorar amostragem e escalonamento impede estimar corretamente o tempo de reação.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma bobina de set em Ladder garante, por si só, que o valor lógico será preservado após qualquer falta de energia e todo tipo de reinício do CLP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O set mantém um estado lógico no funcionamento da aplicação, mas retenção após perda de energia exige recursos e configuração de memória específicos. Estados de reinício variam conforme a plataforma e devem ser planejados e testados.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante diagnóstico, a lógica Ladder indica Q = TRUE, mas o acionamento não ocorre. Qual sequência de verificação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concluir que o código está errado e reprogramar todas as redes sem medições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir a saída no módulo, a alimentação, a fiação e o atuador, além da lógica monitorada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar permanentemente os intertravamentos para obrigar o movimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Presumir que toda bobina TRUE significa motor fisicamente energizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar pulso de set em todas as saídas para eliminar a hipótese de defeito.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma variável TRUE só atesta o resultado lógico observado. Módulos, alimentação, cabeamento e atuadores podem impedir ação. O diagnóstico deve correlacionar software e hardware, sem contornar proteções ou forçar saídas indevidamente.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A utilização de um contato negado associado à parada de emergência em programa Ladder constitui, isoladamente, certificação de segurança funcional da máquina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A sintaxe Ladder não substitui análise de riscos, dispositivos apropriados, arquitetura e validação de segurança. O contato lógico pode participar do controle, mas não comprova independência, diagnóstico de falhas ou desempenho da função protetiva.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja migrar uma rotina IL antiga para LD mantendo o comportamento da máquina. Qual conjunto de testes é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar apenas a quantidade de linhas de IL com a de redes Ladder.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir somente a ortografia dos nomes das variáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar estados, bordas, prioridades de comandos, temporizações, reinícios e condições de falha.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar uma única partida em vazio e dispensar ensaios de parada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar exclusivamente o aspecto visual dos símbolos de contato.",
+          "correct": false
+        }
+      ],
+      "explanation": "Migração funcional exige equivalência lógica e temporal, incluindo estados internos, prioridades, bordas e inicialização. A contagem de linhas ou a aparência do diagrama não demonstra que o novo sistema responde como o anterior.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contato de selo pode manter um comando enquanto a tarefa é executada, mas essa condição não prova a existência de retenção de memória após desligamento do controlador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Selagem é realimentação da lógica durante operação; retenção após perda de energia depende de memória e configuração de reinicialização. Confundir esses dois conceitos pode fazer o equipamento partir indevidamente ou perder estados esperados no retorno da alimentação.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um candidato apresenta a seguinte conclusão: 'Como o CLP executa varreduras, toda saída física deve mudar no mesmo instante em que uma variável interna é escrita'. Como avaliar a conclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É obrigatoriamente correta em todos os modelos, independentemente do hardware.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É correta apenas para programas em IL, mas não para Ladder.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É correta sempre que a rede Ladder tiver mais de um contato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É incorreta: a atualização física depende da arquitetura de tarefas, E/S e circuitos de atuação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É uma regra de segurança funcional criada pela edição de 2025.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma escrita interna pode produzir efeito lógico imediato em instruções subsequentes, mas a saída física depende de ciclos de E/S, módulos e atrasos de acionamento. A análise temporal não pode ser substituída por uma equivalência instantânea presumida.",
+      "section": "Execução cíclica, diagnóstico, segurança e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "IEC 61131-3:2025 — Programmable controllers — Part 3: Programming languages",
+      "publisher": "International Electrotechnical Commission (IEC)",
+      "reference": "IEC 61131-3:2025, 4ª edição, escopo e histórico das edições",
+      "url": "https://webstore.iec.ch/en/publication/68533",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IEC 61131-3:2013 — Programmable controllers — Part 3: Programming languages",
+      "publisher": "International Electrotechnical Commission (IEC)",
+      "reference": "IEC 61131-3:2013, 3ª edição, linguagens IL, ST, LD e FBD",
+      "url": "https://webstore.iec.ch/en/publication/4552",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Status of IEC 61131-3 standard",
+      "publisher": "PLCopen",
+      "reference": "Histórico normativo e descrição da quarta edição, maio de 2025",
+      "url": "https://www.plcopen.org/standards/logic/iec-61131-3/status-iec-61131-3-standard/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overview — Ladder Diagram, Function Block Diagram and Instruction List",
+      "publisher": "CODESYS GmbH",
+      "reference": "Regras de conexões LD e operações baseadas em acumulador na IL histórica",
+      "url": "https://content.helpme-codesys.com/en/CODESYS%20LD%20FBD/_cds_f_programming_language_fbd_ld_il.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Programming Languages",
+      "publisher": "Schneider Electric",
+      "reference": "LD, FBD e Structured Text — documentação de programação",
+      "url": "https://product-help.schneider-electric.com/Machine%20Expert/V2.0/en/mwt/mwt/_modules/programminglanguagesiniec61131_3.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Instruction List (IL) Language",
+      "publisher": "Schneider Electric",
+      "reference": "Instruções IL e fluxo com acumulador, saltos e operações",
+      "url": "https://product-help.schneider-electric.com/Machine%20Expert/V2.1/en/SoMProg/SoMProg/D-SE-0083465.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Standard Library Documentation",
+      "publisher": "CODESYS GmbH",
+      "reference": "Biblioteca de blocos TON, TOF, TP, CTU, R_TRIG, F_TRIG, RS e SR",
+      "url": "https://content.helpme-codesys.com/en/libs/Standard/Current/index.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "TON (FB)",
+      "publisher": "CODESYS GmbH",
+      "reference": "Bloco de temporização com IN, PT, Q e ET",
+      "url": "https://content.helpme-codesys.com/en/libs/Standard/3.5.15.0/Timer/TON.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CTU (FB)",
+      "publisher": "CODESYS GmbH",
+      "reference": "Contagem de eventos e entradas CU, RESET, PV; saídas CV, Q",
+      "url": "https://content.helpme-codesys.com/en/libs/Standard/Current/Counter/CTU.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RS / RS_S — Reset Dominant",
+      "publisher": "Schneider Electric",
+      "reference": "Prioridade do reset no bloco bistável RS",
+      "url": "https://product-help.schneider-electric.com/Machine%20Expert/V1.1/en/plc_fbfun/topics/rs.htm",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SR / SR_S — Set Dominant",
+      "publisher": "Schneider Electric",
+      "reference": "Prioridade do set no bloco bistável SR",
+      "url": "https://product-help.schneider-electric.com/Machine%20Expert/V1.1/en/plc_fbfun/topics/sr.htm",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}
