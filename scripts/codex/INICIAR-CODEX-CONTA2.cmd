@@ -13,7 +13,8 @@ if not exist "%CODEX_HOME%\auth.json" (
 )
 set CODEX_ORDEM=reversa
 rem 08/11: com a conta 1 sem limite ate 13/11, esta conta pega tambem a parte dela (tirar a linha abaixo quando ela voltar).
-set CODEX_PARTES=0,2
+set CODEX_MOD=6
+set CODEX_PARTES=0,1,2
 set CODEX_PARALELO=24
 set CODEX_ESFORCO=high
 set CODEX_CORRECOES=3

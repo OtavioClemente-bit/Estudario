@@ -104,11 +104,19 @@ async function trabalhador(n: number) {
   // CODEX_PARTES (ex.: "0,2") escolhe as partes direto e vale mais que CODEX_ORDEM: com a conta 1 sem limite até
   // 13/11, as contas 2 e 3 dividem também a parte dela (08/11). Tirar dos .cmd quando a conta 1 voltar.
   const partes = Deno.env.get("CODEX_PARTES");
-  if (partes) { const s = new Set(partes.split(",").map(Number)); fila.splice(0, fila.length, ...fila.filter((p) => s.has(metade(p.id)))); }
+  // CODEX_MOD (padrão 3) define em quantas partes a fila é cortada para o CODEX_PARTES (com 6: conta 2 = "0,1,2",
+  // conta 3 = "3,4,5", metade exata da fila para cada uma).
+  const MOD = Number(Deno.env.get("CODEX_MOD") ?? 3);
+  const parte = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % MOD;
+  if (partes) { const s = new Set(partes.split(",").map(Number)); fila.splice(0, fila.length, ...fila.filter((p) => s.has(parte(p.id)))); }
   else if (Deno.env.get("CODEX_ORDEM") === "reversa") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 0));
   if (!partes && Deno.env.get("CODEX_ORDEM") === "meio") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 1));
   if (!partes && Deno.env.get("CODEX_ORDEM") === "terco") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 2));
-  if (!fixo && !fila.length) { log(`[${n}] nada mais a pegar`); break; }
+  if (!fixo && !fila.length) {
+    const todos = pendentes(so);
+    log(`[${n}] nada mais a pegar (pendentes ${todos.length}; ${todos.filter((p) => (total[p.id] ?? 0) >= MAX_TOTAL).length} com ${MAX_TOTAL}+ tentativas; ${todos.filter((p) => emAndamento.has(p.id)).length} em andamento)`);
+    break;
+  }
   const alvo: { id: string; itens: string[] } = fixo ?? fila[0];
   fixo = null;
   emAndamento.add(alvo.id);
@@ -161,11 +169,22 @@ Se o arquivo já existir, NÃO recomece: rode o conferidor e corrija só o que e
 alternativa certa longa demais) até dar OK, sem nunca mudar "correct" de lugar só para passar.
 Se os itens forem só números de atos sem assunto e você não achar o conteúdo, escreva a matéria sobre o tipo de ato
 (o que é, quem edita, para que serve, tramitação) sem inventar o conteúdo de cada número.`;
-  const o = await new Deno.Command("node", {
-    // Esforço médio só neste loop (no leve ele desistia no meio das correções); o Codex do dia a dia segue no leve.
-    args: [CODEX_JS, "exec", "-c", `model_reasoning_effort="${Deno.env.get("CODEX_ESFORCO") ?? "medium"}"`, "-s", "workspace-write", "--skip-git-repo-check", "-C", ROOT, pedido],
-    stdin: "null", stdout: "piped", stderr: "piped",
-  }).output();
+  // 08/11: um rascunho corrompido (só bytes nulos) levava "\0" ao pedido; o Windows recusava o comando e a exceção
+  // derrubava o processo inteiro a cada ~2 min desde as 7h. O pedido vai sem nulos e uma falha aqui só pula a matéria.
+  let o: Deno.CommandOutput;
+  try {
+    o = await new Deno.Command("node", {
+      // Esforço médio só neste loop (no leve ele desistia no meio das correções); o Codex do dia a dia segue no leve.
+      args: [CODEX_JS, "exec", "-c", `model_reasoning_effort="${Deno.env.get("CODEX_ESFORCO") ?? "medium"}"`, "-s", "workspace-write", "--skip-git-repo-check", "-C", ROOT, pedido.replace(/\0/g, "")],
+      stdin: "null", stdout: "piped", stderr: "piped",
+    }).output();
+  } catch (e) {
+    emAndamento.delete(alvo.id);
+    contarFalha(alvo.id);
+    log(`   [${n}] ${alvo.id}: o Codex não pôde ser chamado (${String((e as Error).message ?? e).slice(0, 120)}); pulando`);
+    await sleep(10_000);
+    continue;
+  }
   const txt = new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr);
   // Um arquivo por conta (CODEX_ORDEM) e por trabalhador: com as três contas no mesmo nome, duas gravavam ao mesmo
   // tempo, o Windows recusava e o loop inteiro caía (04/11). Falhar ao gravar este registro não para nada.
