@@ -94,5 +94,12 @@ for (const [chave, g] of porRecorte) {
   Deno.mkdirSync(`${SAIDA}/${chave.split("/")[0]}`, { recursive: true });
   Deno.writeTextFileSync(`${SAIDA}/${chave}.json`, JSON.stringify({ topic: g.topic, board: g.banca, role: null, questions: g.questions }, null, 1) + "\n");
 }
+// Pares banca × matéria com prova real e sem recorte da banca: o gerador do Antigravity põe estes na frente (08/11).
+const faltando: Record<string, number> = {};
+for (const [chave, g] of porRecorte) {
+  const [pasta, topic] = chave.split("/");
+  try { Deno.statSync(`${ROOT}conteudo/recortes/${pasta}/${topic}.json`); } catch { faltando[`${topic}|${pasta}`] = g.questions.length; }
+}
+Deno.writeTextFileSync(`${ROOT}work/oficiais/recortes-faltando.json`, JSON.stringify(faltando, null, 1));
 Deno.writeTextFileSync(`${ROOT}work/oficiais/alertas.jsonl`, alertas.map((a) => JSON.stringify(a)).join("\n") + (alertas.length ? "\n" : ""));
 console.log({ ...contagem, recortes: porRecorte.size });
