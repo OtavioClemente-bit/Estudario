@@ -90,6 +90,8 @@ fun HomeScreen() {
     Div({ classes("grid", "main-side") }) {
         Div({ classes("stack", "loose") }) {
             if (plan != null && data.attempts.size < 5) FirstSteps(data.attempts.size)
+            // Estudo atrasado vem antes de tudo: fazer agora, um por um, ou reorganizar o plano.
+            if (plan != null && !Store.demo) HomeOverdue(data, plan.id)
             // Com o plano do dia, a missão vem primeiro e já diz por onde começar; sem tarefas hoje, o "agora" de sempre.
             if (plan != null && tasks.isNotEmpty()) DailyMission(tasks, data, hour, seed, daysToExam, onGenerate = { generatingFor = it }) { completing = it }
             else NowPanel(data, plan != null, tasks, hour, seed, daysToExam, onGenerate = { generatingFor = it })
@@ -928,5 +930,67 @@ private fun FirstStepRow(n: Int, label: String, done: Boolean, action: String?, 
         Span({ classes("first-n") }) { Text(if (done) "✓" else "$n") }
         Span({ classes("grow", "strong") }) { Text(label) }
         if (!done && action != null) Btn(action, onClick, style = "primary", small = true)
+    }
+}
+
+private const val OVERDUE_LATER = "estudario.atrasadas.depois"
+
+/**
+ * Atrasadas no Início (o mesmo cartão do app): quantas, de quando e quanto tempo; cada uma com
+ * "Fazer agora" para recuperar na hora, e as saídas de reorganizar (encaixar nos próximos dias ou
+ * empurrar o plano). "Deixar para depois" esconde até amanhã.
+ */
+@Composable
+private fun HomeOverdue(data: Snapshot, planId: String) {
+    val todayEpoch = Queries.todayEpoch()
+    val late = data.tasks.filter { it.planId == planId && it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
+        .sortedWith(compareBy({ it.day }, { it.type }))
+    if (late.isEmpty()) return
+    var hidden by remember(todayEpoch) { mutableStateOf(runCatching { kotlinx.browser.localStorage.getItem(OVERDUE_LATER) }.getOrNull() == todayEpoch.toString()) }
+    if (hidden) return
+    var all by remember { mutableStateOf(false) }
+    val days = (todayEpoch - late.first().day).toInt()
+    Div({ classes("overdue-box", "home-overdue", "rise") }) {
+        Div({ classes("overdue-head") }) {
+            Span({ classes("overdue-ic") }) { Icon("event_busy") }
+            Div({ classes("grow") }) {
+                B { Text(if (late.size == 1) "1 estudo atrasado" else "${late.size} estudos atrasados") }
+                P({ classes("small", "muted"); attr("style", "margin:2px 0 0") }) {
+                    Text("${Queries.minutesLabel(late.sumOf { it.minutes })} que ficaram de ${if (days == 1) "ontem" else "$days dias atrás"}. Faça agora ou reorganize o plano.")
+                }
+            }
+        }
+        Div({ classes("od-list") }) {
+            (if (all) late else late.take(3)).forEach { task ->
+                androidx.compose.runtime.key("od-" + task.id) {
+                    val ago = (todayEpoch - task.day).toInt()
+                    Div({ classes("od-row") }) {
+                        Span({ classes("od-type"); attr("style", "background:${taskColors(task.type).first};color:${taskColors(task.type).second}") }) { Icon(taskIcon(task.type)) }
+                        Div({ classes("grow") }) {
+                            B({ classes("clamp-2") }) { Text(taskTitle(task)) }
+                            Span({ classes("xs", "muted") }) {
+                                Text("${Queries.minutesLabel(task.minutes)} · ${if (ago == 1) "de ontem" else "de $ago dias atrás"}" + if (task.status == "EM_ANDAMENTO") " · começada" else "")
+                            }
+                        }
+                        Btn(if (task.status == "EM_ANDAMENTO") "Continuar" else "Fazer agora", { openTask(task) }, small = true, icon = "play_arrow")
+                    }
+                }
+            }
+            if (late.size > 3) Button({ classes("od-more"); onClick { all = !all } }) { Text(if (all) "Mostrar menos" else "Ver todas as ${late.size}") }
+        }
+        Div({ classes("row", "wrap"); attr("style", "margin-top:12px;gap:8px") }) {
+            Btn("Encaixar nos próximos dias", {
+                Store.update { br.com.estudario.web.data.Planning.fitOverdue(it, planId) }
+                Toast.show("Pronto: as atrasadas voltaram na frente e o resto do plano se ajustou ao seu ritmo.")
+            }, style = "tonal", small = true, icon = "auto_awesome")
+            Btn(if (days == 1) "Empurrar tudo 1 dia" else "Empurrar tudo $days dias", {
+                Store.update { br.com.estudario.web.data.Planning.pushOverdue(it, planId) }
+                Toast.show("O plano inteiro andou $days dia${if (days == 1) "" else "s"}: nada ficou para trás.")
+            }, style = "ghost", small = true, icon = "fast_forward")
+            Btn("Deixar para depois", {
+                runCatching { kotlinx.browser.localStorage.setItem(OVERDUE_LATER, todayEpoch.toString()) }
+                hidden = true
+            }, style = "ghost", small = true)
+        }
     }
 }

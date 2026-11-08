@@ -32,10 +32,11 @@ private const val PREFS = "plano_atrasadas"
  * Estudo atrasado: o plano não varre mais calado o que ficou para trás. Ele mostra quanto foi e a
  * pessoa escolhe: encaixar nos próximos dias (volta na frente e o resto se ajusta), empurrar o
  * plano inteiro (nada se perde, tudo anda junto) ou deixar para depois (some até amanhã; passada
- * uma semana o plano encaixa sozinho).
+ * uma semana o plano encaixa sozinho). Com [onStart], também lista cada atrasada com "Fazer agora",
+ * para quem quer recuperar na hora em vez de reorganizar.
  */
 @Composable
-fun OverdueRescueCard(state: ActivePlanUiState, onFit: () -> Unit, onPush: () -> Unit, modifier: Modifier = Modifier) {
+fun OverdueRescueCard(state: ActivePlanUiState, onFit: () -> Unit, onPush: () -> Unit, modifier: Modifier = Modifier, onStart: ((PlannerTaskUi) -> Unit)? = null) {
     val late = state.overdueTasks
     if (late.isEmpty()) return
     val context = LocalContext.current
@@ -62,6 +63,22 @@ fun OverdueRescueCard(state: ActivePlanUiState, onFit: () -> Unit, onPush: () ->
                     ". O que fazemos com eles?",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (onStart != null) {
+                var all by remember { mutableStateOf(false) }
+                val ordered = late.sortedWith(compareBy({ it.entity.scheduledEpochDay }, { it.entity.type.ordinal }))
+                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        (if (all) ordered else ordered.take(3)).forEachIndexed { i, task ->
+                            if (i > 0) androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            OverdueRow(task, today, onStart)
+                        }
+                        if (ordered.size > 3) TextButton(onClick = { all = !all }, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (all) "Mostrar menos" else "Ver todas as ${ordered.size}")
+                        }
+                    }
+                }
+                Text("Ou reorganize o plano:", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            }
             Button(onClick = onFit, modifier = Modifier.fillMaxWidth()) { Text("Encaixar nos próximos dias") }
             Text(
                 "Voltam na frente e o resto do plano se ajusta ao seu ritmo, sem passar das suas horas.",
@@ -75,6 +92,30 @@ fun OverdueRescueCard(state: ActivePlanUiState, onFit: () -> Unit, onPush: () ->
                     Text("Deixar para depois")
                 }
             }
+        }
+    }
+}
+
+/** Uma atrasada: o que é, de quando, quanto tempo, e o botão para fazer agora. */
+@Composable
+private fun OverdueRow(task: PlannerTaskUi, today: Long, onStart: (PlannerTaskUi) -> Unit) {
+    val e = task.entity
+    val ago = (today - e.scheduledEpochDay).toInt()
+    val left = (e.plannedMinutes - task.actualMinutes).coerceAtLeast(0)
+    val what = when (e.type) {
+        br.com.estudario.domain.planner.PlanTaskType.QUESTIONS -> if (e.plannedQuestions > 0) "${(e.plannedQuestions - task.questionsDone).coerceAtLeast(1)} questões" else "Questões"
+        else -> e.type.label()
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(e.topicNameSnapshot ?: e.subjectNameSnapshot, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(
+                "$what · ${formatMinutes(left)} · " + (if (ago == 1) "de ontem" else "de $ago dias atrás") + (if (e.status == br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) " · começada" else ""),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+        br.com.estudario.ui.brand.FilledTonalButton(onClick = { onStart(task) }) {
+            Text(if (e.status == br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) "Continuar" else "Fazer agora")
         }
     }
 }

@@ -338,7 +338,7 @@ fun HomeScreen(
         // Estudo atrasado vem antes de tudo: a pessoa decide o que fazer com ele (o plano não esconde mais).
         if (activePlan != null && planState.overdueTasks.isNotEmpty()) item(key = "plan-overdue") {
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                br.com.estudario.ui.planner.OverdueRescueCard(planState, planViewModel::reorganize, { planViewModel.pushOverdue() })
+                br.com.estudario.ui.planner.OverdueRescueCard(planState, planViewModel::reorganize, { planViewModel.pushOverdue() }, onStart = startOf)
             }
         }
         if (missionFirst) item(key = "daily-mission") {

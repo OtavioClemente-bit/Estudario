@@ -207,6 +207,38 @@ object StudyNotificationCoordinator {
         return br.com.estudario.ui.widget.FolhaWidget.read(context)?.todayDone ?: any
     }
 
+    /**
+     * Estudo atrasado no plano: de manhã, um aviso direto (quantos, de quando, quanto tempo) que abre o
+     * início, onde a pessoa faz na hora ou reorganiza. Não insiste todo dia: avisa quando aparece e,
+     * se continuar lá, a cada 2 dias (no 7º dia o plano encaixa sozinho). Plano em dia zera a conta.
+     */
+    internal suspend fun overdueAlert(context: Context) {
+        val app = context.applicationContext as EstudarioApplication
+        val p = context.getSharedPreferences("study_nudges", Context.MODE_PRIVATE)
+        val today = java.time.LocalDate.now().toEpochDay()
+        val late = runCatching {
+            val plan = app.database.plannerDao().plansOnce().firstOrNull { it.active && !it.archived } ?: return@runCatching emptyList()
+            app.database.plannerDao().tasksOnce().filter {
+                it.planId == plan.id && it.scheduledEpochDay < today &&
+                    (it.status == br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA || it.status == br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
+            }
+        }.getOrDefault(emptyList())
+        if (late.isEmpty()) { p.edit().remove("overdue_at").apply(); return }
+        val last = p.getLong("overdue_at", -1)
+        if (last >= 0 && today - last < 2) return
+        if (!takeSlot(context)) return
+        p.edit().putLong("overdue_at", today).apply()
+        val days = (today - late.minOf { it.scheduledEpochDay }).toInt()
+        val minutes = late.sumOf { it.plannedMinutes }
+        val first = late.minByOrNull { it.scheduledEpochDay }!!
+        val name = first.topicNameSnapshot ?: first.subjectNameSnapshot
+        val time = if (minutes < 60) "$minutes min" else "${minutes / 60}h" + (if (minutes % 60 > 0) (minutes % 60).toString().padStart(2, '0') else "")
+        val title = if (late.size == 1) "1 estudo atrasado no seu plano" else "${late.size} estudos atrasados no seu plano"
+        val body = (if (late.size == 1) "\"$name\" ficou de " else "\"$name\" e mais ${late.size - 1} ficaram de ") +
+            (if (days == 1) "ontem" else "$days dias atrás") + " ($time). Faça agora ou deixe o plano encaixar nos próximos dias, sem passar das suas horas."
+        post(context, CHANNEL_PENDING, 1006, title, body, mood = br.com.estudario.ui.assistant.FolhaMood.POINT, destination = "home")
+    }
+
     private fun endOfToday(): Long = java.time.LocalDate.now().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() - 1
 
     /** Teto de avisos de estudo por dia: conta e diz se ainda cabe mais um hoje. */
@@ -236,11 +268,12 @@ object StudyNotificationCoordinator {
         mood: br.com.estudario.ui.assistant.FolhaMood = br.com.estudario.ui.assistant.FolhaMood.HAPPY,
         /** Botões "Começar agora" e "Lembrar em 1 hora" (lembretes de estudo). */
         actions: Boolean = false,
+        destination: String? = null,
     ) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("notification_destination", if (channel == CHANNEL_PENDING) "reviews" else "home")
+            putExtra("notification_destination", destination ?: if (channel == CHANNEL_PENDING) "reviews" else "home")
         }
         val pendingIntent = PendingIntent.getActivity(context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(context, channel)
@@ -297,6 +330,7 @@ class PendingStudyWorker(context: Context, params: WorkerParameters) : Coroutine
         val app = applicationContext as EstudarioApplication
         if (app.preferences.notificationsEnabled.first() && app.preferences.pendingAlertsEnabled.first() && !app.preferences.focusSession.first().active) {
             val f = StudyNotificationCoordinator.facts(applicationContext)
+            StudyNotificationCoordinator.overdueAlert(applicationContext)
             if (f.dueReviews > 0 && StudyNotificationCoordinator.takeSlot(applicationContext)) {
                 StudyNotificationCoordinator.postNudge(applicationContext, "pending_study", 1002, StudyNudges.Kind.REVIEW_MORNING, f)
             }
