@@ -139,8 +139,18 @@ function filas() {
     .filter((x) => x.uso >= MIN_EDITAIS && x.n < META && !travado(x.key) && !descansando(x.key))
     .sort((a, b) => b.uso * (META - b.n) - a.uso * (META - a.n));
   // Recortes que ainda não existem: banca × matéria que aparece em pelo menos 20 editais.
+  // Questões de prova real esperando o recorte da banca (work/oficiais/recortes-faltando.json, "<topic>|<pasta>":
+  // nº de questões): esses pares entram mesmo com menos de 20 editais e vão para o começo da fila (08/11).
+  let esperando: Record<string, number> = {};
+  try { esperando = JSON.parse(Deno.readTextFileSync(`${ROOT}work/oficiais/recortes-faltando.json`)); } catch { /* nenhum */ }
+  const espera = (key: string) => esperando[`${key.split("|")[0]}|${key.split("|")[1].replace(/\s+/g, "-")}`] ?? 0;
+  for (const k of Object.keys(esperando)) {
+    const [topic, pasta] = k.split("|");
+    const b = pasta.replace(/-/g, " ");
+    if (!uso.has(`${topic}|${b}`)) uso.set(`${topic}|${b}`, 1);
+  }
   const novos = [...uso.entries()]
-    .filter(([key, n]) => n >= 20 && !recortes.has(key) && !key.endsWith("|geral") && !key.startsWith("atualidades.") && !travado(key) && !descansando(key))
+    .filter(([key, n]) => (n >= 20 || espera(key) > 0) && !recortes.has(key) && !key.endsWith("|geral") && !key.startsWith("atualidades.") && !travado(key) && !descansando(key))
     .map(([key, n]) => {
       const [topic, b] = key.split("|");
       const [dir, arq] = topic.split(".");
@@ -152,7 +162,7 @@ function filas() {
     // matéria tem de existir; e não pega o que o Codex já entregou no lote 3
     .filter((x) => !comChat.has(`${x.pasta}.${x.topic}`))
     .filter((x) => { try { Deno.statSync(x.materiaPath); } catch { return false; } try { Deno.statSync(`${ROOT}conteudo/entrada/recortes-luna-3/${x.pasta}/${x.topic}.json`); return false; } catch { return true; } })
-    .sort((a, b) => b.uso - a.uso);
+    .sort((a, b) => (espera(b.key) > 0 ? 1 : 0) - (espera(a.key) > 0 ? 1 : 0) || espera(b.key) - espera(a.key) || b.uso - a.uso);
   return { ampliar, novos };
 }
 function montarFila() { return montarFilas().ampliar; }
