@@ -1,0 +1,807 @@
+{
+  "id": "informatica.redes-terminacao-ssl-offloading-balanceamento",
+  "subject": "Informática",
+  "title": "Redes: terminação SSL e offloading no balanceamento",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "SSL offloading;",
+    "SSL offloading em balanceadores de carga",
+    "Terminação SSL no balanceamento de tráfego",
+    "Terminação TLS em proxy reverso",
+    "Descarga de criptografia SSL e TLS",
+    "Balanceamento HTTPS com terminação TLS",
+    "TLS bridging entre cliente e servidor",
+    "TLS passthrough em balanceadores",
+    "Recriptografia TLS até o backend",
+    "Certificados digitais no balanceador",
+    "SSL termination e distribuição de tráfego"
+  ],
+  "scope": {
+    "covers": "SSL/TLS offloading e terminação TLS em balanceadores e proxies reversos: fluxo cliente-balanceador-backend, encerramento da sessão criptográfica, certificados e chaves, distribuição de tráfego em camada 4 e camada 7, terminação com backend em HTTP ou TLS, recriptografia e passthrough, SNI, cabeçalhos de encaminhamento, benefícios, limites, segurança, operação e erros comuns.",
+    "excludes": "Criptografia matemática detalhada, configuração completa de produtos específicos, PKI como tema independente, balanceamento global por DNS e administração de sistemas operacionais."
+  },
+  "theoryTitle": "Terminação TLS e distribuição segura de tráfego",
+  "chapters": [
+    {
+      "title": "1. O que é SSL offloading",
+      "markdown": "### O problema que este assunto resolve\n\nUm site HTTPS precisa negociar TLS com o cliente e criptografar e descriptografar os dados. Em uma aplicação com várias instâncias, é possível colocar um balanceador ou proxy reverso na frente delas e fazer esse equipamento receber as conexões seguras. **SSL offloading** (também chamado TLS offloading) é a transferência desse processamento de criptografia e descriptografia do servidor de aplicação para um equipamento intermediário. O nome SSL permanece no uso corrente, embora SSL tenha sido sucedido pelo TLS e não seja recomendado como protocolo atual.\n\n> **Siglas e termos deste capítulo**\n> - **TLS**: protocolo que protege a comunicação por criptografia e autenticação do servidor.\n> - **HTTPS**: HTTP transportado dentro de uma conexão TLS.\n> - **Offloading**: deslocamento de uma tarefa computacional para outro componente.\n> - **Balanceador**: componente que escolhe um destino entre vários servidores ou serviços.\n> - **Proxy reverso**: servidor que recebe pedidos em nome dos servidores de aplicação.\n\n### Fluxo da conexão\n\nNa terminação TLS, o cliente abre HTTPS com o balanceador. Este apresenta o certificado do nome acessado, negocia parâmetros TLS e decifra a requisição. Depois, o balanceador encaminha a requisição ao backend. Há duas conexões distintas: cliente–balanceador e balanceador–backend. A segunda pode ser HTTP em uma rede considerada confiável, HTTPS/TLS com nova criptografia ou, em balanceamento de transporte, a própria sessão TLS do cliente pode ser encaminhada sem descriptografia.\n\n| Modelo | O que o intermediário faz | O que recebe o backend |\n| --- | --- | --- |\n| Terminação com HTTP interno | Descriptografa a sessão do cliente | HTTP sem TLS nessa perna |\n| Terminação e recriptografia | Descriptografa e cria outra sessão TLS | HTTPS/TLS originado pelo balanceador |\n| TLS passthrough | Encaminha bytes TLS sem terminá-los | Sessão TLS do cliente, encerrada no servidor |\n\nTerminar a sessão na borda pode centralizar certificados e reduzir o trabalho criptográfico nas aplicações. Também permite que o balanceador interprete HTTP e aplique regras de roteamento por host, caminho ou cabeçalhos. A operação não elimina a criptografia entre cliente e balanceador: ela é a própria sessão HTTPS de entrada.\n\n### Como cai na prova\n\n- Offloading não significa que o tráfego público passa a ser HTTP: cliente e balanceador continuam negociando HTTPS.\n- Se a perna interna usa HTTP, ela deixa de estar criptografada; o desenho da rede e a sensibilidade dos dados importam.\n- Passthrough preserva a criptografia até o backend, mas impede o intermediário de ler a requisição HTTP protegida para roteamento detalhado."
+    },
+    {
+      "title": "2. Certificados, SNI e escolha do servidor",
+      "markdown": "### O problema que este assunto resolve\n\nPara terminar TLS, o balanceador precisa possuir ou acessar um certificado de servidor e sua chave privada. O cliente valida a cadeia do certificado, o nome do serviço e seu período de validade. A chave privada permite provar a identidade do servidor durante a negociação; ela não deve ser distribuída às instâncias de aplicação sem necessidade. Centralizar certificados simplifica renovação e configuração, mas torna o balanceador um ponto sensível que precisa de controle de acesso e proteção de chaves.\n\n> **Siglas e termos deste capítulo**\n> - **SNI**: extensão TLS em que o cliente informa o nome do host durante a negociação.\n> - **SAN**: campo Subject Alternative Name, com nomes cobertos pelo certificado.\n> - **Chave privada**: segredo usado pelo servidor para demonstrar posse da identidade criptográfica.\n> - **Cadeia de certificados**: certificado do servidor e certificados intermediários que levam a uma autoridade confiável.\n> - **mTLS**: TLS com autenticação por certificado também do cliente.\n\n### Seleção do certificado e virtual hosting\n\nQuando vários domínios compartilham um endereço IP e uma porta TLS, o balanceador precisa saber qual certificado apresentar antes de receber o caminho HTTP. O SNI permite ao cliente indicar o nome pretendido já no início da negociação. O balanceador pode então selecionar o certificado correspondente. Um certificado pode cobrir mais de um nome por SAN ou usar curinga dentro do alcance previsto para aquele nome. SNI informa o nome solicitado; não substitui a validação do certificado nem cifra por si só.\n\nSe o listener HTTPS não tiver certificado compatível ou o certificado estiver vencido, com cadeia incompleta ou nome incompatível, o navegador poderá rejeitar a conexão. A renovação deve atualizar o certificado usado pelo ponto de terminação, e a equipe deve monitorar validade e falhas de cadeia. Em mTLS, o ponto configurado para autenticar clientes verifica também os certificados apresentados por eles; terminar TLS em um intermediário muda onde essa validação precisa ocorrer.\n\n### Como cai na prova\n\n- A chave privada não é enviada ao cliente; o certificado público é apresentado durante a conexão.\n- SNI permite selecionar certificados de domínios diferentes no mesmo endereço de listener.\n- Se o TLS termina no balanceador, requisitos de autenticação de cliente precisam ser atendidos ali ou transmitidos de forma confiável para outra camada."
+    },
+    {
+      "title": "3. Offloading junto ao balanceamento",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de decifrar a conexão, um balanceador de aplicação pode compreender a requisição HTTP e encaminhá-la a diferentes destinos. Um listener HTTPS recebe pedidos seguros; regras podem selecionar um grupo de destinos, por exemplo por nome de host ou caminho. A distribuição permite repartir carga e retirar uma instância sem serviço do conjunto, desde que a verificação de saúde detecte a falha. O processamento TLS pode ser concentrado e ajustado no equipamento de borda.\n\n> **Siglas e termos deste capítulo**\n> - **Camada 4**: transporte, como TCP; o equipamento decide sem interpretar o conteúdo HTTP cifrado.\n> - **Camada 7**: aplicação; após decifrar TLS, o proxy pode avaliar campos HTTP.\n> - **Listener**: ponto de escuta definido por protocolo e porta, com regras de recepção.\n> - **Health check**: verificação periódica que indica se um destino deve receber tráfego.\n> - **Afinidade de sessão**: tentativa de manter requisições de um cliente no mesmo destino.\n\n### Camada 4, camada 7 e passthrough\n\nUm balanceador TCP pode encaminhar uma sessão TLS sem decifrá-la. O backend apresenta o certificado e negocia diretamente com o cliente através do fluxo encaminhado. O balanceador consegue escolher um destino com informações de transporte, como endereço e porta, mas não o caminho HTTP cifrado. Ao terminar TLS num proxy de camada 7, o proxy vê HTTP e pode distribuir, por exemplo, `/api` para um grupo e `/imagens` para outro.\n\n| Escolha | Visibilidade do balanceador | Ponto de apresentação do certificado |\n| --- | --- | --- |\n| TCP/TLS passthrough | Transporte, sem conteúdo HTTP decifrado | Backend |\n| HTTPS com terminação L7 | Requisição HTTP após decifrar | Balanceador |\n| HTTPS terminado e recriptografado | HTTP entre etapas internas do proxy; nova sessão ao destino | Balanceador e servidor interno conforme a configuração |\n\nOffloading pode liberar CPU das aplicações, mas o equipamento precisa dimensionado para a quantidade de conexões, negociações e tráfego. Se houver falha ou saturação do ponto central, muitas aplicações podem ser afetadas; alta disponibilidade e capacidade adequada fazem parte do desenho. Afinidade de sessão pode ajudar aplicações com estado local, mas não corrige a falta de compartilhamento de estado e pode prejudicar a distribuição uniforme.\n\n### Como cai na prova\n\n- Um listener HTTPS de balanceador de aplicação precisa de certificado de servidor.\n- Para rotear pelo caminho HTTP, o equipamento precisa terminar e decifrar TLS; passthrough não oferece essa visibilidade.\n- Health check decide se um destino está apto, enquanto o algoritmo de balanceamento escolhe entre destinos aptos."
+    },
+    {
+      "title": "4. Segurança da perna interna e operação",
+      "markdown": "### O problema que este assunto resolve\n\nA fronteira de confiança não desaparece quando o balanceador decifra a conexão. Com HTTP interno, dados e credenciais trafegam sem TLS entre balanceador e aplicação. Esse modelo só deve ser adotado quando os controles e a exposição da rede interna forem aceitáveis para o risco. Em redes compartilhadas, entre zonas distintas ou quando a política exige proteção em trânsito, o balanceador pode iniciar uma segunda sessão TLS para o backend, validando sua identidade. Assim, a conexão é criptografada nas duas pernas, embora haja dois handshakes e dois trechos de confiança.\n\n> **Siglas e termos deste capítulo**\n> - **TLS bridging**: terminação do TLS de entrada seguida por nova conexão TLS ao backend.\n> - **X-Forwarded-For**: cabeçalho com informação de endereço de origem repassada por proxy.\n> - **X-Forwarded-Proto**: cabeçalho que informa o protocolo usado pelo cliente até o proxy.\n> - **HSTS**: política enviada ao navegador para que acesse o domínio por HTTPS.\n> - **Recriptografia**: criação de nova sessão criptografada no trecho interno.\n\n### Metadados de proxy e confiança\n\nAo terminar TLS, a aplicação pode receber HTTP do balanceador e concluir, incorretamente, que o cliente usou HTTP. Um cabeçalho de encaminhamento como `X-Forwarded-Proto: https` pode informar o protocolo original; `X-Forwarded-For` pode carregar o endereço do cliente. A aplicação só deve confiar nesses valores quando eles são substituídos ou validados por proxies confiáveis e a rota impede acesso direto que permita falsificação. Um cabeçalho recebido sem essa fronteira confiável é apenas dado fornecido pelo solicitante. Configuração incorreta pode gerar redirecionamentos em ciclo, URLs inseguras ou registros de auditoria com IP falso.\n\nO listener de entrada e as regras de rede devem limitar quem pode falar com os backends. Se houver TLS interno, configure a confiança e a validação do certificado do destino, não apenas a criptografia. Também é preciso renovar certificados, restringir acesso à chave privada, permitir apenas protocolos e cifras adequados à política atual e observar erros de negociação, latência, conexões e saúde dos destinos. A política de versão e cifras precisa acompanhar documentação atual do produto e da organização.\n\n### Como cai na prova\n\n- Offloading com HTTP no backend deixa a perna interna sem criptografia; HTTPS ao backend cria proteção adicional.\n- Cabeçalhos `X-Forwarded-*` devem ser confiados apenas quando vêm de proxies conhecidos e não podem ser forjados por acesso direto.\n- Terminação TLS centraliza a gestão, mas também concentra chaves e processamento; capacidade, renovação e disponibilidade continuam necessárias."
+    }
+  ],
+  "summary": "SSL offloading (termo corrente para TLS offloading) transfere a terminação da sessão HTTPS do servidor de aplicação para um balanceador ou proxy reverso. Cliente e balanceador negociam TLS com certificado instalado no listener; o balanceador decifra e distribui HTTP a destinos. A perna interna pode usar HTTP, uma nova conexão HTTPS/TLS (recriptografia) ou passthrough, que encaminha a sessão TLS sem interpretá-la. A terminação de aplicação permite roteamento por host, caminho e outros dados HTTP; passthrough mantém a criptografia até o backend, mas não revela esse conteúdo ao balanceador. SNI ajuda a escolher certificados quando vários nomes compartilham um endereço. A escolha deve considerar exposição dos dados internos, proteção de chaves, validação de certificados do backend, autenticação mútua, capacidade e alta disponibilidade. Cabeçalhos como X-Forwarded-For e X-Forwarded-Proto preservam metadados da conexão original, mas só são confiáveis quando inseridos por proxies controlados.",
+  "flashcards": [
+    { "front": "O que é SSL offloading?", "back": "Transferir o processamento e a terminação TLS da aplicação para um balanceador ou proxy reverso." },
+    { "front": "Quem apresenta o certificado na terminação TLS de borda?", "back": "O balanceador ou proxy que termina a conexão do cliente." },
+    { "front": "O offloading torna insegura a conexão HTTPS pública?", "back": "Não. Cliente e balanceador negociam TLS; a questão é como proteger a perna entre balanceador e backend." },
+    { "front": "O que acontece com HTTP interno depois do offloading?", "back": "O balanceador envia conteúdo sem criptografia TLS nessa perna." },
+    { "front": "O que é recriptografia ao backend?", "back": "Após terminar TLS do cliente, o balanceador estabelece uma segunda sessão TLS até o servidor de destino." },
+    { "front": "O que é TLS passthrough?", "back": "O balanceador encaminha o fluxo TLS sem descriptografá-lo; o backend negocia TLS com o cliente." },
+    { "front": "O que um proxy L7 pode fazer após terminar HTTPS?", "back": "Interpretar a requisição HTTP e rotear por host, caminho ou outros campos disponíveis." },
+    { "front": "Qual é a limitação de roteamento do passthrough?", "back": "O balanceador não vê caminho nem cabeçalhos HTTP protegidos pela sessão TLS." },
+    { "front": "Para que serve o SNI?", "back": "Informa o nome de host durante a negociação TLS para o servidor escolher o certificado adequado." },
+    { "front": "SNI substitui a validação do certificado?", "back": "Não. SNI indica o nome solicitado; o cliente ainda valida identidade e cadeia do certificado." },
+    { "front": "A chave privada do servidor é enviada ao navegador?", "back": "Não. O servidor apresenta certificado público e mantém a chave privada protegida." },
+    { "front": "O que cobre o campo SAN?", "back": "Nomes DNS ou outros identificadores para os quais o certificado foi emitido." },
+    { "front": "O que significa mTLS?", "back": "TLS em que, além do servidor, o cliente também se autentica com certificado." },
+    { "front": "Como preservar o protocolo original para a aplicação?", "back": "Um proxy confiável pode incluir X-Forwarded-Proto com o protocolo usado pelo cliente." },
+    { "front": "Para que se usa X-Forwarded-For?", "back": "Para repassar ao servidor informação do endereço de origem observado pelo proxy." },
+    { "front": "Quando a aplicação deve confiar em X-Forwarded-For?", "back": "Quando o valor é inserido ou sanitizado por proxies confiáveis e a aplicação não pode ser acessada contornando-os." },
+    { "front": "O que verifica um health check?", "back": "Se um destino responde conforme o critério configurado para poder receber tráfego." },
+    { "front": "Offloading reduz trabalho nas aplicações?", "back": "Pode reduzir o processamento criptográfico de cada aplicação, deslocando-o para o balanceador." },
+    { "front": "O que deve ser validado ao recriptografar para o backend?", "back": "A identidade e a cadeia do certificado do servidor de destino, além de criptografar a conexão." },
+    { "front": "Qual risco existe ao usar HTTP na rede interna?", "back": "Dados da perna interna ficam sem criptografia e podem ser expostos a quem alcança essa rede." },
+    { "front": "O que pode causar um certificado expirado no listener?", "back": "Falha de validação do lado cliente e alerta ou bloqueio de acesso HTTPS." },
+    { "front": "Como o balanceamento L4 difere do L7?", "back": "L4 decide usando informações de transporte; L7 pode decidir usando protocolo e conteúdo de aplicação decifrado." },
+    { "front": "Por que dimensionar o balanceador que termina TLS?", "back": "Ele passa a processar negociações e criptografia de todas as conexões direcionadas a ele." },
+    { "front": "Afinidade de sessão substitui estado compartilhado?", "back": "Não. Ela tenta manter cliente no mesmo destino, mas não resolve por si só estado local ou falha da instância." },
+    { "front": "O que HSTS informa ao navegador?", "back": "Que futuras visitas ao domínio devem usar HTTPS." }
+  ],
+  "tips": [
+    "Desenhe sempre duas pernas: cliente–balanceador e balanceador–backend; identifique qual delas usa TLS.",
+    "Associe terminação L7 a visibilidade HTTP e passthrough a encaminhamento sem descriptografia.",
+    "Lembre que o certificado da conexão do cliente fica no ponto que a termina.",
+    "SNI auxilia a escolher certificado quando há vários nomes no mesmo listener.",
+    "Trate X-Forwarded-* como dados confiáveis só dentro de uma cadeia de proxies controlada.",
+    "Separar terminação e recriptografia significa duas sessões TLS, com validação própria em cada ponta."
+  ],
+  "traps": [
+    "Dizer que SSL offloading elimina HTTPS entre usuário e balanceador. A conexão de entrada continua protegida por TLS.",
+    "Afirmar que TLS passthrough permite rotear pela URL. O conteúdo HTTP segue criptografado e invisível ao balanceador.",
+    "Tratar terminação TLS e recriptografia como a mesma sessão fim a fim. O balanceador cria uma segunda sessão independente.",
+    "Supor que HTTP no backend continua cifrado porque a URL pública começa com HTTPS. A perna interna pode estar em claro.",
+    "Confiar em qualquer X-Forwarded-For recebido. Um cliente pode forjar o cabeçalho se a aplicação não controlar sua origem.",
+    "Confundir SNI com certificado ou com validação de identidade. SNI informa o nome pretendido durante a negociação."
+  ],
+  "activeRecall": [
+    "Descreva as três pernas ou modos possíveis entre cliente, balanceador e servidor e diga onde cada sessão TLS termina.",
+    "Explique por que um proxy precisa terminar TLS para distribuir tráfego por caminho HTTP.",
+    "O que o navegador valida no certificado apresentado pelo balanceador e por que a chave privada deve ser restrita?",
+    "Como SNI permite servir certificados distintos no mesmo endereço de listener?",
+    "Quais riscos são introduzidos ao enviar HTTP do balanceador ao backend?",
+    "Por que recriptografar a perna interna requer validar o certificado do backend?",
+    "Quando os valores de X-Forwarded-For e X-Forwarded-Proto podem ser considerados confiáveis?",
+    "Compare visibilidade e roteamento em camada 4 passthrough e camada 7 com terminação TLS."
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Confundir offloading com tráfego público sem criptografia", "summary": "A terminação ocorre no balanceador, mas a conexão cliente–balanceador é HTTPS/TLS. É a conexão posterior ao backend que precisa ser avaliada separadamente." },
+    { "key": "e2", "title": "Supor que passthrough oferece roteamento HTTP", "summary": "Sem descriptografar TLS, o balanceador não lê caminho, query ou cabeçalhos protegidos para tomar decisões L7." },
+    { "key": "e3", "title": "Ignorar proteção da rede interna", "summary": "Terminar TLS antes da aplicação pode deixar dados em claro no segmento interno se a conexão ao destino usar HTTP." },
+    { "key": "e4", "title": "Tratar cabeçalhos encaminhados como prova de origem", "summary": "X-Forwarded-For e X-Forwarded-Proto só são confiáveis se o proxy confiável os sobrescrever e a aplicação impedir desvios." },
+    { "key": "e5", "title": "Concentrar certificados sem cuidar de chaves e capacidade", "summary": "Centralização simplifica gestão, mas aumenta o impacto de exposição da chave privada e exige dimensionamento e alta disponibilidade." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma empresa recebe HTTPS no balanceador e encaminha as requisições a servidores de aplicação. O que caracteriza o SSL offloading nesse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O cliente negocia TLS diretamente com todos os servidores ao mesmo tempo.", "correct": false },
+        { "key": "B", "text": "O balanceador encaminha sempre os pacotes sem alterar a sessão do usuário.", "correct": false },
+        { "key": "C", "text": "Cada servidor cifra a sessão do cliente antes de recebê-la do balanceador.", "correct": false },
+        { "key": "D", "text": "O DNS distribui os certificados e converte HTTPS em consultas de nomes.", "correct": false },
+        { "key": "E", "text": "O balanceador termina a sessão TLS do cliente e assume sua descriptografia.", "correct": true }
+      ],
+      "explanation": "No offloading, o equipamento intermediário recebe a conexão TLS do cliente, apresenta o certificado configurado e decifra o tráfego para encaminhá-lo. O modo passthrough mantém a sessão até o backend; DNS apenas resolve nomes e não termina TLS.",
+      "section": "1. O que é SSL offloading",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um site publica HTTPS, mas o balanceador envia HTTP aos servidores numa sub-rede privada. Qual afirmação descreve corretamente o efeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O tráfego até a aplicação continua cifrado pelo certificado público.", "correct": false },
+        { "key": "B", "text": "A perna interna não usa TLS e exige avaliação própria de risco.", "correct": true },
+        { "key": "C", "text": "O navegador cria uma sessão TLS adicional com cada destino interno.", "correct": false },
+        { "key": "D", "text": "A conexão interna usa TLS porque o listener recebeu HTTPS.", "correct": false },
+        { "key": "E", "text": "O balanceador preserva a criptografia sem descriptografar pedidos.", "correct": false }
+      ],
+      "explanation": "HTTPS protege a sessão entre cliente e balanceador, mas o encaminhamento por HTTP fica sem criptografia TLS. A privacidade e a exposição desse segmento dependem de controles de rede; o certificado da conexão pública não estende a cifra à perna interna.",
+      "section": "1. O que é SSL offloading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer encaminhar `/api` a um grupo e `/arquivos` a outro, preservando HTTPS entre usuário e proxy. Que capacidade é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um registro DNS que examine o caminho HTTP antes da conexão.", "correct": false },
+        { "key": "B", "text": "Um listener TCP que mantenha invisível todo o conteúdo HTTP.", "correct": false },
+        { "key": "C", "text": "Terminação TLS no proxy para ele ler a requisição HTTP.", "correct": true },
+        { "key": "D", "text": "Afinidade de sessão configurada no navegador para escolher URL.", "correct": false },
+        { "key": "E", "text": "Uma cópia do certificado instalada apenas nos clientes finais.", "correct": false }
+      ],
+      "explanation": "O caminho faz parte do pedido HTTP, que está protegido dentro do TLS. O proxy só consegue decidir por `/api` ou `/arquivos` se terminar e decifrar TLS; um encaminhador TCP opaco não vê esse dado.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Vários domínios usam o mesmo endereço IP e listener HTTPS. Que informação ajuda o balanceador a escolher o certificado durante a negociação TLS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O valor de X-Forwarded-For inserido após o pedido HTTP.", "correct": false },
+        { "key": "B", "text": "O caminho da URL, que já está disponível antes do TLS.", "correct": false },
+        { "key": "C", "text": "O endereço de origem escolhido pelo health check do backend.", "correct": false },
+        { "key": "D", "text": "A extensão SNI que informa o nome de host solicitado.", "correct": true },
+        { "key": "E", "text": "O cabeçalho Host enviado depois da descriptografia da sessão.", "correct": false }
+      ],
+      "explanation": "SNI carrega o nome pretendido pelo cliente na negociação TLS e permite selecionar certificado em listener compartilhado. O cabeçalho Host e o caminho HTTP aparecem depois da negociação, quando o proxy já estabeleceu TLS.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa registrar o protocolo original usado pelo cliente, embora receba HTTP do proxy. Qual solução comum atende a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O proxy confiável informa o esquema original por X-Forwarded-Proto.", "correct": true },
+        { "key": "B", "text": "O backend consulta o certificado privado guardado no navegador.", "correct": false },
+        { "key": "C", "text": "O balanceador muda o protocolo do DNS para TLS em cada pedido.", "correct": false },
+        { "key": "D", "text": "O health check acrescenta o cabeçalho dentro de cada resposta.", "correct": false },
+        { "key": "E", "text": "O cliente envia X-Forwarded-Proto como prova autenticada do esquema.", "correct": false }
+      ],
+      "explanation": "O proxy pode informar que a conexão original chegou por HTTPS usando X-Forwarded-Proto. A aplicação deve confiar apenas em cabeçalhos recebidos de proxies controlados, pois um cliente pode tentar fornecer um valor próprio.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador ativa TLS passthrough no balanceador TCP. Qual consequência deve esperar quanto ao certificado apresentado ao cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O balanceador escolhe o certificado depois de ler o caminho HTTP.", "correct": false },
+        { "key": "B", "text": "O cliente recebe um certificado compartilhado pelo DNS autoritativo.", "correct": false },
+        { "key": "C", "text": "O backend termina a sessão e apresenta seu certificado ao cliente.", "correct": true },
+        { "key": "D", "text": "O balanceador remove o certificado para manter o fluxo transparente.", "correct": false },
+        { "key": "E", "text": "O navegador passa a validar o certificado do próprio balanceador.", "correct": false }
+      ],
+      "explanation": "No passthrough, o balanceador encaminha o fluxo cifrado sem terminar a sessão. Assim, o backend participa da negociação TLS e é o ponto que apresenta o certificado ao cliente.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O certificado do listener contém o domínio correto, mas não inclui um certificado intermediário exigido por alguns clientes. Qual falha é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O balanceador deixa de executar verificações de saúde dos destinos.", "correct": false },
+        { "key": "B", "text": "Os clientes podem rejeitar a cadeia por não conseguir completá-la.", "correct": true },
+        { "key": "C", "text": "A consulta DNS passa a ser transmitida sem criptografia TLS.", "correct": false },
+        { "key": "D", "text": "A aplicação passa a escolher automaticamente o certificado raiz.", "correct": false },
+        { "key": "E", "text": "O balanceador passa a apresentar sua chave privada ao navegador.", "correct": false }
+      ],
+      "explanation": "Certificados intermediários compõem a cadeia entre o certificado do servidor e uma autoridade confiável. Se ela não for apresentada ou obtida pelo cliente, alguns clientes podem falhar na validação mesmo com o nome correto.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura termina HTTPS no balanceador e estabelece uma segunda sessão HTTPS até cada destino. Como se denomina essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "TLS passthrough, pois nenhuma conexão termina no equipamento intermediário.", "correct": false },
+        { "key": "B", "text": "Afinidade TLS, pois o cliente mantém a sessão até o backend.", "correct": false },
+        { "key": "C", "text": "Offloading DNS, pois o nome é cifrado duas vezes.", "correct": false },
+        { "key": "D", "text": "Recriptografia, com duas sessões TLS independentes nas duas pernas.", "correct": true },
+        { "key": "E", "text": "HTTP direto, pois o balanceador decifra antes de encaminhar.", "correct": false }
+      ],
+      "explanation": "O balanceador termina a sessão de entrada e cria uma nova sessão TLS ao backend. É recriptografia: a proteção cobre ambas as pernas, mas são conexões independentes com certificados e validações apropriadas a cada trecho.",
+      "section": "1. O que é SSL offloading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um destino falha no health check configurado pelo balanceador. Qual é a consequência operacional esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O listener remove o certificado TLS de todos os demais destinos.", "correct": false },
+        { "key": "B", "text": "A sessão HTTPS do cliente passa a ser encaminhada por DNS.", "correct": false },
+        { "key": "C", "text": "O destino é marcado como não apto e pode sair da distribuição.", "correct": true },
+        { "key": "D", "text": "O balanceador transforma qualquer resposta em código de sucesso.", "correct": false },
+        { "key": "E", "text": "A chave privada é copiada para a aplicação que está saudável.", "correct": false }
+      ],
+      "explanation": "A verificação de saúde determina se o destino está apto. Um destino malsucedido pode ser retirado do conjunto de distribuição enquanto os demais permanecem elegíveis; o health check não altera certificados nem reescreve respostas por definição.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de aplicação recebe HTTP somente do balanceador e precisa identificar o IP original do cliente. Qual cabeçalho é usado com frequência para esse encaminhamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "X-Forwarded-For, desde que a cadeia de proxy seja confiável.", "correct": true },
+        { "key": "B", "text": "X-Forwarded-Proto, pois ele contém o endereço IP remoto.", "correct": false },
+        { "key": "C", "text": "Subject Alternative Name, definido pelo health check do serviço.", "correct": false },
+        { "key": "D", "text": "Server Name Indication, enviado na resposta HTTP da aplicação.", "correct": false },
+        { "key": "E", "text": "Strict Transport Security, usado para registrar endereços de origem.", "correct": false }
+      ],
+      "explanation": "X-Forwarded-For costuma preservar informação de endereço do cliente observada pelo proxy. Seu uso como dado de auditoria depende de o cabeçalho ser sobrescrito ou validado por proxies confiáveis, sem rota direta que facilite falsificação.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um listener HTTPS de balanceador de aplicação vai terminar as conexões dos usuários. Qual recurso precisa estar associado ao listener para a autenticação do servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um certificado de servidor compatível com os nomes atendidos.", "correct": true },
+        { "key": "B", "text": "Um cabeçalho X-Forwarded-For emitido pelo DNS autoritativo.", "correct": false },
+        { "key": "C", "text": "Um grupo de afinidade que substitua a chave privada TLS.", "correct": false },
+        { "key": "D", "text": "Um certificado privado por cliente instalado em cada destino.", "correct": false },
+        { "key": "E", "text": "Um health check HTTP que dispense a negociação TLS de entrada.", "correct": false }
+      ],
+      "explanation": "O listener HTTPS precisa apresentar pelo menos um certificado de servidor na sessão TLS. A aplicação pode ter certificados próprios para a perna interna, mas eles não substituem o certificado apresentado pelo ponto de terminação ao cliente.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em comparação ao passthrough, qual benefício funcional pode resultar da terminação TLS em um proxy de aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A sessão TLS passa a atravessar o proxy sem descriptografia nem nova conexão.", "correct": false },
+        { "key": "B", "text": "O proxy pode ler HTTP e rotear por caminho ou cabeçalhos da requisição.", "correct": true },
+        { "key": "C", "text": "Os servidores de aplicação deixam de receber qualquer conexão de rede.", "correct": false },
+        { "key": "D", "text": "O certificado público torna desnecessário validar destinos internos.", "correct": false },
+        { "key": "E", "text": "O balanceamento passa a escolher destinos antes de qualquer pedido.", "correct": false }
+      ],
+      "explanation": "Ao decifrar TLS, o proxy de aplicação consegue avaliar a requisição HTTP e aplicar regras L7 por caminho, host ou cabeçalhos. No passthrough, o conteúdo permanece opaco e essa inspeção não é possível.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue adequadamente o balanceamento TCP de camada 4 e a distribuição HTTP de camada 7 depois da terminação TLS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Camada 4 interpreta caminhos HTTP; camada 7 somente observa endereços IP.", "correct": false },
+        { "key": "B", "text": "Ambas exigem descriptografar TLS e ler cabeçalhos de aplicação.", "correct": false },
+        { "key": "C", "text": "Camada 4 escolhe por rota URL; camada 7 escolhe apenas pela porta TCP.", "correct": false },
+        { "key": "D", "text": "Camada 7 distribui pelo DNS antes da abertura da conexão cliente.", "correct": false },
+        { "key": "E", "text": "Camada 4 usa informações de transporte; camada 7 pode usar campos HTTP visíveis.", "correct": true }
+      ],
+      "explanation": "Um balanceador L4 pode selecionar destinos usando dados de transporte, como endereços e portas. Um proxy L7 que terminou TLS consegue usar conteúdo HTTP como host e caminho para escolher o destino.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual ameaça aparece se a aplicação aceita X-Forwarded-For de qualquer origem e usa o valor como IP autenticado do visitante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um cliente pode forjar o cabeçalho e distorcer registros ou controles por IP.", "correct": true },
+        { "key": "B", "text": "Um backend pode apresentar SNI ao navegador sem possuir certificado.", "correct": false },
+        { "key": "C", "text": "O balanceador passa a cifrar automaticamente a conexão HTTP interna.", "correct": false },
+        { "key": "D", "text": "A cadeia pública do certificado perde automaticamente seus intermediários.", "correct": false },
+        { "key": "E", "text": "A distribuição de carga altera a porta HTTPS do listener.", "correct": false }
+      ],
+      "explanation": "Cabeçalhos HTTP podem ser enviados pelo próprio cliente. Se a aplicação confiar num valor que o proxy não remove ou substitui, o solicitante pode apresentar endereço falso e afetar auditoria, limites ou regras de segurança.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após terminar TLS de entrada, o balanceador se conecta ao backend usando TLS. Qual medida evita aceitar silenciosamente um servidor interno com identidade incorreta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Enviar X-Forwarded-Proto com o endereço DNS do backend em texto claro.", "correct": false },
+        { "key": "B", "text": "Ignorar a identidade do backend, pois o cliente já validou o balanceador.", "correct": false },
+        { "key": "C", "text": "Validar o certificado e o nome do destino na sessão TLS interna.", "correct": true },
+        { "key": "D", "text": "Habilitar afinidade, que verifica a cadeia de autoridade do servidor.", "correct": false },
+        { "key": "E", "text": "Usar somente uma porta TCP não padrão para autenticar o backend.", "correct": false }
+      ],
+      "explanation": "Criptografar a perna interna não basta se o balanceador aceitar qualquer certificado. A validação de cadeia e nome assegura que a sessão foi estabelecida com o destino esperado; a validação pública do cliente cobre outra conexão.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que um serviço pode usar um certificado com vários nomes no listener do balanceador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Para que qualquer endereço IP seja aceito sem verificar os nomes.", "correct": false },
+        { "key": "B", "text": "Para eliminar a necessidade de chave privada no ponto TLS.", "correct": false },
+        { "key": "C", "text": "Para converter nomes de host em regras de afinidade de sessão.", "correct": false },
+        { "key": "D", "text": "Para cobrir nomes listados no SAN quando um certificado atende vários domínios.", "correct": true },
+        { "key": "E", "text": "Para transportar o caminho HTTP dentro do campo de certificado.", "correct": false }
+      ],
+      "explanation": "O campo Subject Alternative Name permite que um certificado cubra vários nomes explicitamente listados. A escolha do certificado pode ser feita pelo SNI, e o cliente ainda verifica se o nome acessado está coberto.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação gera redirecionamentos para HTTP mesmo quando o usuário acessou HTTPS na borda. Qual causa é compatível com essa configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A instância vê HTTP interno e não recebe ou não confia no protocolo original.", "correct": true },
+        { "key": "B", "text": "SNI informou corretamente o nome e alterou o esquema da URL.", "correct": false },
+        { "key": "C", "text": "O campo SAN converteu o certificado num cabeçalho de redirecionamento.", "correct": false },
+        { "key": "D", "text": "O health check retirou o certificado da conexão do navegador.", "correct": false },
+        { "key": "E", "text": "O passthrough mostrou ao backend o cabeçalho do proxy de entrada.", "correct": false }
+      ],
+      "explanation": "Se TLS termina no proxy e a aplicação recebe HTTP, ela pode inferir incorretamente que o cliente usou HTTP. Um cabeçalho de protocolo original confiável e a configuração da aplicação evitam gerar URLs ou redirecionamentos incompatíveis.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma razão operacional para centralizar a terminação TLS em um balanceador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Eliminar a necessidade de renovar certificados em qualquer componente.", "correct": false },
+        { "key": "B", "text": "Concentrar a gestão de certificados e deslocar trabalho criptográfico das aplicações.", "correct": true },
+        { "key": "C", "text": "Garantir que o tráfego do backend nunca precise de controles de rede.", "correct": false },
+        { "key": "D", "text": "Tornar todos os destinos disponíveis mesmo após falha do balanceador.", "correct": false },
+        { "key": "E", "text": "Fazer certificados expirados continuarem válidos para clientes novos.", "correct": false }
+      ],
+      "explanation": "Centralizar TLS pode reduzir o trabalho criptográfico nas aplicações e reunir configuração e renovação dos certificados no ponto de entrada. Ainda é preciso proteger chaves, monitorar validade e manter capacidade e disponibilidade do balanceador.",
+      "section": "1. O que é SSL offloading",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O cliente acessa HTTPS, mas o proxy encaminha HTTP ao backend. O que representa X-Forwarded-Proto quando inserido pelo proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A chave pública escolhida para a conexão TLS interna.", "correct": false },
+        { "key": "B", "text": "O nome do destino selecionado pela regra de caminho HTTP.", "correct": false },
+        { "key": "C", "text": "A indicação do protocolo usado na conexão original do cliente.", "correct": true },
+        { "key": "D", "text": "A lista de certificados intermediários enviada pelo navegador.", "correct": false },
+        { "key": "E", "text": "O endereço IP que substitui o health check do servidor.", "correct": false }
+      ],
+      "explanation": "X-Forwarded-Proto comunica à aplicação qual esquema o cliente usou na perna até o proxy, como HTTPS. É metadado de encaminhamento e não prova criptográfica; deve ser controlado pelo proxy confiável.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um balanceador de aplicação com HTTPS, qual dado pode orientar regras de roteamento depois que a sessão TLS foi terminada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Somente o certificado raiz que assinou o certificado do balanceador.", "correct": false },
+        { "key": "B", "text": "Apenas o endereço MAC do cliente na rede pública.", "correct": false },
+        { "key": "C", "text": "A quantidade de chaves privadas instaladas no navegador.", "correct": false },
+        { "key": "D", "text": "A consulta DNS original, mesmo sem receber a requisição HTTP.", "correct": false },
+        { "key": "E", "text": "O host, o caminho ou outras informações HTTP decifradas.", "correct": true }
+      ],
+      "explanation": "Com TLS terminado, o balanceador de aplicação consegue interpretar o pedido HTTP e aplicar regras por host, caminho e outros campos configurados. Um balanceador que só encaminha TLS opaco não tem essa visibilidade.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um balanceador concentra a negociação TLS de milhares de conexões concorrentes. Que decisão de arquitetura decorre desse papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Desconsiderar capacidade, pois o custo de TLS fica sempre no DNS.", "correct": false },
+        { "key": "B", "text": "Dimensionar o equipamento e prever alta disponibilidade para esse processamento.", "correct": true },
+        { "key": "C", "text": "Remover todos os health checks para diminuir o número de conexões.", "correct": false },
+        { "key": "D", "text": "Instalar a mesma chave privada em cada cliente final por padrão.", "correct": false },
+        { "key": "E", "text": "Desativar validação de certificados para reduzir o trabalho criptográfico.", "correct": false }
+      ],
+      "explanation": "Offloading concentra handshakes e operações criptográficas no balanceador. Ele precisa de capacidade compatível e redundância para que saturação ou falha não comprometa vários serviços ao mesmo tempo; desativar validação reduz segurança sem resolver o desenho.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política exige autenticação mútua por certificado do consumidor. O TLS de entrada termina no balanceador. Onde a autenticação do certificado cliente deve ser efetivamente realizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "No resolvedor DNS, que consulta a autoridade certificadora em cada URL.", "correct": false },
+        { "key": "B", "text": "No algoritmo de balanceamento, antes da negociação com o cliente.", "correct": false },
+        { "key": "C", "text": "No backend automaticamente, sem repasse ou verificação de identidade.", "correct": false },
+        { "key": "D", "text": "No ponto que termina TLS, ou por mecanismo confiável definido para essa identidade.", "correct": true },
+        { "key": "E", "text": "No cabeçalho X-Forwarded-For fornecido pelo próprio consumidor.", "correct": false }
+      ],
+      "explanation": "O componente que termina a sessão recebe e valida o certificado apresentado nela. Se a aplicação também precisar da identidade, o projeto precisa transmiti-la por canal autenticado e controlado; um cabeçalho arbitrário do cliente não substitui a validação mTLS.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para reduzir exposição de dados entre balanceador e aplicações em segmentos de rede diferentes, qual alternativa é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar TLS até o backend e validar o certificado do servidor interno.", "correct": true },
+        { "key": "B", "text": "Manter HTTP interno e confiar somente no nome HTTPS da página pública.", "correct": false },
+        { "key": "C", "text": "Ativar afinidade e considerar que ela cifra os pacotes encaminhados.", "correct": false },
+        { "key": "D", "text": "Usar DNS sobre UDP como substituto da criptografia de aplicação.", "correct": false },
+        { "key": "E", "text": "Aceitar qualquer certificado do backend, desde que a porta seja privada.", "correct": false }
+      ],
+      "explanation": "Recriptografar protege o tráfego em trânsito entre balanceador e backend. Validar a identidade do certificado interno impede que a conexão cifrada seja estabelecida com um servidor não autorizado; uma rede privada não equivale a autenticação nem criptografia.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após terminar TLS, um proxy encaminha ao destino dados do cliente em um cabeçalho X-Forwarded-For. Que controle é importante para evitar falsificação desse valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Permitir conexão direta aos backends para que o cliente confirme o cabeçalho.", "correct": false },
+        { "key": "B", "text": "Deixar que clientes escolham o valor, mas registrar o cabeçalho Host.", "correct": false },
+        { "key": "C", "text": "Restringir acesso ao backend e fazer o proxy confiável sobrescrever o cabeçalho.", "correct": true },
+        { "key": "D", "text": "Copiar o valor para SNI e remover validação de certificado do cliente.", "correct": false },
+        { "key": "E", "text": "Usar apenas o endereço DNS do balanceador como identidade de origem.", "correct": false }
+      ],
+      "explanation": "A aplicação deve receber tráfego apenas de proxies autorizados, e o proxy de borda deve limpar ou substituir valores enviados pelo cliente. Sem isso, o solicitante pode inserir um endereço falso em registros e políticas que dependem do IP original.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O certificado configurado no balanceador expirou. Que efeito é mais provável para novos clientes que validam a conexão HTTPS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O balanceador escolhe outro backend e mantém a validade do certificado antigo.", "correct": false },
+        { "key": "B", "text": "O cliente pode rejeitar a sessão por validade fora do período aceito.", "correct": true },
+        { "key": "C", "text": "A aplicação renova a chave privada do navegador sem nova negociação.", "correct": false },
+        { "key": "D", "text": "O cabeçalho Host substitui a verificação de validade do certificado.", "correct": false },
+        { "key": "E", "text": "A conexão vira TLS passthrough sem mudança de configuração.", "correct": false }
+      ],
+      "explanation": "O cliente verifica o período de validade do certificado apresentado pelo ponto de terminação. Um certificado expirado pode causar erro de validação e bloqueio ou aviso de segurança; trocar o backend não renova esse certificado.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação sem estado local recebe tráfego de várias instâncias atrás de um balanceador. Qual afirmação sobre afinidade de sessão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Afinidade cifra a conexão entre balanceador e servidores automaticamente.", "correct": false },
+        { "key": "B", "text": "Afinidade substitui os certificados de cada listener HTTPS.", "correct": false },
+        { "key": "C", "text": "Afinidade torna desnecessário retirar destinos não saudáveis.", "correct": false },
+        { "key": "D", "text": "Afinidade tenta manter pedidos de um cliente no mesmo destino.", "correct": true },
+        { "key": "E", "text": "Afinidade permite ler caminhos HTTP em sessão TLS passthrough.", "correct": false }
+      ],
+      "explanation": "Afinidade é uma política de distribuição que tenta manter um cliente no mesmo destino, muitas vezes por cookie ou identificador. Não cifra conexões, não substitui health checks e não torna visível o HTTP cifrado em passthrough.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização termina TLS em um proxy e precisa autenticar certificados apresentados pelos consumidores. Qual desenho atende ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar X-Forwarded-For como certificado de identidade do consumidor.", "correct": false },
+        { "key": "B", "text": "Encaminhar TLS sem terminação e validar somente o cabeçalho HTTP Host.", "correct": false },
+        { "key": "C", "text": "Solicitar ao backend que confie em qualquer endereço de origem.", "correct": false },
+        { "key": "D", "text": "Configurar autenticação mútua TLS no ponto de terminação da sessão.", "correct": true },
+        { "key": "E", "text": "Associar um certificado ao DNS sem validar a sessão do cliente.", "correct": false }
+      ],
+      "explanation": "Em mTLS, o servidor solicita e valida certificado de cliente durante o handshake. Se o proxy termina a sessão, a verificação precisa acontecer nele ou numa arquitetura autenticada que preserve essa identidade; cabeçalhos de origem não substituem prova TLS.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade de uma política HSTS recebida pelo navegador de um site?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Selecionar o backend saudável com menor tempo de resposta.", "correct": false },
+        { "key": "B", "text": "Informar ao proxy qual certificado deve ser escolhido pelo SNI.", "correct": false },
+        { "key": "C", "text": "Repassar o endereço IP de origem à aplicação por HTTP.", "correct": false },
+        { "key": "D", "text": "Ativar TLS somente entre o balanceador e o servidor interno.", "correct": false },
+        { "key": "E", "text": "Orientar o navegador a usar HTTPS em acessos futuros ao domínio.", "correct": true }
+      ],
+      "explanation": "HSTS é uma política para o navegador acessar o domínio usando HTTPS em visitas futuras. Não seleciona backend nem substitui TLS na perna interna ou o processo de seleção de certificado.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual cuidado é essencial quando certificados de muitos serviços são centralizados no balanceador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Publicar as chaves privadas junto com os certificados para facilitar renovação.", "correct": false },
+        { "key": "B", "text": "Remover monitoramento de validade porque o balanceador valida os clientes.", "correct": false },
+        { "key": "C", "text": "Permitir acesso amplo às chaves para que cada destino termine TLS.", "correct": false },
+        { "key": "D", "text": "Desativar redundância para impedir que certificados sejam replicados.", "correct": false },
+        { "key": "E", "text": "Restringir acesso às chaves e planejar renovação e disponibilidade do ponto central.", "correct": true }
+      ],
+      "explanation": "A centralização pode simplificar operação, mas concentra material sensível e processamento. O acesso às chaves deve ser restrito, os certificados precisam ser renovados e o serviço de terminação deve ter capacidade e resiliência adequadas.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um balanceador precisa rotear pelo caminho HTTP e também manter criptografia até os servidores internos. Qual configuração combina esses objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "TLS passthrough e seleção do destino por caminho cifrado.", "correct": false },
+        { "key": "B", "text": "DNS round robin e HTTP direto sem inspeção de certificado.", "correct": false },
+        { "key": "C", "text": "Afinidade de sessão e eliminação dos listeners HTTPS.", "correct": false },
+        { "key": "D", "text": "Terminação TLS no proxy e HTTP interno em todos os segmentos.", "correct": false },
+        { "key": "E", "text": "Terminação TLS no proxy e nova sessão TLS validada até o backend.", "correct": true }
+      ],
+      "explanation": "A terminação permite ao proxy decifrar e inspecionar o caminho HTTP. Uma segunda sessão TLS protege a perna interna; validar o certificado do backend também autentica o destino, em vez de apenas cifrar um canal até qualquer servidor.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No modo passthrough, um balanceador TCP consegue distribuir a carga sem descriptografar as conexões dos clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O balanceador pode encaminhar a sessão TLS usando informações de transporte e deixar o backend negociar e terminar TLS. Como não decifra a requisição, não consegue aplicar regras baseadas no caminho HTTP protegido.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao terminar TLS no balanceador e usar HTTP interno, a criptografia estabelecida com o navegador também protege automaticamente os pacotes até a aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A sessão do navegador termina no balanceador e é decifrada ali. Se a conexão posterior usar HTTP, essa perna interna não está protegida por TLS e deve ser avaliada separadamente.",
+      "section": "1. O que é SSL offloading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um listener HTTPS que termina conexões de clientes precisa de certificado de servidor configurado para apresentar durante a negociação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O ponto de terminação precisa se identificar na sessão TLS, normalmente apresentando um certificado compatível com o nome solicitado. A chave privada correspondente deve permanecer protegida nesse equipamento ou serviço.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A extensão SNI permite que o cliente indique o nome do host durante a negociação TLS, antes de enviar o cabeçalho HTTP Host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SNI é enviado durante a negociação TLS para permitir que um servidor com vários nomes escolha o certificado apropriado. O cabeçalho Host pertence ao pedido HTTP e só aparece depois que o canal seguro está estabelecido.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se o proxy termina TLS, a aplicação pode precisar de X-Forwarded-Proto confiável para reconhecer que o cliente originalmente usou HTTPS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A aplicação pode ver apenas HTTP no trecho interno e deduzir o esquema errado. O proxy pode encaminhar o protocolo original, mas a aplicação só deve confiar no cabeçalho se restringir sua origem a intermediários controlados.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em TLS passthrough, o balanceador de camada 4 consegue usar o caminho `/api` para escolher o destino mesmo sem descriptografar a sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O caminho está dentro da requisição HTTP protegida por TLS. Sem terminar e decifrar a sessão, o balanceador não vê esse conteúdo e não consegue rotear por caminho.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "X-Forwarded-For é uma prova criptográfica do endereço do cliente, pois esse cabeçalho só pode ser criado por um balanceador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Trata-se de um cabeçalho HTTP que clientes também podem enviar. O proxy deve limpar ou substituir o valor e a aplicação deve aceitar informação de origem apenas de uma cadeia confiável.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na recriptografia, a sessão TLS do cliente é encerrada no balanceador e uma nova sessão TLS é estabelecida até o backend.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Há duas conexões TLS distintas, cada uma com negociação e validação próprias. O balanceador precisa apresentar certificado ao cliente e, se configurado para validar TLS interno, autenticar adequadamente o backend.",
+      "section": "1. O que é SSL offloading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A centralização da terminação TLS elimina a necessidade de monitorar capacidade e disponibilidade do balanceador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O balanceador passa a concentrar negociações e operações criptográficas e pode afetar muitos serviços se falhar ou saturar. Dimensionamento, observabilidade e redundância continuam importantes.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "SNI contém o caminho HTTP solicitado e por isso permite ao cliente escolher uma rota como `/api/v2` durante o handshake TLS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SNI informa o nome do host, não o caminho HTTP. O caminho é enviado posteriormente na requisição e só fica visível a um intermediário se ele terminar e decifrar TLS.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um health check que considera um backend saudável prova que o certificado TLS desse backend é válido para qualquer cliente externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Health check verifica uma condição de disponibilidade definida, que pode ser resposta HTTP ou conexão. Isso não demonstra por si só que o certificado apresentado ao cliente externo corresponde ao nome público ou tem cadeia válida.",
+      "section": "3. Offloading junto ao balanceamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Usar TLS do balanceador ao backend cifra a conexão interna, mas a validação de identidade do backend ainda precisa ser configurada corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A criptografia protege contra leitura em trânsito, enquanto a validação da cadeia e do nome do certificado confirma a identidade do destino. Aceitar qualquer certificado pode permitir conexão cifrada com um servidor errado.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O termo SSL offloading é usado historicamente, mas a configuração segura atual deve tratar a terminação HTTPS como processamento TLS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SSL permanece no vocabulário de mercado e provas, mas SSL foi sucedido pelo TLS. Ao desenhar a solução, deve-se configurar protocolos e parâmetros TLS admitidos pela política e documentação atual, evitando tratar o nome histórico como recomendação de SSL legado.",
+      "section": "1. O que é SSL offloading",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado de servidor público é uma informação que o servidor pode apresentar ao cliente, enquanto a chave privada correspondente deve permanecer protegida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O certificado não é segredo e é enviado para identificar o servidor e permitir validação. A chave privada comprova a posse da identidade criptográfica e deve ter acesso restrito no equipamento ou serviço que termina TLS.",
+      "section": "2. Certificados, SNI e escolha do servidor",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O campo X-Forwarded-Proto substitui a negociação TLS interna e cifra o tráfego entre balanceador e aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. X-Forwarded-Proto é um cabeçalho de metadados sobre o esquema original. Ele não cria criptografia; para proteger a perna interna é preciso estabelecer TLS ou outro controle apropriado.",
+      "section": "4. Segurança da perna interna e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Listeners for your Application Load Balancers",
+      "publisher": "Amazon Web Services",
+      "reference": "Listener HTTPS, certificado obrigatório, terminação TLS, passthrough TCP e regras de roteamento",
+      "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-listeners.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring HTTPS servers",
+      "publisher": "NGINX",
+      "reference": "Certificado e chave privada, cadeia, otimização TLS, nomes HTTPS e extensão SNI",
+      "url": "https://nginx.org/en/docs/http/configuring_https_servers.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Leverage load-balancing and encryption offloading",
+      "publisher": "AWS Well-Architected Framework",
+      "reference": "Distribuição de tráfego e offloading da descriptografia TLS para o balanceador",
+      "url": "https://docs.aws.amazon.com/wellarchitected/2022-03-31/framework/perf_select_network_encryption_offload.html",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

@@ -1,0 +1,1776 @@
+{
+  "id": "informatica.automacao-hardening-observabilidade-sistemas",
+  "subject": "Informática",
+  "title": "Automação administrativa, hardening e observabilidade de sistemas",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automação de tarefas administrativas, hardening e observabilidade",
+    "Hardening de sistemas operacionais e observabilidade básica",
+    "Endurecimento de sistemas operacionais",
+    "Automação segura de administração de sistemas",
+    "Logs métricas e eventos de sistemas operacionais",
+    "Administração automatizada de servidores seguros",
+    "Configuração segura e monitoramento de sistemas",
+    "Observabilidade operacional de sistemas Linux e Windows",
+    "Automação de tarefas administrativas em servidores",
+    "Coleta de eventos e métricas de infraestrutura"
+  ],
+  "scope": {
+    "covers": "Automação segura de tarefas administrativas com ferramentas de gerenciamento de configuração; estado desejado, idempotência, inventário, execução gradual e modo de verificação; hardening por baseline, redução de superfície de ataque, atualizações, serviços, contas e privilégios, firewall e auditoria; observabilidade básica por logs, métricas e eventos em Linux e Windows; consulta e retenção de logs; diferença entre counter, gauge e histogram; correlação temporal, alertas, capacidade e diagnóstico operacional.",
+    "excludes": "Desenvolvimento geral de scripts, automação de processos de negócio, administração completa de Active Directory, arquitetura avançada de SIEM e APM, resposta forense, configuração detalhada de distribuições específicas, valores universais de retenção ou limiares de alerta e recomendações dependentes de uma versão específica de sistema operacional."
+  },
+  "theoryTitle": "Operação repetível, configuração segura e sinais observáveis",
+  "chapters": [
+    {
+      "title": "1. Automação administrativa com estado controlado",
+      "markdown": "### O problema que este assunto resolve\n\nConferir a configuração de dezenas de servidores manualmente tende a produzir diferenças: um serviço fica habilitado em um host e desabilitado em outro, um pacote recebe atualização tarde, ou uma conta é criada duas vezes. A automação administrativa descreve o resultado que se deseja e aplica as mudanças necessárias de forma rastreável. Ferramentas como Ansible executam playbooks contra inventários de máquinas; módulos especializados consultam o estado e alteram apenas o que falta.\n\n> **Siglas e termos deste capítulo**\n> - **Inventário**: relação de hosts e grupos aos quais a automação pode se aplicar.\n> - **Playbook**: arquivo declarativo que organiza hosts, variáveis e tarefas do Ansible.\n> - **Estado desejado**: condição final que a configuração deve manter.\n> - **Idempotência**: repetição da operação não cria mudanças adicionais quando o estado já está correto.\n> - **Check mode**: modo de verificação do Ansible, solicitado por `--check`, para estimar mudanças sem aplicá-las.\n> - **Drift**: diferença entre a configuração real e a configuração aprovada.\n\n### Declarar estado, não repetir comandos cegamente\n\nUma tarefa idempotente descreve, por exemplo, que o pacote de correções está instalado, que uma conta de serviço existe com determinado grupo ou que um daemon está habilitado. Se o servidor já satisfaz a condição, a segunda execução informa que não houve mudança. Uma chamada imperativa que sempre cria uma conta ou acrescenta uma linha pode duplicar efeitos a cada execução. O comportamento depende do módulo e do comando usado: nem todo módulo ou playbook é idempotente, e tarefas com efeitos externos devem ser avaliadas individualmente.\n\nO Ansible separa inventário, variáveis e tarefas. Um play direciona tarefas a hosts e pode usar escalonamento de privilégio, handlers e templates. `--check` auxilia a revisão prévia, mas não garante uma simulação fiel para módulos que não implementam check mode e não substitui validação em ambiente de teste. Saída detalhada e resumo por host ajudam a localizar falhas e alvos inalcançáveis.\n\n| Controle | Uso operacional | Limite importante |\n| --- | --- | --- |\n| Inventário por grupos | Aplicar configurações distintas a web, banco e estação | Um grupo amplo pode incluir alvos indevidos |\n| Variáveis e templates | Reutilizar configuração com parâmetros controlados | Segredo não deve ser gravado em texto aberto no repositório |\n| Check mode | Antecipar mudanças antes da aplicação | Nem toda tarefa oferece previsão completa |\n| Execução gradual | Aplicar primeiro a um host ou grupo piloto | Não prova por si só a ausência de impacto em todos os ambientes |\n| Relatório e saída | Ver mudanças, falhas e hosts não alcançados | Log de automação pode expor dados sensíveis se mal configurado |\n\n### Segurança do próprio mecanismo de automação\n\nA identidade de automação precisa apenas das permissões exigidas pelas tarefas. Separe credenciais de execução, armazene segredos em cofre apropriado, restrinja quem altera playbooks e inventários e registre quem aprovou e executou uma mudança. Limite os alvos por ambiente e confirme a seleção antes de operações destrutivas. Uma credencial com privilégio administrativo em toda a frota transforma um erro de inventário em incidente amplo.\n\nPara atualizações ou reinicializações, planeje lotes pequenos, confira serviços dependentes e valide saúde depois de cada lote. Preveja falha parcial: a ferramenta pode alcançar alguns hosts e perder conexão com outros. O relatório deve distinguir sucesso, mudança, falha e inacessibilidade; sucesso do controlador não significa que todos os sistemas terminaram corretamente.\n\n### Como cai na prova\n\n- Idempotência descreve estabilidade do estado final ao repetir a tarefa, não uma garantia automática de todo script.\n- `--check` é uma previsão útil, mas não elimina teste, revisão de alvo nem análise de módulos sem suporte ao modo.\n- Inventário, privilégio mínimo, credenciais protegidas, lote piloto e verificação pós-mudança reduzem o alcance de falhas."
+    },
+    {
+      "title": "2. Hardening: reduzir exposição e manter uma baseline",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema instalado para atender a vários usos pode manter protocolos, contas, serviços e regras de rede que não são necessários para sua função real. Cada componente exposto pode ampliar a superfície de ataque. **Hardening** é o processo controlado de reduzir essa exposição e manter uma configuração segura, sem remover dependências necessárias à operação. O ponto de partida é uma baseline documentada e testada para o papel do sistema.\n\n> **Siglas e termos deste capítulo**\n> - **Baseline**: conjunto de configurações de referência aprovado para um tipo de sistema.\n> - **Superfície de ataque**: serviços, interfaces, privilégios e componentes alcançáveis que podem ser explorados.\n> - **CIS**: Center for Internet Security, organização que publica benchmarks de configuração segura.\n> - **MFA**: autenticação multifator, que combina fatores de categorias diferentes.\n> - **Patch**: atualização que corrige defeito, inclusive vulnerabilidade, ou modifica componentes do sistema.\n> - **Auditoria**: registro de ações e eventos relevantes para verificação posterior.\n\n### Baseline, validação e exceções\n\nUma baseline transforma recomendações em configurações aplicáveis e verificáveis. A Microsoft publica security baselines para Windows e Windows Server; elas reúnem configurações recomendadas e podem ser aplicadas por mecanismos de gestão compatíveis. Antes de implantação, compare a baseline com a função do host e com requisitos de negócio, teste em grupo piloto e documente exceções com responsável, justificativa e revisão. Uma configuração recomendada para estação não deve ser aplicada sem análise a um servidor com papel diferente.\n\nInventarie os serviços em execução e suas portas de escuta; desabilite ou remova componentes desnecessários somente depois de verificar dependências. Use regras de firewall que permitam o tráfego exigido por origem, destino, protocolo e porta, e neguem exposições não necessárias. Restrinja contas administrativas, remova contas antigas, evite uso cotidiano de conta privilegiada e proteja autenticação remota. No Linux, permissões de arquivos e diretórios devem permitir escrita apenas aos usuários e processos que precisam dela; no Windows, ACLs cumprem papel semelhante.\n\n### Atualizações e configuração segura\n\nMantenha sistema, firmware e aplicações cobertos por processo de atualização. Priorize vulnerabilidades conforme exposição, impacto, disponibilidade de correção e risco de incompatibilidade. Teste atualizações, defina janela e plano de retorno quando possível, aplique em lotes e confira versão instalada e saúde dos serviços. Um inventário sem responsável ou um pacote não suportado é um risco que a simples ativação de atualizações automáticas não resolve.\n\nDesative protocolos inseguros e recursos dispensáveis conforme compatibilidade; use criptografia e protocolos administrativos protegidos. Não altere parâmetros de segurança às cegas: bloquear uma porta usada por monitoramento ou desabilitar um serviço dependente pode causar indisponibilidade. Baselines devem ser versionadas e comparadas com a configuração observada; mudanças emergenciais também precisam de registro e revisão posterior.\n\n### Contas, privilégios e auditoria\n\nSepare contas pessoais de contas de serviço e conceda a cada uma o mínimo de privilégios. Evite senhas compartilhadas e credenciais embutidas em scripts. Proteja contas de emergência e monitore seu uso. Registre tentativas de autenticação, alterações em grupos privilegiados, instalação de serviços e mudanças de política. A política de auditoria precisa equilibrar visibilidade, armazenamento e privacidade; coletar tudo sem retenção e revisão definidas não produz controle efetivo.\n\n### Como cai na prova\n\n- Hardening aplica uma configuração segura coerente com função e dependências; desabilitar todo serviço sem análise pode quebrar o sistema.\n- Baseline é referência controlada e testada, não uma lista universal que se aplica sem exceções.\n- Patching, firewall restritivo, privilégio mínimo, auditoria e verificação de drift formam controles complementares."
+    },
+    {
+      "title": "3. Logs e eventos: reconstruir o que ocorreu",
+      "markdown": "### O problema que este assunto resolve\n\nQuando um serviço falha, uma métrica pode mostrar que aumentou o erro, mas o registro do processo pode explicar a causa. Logs descrevem ocorrências com contexto; eventos são registros significativos emitidos por sistema operacional, aplicações ou dispositivos. Para investigar, é preciso saber qual fonte consultar, delimitar período, filtrar por host e serviço e comparar horários.\n\n> **Siglas e termos deste capítulo**\n> - **Log**: registro sequencial ou estruturado de uma ocorrência.\n> - **Evento**: ocorrência identificável, frequentemente classificada por fonte, tipo, horário e severidade.\n> - **Syslog**: protocolo e formato comum para transporte e registro de mensagens de sistemas Unix e equipamentos.\n> - **journald**: serviço do systemd que coleta mensagens do kernel, syslog, API do journal, saída de serviços e auditoria.\n> - **Event Viewer**: visualizador do Windows para logs como Application, Security e System.\n> - **UTC**: referência de tempo coordenada útil para normalizar registros de fontes em fusos diferentes.\n\n### Linux: journal e consulta filtrada\n\nsystemd-journald recebe mensagens do kernel, chamadas syslog, API nativa do journal, saída padrão e erro de serviços e registros da auditoria do kernel. As entradas são estruturadas e podem conter metadados como unidade systemd. `journalctl` consulta o journal; filtros por unidade permitem examinar, por exemplo, mensagens associadas a `nginx.service`, enquanto `-b` delimita a inicialização atual. `journalctl -p err` restringe por prioridade de erro e mais grave.\n\nA persistência depende da configuração. journald pode guardar dados em `/var/log/journal` ou de forma volátil em `/run/log/journal`; no modo volátil, os registros podem desaparecer na reinicialização. A configuração de `Storage=` em `journald.conf` controla essa escolha. Uso de disco pode ser limitado por configurações como `SystemMaxUse=` e retenção temporal; expurgar os logs antigos sem política pode remover evidência útil. Proteja permissões e encaminhe registros importantes a armazenamento central com acesso controlado.\n\n### Windows: canais e filtros\n\nO Windows separa logs em canais. Application reúne eventos de aplicações; System registra componentes e serviços do sistema; Security registra eventos de auditoria habilitados pela política. Cada evento pode identificar provedor, ID, nível, horário e dados específicos. Event Viewer permite navegação e filtragem; PowerShell `Get-WinEvent` consulta logs e aceita filtros estruturados, como nome do log, provedor, intervalo e ID. O ID sozinho não deve ser interpretado sem verificar provedor e detalhes do evento.\n\nA política avançada de auditoria pode registrar atividades como logon, gerenciamento de contas e uso de privilégios sensíveis. A Microsoft recomenda revisar, testar e validar a política antes de implantá-la em produção. A coleta de eventos de estações também é importante: sinais iniciais de intrusão podem aparecer nelas antes dos servidores. Ajuste tamanho e retenção dos logs, encaminhe eventos relevantes e acompanhe falhas de coleta.\n\n### Qualidade e proteção dos registros\n\nUm registro útil contém horário consistente, origem, componente, severidade, identificador de ocorrência e mensagem suficiente para investigação. Estruture campos para facilitar busca, mas não grave senhas, tokens, chaves privadas nem dados pessoais sem necessidade. Sincronize relógios das máquinas; diferenças de tempo tornam enganosa a ordem aparente dos eventos. Restringir escrita e leitura, centralizar cópias e monitorar alterações de configuração reduz o risco de perda ou adulteração.\n\n### Como cai na prova\n\n- `journalctl` consulta o journal; `Get-WinEvent` pesquisa eventos Windows; são ferramentas de fontes diferentes.\n- Log volátil em `/run/log/journal` não equivale a retenção persistente após reinicialização.\n- Um ID de evento precisa de contexto de provedor, canal, horário e campos; coleta excessiva sem retenção ou proteção tem custo e risco."
+    },
+    {
+      "title": "4. Métricas, alertas e diagnóstico observável",
+      "markdown": "### O problema que este assunto resolve\n\nLogs e eventos guardam ocorrências individuais. Métricas resumem valores ao longo do tempo e permitem observar tendências e limites operacionais. A observabilidade básica combina sinais, perguntas e contexto: métricas indicam quando e onde o comportamento mudou; logs e eventos ajudam a entender o que ocorreu. Uma série temporal é uma sequência de amostras com carimbo de tempo e rótulos que identificam a dimensão observada.\n\n> **Siglas e termos deste capítulo**\n> - **Série temporal**: amostras de uma métrica identificadas por nome, rótulos e tempo.\n> - **Counter**: contador cumulativo que cresce e pode voltar a zero quando o processo reinicia.\n> - **Gauge**: valor que pode subir ou descer, como memória usada agora.\n> - **Histogram**: distribuição de observações em intervalos, com contagem e soma.\n> - **Cardinalidade**: número de séries distintas produzido por combinações de nomes e rótulos.\n> - **SLI**: indicador mensurável do nível de serviço observado.\n\n### Escolher medida e dimensão\n\nPrometheus define counter para quantidades cumulativas como requisições atendidas e erros; para obter taxa de incremento, analisa-se a variação ao longo do tempo, levando em conta reinícios. Gauge representa estado variável, como memória disponível, processos ativos ou espaço livre. Histogram registra observações em buckets configurados, além de soma e quantidade; é adequado a distribuições como duração de requisições. Summary também observa distribuições e pode expor quantis calculados sobre janela. Quantis de summaries não são facilmente agregáveis entre instâncias como buckets de histograms.\n\nCada combinação única de rótulos forma uma série própria. Rótulos de baixa cardinalidade, como método HTTP e código de resposta, costumam ser úteis; endereço de usuário, identificador de requisição ou texto livre podem gerar série nova para quase todo valor, elevando memória e custo. Use nomes com unidade e quantidade coerentes, como `request_duration_seconds`, e não misture segundos e milissegundos na mesma métrica.\n\n| Sinal | Responde melhor a | Exemplo |\n| --- | --- | --- |\n| Log | O que uma instância registrou em um momento? | Mensagem de falha de autenticação |\n| Evento | Qual ocorrência categorizada aconteceu? | Serviço iniciado ou política alterada |\n| Métrica | Como um valor variou ou se distribuiu? | Uso de CPU, erros por minuto, latência |\n| Alerta | Qual condição exige atenção ou ação? | Espaço em disco baixo por período sustentado |\n\n### Alertas que levam a uma ação\n\nDefina alerta por sintoma relevante, duração, escopo e responsável. Um pico breve não precisa gerar a mesma resposta que uma condição persistente. Alertas de saturação, indisponibilidade, falha de coleta e ausência de dados são diferentes: a falta de amostras pode significar agente parado ou rede interrompida, não saúde perfeita. Uma regra deve incluir gravidade, contexto, procedimento de diagnóstico e destino de notificação. Revise falsos positivos e alertas sem ação para reduzir fadiga.\n\nA capacidade se acompanha observando tendência, sazonalidade e margem restante de CPU, memória, armazenamento e rede. Métrica agregada pode esconder um host degradado; preserve dimensões necessárias, mas limite rótulos de alta cardinalidade. Correlacione a janela temporal do alerta com logs e eventos do mesmo host, serviço e versão. Métricas são sinais operacionais, não prova isolada de causa.\n\n### Como cai na prova\n\n- Counter mede total cumulativo; gauge mede estado que pode aumentar ou diminuir; histogram caracteriza distribuição por buckets.\n- Rótulos identificam dimensões, mas valores únicos por usuário ou requisição podem multiplicar a cardinalidade.\n- Ausência de amostras é falha de observabilidade a investigar; não deve ser lida automaticamente como valor zero ou normalidade."
+    }
+  ],
+  "summary": "Automação administrativa confiável declara um estado desejado, limita alvos e privilégios, prevê mudanças, registra resultados e verifica o estado após a execução. Idempotência ajuda a repetir tarefas com segurança, mas depende do módulo e não torna toda rotina automaticamente segura. Hardening mantém uma baseline adequada ao papel do sistema, reduz serviços e acessos desnecessários, aplica correções, restringe contas e tráfego e habilita auditoria. Em Linux, journald coleta registros estruturados consultados por journalctl; persistência depende da configuração e do local de armazenamento. No Windows, canais Application, System e Security podem ser consultados no Event Viewer ou por Get-WinEvent, respeitando a política de auditoria. Logs descrevem ocorrências, eventos classificam fatos relevantes e métricas mostram valores em séries temporais. Em Prometheus, counter é cumulativo, gauge varia em ambos os sentidos e histogram resume distribuições por buckets. Alertas devem corresponder a condições sustentadas e acionáveis, considerar ausência de coleta e guiar a correlação de sinais sem expor segredos.",
+  "flashcards": [
+    {
+      "front": "O que significa idempotência numa tarefa de configuração?",
+      "back": "Repetir a tarefa mantém o mesmo estado desejado sem duplicar mudanças quando o sistema já está conforme."
+    },
+    {
+      "front": "O que o inventário Ansible delimita?",
+      "back": "Os hosts e grupos sobre os quais playbooks e tarefas podem atuar."
+    },
+    {
+      "front": "O que o modo `--check` do Ansible oferece?",
+      "back": "Uma previsão de mudanças para tarefas que suportam check mode; não substitui teste nem garante simulação total."
+    },
+    {
+      "front": "O que é drift de configuração?",
+      "back": "Diferença entre a configuração real e a baseline ou estado aprovado."
+    },
+    {
+      "front": "Por que usar execução gradual de atualizações?",
+      "back": "Para observar o impacto em um grupo pequeno antes de ampliar a mudança à frota."
+    },
+    {
+      "front": "O que é uma baseline de segurança?",
+      "back": "Configuração de referência documentada e testada para um papel de sistema."
+    },
+    {
+      "front": "O que descreve a superfície de ataque?",
+      "back": "Componentes, serviços, interfaces e privilégios expostos que podem ser alcançados ou abusados."
+    },
+    {
+      "front": "O que deve orientar a remoção de um serviço?",
+      "back": "A função do host e a verificação de dependências, portas, monitoramento e requisitos operacionais."
+    },
+    {
+      "front": "O que estabelece o privilégio mínimo?",
+      "back": "Cada identidade recebe somente as permissões necessárias às tarefas autorizadas."
+    },
+    {
+      "front": "Qual é o papel de uma exceção à baseline?",
+      "back": "Registrar justificativa, responsável e revisão para uma divergência necessária e controlada."
+    },
+    {
+      "front": "Que fontes alimentam systemd-journald?",
+      "back": "Mensagens do kernel, syslog, API do journal, saída padrão e de erro de serviços e auditoria do kernel."
+    },
+    {
+      "front": "Qual comando consulta o journal do systemd?",
+      "back": "`journalctl`, com filtros por unidade, boot, prioridade ou outros campos."
+    },
+    {
+      "front": "Onde pode haver armazenamento volátil do journal?",
+      "back": "Em `/run/log/journal`; esses dados podem se perder na reinicialização."
+    },
+    {
+      "front": "Quais são três canais comuns de eventos do Windows?",
+      "back": "Application, System e Security."
+    },
+    {
+      "front": "Por que ID de evento sozinho não basta?",
+      "back": "É preciso interpretar provedor, canal, horário e campos associados ao evento."
+    },
+    {
+      "front": "O que caracteriza um counter Prometheus?",
+      "back": "Valor cumulativo que cresce e pode reiniciar em zero com o processo."
+    },
+    {
+      "front": "O que caracteriza um gauge?",
+      "back": "Valor que pode aumentar ou diminuir, como memória em uso."
+    },
+    {
+      "front": "O que registra um histogram?",
+      "back": "Observações em buckets, junto de contagem e soma, permitindo analisar uma distribuição."
+    },
+    {
+      "front": "Como rótulos influenciam cardinalidade?",
+      "back": "Cada combinação única de valores de rótulo gera uma série temporal distinta."
+    },
+    {
+      "front": "Por que não rotular métrica com ID único de requisição?",
+      "back": "O grande número de valores produz muitas séries e aumenta custo e consumo de recursos."
+    },
+    {
+      "front": "O que diferencia log de métrica?",
+      "back": "Log registra ocorrências com contexto; métrica representa valores amostrados ao longo do tempo."
+    },
+    {
+      "front": "O que fazer quando deixam de chegar métricas?",
+      "back": "Investigar agente, coleta, rede e alvo; ausência de amostras não prova normalidade."
+    }
+  ],
+  "tips": [
+    "Em questão sobre repetição segura, procure a ideia de declarar estado e aplicar somente a diferença; confirme se o módulo realmente é idempotente.",
+    "`--check` ajuda a prever, mas sempre verifique suporte do módulo, inventário e efeitos externos antes da produção.",
+    "Hardening combina baseline, patches, redução de exposição, privilégios e auditoria; não é simplesmente desligar tudo.",
+    "Para diagnosticar Linux com systemd, filtre journalctl por boot, unidade e prioridade antes de ampliar a busca.",
+    "No Windows, interprete o evento junto com canal e provedor; consulte política de auditoria e retenção.",
+    "Associe o tipo de métrica ao comportamento: total acumulado é counter, estado mutável é gauge e distribuição de observações é histogram."
+  ],
+  "traps": [
+    "Supor que toda tarefa do Ansible é idempotente: playbooks que executam comandos arbitrários podem duplicar efeitos.",
+    "Tratar check mode como transação ou garantia de que a aplicação não terá impacto.",
+    "Aplicar uma baseline sem avaliar função do host, dependências e exceções justificadas.",
+    "Confundir journal persistente em `/var/log/journal` com armazenamento volátil em `/run/log/journal`.",
+    "Achar que o ID numérico de evento determina sozinho causa e severidade sem provedor ou campos.",
+    "Usar um counter para valor que diminui, ou criar rótulo com identificadores únicos e cardinalidade excessiva."
+  ],
+  "activeRecall": [
+    "Explique como uma segunda execução idempotente difere de um script que sempre acrescenta uma linha ao arquivo.",
+    "Descreva uma implantação gradual de atualização e indique o que verificar antes de avançar ao próximo grupo.",
+    "Dê três controles que reduzam risco na identidade usada por automação administrativa.",
+    "Explique por que uma baseline deve ser testada por papel de sistema e como registrar uma exceção.",
+    "Compare journald e os canais Application, System e Security do Windows quanto às fontes consultadas.",
+    "Mostre como investigar no journal mensagens de erro de uma unidade durante a inicialização atual.",
+    "Compare counter, gauge e histogram com uma métrica adequada para cada tipo.",
+    "Explique como a ausência de amostras e rótulos de alta cardinalidade podem causar problemas distintos de observabilidade."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Idempotência e estado desejado",
+      "summary": "Confundir repetição declarativa com comandos cegos que criam efeitos duplicados."
+    },
+    {
+      "key": "e2",
+      "title": "Hardening como configuração contextual",
+      "summary": "Aplicar controles sem considerar papel, dependências, testes, exceções e validação operacional."
+    },
+    {
+      "key": "e3",
+      "title": "Origem e persistência de logs",
+      "summary": "Misturar fontes, ferramentas de consulta ou retenção volátil e persistente de registros."
+    },
+    {
+      "key": "e4",
+      "title": "Semântica de métricas e cardinalidade",
+      "summary": "Escolher métrica incompatível com o valor ou criar rótulos que multiplicam séries sem limite."
+    },
+    {
+      "key": "e5",
+      "title": "Interpretação de sinais e alertas",
+      "summary": "Tratar ausência como saúde normal ou inferir causa sem correlação temporal e contextual."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma tarefa declarativa que garante que um pacote esteja instalado pode ser executada novamente sem mudança adicional quando o pacote já está presente, desde que o módulo usado implemente esse comportamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa é a propriedade de idempotência: a repetição converge para o mesmo estado desejado. Ela depende do módulo ou da tarefa; um comando que sempre acrescenta registros pode não ser idempotente.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo `--check` do Ansible garante que qualquer playbook será simulado integralmente e poderá ser aplicado em produção sem teste adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O check mode depende do suporte de cada módulo e não representa necessariamente efeitos externos, integrações ou tarefas arbitrárias. Ele ajuda na revisão, mas não substitui ambiente de teste, inspeção do inventário e validação posterior.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separar hosts de produção e homologação em grupos de inventário ajuda a restringir o alcance de uma execução automatizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Grupos tornam explícitos os alvos e permitem aplicar variáveis e tarefas apropriadas por ambiente. Ainda é necessário revisar a seleção efetiva antes de mudanças de grande impacto.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução do controlador terminou sem erro local; portanto, todos os hosts do inventário necessariamente receberam e concluíram as tarefas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Hosts inalcançáveis, falhas parciais ou tarefas que não concluíram podem ocorrer mesmo que o processo local termine. O resumo por host deve ser verificado para distinguir sucesso, falha, mudança e inacessibilidade.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A automação que usa uma identidade com permissões limitadas e guarda seus segredos em armazenamento protegido reduz o impacto de comprometimento das credenciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Privilégio mínimo limita o que uma identidade pode alterar e o armazenamento protegido evita expor segredos em scripts, histórico ou repositórios. Credenciais ainda precisam de rotação e controle de acesso.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar uma atualização em poucos hosts, verificar serviços e só então ampliar o lote é uma forma de reduzir o risco de mudança em massa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um grupo piloto limita o alcance inicial e permite observar incompatibilidades antes da implantação ampla. A verificação deve incluir a versão instalada e a saúde dos serviços relevantes.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Hardening consiste em desativar todo serviço que não esteja sendo usado no instante da análise, mesmo que seja uma dependência operacional futura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A remoção ou desativação exige entender o papel do host e dependências, incluindo monitoramento e serviços sob demanda. Hardening reduz exposição sem comprometer a função necessária do sistema.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma baseline segura deve ser testada para a função do sistema e pode exigir exceções justificadas e revisadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Servidores com papéis diferentes possuem dependências distintas. Exceções devem ter justificativa, responsável e revisão, e não ser divergências sem controle.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Permitir tráfego de firewall por origem, destino, protocolo e porta necessários restringe melhor a exposição do que abrir uma porta para qualquer origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A regra específica limita os pares e protocolos autorizados. A abertura ampla eleva a superfície alcançável e deve ser evitada quando o tráfego pode ser restringido.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atualizações automáticas, isoladamente, comprovam que todos os componentes do host estão suportados e corrigidos sem risco de incompatibilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. É preciso inventariar sistema e aplicações, considerar suporte, avaliar correções, testar impacto, implantar e conferir resultado. A automação de atualização não resolve componentes abandonados nem valida funcionamento.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separar contas pessoais e contas de serviço dificulta atribuir ações a responsáveis e aplicar permissões adequadas a cada uso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Contas distintas facilitam auditar ações humanas e automatizadas e conceder a cada identidade os direitos exigidos. Senhas compartilhadas, ao contrário, dificultam atribuição e controle.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "systemd-journald pode receber mensagens do kernel, syslog, API nativa do journal e saída padrão ou de erro de serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Além dessas fontes, o serviço pode receber registros de auditoria do kernel; as entradas incluem metadados estruturados que ajudam na consulta.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o journal estiver em armazenamento volátil sob `/run/log/journal`, seus registros ficam garantidos após a reinicialização do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O armazenamento em `/run` é volátil e pode ser perdido no reboot. A persistência pode ser configurada para `/var/log/journal`, conforme a configuração do journald.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`Get-WinEvent` permite consultar eventos Windows com filtros, e o contexto do canal e do provedor deve acompanhar a leitura do ID.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O cmdlet consulta logs e oferece filtros estruturados; o ID numérico precisa ser interpretado junto do provedor e dos dados do evento.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Normalizar horário das fontes e restringir acesso a registros ajuda a correlacionar eventos e preservar a confiabilidade da investigação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Relógios divergentes distorcem a ordem dos fatos; permissões e cópias controladas reduzem adulteração ou exposição indevida. O conteúdo também deve evitar segredos desnecessários.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Prometheus, um gauge representa necessariamente um total cumulativo que só pode crescer até o processo reiniciar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Essa descrição corresponde ao counter. Um gauge representa valor que pode subir ou descer, como memória atualmente usada ou processos ativos.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Criar um rótulo Prometheus com valor diferente para cada requisição pode multiplicar a cardinalidade e o custo de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cada combinação única de nome e rótulos gera uma série temporal. Identificadores quase únicos devem ficar em logs ou traces, não como dimensão ilimitada de métrica.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de amostras de uma métrica prova que o recurso observado está saudável e com valor igual a zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A ausência pode indicar falha de agente, coleta, rede ou alvo. Deve ser monitorada como problema de observabilidade em vez de ser interpretada automaticamente como zero.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa reaplicar configuração de um servidor em execuções recorrentes. Que propriedade torna a automação mais segura quando o estado já está correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Idempotência, para manter o resultado sem criar mudanças duplicadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cardinalidade, para aumentar o número de valores produzidos por tarefa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Persistência, para guardar os comandos apenas em memória volátil.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Auditoria, para executar a tarefa sem conferir seus efeitos no host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inventário, para conceder privilégio total a todos os hosts cadastrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Idempotência permite repetir uma tarefa declarativa sem novas mudanças quando o estado final já foi alcançado. Auditoria e inventário são úteis, mas não evitam duplicação por si só; cardinalidade é conceito de métricas e persistência descreve armazenamento.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de atualizar centenas de servidores por automação, qual sequência reduz melhor o risco operacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar todos de uma vez e revisar falhas apenas no próximo ciclo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar alertas, atualizar a frota e apagar eventos antigos depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Testar em piloto, verificar saúde e ampliar por lotes controlados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar os hosts primeiro e instalar correções sem inventário atualizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dar privilégio administrativo amplo e deixar que cada host escolha horário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um piloto detecta incompatibilidade com alcance limitado. Após validar a versão e os serviços, a atualização pode avançar em lotes observáveis. Aplicação em massa sem inventário, monitoramento ou validação aumenta o impacto de erro.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um playbook deve atuar apenas nos servidores de homologação durante um ensaio. Qual recurso ajuda a declarar esses alvos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra de firewall que libera conexão de qualquer rede externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um contador cumulativo com um rótulo para cada processo executado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um grupo específico no inventário, revisado antes de iniciar a execução.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um evento do sistema que altera sozinho o inventário do controlador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um arquivo de log volátil que determina o conjunto de servidores ativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O inventário organiza hosts e grupos para que a execução selecione explicitamente homologação. A seleção efetiva ainda deve ser conferida, pois erro de grupo pode direcionar mudanças ao ambiente errado.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente uma limitação do modo de verificação `--check` do Ansible?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele sempre impede que qualquer módulo consulte estado remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele prevê mudanças somente nos módulos e tarefas que suportam esse modo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ele substitui credenciais, inventário e autorização por valores simulados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele aplica mudanças e depois reverte automaticamente cada uma delas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele prova que uma operação externa não terá impacto na produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Check mode é útil para antecipar mudanças, mas seu resultado depende do suporte da tarefa ou módulo. Ele não deve ser entendido como rollback transacional nem como prova de que efeitos externos foram simulados.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de provisionamento grava credenciais privilegiadas no repositório para facilitar sua execução. Qual controle é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o arquivo privado e ampliar acesso apenas aos operadores de plantão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codificar a senha em base64 e registrar o texto no log da execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover o segredo para um cofre com acesso restrito e identidade mínima.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar a mesma senha em todos os ambientes para reduzir falhas de digitação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o segredo ao final, sem revogar cópias existentes ou registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um cofre de segredos restringe acesso e evita que credenciais fiquem expostas no código e em logs. Codificação não é proteção criptográfica; segredos compartilhados e cópias existentes aumentam risco.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após automação, dois hosts aparecem inalcançáveis enquanto os demais concluíram a atualização. O que deve orientar o encerramento da mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar sucesso geral porque a maioria dos hosts respondeu ao controlador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir os hosts sem resposta do inventário e encerrar o incidente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir a atualização em todos sem verificar o estado já aplicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Separar os resultados por host e investigar os inalcançáveis antes de concluir.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apagar o relatório do controlador para evitar status parcial na auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "A execução pode ter resultado parcial. Deve-se preservar o relatório, identificar quais hosts mudaram e investigar os inalcançáveis antes de declarar a mudança concluída, evitando repetir ações às cegas.",
+      "section": "1. Automação administrativa com estado controlado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma máquina de função específica mantém daemon de impressão sem dependências conhecidas. Qual decisão melhor aplica hardening?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar a auditoria para impedir registros de atividade do daemon.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Liberar a porta do daemon em todas as interfaces e redes remotas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma conta administrativa nova para cada reinicialização do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar ou remover o daemon após confirmar o papel e as dependências do host.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Manter o serviço ativo porque componentes instalados não ampliam exposição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um serviço desnecessário pode ampliar superfície de ataque. A decisão deve confirmar função e dependências; depois disso, desativar ou remover reduz componentes expostos sem quebrar a operação.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adotará configurações recomendadas para um servidor Windows de papel específico. Qual prática deve preceder a implantação na frota?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar diretamente a todos os hosts e registrar exceções somente após incidentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar a baseline em grupo piloto e avaliar dependências e exceções justificadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar políticas de auditoria para evitar diferença entre hosts de teste e produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar as configurações aprovadas por valores locais sem registrar a alteração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma baseline de estação sem comparar com a função de servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Baselines precisam ser avaliadas para o papel do sistema e testadas antes de uma implantação ampla. Exceções devem ser registradas e revisadas; aplicação indiscriminada pode interromper serviços necessários.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração de firewall reduz melhor a exposição de um serviço administrativo que só deve ser acessado pela rede de gestão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir a porta para qualquer origem e monitorar apenas o volume total.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Negar todo tráfego, inclusive o necessário à administração autorizada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir protocolo e porta exigidos somente a partir da rede de gestão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Abrir todas as portas do host durante o horário de trabalho administrativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o serviço de monitoramento para que a regra não gere eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra deve limitar origem, destino, protocolo e porta ao necessário. Abrir para todos amplia exposição, enquanto bloquear inclusive a rede autorizada inviabiliza a administração prevista.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma revisão encontra conta antiga em grupo administrativo, sem uso atual documentado. Qual ação segue melhor o privilégio mínimo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a conta ativa e compartilhar sua senha com a equipe de suporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover ou restringir o acesso após validar responsável e dependências operacionais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar uma segunda conta administrativa sem auditoria para servir de reserva.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder acesso administrativo a todas as contas para padronizar o grupo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar os eventos de uso e encerrar a revisão sem alterar permissões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contas obsoletas e privilégios não justificados devem ser removidos ou limitados após checagem responsável. Compartilhar credenciais e ampliar o grupo administrativo contraria o privilégio mínimo e prejudica a atribuição de ações.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor usa software sem suporte do fabricante e não recebe correções. Que medida enfrenta o risco estrutural?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar o serviço diariamente para obter atualizações de segurança novas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho dos logs e considerar o sistema corrigido por isso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar um rótulo de métrica e suspender o inventário de componentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Planejar migração ou substituição e controlar a exposição até a transição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ignorar o ciclo de suporte porque o firewall elimina vulnerabilidades do software.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem suporte, o componente deixa de receber correções regulares; deve-se planejar sua substituição ou migração e aplicar mitigação temporária proporcional. Firewall e logs não corrigem vulnerabilidades do software.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática combina melhor gestão de patches e continuidade do serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar correções sem teste e desligar monitoramento até a próxima janela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adiar toda correção até que não exista qualquer risco de incompatibilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inventariar, priorizar, testar, implantar em lotes e verificar saúde após a mudança.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Atualizar somente os servidores visíveis e deixar aplicações sem inventário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desinstalar agentes de segurança para acelerar todas as reinicializações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O processo deve equilibrar correção e disponibilidade: inventário e priorização orientam o risco, testes revelam incompatibilidade, lotes limitam impacto e a validação confirma o resultado.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador Linux quer examinar mensagens de erro do serviço `nginx` durante a inicialização atual. Que consulta é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `ansible --check` para exibir cada mensagem histórica do serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `Get-WinEvent` com o canal Application do Windows Server.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar somente o contador de espaço livre e inferir as mensagens ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ler exclusivamente `/run/log/journal` como arquivo de texto comum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar `journalctl` com filtro pela unidade e pela inicialização atual.",
+          "correct": true
+        }
+      ],
+      "explanation": "`journalctl` consulta registros do journal e pode filtrar por unidade e boot. `Get-WinEvent` é voltado a logs Windows; métricas e check mode não substituem a consulta de mensagens históricas.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa consultar eventos Windows por canal e intervalo de tempo usando PowerShell. Qual recurso atende a essa tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `journalctl` com o nome da unidade systemd correspondente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `Get-WinEvent` com filtro de log e intervalo temporal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `systemd-journald` para abrir diretamente o canal Security.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar um gauge para pesquisar eventos históricos por provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar check mode do Ansible para carregar o Event Viewer remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Get-WinEvent` consulta logs de eventos do Windows e permite filtros por propriedades como log e tempo. journald e journalctl pertencem ao ecossistema systemd, não ao Event Viewer.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma investigação de acesso ao Windows precisa localizar eventos de auditoria de autenticação. Qual canal é o ponto de consulta mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Application, que registra toda autenticação independentemente da política configurada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "System, que contém apenas eventos de segurança de usuários locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Security, considerando os eventos habilitados pela política de auditoria.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Setup, que armazena todos os logs de aplicações em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Forwarded Events, que substitui toda configuração de auditoria local.",
+          "correct": false
+        }
+      ],
+      "explanation": "O canal Security é destinado a eventos de auditoria, desde que a política correspondente os habilite e que haja retenção apropriada. Os demais canais têm finalidades diferentes e não substituem a política de auditoria.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um reboot, os registros antigos não aparecem no `journalctl`; qual hipótese de armazenamento deve ser examinada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um counter acumulativo atingiu o limite e converteu o journal em métrica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Event Viewer substituiu o journal e migrou automaticamente os eventos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um gauge zerou e apagou mensagens de texto do processo de coleta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O inventário Ansible removeu os registros quando o host reiniciou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O journal estava em armazenamento volátil sob `/run` e não persistia entre boots.",
+          "correct": true
+        }
+      ],
+      "explanation": "journald pode usar armazenamento volátil em `/run/log/journal`, que é perdido após a reinicialização. Se retenção entre boots é necessária, verifique configuração persistente e espaço de armazenamento.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual item torna um registro mais útil para correlacionar uma falha entre hosts sem incluir segredos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma captura de tela sem metadados, fuso ou nome da máquina de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Senha da conta que executou a tarefa e token de acesso integral da sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Texto livre sem horário, origem ou relação com o serviço afetado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente um ID numérico reutilizado por todos os provedores do ambiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Horário sincronizado, host, componente, severidade e identificador da ocorrência.",
+          "correct": true
+        }
+      ],
+      "explanation": "Horário coerente e metadados de origem permitem correlação entre fontes. Senhas e tokens não devem ser registrados; IDs isolados e mensagens sem contexto dificultam investigação.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time recebe milhares de eventos por dia, mas não consegue localizar mudanças em grupos privilegiados. Qual ajuste melhora a utilidade da auditoria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar cada ID numérico como universal sem considerar canal ou provedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar os logs de Security para reduzir ruído e liberar armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar todos os níveis de severidade e encaminhar cada evento sem retenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar eventos antigos antes de buscar os registros de alteração de conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Habilitar coleta contextual relevante e filtrar por evento, período e origem.",
+          "correct": true
+        }
+      ],
+      "explanation": "Auditoria precisa cobrir ações relevantes e ser consultável por contexto. Revisar política, filtros, retenção e encaminhamento ajuda a localizar alterações sem simplesmente desligar registros ou coletar sem planejamento.",
+      "section": "3. Logs e eventos: reconstruir o que ocorreu",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica deve mostrar a quantidade total de requisições atendidas desde o início do processo. Qual tipo é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gauge, porque o total deve cair sempre que uma requisição termina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Counter, porque representa um total cumulativo que pode reiniciar no reboot.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Histogram, porque cada requisição precisa de um rótulo único permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Summary, porque armazena cada log completo como valor textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evento, porque uma série temporal não representa quantidades acumuladas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Counter representa uma quantidade cumulativa como requisições atendidas e pode voltar a zero quando o processo reinicia. Um gauge é adequado a valores que sobem e descem.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual métrica acompanha melhor o número de conexões atualmente abertas, que pode subir e cair ao longo do dia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um inventário, pois hosts conectados equivalem a grupos de automação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um counter, pois conexões abertas nunca diminuem após serem contadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um ID de evento, pois o total corrente é uma mensagem histórica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um histogram de logs, pois cada conexão precisa de um bucket textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um gauge, pois o estado corrente pode aumentar ou diminuir.",
+          "correct": true
+        }
+      ],
+      "explanation": "O número de conexões ativas é um estado que varia em ambas as direções, portanto é adequado a gauge. Counter seria apropriado para conexões acumuladas desde um ponto de reinício.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API quer observar distribuição de duração de requisições e agregar observações de várias instâncias. Qual desenho é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar summary e somar diretamente quantis locais como uma distribuição global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar gauge para armazenar cada duração como texto de log sem unidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar counter com valor atual da requisição mais lenta de cada host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar um rótulo distinto para cada chamada e somar as séries resultantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar histogram com buckets compatíveis e unidade de tempo consistente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Histogram registra observações em buckets e pode ser agregado entre instâncias quando os buckets são compatíveis. Quantis de summaries calculados localmente não se combinam de forma simples em um quantil global.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual rótulo mantém dimensão útil de métricas HTTP sem criar uma série nova para cada visitante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Token de autenticação integral associado a cada chamada recebida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Endereço IP completo do visitante, com valor único por origem observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Método HTTP com valores limitados como GET, POST e DELETE.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "ID aleatório de requisição gerado novamente para cada transação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Texto completo do caminho, incluindo identificadores pessoais embutidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Método HTTP tem um conjunto pequeno de valores e pode servir como dimensão controlada. Endereço, token, ID e caminho com identificadores podem gerar cardinalidade muito alta e expor dados sensíveis.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta de disco deve avisar a equipe somente quando pouco espaço persistir por um período definido. Qual vantagem essa condição oferece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduz notificações por oscilações breves e mantém foco em condição acionável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Prova que o disco será preenchido exatamente no instante do disparo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elimina necessidade de alertar quando a coleta deixar de funcionar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte automaticamente logs de sistema em correção de capacidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faz a métrica ignorar valores baixos até a reinicialização do agente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma duração de persistência reduz ruído de uma queda transitória e torna o alerta mais acionável. Ela não prevê com exatidão o instante de falha nem substitui monitoramento de coleta ou planejamento de capacidade.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta de latência disparou em um host logo após uma atualização automatizada. Qual investigação inicial combina melhor os sinais disponíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correlacionar a janela temporal com versão, métricas, logs e eventos do host.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar toda a frota e limpar o journal para remover mensagens antigas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assumir que o alerta prova que o coletor de métricas causou a latência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar todos os limites sem verificar a distribuição ou os registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a atualização porque uma métrica não identifica sozinha a causa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O alerta delimita quando e onde investigar; correlacionar métricas, logs, eventos e mudança recente ajuda a formar hipótese. Nenhum sinal isolado prova causalidade, e apagar registros destrói contexto útil.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma parou de receber métricas de vários alvos, embora não haja alertas de uso elevado. Qual condição deve ser verificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha de agente, conectividade ou coleta, pois ausência de dado não é valor normal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o uso de CPU, pois métrica ausente equivale a CPU sem carga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A contagem de logs em disco, pois qualquer log substitui série temporal ausente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A política de senha, pois ela define se Prometheus pode armazenar amostras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A instalação de baselines, pois configurações seguras suspendem a coleta por padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem amostras é preciso conferir agente, rede, alvo e processo de scrape. Tratar ausência como zero ou saúde normal oculta uma falha de observabilidade.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer acompanhar percentual de memória usada e total de requisições atendidas por processo. Que par de tipos é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Counter para memória usada e gauge para requisições cumulativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gauge para memória usada e counter para requisições acumuladas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Histogram para memória usada e evento para total de requisições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Summary para ambos, porque estados e totais são distribuições iguais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evento para memória corrente e log para o total desde a inicialização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Memória usada é um valor que sobe e desce, portanto gauge é apropriado. Requisições atendidas são uma quantidade cumulativa que pode ser representada por counter.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer que alertas de serviço indiquem quem atende e qual procedimento usar. Que conteúdo deveria acompanhar a regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravidade, contexto, responsável e passos iniciais de diagnóstico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente um nome de métrica curto, sem unidade nem descrição da condição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Senha do operador e token de acesso para agilizar a notificação recebida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lista de todos os usuários e IDs únicos observados na série temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mensagem integral de cada log e todos os eventos sem filtro ou limite.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alerta acionável informa condição, impacto, contexto e responsável, além de orientar o início da investigação. Credenciais e dados sem limite não devem compor notificações.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois hosts usam a mesma métrica de duração, mas um exporta segundos e outro milissegundos. Qual problema isso cria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os valores deixam de ter unidade coerente e agregações podem induzir análise errada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A cardinalidade cai, pois rótulos de unidade são removidos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A série se converte em log estruturado quando há discrepância de escala.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O counter passa a medir estados variáveis sem reiniciar o processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema corrige as amostras para uma unidade comum sem configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma métrica deve representar quantidade e unidade consistentes. Misturar segundos e milissegundos produz comparação e agregação incorretas; normalizar a instrumentação ou manter métricas distintas resolve a ambiguidade.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time define o limiar de alerta para CPU usando somente a média de todo o parque. Qual refinamento ajuda a não ocultar um host saturado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agregar todos os hosts num único valor e descartar dimensões locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas logs de autenticação como substituto de medida de CPU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar a coleta por host para reduzir séries da infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Preservar dimensão de host e avaliar condição sustentada por alvo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Rotular cada amostra com texto livre gerado por processo do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A média global pode esconder um alvo degradado. Manter uma dimensão controlada por host permite localizar saturação, enquanto condições sustentadas reduzem ruído de picos breves.",
+      "section": "4. Métricas, alertas e diagnóstico observável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer detectar mudanças na configuração segura de servidores depois de uma implantação. Que controle ajuda a encontrar a divergência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a baseline versionada e comparar estado observado com o aprovado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar cardinalidade de métricas com o conteúdo de todos os arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar auditoria após implantar para evitar alarmes de configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar atualização sem inventário e inferir drift pelo código de saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar baseline e exceções, depois monitorar diferenças relevantes.",
+          "correct": true
+        }
+      ],
+      "explanation": "A comparação entre configuração real e baseline documentada revela drift. Exceções aprovadas devem estar registradas para que diferenças legítimas não sejam confundidas com alteração indevida.",
+      "section": "2. Hardening: reduzir exposição e manter uma baseline",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Ansible Playbooks: Introduction",
+      "publisher": "Red Hat / Ansible",
+      "reference": "Playbooks, estado desejado, idempotência e check mode",
+      "url": "https://docs.ansible.com/projects/ansible-core/devel/playbook_guide/playbooks_intro.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Security baselines",
+      "publisher": "Microsoft Learn",
+      "reference": "Uso organizacional de baselines de segurança para Windows e Windows Server",
+      "url": "https://learn.microsoft.com/windows/security/operating-system-security/device-management/windows-security-configuration-framework/windows-security-baselines",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configure Security Baselines for Windows Server 2025",
+      "publisher": "Microsoft Learn",
+      "reference": "Auditoria, retenção de logs, políticas de segurança e configuração de baseline",
+      "url": "https://learn.microsoft.com/windows-server/security/osconfig/osconfig-how-to-configure-security-baselines",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "systemd-journald.service",
+      "publisher": "freedesktop.org",
+      "reference": "Fontes coletadas, metadados, armazenamento volátil e persistente do journal",
+      "url": "https://www.freedesktop.org/software/systemd/man/254/systemd-journald.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "journalctl",
+      "publisher": "freedesktop.org",
+      "reference": "Consulta e filtragem de entradas do journal",
+      "url": "https://www.freedesktop.org/software/systemd/man/247/journalctl.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Get-WinEvent",
+      "publisher": "Microsoft Learn",
+      "reference": "Consulta de logs de eventos do Windows com filtros",
+      "url": "https://learn.microsoft.com/powershell/module/microsoft.powershell.diagnostics/get-winevent",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "System Audit Policy Recommendations",
+      "publisher": "Microsoft Learn",
+      "reference": "Política de auditoria e recomendação para revisar e testar antes da produção",
+      "url": "https://learn.microsoft.com/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Metric types",
+      "publisher": "Prometheus",
+      "reference": "Semântica de counter, gauge, histogram e summary",
+      "url": "https://prometheus.io/docs/concepts/metric_types/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Data model",
+      "publisher": "Prometheus",
+      "reference": "Séries temporais, rótulos e combinações que identificam cada série",
+      "url": "https://prometheus.io/docs/concepts/data_model/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Metric and label naming",
+      "publisher": "Prometheus",
+      "reference": "Nomes com unidade consistente e risco de cardinalidade de rótulos",
+      "url": "https://prometheus.io/docs/practices/naming/",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

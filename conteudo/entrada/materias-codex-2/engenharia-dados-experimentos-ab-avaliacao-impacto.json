@@ -1,0 +1,1650 @@
+{
+  "id": "engenharia-dados.experimentos-ab-avaliacao-impacto",
+  "subject": "Engenharia de Dados",
+  "title": "Experimentos A/B e Avaliação de Impacto",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Experimentos A/B e Avaliação de Impacto (testes controlados para validação de soluções de negócio)",
+    "Experimentos A/B em produtos digitais",
+    "Testes controlados de soluções de negócio",
+    "Avaliação causal de mudanças em produtos",
+    "Desenho de experimentos online controlados",
+    "Grupo de controle e grupo de tratamento",
+    "Randomização em testes A/B",
+    "Métricas de sucesso e métricas de proteção",
+    "Análise de impacto de funcionalidades",
+    "Experimentos controlados de negócio",
+    "Avaliação de impacto em tecnologia",
+    "Teste A/B e inferência causal"
+  ],
+  "scope": {
+    "covers": "Princípios e uso de experimentos A/B para validar soluções de negócio: hipótese causal, controle e tratamento, unidade e mecanismo de randomização, população elegível, exposição e instrumentação; métricas primárias, guardrails, funis e segmentos; desenho, duração e tamanho amostral, efeito mínimo relevante, poder e incerteza; estimativa de efeito, significância estatística e relevância prática; vieses, contaminação, perdas de telemetria, sample ratio mismatch, múltiplas métricas, parada antecipada, efeitos de novidade e heterogeneidade; avaliação operacional, decisão de lançamento e documentação.",
+    "excludes": "Implementação de uma plataforma específica, fórmulas avançadas de inferência, experimentação clínica regulada, regras legais de proteção de dados e desenho de experimentos físicos fora de contextos de produto ou negócio."
+  },
+  "theoryTitle": "Do desenho experimental à decisão de negócio",
+  "chapters": [
+    {
+      "title": "1. Pergunta causal, controle e tratamento",
+      "markdown": "### O problema que este assunto resolve\n\nUma solução pode parecer boa porque as vendas subiram depois de seu lançamento. Mas a alta também pode decorrer de sazonalidade, campanha, mudança de preço ou de quem entrou no produto. O experimento controlado compara, no mesmo período, unidades elegíveis designadas a experiências diferentes. A randomização tende a distribuir fatores conhecidos e desconhecidos entre os grupos; assim, a diferença de resultados pode ser atribuída à intervenção com mais credibilidade do que numa comparação simples antes/depois.\n\n> **Siglas e termos deste capítulo**\n> - **A/B test**: comparação controlada entre variantes, em geral controle A e tratamento B.\n> - **Controle**: experiência de referência, frequentemente o produto atual.\n> - **Tratamento**: experiência que recebe a mudança avaliada.\n> - **Unidade de randomização**: entidade que recebe a alocação, como usuário, conta, loja ou região.\n> - **Efeito causal**: diferença atribuível à intervenção, sob as condições e pressupostos do desenho.\n> - **Contrafactual**: resultado que a mesma unidade teria apresentado sob a alternativa não observada.\n\n### Formule a hipótese antes de olhar o resultado\n\nUma hipótese útil identifica população, mudança, resultado esperado e possíveis danos. Exemplo: “Para clientes que concluem uma compra no aplicativo, mostrar estimativa de entrega antes do pagamento elevará a taxa de conclusão, sem aumentar cancelamentos ou contatos de suporte”. A equipe então especifica quem é elegível, como a alocação ocorre, o que conta como exposição e qual janela atribui o resultado.\n\nA variante deve mudar o aspecto em estudo de modo identificável. Se controle e tratamento diferirem simultaneamente em preço, interface e campanha, um resultado não revela qual componente o causou. Mudanças paralelas relevantes precisam ser controladas, registradas ou avaliadas em desenho apropriado.\n\n| Elemento | Pergunta operacional | Exemplo\n| --- | --- | --- |\n| População | Quem poderia receber a mudança? | Clientes ativos do aplicativo\n| Unidade | O que recebe uma alocação estável? | Conta, para evitar variantes em aparelhos da mesma conta\n| Controle | Qual experiência serve de referência? | Fluxo atual de pagamento\n| Tratamento | Qual mudança será aplicada? | Estimativa de entrega antes da confirmação\n| Resultado | Qual comportamento representa valor? | Compra concluída por conta elegível\n\n### Randomize na unidade certa\n\nAtribuir por usuário costuma evitar que uma mesma pessoa veja A numa visita e B na seguinte. Quando colegas, vendedores, dispositivos ou integrantes de uma conta compartilham a intervenção, a unidade pode precisar ser conta, equipe, loja ou região. Randomizar uma entidade e analisar milhares de eventos dela como se fossem observações independentes exagera a quantidade de informação: eventos da mesma unidade tendem a se parecer.\n\nO grupo designado é a base da análise. Excluir depois pessoas que não clicaram ou não usaram a funcionalidade pode desfazer a comparabilidade criada pela randomização, pois o uso é influenciado pelo próprio tratamento. A análise por atribuição original, ou intenção de tratar, estima o efeito de oferecer a intervenção à população sorteada. Uma análise entre expostos pode responder outra pergunta e exige cautela contra seleção.\n\n### Experimento não é comparação observacional\n\nSe clientes escolhem sozinhos ativar uma funcionalidade, usuários ativos podem diferir dos demais em renda, familiaridade ou necessidade. Ajustes estatísticos ajudam em alguns cenários, mas não garantem que fatores não medidos desapareceram. Em um experimento randomizado bem executado, a alocação por acaso é o mecanismo que cria grupos comparáveis em expectativa; a inferência ainda depende de execução, medição e análise corretas.\n\nUm teste A/A atribui aleatoriamente duas variantes realmente idênticas. Não se espera um efeito sistemático da funcionalidade; ele serve para verificar alocação, telemetria, pipelines e comportamento das métricas. Um A/A não prova que todo experimento futuro será válido.\n\n### Como cai na prova\n\n- Se a pergunta é “a mudança causou a diferença?”, procure alocação aleatória e grupo de comparação contemporâneo.\n- A unidade que recebe o tratamento orienta a randomização e a forma de calcular a incerteza.\n- Remover da análise quem não usou a funcionalidade pode introduzir viés pós-alocação.\n- Antes/depois não separa automaticamente o efeito de sazonalidade e de outras mudanças simultâneas."
+    },
+    {
+      "title": "2. Métricas, dados e qualidade da medição",
+      "markdown": "### O problema que este assunto resolve\n\nUma alocação correta não salva uma métrica mal definida. Se o evento de compra deixar de ser registrado apenas numa variante, o painel pode indicar queda onde houve perda de telemetria. Se a equipe otimizar cliques num botão, pode aumentar cliques sem gerar receita ou satisfação. O plano de medição transforma a hipótese de negócio em definições reproduzíveis, calculadas da mesma maneira nos dois grupos.\n\n> **Siglas e termos deste capítulo**\n> - **Métrica primária**: resultado principal usado para responder à hipótese.\n> - **Guardrail**: métrica de proteção que limita danos aceitáveis, como falhas ou cancelamentos.\n> - **OEC**: critério geral de avaliação que resume o valor pretendido para o produto.\n> - **Evento**: registro instrumentado de uma ação ou estado observável.\n> - **Funil**: sequência de etapas que conduz a um resultado, como visita, carrinho e compra.\n> - **SRM** (*sample ratio mismatch*): discrepância entre a proporção de alocação prevista e a observada.\n\n### Defina o que será contado\n\nPara cada métrica, documente unidade de análise, numerador, denominador, janela temporal, população, origem do dado, deduplicação e tratamento de ausências. “Conversão” pode significar compradores por visitante, pedidos por sessão ou receita por conta; são quantidades diferentes. Um denominador que muda por efeito do tratamento pode tornar a comparação enganosa.\n\nUma métrica primária deve estar ligada ao objetivo da solução e ser definida antes de examinar resultados. Guardrails capturam consequências importantes que não devem piorar além de limites previamente definidos: latência, erros, cancelamentos, reclamações ou custo operacional. Métricas de diagnóstico ajudam a explicar o mecanismo, mas não devem ser promovidas a sucesso depois de se descobrir qual delas subiu.\n\n| Categoria | Para que serve | Exemplo em checkout\n| --- | --- | --- |\n| Primária | Decidir se a hipótese de negócio foi atendida | Proporção de contas elegíveis que concluem compra\n| Guardrail | Detectar custo ou dano relevante | Taxa de erro de pagamento e cancelamento\n| Diagnóstico | Localizar mecanismo ou etapa afetada | Abandono entre endereço e pagamento\n| Qualidade de dados | Verificar se os dados permitem confiar no cálculo | Eventos recebidos por versão e grupo\n\n### Acompanhe o funil inteiro\n\nCliques são etapas intermediárias. Num funil de cadastro, contar somente o clique em “criar conta” ignora erros de validação, abandono de confirmação e cadastros concluídos. Taxas condicionais ajudam a localizar gargalos entre quem iniciou uma etapa; taxas incondicionais mostram quantos da população inicial completaram o objetivo. Ambas respondem perguntas diferentes.\n\nUma taxa de clique pode crescer porque um botão ficou confuso e atrai cliques repetidos. Um aumento em uma métrica local pode vir junto de piora em satisfação, retenção ou custo. Por isso, relacione métricas locais ao objetivo total e interprete movimentos inesperados como algo a investigar, mesmo quando parecem positivos.\n\n### Instrumentação e consistência\n\nRegistre a atribuição experimental e a unidade de randomização em eventos analíticos, com identificadores que permitam unir exposição e desfecho segundo regras de acesso e retenção aprovadas pela organização. Inclua versão do cliente, horário, origem e estado de elegibilidade quando necessários para diagnosticar diferenças. Verifique eventos perdidos, duplicados, atrasados, filtros e mudanças de esquema.\n\nO sample ratio mismatch ocorre quando a distribuição observada entre grupos não corresponde à alocação esperada além do que a variação aleatória explicaria. Não é um resultado de negócio: é um sinal de que a experiência ou os dados podem estar quebrados. Investigue elegibilidade desigual, falha de atribuição, identificadores instáveis, filtros, perda de logs e junções. Evite interpretar o placar até entender a discrepância.\n\nPara medir impacto em outro produto, preserve a ligação entre unidade de randomização, variante e dados do resultado externo. Não condicione a análise somente a quem chegou ao produto secundário: se o tratamento altera essa chegada, os grupos observados deixam de representar a mesma população.\n\n### Como cai na prova\n\n- Definições de numerador, denominador e janela precisam ser iguais e explícitas entre variantes.\n- Guardrail detecta dano; não substitui a métrica que representa o objetivo.\n- SRM pede diagnóstico de alocação e telemetria antes de uma decisão de lançamento.\n- Métrica local, como clique, não garante melhoria no resultado final do negócio."
+    },
+    {
+      "title": "3. Tamanho, incerteza e interpretação do efeito",
+      "markdown": "### O problema que este assunto resolve\n\nUma diferença observada pode ser ruído de amostragem. Também é possível que uma melhoria importante exista, mas o teste tenha poucos dados para detectá-la. O desenho precisa equilibrar risco de falso alarme, capacidade de encontrar um efeito relevante e custo ou duração da coleta. “Não significativo” não quer dizer que os grupos sejam iguais; informa que os dados e o método não demonstraram diferença com o critério adotado.\n\n> **Siglas e termos deste capítulo**\n> - **Efeito mínimo relevante**: menor mudança que justificaria a decisão de negócio.\n> - **Poder**: probabilidade de detectar determinado efeito se ele existir, segundo o desenho.\n> - **Nível de significância**: taxa de falso positivo controlada pelo procedimento estatístico sob a hipótese nula.\n> - **Intervalo de confiança**: faixa de valores compatíveis com os dados segundo um método e nível escolhidos.\n> - **Valor-p**: medida de compatibilidade dos dados com uma hipótese nula e pressupostos do teste.\n> - **MDE**: *minimum detectable effect*, efeito mínimo detectável para o plano amostral escolhido.\n\n### Planeje a coleta antes de iniciar\n\nA equipe estima a taxa de base e a variabilidade das métricas, escolhe o efeito mínimo que alteraria a decisão, define o nível de erro e o poder desejados e calcula o volume necessário. Uma linha de base muito variável demanda mais observações; um efeito menor também costuma exigir mais dados. O volume pode ser obtido com usuários, contas, lojas ou conglomerados conforme a unidade randomizada.\n\nA duração depende também de ciclos de negócio e comportamento: dias úteis e fins de semana, ciclo de faturamento ou repetição de uso podem produzir padrões distintos. Terminar quando o gráfico “parece bom” favorece falsos positivos. Fixe regras de duração e parada no plano, ou use métodos sequenciais preparados para monitoramento contínuo.\n\n### Leia magnitude, incerteza e relevância\n\nRelate a diferença absoluta e, quando útil, a relativa; informe intervalo de incerteza e tamanho amostral, além do valor-p quando usado. Uma alta relativa grande sobre uma taxa de base minúscula pode representar poucos eventos. Uma diferença estatisticamente detectável pode ser pequena demais para cobrir custo de implementação. A decisão combina evidência, impacto prático, riscos e estratégia.\n\nO valor-p não é a probabilidade de a hipótese nula ser verdadeira nem a probabilidade de o resultado “ser acaso”. Ele avalia quão incompatíveis seriam os dados observados com um modelo nulo, sob seus pressupostos. Um intervalo amplo que inclui ganhos e perdas relevantes indica que falta precisão para concluir.\n\n### Muitas métricas e olhadas repetidas\n\nSe uma equipe testa muitas métricas, segmentos ou variantes, aumenta a chance de encontrar alguma diferença aparentemente significativa por acaso. A métrica principal deve ser pré-especificada; análises secundárias precisam ser identificadas como exploratórias ou usar correção apropriada para multiplicidade. Não se deve escolher, depois dos resultados, o segmento ou indicador favorável e apresentá-lo como confirmação planejada.\n\nA inspeção repetida de um teste convencional e sua interrupção no primeiro resultado significativo altera propriedades de erro. Pode-se definir tamanho e data de leitura final, ou adotar inferência sequencial válida para monitoramento. Guardrails operacionais podem ter alertas de segurança imediatos com critérios próprios; isso não transforma todo acompanhamento de eficácia em parada estatística válida.\n\n### Como cai na prova\n\n- O planejamento parte de efeito relevante, variabilidade, erro tolerado, poder e unidade de análise.\n- Significância estatística não mede sozinha valor econômico nem importância para o cliente.\n- Resultado não significativo pode refletir imprecisão; examine intervalo e poder.\n- Muitas métricas e a parada oportunista elevam falsos achados se não forem tratadas no desenho."
+    },
+    {
+      "title": "4. Validade, avaliação de impacto e decisão operacional",
+      "markdown": "### O problema que este assunto resolve\n\nO cálculo pode estar correto e ainda assim responder à pergunta errada. Interferência entre usuários, falhas de exposição, saída seletiva e efeitos que mudam com o tempo ameaçam a interpretação. A avaliação de impacto inclui desenhar, executar, monitorar e decidir; não consiste apenas em obter um número no fim.\n\n> **Siglas e termos deste capítulo**\n> - **Contaminação**: influência de uma variante sobre unidades designadas a outra.\n> - **Intenção de tratar**: análise segundo a variante originalmente sorteada.\n> - **Efeito de novidade**: resposta temporária à novidade da experiência.\n> - **A/A**: experimento com duas variantes iguais usado para verificar o sistema de medição e alocação.\n> - **Rollout**: ampliação controlada da exposição, por etapas ou segmentos.\n> - **Validade externa**: possibilidade de transportar o resultado para outros contextos ou populações.\n\n### Ameaças à validade\n\n**Interferência** aparece quando o tratamento de uma unidade altera o resultado de outra: preço exibido a um cliente pode afetar concorrentes, convites podem circular entre grupos, e mudanças em estoque compartilhado podem contaminar regiões. Nesse caso, escolha unidade de randomização que absorva a interação, como equipe ou região, ou formule o estimando considerando a rede e a interferência.\n\n**Não adesão** ocorre quando alguém alocado ao tratamento não recebe a funcionalidade, ou o controle a recebe. Guarde intenção de tratamento e exposição efetiva para distinguir falha de entrega de falta de efeito. A comparação principal pela alocação preserva a randomização; comparar somente expostos pode selecionar usuários diferentes.\n\n**Efeito de novidade** pode gerar uso inicial que cai depois da familiarização. A janela deve cobrir comportamento representativo e os resultados devem ser observados ao longo do tempo, sem confundir tendência diária com efeito estável. Eventos externos, incidentes e campanhas devem ser documentados. Se houve falha técnica que afeta um braço, pause ou invalide a análise conforme o plano e investigue.\n\n### Segmentos, subgrupos e generalização\n\nSegmentar por plataforma, região ou perfil pode revelar que uma média esconde efeitos distintos. Porém, muitos cortes reduzem amostra e aumentam falsos achados. Defina previamente subgrupos importantes, examine interações e trate descobertas pós-hoc como hipótese para novo teste. Um efeito médio positivo não significa benefício igual para todas as pessoas.\n\nO resultado vale para população, implementação e período estudados, sujeitos aos pressupostos do desenho. Uma campanha sazonal, um país com outra infraestrutura ou uma versão diferente do produto pode produzir outro efeito. Replicação, rollout monitorado ou novos testes ajudam a avaliar transporte para o contexto real.\n\n### Decisão e ciclo de aprendizagem\n\nAntes do teste, defina a regra de decisão: condições para lançar, iterar, manter controle ou interromper por dano. Considere efeito na métrica primária, limites de guardrails, incerteza, custos, equidade entre segmentos, confiabilidade dos dados e capacidade operacional. Resultado negativo também informa: descartar uma solução ineficaz evita custo e direciona o próximo desenho.\n\nUma ficha auditável registra hipótese, variantes, população, unidade e proporção de alocação, datas, métricas e definições, tamanho planejado, mudanças ocorridas, eventos de qualidade, análise, limitações e decisão. O registro ajuda a reproduzir o raciocínio e impede que resultados desfavoráveis desapareçam do histórico. Dados de produtos diferentes exigem ainda controles de privacidade, finalidade e acesso adequados.\n\n### Como cai na prova\n\n- A unidade de randomização precisa ser respeitada na estimativa da incerteza.\n- Contaminação, dados ausentes e exposição incorreta podem invalidar a leitura mesmo com p-valor pequeno.\n- Segmentos não planejados são exploratórios até confirmação independente.\n- Lançar depende de benefício, limites de dano, custo, qualidade de dados e contexto, não de uma métrica isolada."
+    }
+  ],
+  "summary": "Experimentos A/B comparam uma variante de controle e uma de tratamento, designadas aleatoriamente a unidades elegíveis, para estimar o efeito de uma mudança de negócio. Uma hipótese precisa fixar população, intervenção, unidade de randomização, exposição, métrica primária e janela de resultado. Guardrails medem danos como falhas, latência, cancelamento ou custo. Métricas exigem numerador, denominador e instrumentação consistentes; o funil deve ser acompanhado até o resultado final. Sample ratio mismatch é sinal de problema de atribuição ou dados e exige investigação antes de interpretar o placar. O plano amostral considera efeito mínimo relevante, variabilidade, poder e erro; significância não substitui magnitude, intervalo de incerteza ou valor prático. Múltiplas métricas, olhadas repetidas, contaminação, não adesão, perdas de telemetria, segmentos pós-hoc e efeitos de novidade podem enviesar conclusões. A decisão de lançar combina efeito, guardrails, qualidade, custo e contexto, com registro de desenho, análise, limitações e decisão.",
+  "flashcards": [
+    {
+      "front": "O que é o grupo de controle?",
+      "back": "A variante de referência, geralmente a experiência vigente, comparada ao tratamento."
+    },
+    {
+      "front": "O que distingue tratamento de controle?",
+      "back": "A mudança deliberada avaliada; diferenças concomitantes dificultam atribuir o efeito."
+    },
+    {
+      "front": "O que é unidade de randomização?",
+      "back": "A entidade que recebe a alocação experimental, como pessoa, conta, loja ou região."
+    },
+    {
+      "front": "Por que randomizar?",
+      "back": "Para tornar grupos comparáveis em expectativa e reduzir confundimento na comparação."
+    },
+    {
+      "front": "O que é intenção de tratar?",
+      "back": "Analisar cada unidade segundo a variante originalmente sorteada, mesmo sem uso efetivo."
+    },
+    {
+      "front": "O que é contaminação?",
+      "back": "Quando a experiência atribuída a um grupo influencia unidades de outro grupo."
+    },
+    {
+      "front": "O que é métrica primária?",
+      "back": "O resultado principal pré-definido que responde à hipótese do experimento."
+    },
+    {
+      "front": "Para que serve um guardrail?",
+      "back": "Para detectar danos que limitam a decisão mesmo que a métrica principal melhore."
+    },
+    {
+      "front": "O que é SRM?",
+      "back": "Discrepância não explicada entre a divisão de alocação planejada e a observada."
+    },
+    {
+      "front": "O que fazer ao detectar SRM?",
+      "back": "Investigar elegibilidade, atribuição, filtros, identificadores, logs e junções antes da conclusão."
+    },
+    {
+      "front": "Por que medir todas as etapas de um funil?",
+      "back": "Cliques intermediários não demonstram conclusão nem valor de negócio."
+    },
+    {
+      "front": "O que significa efeito mínimo relevante?",
+      "back": "A menor mudança que justificaria alterar a decisão de negócio."
+    },
+    {
+      "front": "O que é poder estatístico?",
+      "back": "Chance de detectar um efeito especificado quando ele existe, dadas premissas do desenho."
+    },
+    {
+      "front": "O que um intervalo de confiança comunica?",
+      "back": "A incerteza sobre a magnitude, segundo o método e nível usados."
+    },
+    {
+      "front": "O valor-p é a probabilidade de a hipótese nula ser verdadeira?",
+      "back": "Não; mede compatibilidade dos dados com modelo nulo e pressupostos do teste."
+    },
+    {
+      "front": "O que é um teste A/A?",
+      "back": "Comparação de variantes iguais para verificar alocação, instrumentação e análise."
+    },
+    {
+      "front": "Por que não parar ao primeiro resultado favorável?",
+      "back": "O monitoramento repetido com teste fixo pode aumentar falsos positivos."
+    },
+    {
+      "front": "O que são análises de segmento?",
+      "back": "Comparações de efeito em subpopulações, sujeitas a amostra pequena e multiplicidade."
+    },
+    {
+      "front": "O que é efeito de novidade?",
+      "back": "Uma reação inicial temporária à mudança que pode não persistir após adaptação."
+    },
+    {
+      "front": "O que é validade externa?",
+      "back": "Até que ponto o efeito observado pode ser transportado a outras populações ou contextos."
+    }
+  ],
+  "tips": [
+    "Escreva a hipótese com população, intervenção, resultado esperado e dano possível antes de abrir o painel.",
+    "Registre variante e unidade de alocação junto aos eventos para unir exposição e desfechos sem ambiguidade.",
+    "Defina métrica primária e guardrails antes do teste; deixe diagnósticos em papel auxiliar.",
+    "Ao ver uma mudança inesperada, inclusive positiva, procure falha de instrumentação, filtros ou comportamento confuso.",
+    "Leia estimativa e intervalo junto com valor-p; traduza a magnitude para impacto e custo de negócio.",
+    "Documente alterações de execução, incidentes e limitações junto da decisão de lançamento."
+  ],
+  "traps": [
+    "Confundir aumento depois do lançamento com efeito causal: tendências e campanhas também mudam resultados.",
+    "Randomizar por pessoa e calcular erro como se cada evento dessa pessoa fosse independente.",
+    "Otimizar cliques locais e presumir que receita, conclusão ou satisfação também aumentaram.",
+    "Tratar resultado sem significância como prova de igualdade, mesmo com intervalo muito amplo.",
+    "Ignorar sample ratio mismatch porque o volume total parece grande e o resultado é favorável.",
+    "Escolher a métrica ou o segmento vencedor somente depois de conhecer os resultados."
+  ],
+  "activeRecall": [
+    "Descreva controle, tratamento, unidade randomizada e resultado numa hipótese de mudança no checkout.",
+    "Explique por que retirar da análise quem não usou a funcionalidade pode reintroduzir viés.",
+    "Defina numerador, denominador e janela para uma métrica de conclusão de cadastro.",
+    "Dê três causas técnicas plausíveis de sample ratio mismatch e uma ação inicial para cada uma.",
+    "Diferencie métrica primária, guardrail, diagnóstico e métrica de qualidade de dados.",
+    "Explique como efeito mínimo relevante e variabilidade influenciam o volume amostral.",
+    "Compare monitoramento repetido de um teste fixo com uma regra sequencial planejada.",
+    "Explique como contaminação entre unidades afeta a interpretação e o que redesenhar."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Atribuição causal confundida com sequência temporal",
+      "summary": "Uma mudança posterior ao lançamento não prova que a solução causou o resultado observado.",
+      "description": "Use comparação contemporânea randomizada sempre que viável e registre mudanças concorrentes."
+    },
+    {
+      "key": "e2",
+      "title": "Métrica intermediária tomada como impacto final",
+      "summary": "Cliques ou início de fluxo podem crescer sem conclusão ou valor para o negócio.",
+      "description": "Relacione cada indicador ao resultado principal e acompanhe todas as etapas do funil."
+    },
+    {
+      "key": "e3",
+      "title": "Alocação incompatível com a análise",
+      "summary": "A unidade sorteada determina a dependência entre eventos e a escala de incerteza.",
+      "description": "Repetir eventos da mesma unidade não cria novas unidades independentes."
+    },
+    {
+      "key": "e4",
+      "title": "Falha de qualidade de dados ignorada",
+      "summary": "SRM, eventos faltantes e junções seletivas podem produzir diferenças artificiais.",
+      "description": "Investigue o pipeline antes de interpretar efeitos e confira atribuição, filtros e cobertura."
+    },
+    {
+      "key": "e5",
+      "title": "Evidência estatística confundida com decisão de negócio",
+      "summary": "Significância estatística não resume magnitude, custo, incerteza e risco de dano.",
+      "description": "A decisão deve considerar conjuntamente magnitude, guardrails, custo e generalização."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Num teste de uma nova tela de pagamento, qual desenho permite atribuir com maior segurança uma diferença de conversão à tela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar vendas do mês posterior ao lançamento com o mês anterior, ajustando pela inflação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar a conversão do aplicativo com a do site, antes e depois da mudança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deixar cada cliente escolher a tela e comparar quem escolheu com quem não escolheu.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Liberar a tela nova para clientes frequentes e usar clientes ocasionais como referência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sortear contas elegíveis entre o fluxo atual e o novo, no mesmo período.",
+          "correct": true
+        }
+      ],
+      "explanation": "A alocação aleatória contemporânea cria grupos comparáveis em expectativa e reduz a confusão com tendências temporais. Comparações antes/depois, escolha voluntária e grupos com perfis distintos podem misturar o efeito da tela com outras diferenças.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A unidade sorteada é a conta, e várias pessoas da mesma conta compartilham o fluxo de compra. Qual análise respeita melhor esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar cada clique como unidade independente, pois cada evento tem horário próprio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sortear novamente cada sessão e ignorar a atribuição originalmente registrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+            "text": "Analisar por conta, considerando a dependência entre eventos relacionados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Excluir contas com mais de uma pessoa para manter apenas observações simples.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar todos os eventos e comparar volumes brutos sem considerar o número de contas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conta recebeu a alocação e seus eventos não são observações independentes. A análise deve manter a conta como unidade ou modelar a dependência, em vez de inflar artificialmente a amostra contando cliques relacionados.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe remove da análise experimental todos os clientes sorteados para B que nunca clicaram na nova funcionalidade. Qual é o principal risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tamanho da base fica menor, mas a randomização continua necessariamente intacta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A análise passa a medir sempre o efeito causal entre os usuários mais frequentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A exclusão transforma automaticamente o grupo B em grupo de controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+            "text": "Excluir pessoas por uso posterior pode desfazer a comparabilidade do sorteio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O procedimento só afeta a precisão, sem poder mudar a estimativa do efeito.",
+          "correct": false
+        }
+      ],
+      "explanation": "O clique ocorre depois da alocação e pode ser influenciado pelo tratamento. Condicionar a análise a esse comportamento seleciona grupos potencialmente diferentes; a análise principal por intenção de tratar preserva a atribuição original.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma loja testa um novo preço, e clientes compartilham cupons e informações entre si. Qual ameaça deve ser considerada no desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+            "text": "Há contaminação; considere sortear lojas ou áreas de mercado inteiras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Efeito de novidade, que se resolve removendo os clientes que comentaram o preço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Multicolinearidade, que se resolve criando uma variante para cada cliente ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Erro de arredondamento, que se resolve aumentando casas decimais na métrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Viés de sobrevivência, que se resolve medindo apenas a última compra do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A influência entre clientes de braços diferentes viola a suposição de que a atribuição de uma unidade não afeta outra. Sortear conglomerados que compartilham o preço pode reduzir a contaminação, embora exija análise compatível com esse sorteio.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste A/A distribui duas variantes idênticas e encontra uma diferença isolada numa métrica. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diferença prova que a variante A é superior apesar de as experiências serem idênticas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O teste demonstra que qualquer resultado futuro da plataforma estará correto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A análise deve remover unidades discrepantes até que as médias coincidam.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O teste deve ser convertido em A/B renomeando a variante com melhor resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pode ser ruído ou sinal de falha na alocação, na medição ou na análise.",
+          "correct": true
+        }
+      ],
+      "explanation": "Como as variantes são iguais, não há intervenção que explique sistematicamente a diferença. Um A/A ajuda a verificar ruído, atribuição, pipeline e métricas; um achado isolado não valida todos os testes nem autoriza remover dados seletivamente.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tratamento aumenta cliques no botão de cadastro, mas a taxa de contas confirmadas não muda. Qual conclusão é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A solução atingiu o objetivo porque cliques são sempre uma medida suficiente de conversão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+            "text": "Cliques subiram, mas a conclusão final do cadastro não mudou no teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A equipe deve substituir a taxa de confirmação pela métrica de clique após observar o resultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A confirmação deve ser removida do funil porque ocorre depois do tratamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O aumento de cliques prova que a taxa final melhorará numa janela posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cliques são intermediários e podem crescer sem levar à confirmação. O objetivo final permanece central; a diferença local é diagnóstica e pode motivar investigar etapas posteriores, sem ser apresentada como sucesso final.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para medir conversão de cadastro, que definição permite interpretação mais clara entre os grupos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Número total de eventos de tela inicial registrados durante todo o experimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quantidade de cliques no botão principal dividida por todos os eventos do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Total de cadastros dividido pelo total de eventos coletados em cada variante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+            "text": "Contas elegíveis alocadas que confirmam cadastro na janela definida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Número de cadastros entre clientes que abriram a página, sem registrar como foram selecionados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição indica população, denominador, desfecho e janela. Usar eventos como denominador pode contar várias vezes a mesma unidade, e selecionar quem abriu a página pode condicionar a métrica a um comportamento alterado pelo tratamento.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variante torna os pagamentos mais rápidos, mas também pode elevar erros de transação. Qual conjunto de medidas oferece melhor proteção à decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar apenas a velocidade média, pois erros são eventos técnicos fora do resultado de negócio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas cliques no pagamento e deixar falhas para revisão após o lançamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+            "text": "Medir compras concluídas e proteger contra erros e lentidão do pagamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somar velocidade e erros num único número sem documentar os pesos atribuídos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher como guardrail a métrica que mostrar a menor diferença depois do teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "A métrica primária representa o objetivo e os guardrails detectam consequências danosas. Defini-los antes evita que uma melhoria local esconda aumento de falhas, e os critérios combinados apoiam uma decisão de lançamento informada.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A divisão esperada era equilibrada, mas os registros mostram muito menos unidades em B do que em A. O que a equipe deve fazer primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar B vencedora se sua taxa de conversão for maior entre os registros disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+            "text": "Investigue primeiro a alocação, a elegibilidade e a perda diferencial de eventos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Duplicar registros de B até igualar as contagens sem verificar a origem da diferença.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Excluir aleatoriamente clientes de A para fazer as amostras ficarem do mesmo tamanho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a duração sem alterar o plano, pois o tempo corrige qualquer desequilíbrio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma divergência entre alocação planejada e observada é um SRM potencial e pode sinalizar falha sistemática. Igualar contagens artificialmente ou prolongar o teste não identifica o defeito nem restaura automaticamente a validade da comparação.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No braço B, logs de compra deixam de chegar em aparelhos antigos; o painel indica menos conversões. Que ação é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir a queda ao tratamento porque a métrica foi calculada pelo mesmo painel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir aparelhos antigos apenas de B e publicar o resultado restante como causal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir compras ausentes por zero sem verificar a cobertura dos eventos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+            "text": "Investigue a telemetria diferencial antes de ler o impacto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Somar logs de sessões próximas para preencher todas as compras perdidas automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha de instrumentação diferencial faz o resultado medido divergir do comportamento real. É preciso verificar cobertura, versão de cliente, atribuição e pipeline; imputar zero ou selecionar um braço esconde o problema em vez de resolvê-lo.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mede impacto em um produto parceiro onde alguns usuários alocados não têm qualquer evento. Como deve construir a população de análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+            "text": "Mantenha a atribuição e defina como ausências entram na métrica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Analisar somente as pessoas com evento no produto parceiro em ambos os grupos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reclassificar como controle os usuários sem evento de parceiro para completar as observações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Excluir do tratamento toda unidade sem evento, mas preservar todas as unidades do controle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gerar eventos artificiais para igualar o volume de registros entre as variantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a intervenção pode alterar a chegada ao produto parceiro, selecionar apenas pessoas com eventos condiciona a análise a um resultado pós-tratamento. A atribuição completa deve ser ligada aos dados de desfecho; ausências são tratadas de acordo com uma métrica bem definida e suas limitações.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa testa uma busca nova e considera relevante uma alta de pelo menos 2 pontos percentuais na conversão. Qual papel essa definição cumpre no planejamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Define o tamanho exato do grupo de tratamento sem depender da variabilidade da conversão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substitui a necessidade de definir métricas de proteção e a janela do resultado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+            "text": "Define o efeito mínimo relevante para planejar a amostra.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garante que qualquer diferença observada de 2 pontos será estatisticamente significativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determina que resultados inferiores a esse limite devem ser omitidos do relatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "O efeito mínimo relevante expressa o impacto que justificaria a decisão, mas o volume necessário também depende de taxa de base, variabilidade, erro e poder. A definição não garante significância nem autoriza esconder resultados menores.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste termina sem diferença estatisticamente detectável e apresenta intervalo compatível tanto com ganho relevante quanto com perda relevante. Qual inferência é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As variantes são equivalentes, porque a ausência de significância demonstra efeito exatamente nulo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O tratamento não tem efeito em nenhuma população que possa usar a solução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O resultado prova que o controle deve ser encerrado por falta de benefício.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A incerteza ainda é ampla para decidir com segurança entre efeitos relevantes possíveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O valor-p deve ser interpretado como a chance de o tratamento ser prejudicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A falta de significância não prova igualdade. Um intervalo que inclui ganhos e danos importantes sinaliza imprecisão; aumentar informação ou redesenhar o estudo pode ser necessário, respeitando custos, risco e regras de parada.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe consulta diariamente um teste convencional e encerra no primeiro dia em que a métrica primária alcança significância. Qual é o risco metodológico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tratamento passa a ser comparado com a variante errada por causa da consulta diária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A regra de interrupção pode elevar falso positivo se não houver método sequencial válido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A coleta diária transforma a métrica primária em guardrail e invalida a randomização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O procedimento só reduz poder, sem alterar a interpretação da evidência observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe precisa manter o teste até que a significância desapareça e volte novamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste convencional pressupõe uma regra de leitura definida; interromper oportunisticamente ao cruzar um limiar altera a taxa de falsos positivos. Pode-se definir uma leitura final ou empregar método sequencial cuja validade permita monitoramento contínuo.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após testar dezenas de indicadores, uma equipe destaca somente o segmento com resultado favorável e o apresenta como confirmação da hipótese original. Qual falha ocorreu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O excesso de métricas e a seleção pós-hoc elevam achados casuais e não confirmam a hipótese planejada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O segmento favorável deve ser transformado em grupo de controle para o próximo relatório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A análise de segmento sempre remove o erro de medição da métrica primária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O procedimento melhora a validade porque os segmentos têm taxas de base diferentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falha é usar uma hipótese anterior, pois toda hipótese deve surgir após os resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Examinar muitos indicadores e subgrupos aumenta a chance de encontrar diferenças aparentes ao acaso. Segmentos pós-hoc podem gerar hipóteses exploratórias, mas precisam ser identificados como tais e confirmados em análise planejada ou novo teste.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resultado tem valor-p pequeno, mas a estimativa de aumento de receita é muito pequena e custa caro manter a nova solução. Como avaliá-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lançar automaticamente, pois significância estatística comprova retorno financeiro suficiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o resultado, pois efeitos pequenos nunca são reais em amostras grandes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar a métrica primária por outra que apresente maior aumento percentual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Considerar magnitude, incerteza, custo e efeito mínimo que justificaria a decisão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Interpretar o valor-p como o percentual de receita que a solução adicionará.",
+          "correct": false
+        }
+      ],
+      "explanation": "A significância avalia compatibilidade estatística sob um modelo, não o valor econômico. Uma diferença pequena pode ser detectável em amostra grande e ainda não pagar o custo de implantação; magnitude, intervalo, guardrails e custo informam a decisão.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste recebe tráfego suficiente em três dias, mas o serviço tem forte ciclo entre dias úteis e fins de semana. Que planejamento é mais sólido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encerrar assim que o volume total for atingido, mesmo sem representar o ciclo relevante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher uma duração que cubra o padrão temporal relevante e respeitar a regra de parada pré-definida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover os dados do fim de semana após inspecionar qual período favorece cada grupo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Calcular a média geral sem registrar quando houve feriado ou campanha concorrente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir cada variante em dias diferentes para evitar mistura de horários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Volume não é o único aspecto da duração: ciclos de comportamento e calendário podem ser relevantes à população e ao desfecho. Uma janela planejada ajuda a observar esses padrões; separar variantes por período confunde tratamento com tempo.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A nova funcionalidade aumenta a conversão média, mas um segmento previamente definido apresenta piora relevante. Qual leitura é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O efeito médio torna o resultado de cada segmento irrelevante para a decisão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O segmento deve ser removido porque sua estimativa contradiz a média observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A média positiva pode esconder heterogeneidade; avalie a evidência e o dano do segmento planejado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A piora prova que houve falha de randomização em toda a amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe deve selecionar apenas subgrupos que usam a solução com maior frequência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma média pode agregar respostas distintas. Um subgrupo definido previamente merece investigação, incluindo incerteza e risco; a análise deve evitar conclusões exageradas por amostra pequena ou muitas comparações, sem ignorar possível dano concentrado.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução B aumenta o número de cliques em uma área, mas cai a satisfação geral e as pessoas clicam repetidamente por confusão. Qual resposta demonstra boa interpretação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Investigar o movimento inesperado e considerar satisfação e métricas globais antes de decidir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Lançar B porque o indicador local subiu e houve mais interação com a tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar a métrica de satisfação porque não mede o clique observado diretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o peso dos cliques na métrica composta até refletir o resultado favorável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir cliques repetidos apenas no braço de controle para igualar o comportamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma variação surpreendente, mesmo positiva, pode revelar bug ou comportamento indesejado. Cliques locais não substituem satisfação ou objetivo global; a equipe deve entender o mecanismo e considerar guardrails antes de lançar.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste é randomizado por região porque clientes influenciam preços uns dos outros. O analista, porém, calcula erro padrão tratando cada pedido como independente. Qual problema existe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O erro padrão pode ficar subestimado porque pedidos da mesma região compartilham a atribuição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A regionalização garante que pedidos sejam independentes sem ajustes adicionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de regiões deve ser substituído pelo número de pedidos no denominador da randomização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O teste deixa de ser causal porque regiões não são pessoas identificadas individualmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A análise deve escolher a variante por região depois de contar os pedidos recebidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Unidades dentro da mesma região compartilham tratamento e podem ter resultados correlacionados. A incerteza precisa refletir o sorteio por conglomerado; contar pedidos como unidades independentes superestima a informação disponível.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tratamento muda a navegação e torna algumas pessoas menos propensas a abrir o produto secundário usado para medir receita. Qual cuidado evita viés?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar só quem abriu o produto secundário, porque esses usuários tiveram exposição confirmada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preservar a atribuição de toda unidade elegível e tratar ausência de evento conforme o desfecho definido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Reclassificar os usuários sem evento como não elegíveis após o encerramento do experimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Excluir o grupo com maior número de usuários ausentes para equilibrar a junção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente a receita dos clientes que compraram em ambos os produtos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a intervenção afeta a chegada ao produto secundário, condicionar a comparação a quem abriu esse produto seleciona unidades depois do tratamento. Vincule a atribuição original ao desfecho e documente como ausência e zero são definidos para a métrica.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa tem poucos estabelecimentos e decide randomizar por loja para evitar que a equipe aplique duas variantes no mesmo local. Que consequência deve entrar no plano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A randomização por loja sempre exige menos amostra porque cada loja tem muitos clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A unidade de análise pode continuar sendo cada venda independente sem ajuste algum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A correlação dentro das lojas reduz informação efetiva e pode exigir mais conglomerados ou duração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de clientes elimina a necessidade de estimar variação entre lojas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O desenho deve atribuir clientes individualmente, mesmo que a equipe não consiga separar variantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sorteio por conglomerado evita contaminação local, mas unidades da mesma loja compartilham condições. O número de lojas e a correlação intraloja afetam poder e incerteza; grande volume de transações não substitui número suficiente de unidades sorteadas.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time inicia um rollout gradual e observa uma falha grave em B, embora o plano original previsse leitura final somente após várias semanas. Como deve agir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter B ativa até a leitura de eficácia porque qualquer interrupção invalida o experimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desconsiderar os alertas, pois guardrails só podem ser avaliados no encerramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Encerrar o estudo e relatar apenas a métrica primária favorável até o incidente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar o critério de segurança pré-definido, limitar exposição e documentar incidente e decisão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover os usuários afetados e continuar sem registrar a alteração do plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proteção contra dano pode requerer interrupção antes da leitura planejada de eficácia. Critérios operacionais devem estar definidos; a equipe limita risco e registra o evento, a decisão e as consequências para a interpretação dos dados coletados.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um experimento, a empresa muda simultaneamente o preço e o texto da tela apenas no tratamento. Qual limitação resulta dessa implementação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A randomização deixa de existir porque a variante contém mais de uma alteração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A diferença observada não identifica qual mudança, isoladamente, causou o efeito.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O experimento estima automaticamente o efeito individual de cada elemento da tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O preço deve ser tratado como métrica de proteção e não como parte do tratamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas mudanças podem ser avaliadas separadamente sem novos grupos ou pressupostos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação pode estimar o efeito do pacote conjunto, se bem executada, mas não separa contribuição do preço e do texto. Para estimar componentes isolados, defina intervenções ou desenho fatorial que permita distinguir seus efeitos.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe calcula conversão como compradores por sessão, mas o tratamento aumenta o número de sessões repetidas sem aumentar compradores únicos. Qual ponto deve ser reavaliado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A unidade, o denominador e a definição de sucesso, pois sessões repetidas podem alterar a taxa sem mudar clientes compradores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A cor da variante, porque sessões não podem ser influenciadas pela experiência de compra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor-p, que corrige automaticamente qualquer mudança no denominador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A proporção de alocação, que deve usar o número de sessões em vez das unidades sorteadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O intervalo de confiança, que transforma a taxa por sessão em taxa por comprador único.",
+          "correct": false
+        }
+      ],
+      "explanation": "A métrica por sessão pode mudar porque o tratamento altera o próprio número de sessões, sem refletir conversão por cliente. A definição precisa corresponder à decisão de negócio e explicitar unidade e denominador para evitar interpretar uma alteração mecânica como sucesso.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O efeito de uma funcionalidade é positivo na primeira semana e se reduz nas seguintes. Qual hipótese merece ser considerada antes do lançamento geral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A redução prova que a randomização mudou espontaneamente para favorecer o controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A equipe deve reportar somente a primeira semana, por ter a maior estimativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um efeito de novidade ou adaptação pode fazer o impacto inicial não representar o uso persistente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A métrica deve ser recalculada somente entre usuários recorrentes após observar o padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tendência temporal torna inválida toda comparação entre grupos simultâneos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A novidade pode gerar resposta temporária. A equipe deve examinar a trajetória, o calendário e a hipótese de persistência, sem selecionar apenas o período mais favorável; a janela deve corresponder ao uso e à decisão pretendidos.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório conclui que a variante deve ser lançada porque a conversão subiu, mas não informa unidade de sorteio, intervalo ou incidentes. O que falta para uma decisão auditável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente uma descrição visual das telas, pois o resultado numérico já resume todo o desenho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas o nome do analista, porque os detalhes de medição não afetam a conclusão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A lista dos clientes que converteram, para que a equipe confirme cada observação individualmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registro de hipótese, alocação, definições, incerteza, qualidade, limitações e regra de decisão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um novo valor-p calculado sem registrar qual população foi elegível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma conclusão reproduzível requer contexto de desenho e análise: população, unidade, variantes, métricas, incerteza, incidentes e limitações. Sem esses dados não se avalia se a diferença é causal, confiável ou relevante para a regra de lançamento.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um experimento encontra alta média positiva, mas uma parte dos clientes enfrenta aumento de falhas acima do limite de proteção definido antes do teste. Qual decisão é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lançar para todos, pois o resultado médio compensa qualquer piora localizada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar o guardrail violado e investigar mitigação ou segmentação antes de ampliar a exposição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Excluir as falhas do cálculo porque eventos técnicos não pertencem à avaliação de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elevar o limite depois de observar os dados e manter a decisão planejada originalmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recalcular a média removendo o segmento afetado sem documentar essa mudança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Guardrails representam limites de dano definidos para restringir o lançamento. Uma média favorável não elimina o risco concentrado; a equipe deve investigar causa, alcance e opções de mitigação, mantendo registro da decisão e de qualquer novo teste.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar duas variantes, uma diferença de métricas pode ser atribuída à intervenção se os grupos foram randomizados e a execução preservou as condições do desenho, sujeita à incerteza estatística.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A randomização contemporânea tende a equilibrar fatores concorrentes e sustenta a interpretação causal, desde que alocação, exposição, medição e análise permaneçam confiáveis. A conclusão ainda possui incerteza e depende do contexto testado.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um experimento randomizado, comparar somente quem efetivamente usou a funcionalidade sempre mantém a comparabilidade criada pela alocação original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O uso ocorre após a alocação e pode depender do tratamento. Selecionar apenas usuários pode criar grupos diferentes; a análise principal por intenção de tratar preserva a classificação sorteada, enquanto a análise por exposição responde outra pergunta com pressupostos adicionais.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A unidade de randomização deve ser registrada junto aos dados porque define a entidade que recebeu o tratamento e influencia a análise da dependência entre observações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Se contas recebem a alocação, eventos de pessoas ou sessões da mesma conta compartilham atribuição. Registrar a unidade ajuda a vincular variantes e resultados e a calcular incerteza compatível com o desenho.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma comparação simples das vendas antes e depois da mudança elimina sazonalidade porque os mesmos clientes aparecem nos dois períodos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os períodos podem diferir por sazonalidade, campanhas, preço e outras mudanças; acompanhar as mesmas pessoas não controla automaticamente esses fatores. Um grupo de comparação contemporâneo alocado de forma adequada fortalece a avaliação causal.",
+      "section": "1. Pergunta causal, controle e tratamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica primária deve refletir o resultado que a hipótese pretende mudar, enquanto guardrails monitoram consequências que podem limitar a decisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A métrica primária responde à pergunta de sucesso e os guardrails acompanham danos como erros, cancelamentos e latência. Ambos devem ter definições claras e ser escolhidos antes da leitura dos resultados.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sample ratio mismatch é uma evidência de que a variante com menor amostra teve pior desempenho de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SRM descreve discrepância entre alocação prevista e observada, podendo indicar defeito de elegibilidade, atribuição ou telemetria. Não é por si só um efeito de negócio e precisa ser investigado antes de confiar no placar.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O denominador e a janela temporal de uma taxa devem ser documentados, pois escolhas diferentes podem gerar métricas distintas mesmo usando os mesmos eventos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Compradores por visitante, pedidos por sessão e receita por conta são medidas diferentes. População, numerador, denominador, janela, deduplicação e regra para ausências tornam a comparação interpretável e reproduzível.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica de cliques que melhora garante que o resultado final de negócio também melhorou, desde que a diferença seja estatisticamente significativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cliques são um resultado intermediário e podem subir sem compras, retenção ou satisfação. Significância não transforma uma métrica local em medida do objetivo final; acompanhe o funil e os resultados relevantes.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O efeito mínimo relevante ajuda a definir qual tamanho de mudança justificaria uma decisão e contribui para o planejamento de amostra junto com outras premissas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O efeito mínimo relevante expressa o limiar prático de interesse. Variabilidade, taxa de base, nível de erro, poder e estrutura de randomização também influenciam o volume necessário; nenhum deles isoladamente determina um tamanho universal.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resultado sem significância estatística prova que o efeito da mudança é exatamente zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A ausência de evidência estatística suficiente não prova igualdade. A amostra pode ser pequena ou a estimativa imprecisa; o intervalo de incerteza mostra quais magnitudes ainda são compatíveis com os dados.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor-p informa diretamente a probabilidade de que a hipótese nula seja verdadeira depois de observados os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O valor-p é calculado sob a hipótese nula e os pressupostos do teste, e resume quão incompatíveis seriam os dados observados com esse modelo. Não é a probabilidade posterior de a hipótese nula ser verdadeira.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Consultar repetidamente um teste de eficácia convencional e encerrá-lo no primeiro dia significativo pode alterar a taxa de falsos positivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A regra de parada faz parte do procedimento inferencial. Monitoramento contínuo exige regra sequencial apropriada ou uma leitura final planejada; alertas de segurança podem operar com critérios próprios previamente definidos.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segmentos explorados depois de ver os resultados devem ser relatados como se fossem confirmações planejadas, desde que a estimativa seja favorável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cortes pós-hoc multiplicam comparações e podem destacar achados casuais. São úteis para gerar hipóteses, mas devem ser marcados como exploratórios e confirmados com desenho ou análise apropriados.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a intervenção pode afetar a entrada de clientes em um produto parceiro, analisar apenas quem entrou nesse produto pode selecionar unidades depois do tratamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A chegada ao produto parceiro pode ser consequência da intervenção. Condicioná-la pode quebrar a comparabilidade da atribuição; é preciso preservar a população sorteada e definir cuidadosamente como ausência de evento se relaciona ao resultado.",
+      "section": "2. Métricas, dados e qualidade da medição",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um efeito de novidade pode fazer uma melhoria inicial diminuir com o tempo, por isso a duração e a trajetória devem ser interpretadas em relação ao uso esperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A reação inicial à mudança pode não persistir. Examinar a trajetória, ciclos de calendário e comportamento após familiarização evita tratar um pico transitório como impacto estável.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma média positiva torna desnecessário revisar um guardrail que ultrapassou o limite de dano definido antes do experimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O guardrail limita a decisão justamente quando há custo relevante apesar de uma média favorável. A equipe precisa investigar alcance e causa do dano, considerar mitigação e registrar a decisão antes de ampliar a exposição.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resultado de experimento se generaliza automaticamente a qualquer país, período e versão do produto se a alocação original foi aleatória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A randomização sustenta comparabilidade dentro da população e implementação estudadas. Outros mercados, períodos ou versões podem ter comportamento distinto; replicação e rollout monitorado ajudam a avaliar validade externa.",
+      "section": "4. Validade, avaliação de impacto e decisão operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe libera a funcionalidade para 10% das contas elegíveis e compara esse grupo com as demais contas sorteadas. Qual consequência prática deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A fração menor pode reduzir o poder e prolongar a coleta para obter informação suficiente.", "correct": false },
+        { "key": "B", "text": "A fração menor elimina a necessidade de checar a atribuição de cada conta.", "correct": false },
+        { "key": "C", "text": "A proporção escolhida muda a população elegível para incluir somente usuários ativos.", "correct": false },
+        { "key": "D", "text": "O grupo de controle deve ser composto por contas de um período anterior ao teste.", "correct": false },
+        { "key": "E", "text": "Uma alocação menor reduz exposição, mas exige plano compatível com a amostra disponível.", "correct": true }
+      ],
+      "explanation": "Uma fração pequena limita quantas unidades recebem a mudança, o que pode controlar risco operacional, mas também reduz informação e poder para detectar o efeito. Controle e tratamento devem continuar alocados conforme o desenho e medidos no mesmo período.",
+      "section": "3. Tamanho, incerteza e interpretação do efeito",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The Anatomy of a Large-Scale Experimentation Platform",
+      "publisher": "Microsoft Research / IEEE",
+      "reference": "Componentes de plataforma para desenho, execução, processamento de logs e análise de experimentos A/B em escala.",
+      "url": "https://www.microsoft.com/en-us/research/publication/the-anatomy-of-a-large-scale-experimentation-platform/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "A/B Testing Across Products",
+      "publisher": "Microsoft Research",
+      "reference": "Randomização, unidade de alocação, métricas, triggering, SRM, análise entre produtos, privacidade e diferenças entre unidade de randomização e unidade de análise.",
+      "url": "https://www.microsoft.com/en-us/research/articles/a-b-testing-across-products/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pitfalls of Metric Interpretation in Online Controlled Experiments",
+      "publisher": "Microsoft Research",
+      "reference": "Experimentos controlados, categorias de métricas, métricas de funil, sample ratio mismatch e riscos de interpretação de movimentos inesperados.",
+      "url": "https://www.microsoft.com/en-us/research/wp-content/uploads/2020/08/2017-08-KDDMetricInterpretationPitfalls.pdf",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Reference Guide on Statistics and Research Methods: Randomized Controlled Experiments",
+      "publisher": "National Academies Press / NCBI Bookshelf",
+      "reference": "Randomização, grupo de controle, confundimento, inferência causal e limites de estudos observacionais.",
+      "url": "https://www.ncbi.nlm.nih.gov/books/NBK621595/",
+      "accessedAt": "2026-11-05"
+    }
+  ]
+}

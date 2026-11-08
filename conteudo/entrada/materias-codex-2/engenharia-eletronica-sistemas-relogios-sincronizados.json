@@ -1,0 +1,1864 @@
+{
+  "id": "engenharia-eletronica.sistemas-relogios-sincronizados",
+  "subject": "Engenharia Eletrônica",
+  "title": "Manutenção de sistemas de relógios sincronizados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Manutenção de sistema de relógios sincronizados",
+    "Manutenção de relógios sincronizados",
+    "Sistemas de relógios sincronizados",
+    "Sincronização de relógios por NTP",
+    "Manutenção de servidores de tempo NTP",
+    "Distribuição de horário de referência",
+    "Relógios mestre e relógios escravos",
+    "Diagnóstico de sincronismo de tempo em rede",
+    "Manutenção de referência UTC em sistemas",
+    "Monitoramento de relógios de rede",
+    "Falhas em sistemas de sincronização horária",
+    "Sistemas eletrônicos de distribuição de tempo"
+  ],
+  "scope": {
+    "covers": "Manutenção de sistemas que distribuem horário comum a computadores, controladores e mostradores: cadeia de referência de tempo, UTC e UTC(NIST), oscilador e antena GNSS quando presentes, relógio mestre e clientes, NTPv4, estratos, offset, atraso, jitter e dispersão, redundância de fontes, monitoramento, diagnóstico de falhas de rede e referência, manutenção preventiva e corretiva, segurança, registro de mudanças e operação em perda de sincronismo.",
+    "excludes": "Projeto metrológico de relógios atômicos, cálculo orbital de GNSS, implantação detalhada de PTP/IEEE 1588, configuração específica de fabricante e garantia de exatidão sem especificação do equipamento e do meio físico."
+  },
+  "theoryTitle": "Operar e manter a cadeia de tempo sincronizado",
+  "chapters": [
+    {
+      "title": "1. O que é mantido: uma cadeia de tempo",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema de relógios sincronizados distribui uma referência de tempo por uma instalação. Em um prédio, por exemplo, o servidor de tempo pode receber uma referência GNSS, disciplinar seu oscilador interno e fornecer tempo por NTP aos computadores, gravadores de vídeo, controladores e mostradores. Manter apenas o servidor ligado não basta: a referência, a recepção, o processamento, a rede, os clientes e os indicadores fazem parte da cadeia.\n\n> **Siglas e termos deste capítulo**\n> - **UTC**: escala civil de tempo coordenado usada como referência internacional.\n> - **UTC(NIST)**: realização nacional de UTC mantida pelo NIST; o serviço ITS a distribui pela Internet.\n> - **GNSS**: sistemas globais de navegação por satélite, como GPS, cujos sinais podem fornecer referência de tempo.\n> - **Oscilador**: componente que mantém uma frequência e permite ao equipamento continuar contando tempo.\n> - **Relógio mestre**: equipamento que obtém ou mantém a referência e a distribui aos demais.\n> - **Cliente**: equipamento que consulta uma ou mais fontes e ajusta seu relógio local.\n\n### Da referência ao mostrador\n\nA cadeia típica tem quatro trechos: (1) referência externa ou local confiável; (2) receptor e relógio do servidor; (3) distribuição pela rede ou por sinal dedicado; (4) relógios clientes e apresentação. Um defeito no cabo da antena pode degradar a referência mesmo que a rede esteja normal. Uma ACL ou rota pode impedir que os clientes alcancem o servidor embora o mestre esteja sincronizado. Um mostrador pode estar errado por fuso horário ou configuração local mesmo recebendo corretamente a hora UTC.\n\n| Camada | O que conferir | Exemplo de evidência |\n| --- | --- | --- |\n| Referência | Fonte selecionada e estado do receptor | satélites rastreados, alarme de antena, referência declarada |\n| Mestre | Estado de sincronismo e oscilador | stratum, última atualização, offset e logs |\n| Transporte | Alcance, latência e filtragem | rota, perda de pacotes, UDP 123 no NTP |\n| Cliente/saída | Aplicação e apresentação | fonte escolhida, fuso, saída serial ou mostrador |\n\n### UTC não é hora local\n\nNTP distribui timestamps de tempo; a apresentação em hora local depende da configuração do fuso e das regras locais do sistema operacional. Uma diferença inteira de horas em todos os dispositivos de uma zona costuma apontar primeiro para fuso, não para falha no oscilador do mestre. UTC também não deve ser confundido com GPS time: o tempo de GPS tem escala própria e diferença em relação a UTC, corrigida com informação transmitida pelo sistema.\n\nO NIST informa que seu Internet Time Service fornece tempo rastreável a UTC(NIST) por NTP e outros formatos. Seus mestres de tempo são comparados com referências primárias e laboratórios nacionais. Isso demonstra que rastreabilidade envolve uma cadeia documentada, não apenas escolher um servidor com nome conhecido.\n\n### Como cai na prova\n\n- Identifique em qual trecho da cadeia surgiu a falha antes de trocar equipamentos.\n- Um cliente sincronizado em UTC ainda pode exibir hora local errada por fuso ou regra de horário.\n- Um servidor NTP acessível pela rede não necessariamente tem referência externa válida: verifique se está sincronizado ou em estado de espera."
+    },
+    {
+      "title": "2. NTPv4, estratos e indicadores de qualidade",
+      "markdown": "### O problema que este assunto resolve\n\nA manutenção precisa separar “respondeu ao pedido” de “fornece tempo confiável”. O NTPv4 troca timestamps entre pares, estima offset e atraso e combina fontes candidatas para disciplinar o relógio. A resposta deve ser avaliada junto de stratum, reachability, jitter, dispersão, logs e coerência com fontes independentes.\n\n> **Siglas e termos deste capítulo**\n> - **NTP**: Network Time Protocol, protocolo de sincronização de relógios em rede.\n> - **Stratum (estrato)**: distância lógica até uma referência primária dentro da hierarquia NTP; não é medida direta de exatidão.\n> - **Offset**: diferença estimada entre o relógio local e o da fonte.\n> - **Delay**: atraso de ida e volta estimado para a associação NTP.\n> - **Jitter**: variação estatística das estimativas de offset.\n> - **Root dispersion**: limite acumulado de erro associado à distância da referência.\n\n### Como ler a hierarquia\n\nNo NTPv4, um servidor stratum 1 está ligado diretamente a uma referência de tempo, como um receptor GNSS ou relógio de referência. Um servidor stratum 2 sincroniza por NTP com um servidor de estrato inferior e pode atender clientes de estratos seguintes. Estrato 16 significa não sincronizado; valores 17 a 255 são reservados na especificação. Um número menor sugere proximidade hierárquica, mas não prova sozinho melhor exatidão: uma referência defeituosa pode alimentar muitos estratos baixos.\n\nO protocolo calcula offset e atraso a partir de quatro timestamps. De forma conceitual, o cliente compara quando enviou, quando o servidor recebeu, quando respondeu e quando a resposta chegou. A assimetria de rota, filas e congestionamento afetam a estimativa. Jitter alto ou oscilante pode indicar instabilidade da rede, fonte problemática, carga ou comportamento do relógio; deve ser comparado ao histórico e ao requisito da aplicação.\n\n### Seleção de fontes e leitura de alarmes\n\nO NTPv4 compara candidatos para descartar fontes inconsistentes, agrupa sobreviventes e combina suas estimativas. Assim, fontes independentes e coerentes ajudam a identificar um “falseticker”, isto é, uma fonte enganosa ou discrepante. Se todas as fontes dependem do mesmo receptor ou da mesma rota, elas não são plenamente independentes. Para diagnóstico, registre a fonte selecionada, as alternativas, o stratum, o offset, o jitter, a dispersão e a idade da última amostra.\n\nO campo leap indicator também sinaliza estado relacionado à sincronização e à indicação de leap second. A manutenção deve seguir a política do fabricante e das fontes para eventos de leap second; não se deve inventar uma correção manual de um segundo. O formato NTP tradicional tem rollover de era em 2036, por isso sistemas e aplicações que persistem timestamps devem usar implementações atualizadas que tratem a era corretamente.\n\n### Como cai na prova\n\n- Stratum 16 significa que a fonte está sem sincronismo válido; stratum 1 não assegura por si só que a antena e a referência estejam boas.\n- Offset mede diferença de relógio; delay mede percurso de ida e volta; jitter resume variação, não é sinônimo de atraso.\n- Tendência temporal e alarmes ajudam mais que uma captura isolada."
+    },
+    {
+      "title": "3. Manutenção preventiva e diagnóstico de falhas",
+      "markdown": "### O problema que este assunto resolve\n\nA manutenção preventiva busca encontrar degradação antes que os relógios se afastem além da tolerância do serviço. Ela combina inspeção física, estado eletrônico, telemetria, logs, configuração e comparação com fontes independentes. A manutenção corretiva parte de um sintoma observável e testa hipóteses por camada.\n\n> **Siglas e termos deste capítulo**\n> - **Reachability**: registro de respostas recentes de uma associação, frequentemente apresentado como indicador ou janela de bits pelo software NTP.\n> - **Holdover**: operação temporária pelo oscilador local depois da perda da referência externa.\n> - **Alarme**: condição do equipamento ou software que exige avaliação, como perda de antena ou fonte não selecionável.\n> - **Deriva**: mudança gradual do erro de frequência/tempo do oscilador.\n\n### Rotina preventiva concreta\n\nEm cada inspeção, confirme alimentação redundante e aterramento conforme o manual, ventilação e temperatura dentro dos limites do fabricante, estado de conectores e cabos, fixação e proteção da antena, alarmes do receptor e estabilidade do oscilador. Confira a configuração de fontes, nomes/IPs, autenticação quando usada, versão de firmware e software, regras de firewall e sincronismo dos clientes. Preserve a configuração anterior antes de qualquer atualização e registre versão, horário, responsável, resultado e possibilidade de reversão.\n\nColete uma linha de base para offset, jitter, dispersão, stratum, reachability, idade da última atualização e temperatura/alarmes do equipamento. Defina alertas a partir do requisito do serviço e das especificações do fabricante; não aplique um limite universal sem conhecer o sistema. Compare séries temporais: offset que cresce monotonicamente pode indicar deriva ou perda de disciplina; saltos coincidentes em vários clientes sugerem mestre ou fonte comum; discrepância isolada sugere cliente, rota ou configuração local.\n\n### Roteiro de diagnóstico\n\n1. Determine quais relógios estão afetados e desde quando; preserve logs.\n2. No cliente, confirme serviço ativo, fonte efetivamente selecionada, status de sincronismo, fuso e última atualização.\n3. Teste resolução de nome, rota, filtros e comunicação NTP em UDP/123 nos dois sentidos exigidos pela topologia; um ping bem-sucedido não prova que NTP funcione.\n4. No servidor, verifique stratum, referência, estado do receptor, alarmes e comparação com fontes independentes.\n5. Inspecione alimentação, antena/coaxial, conectores, ambiente, oscilador e saídas dedicadas se existirem.\n6. Corrija uma causa por vez, observe a convergência e documente a validação.\n\nNa perda da referência externa, o oscilador local pode manter holdover por certo período, mas o erro tende a aumentar conforme suas características. Registre o início da perda e a incerteza estimada; marque o serviço como degradado conforme procedimento local. Não anuncie o mestre como sincronizado se ele está apenas contando por holdover.\n\n### Como cai na prova\n\n- Cliente fora de hora: primeiro compare outros clientes e o estado da fonte para localizar a falha comum ou isolada.\n- Serviço alcançável não é sinônimo de NTP saudável; teste a associação e o estado de sincronismo.\n- Depois de uma troca de antena ou firmware, valide alarmes e estabilidade, não apenas o retorno da comunicação."
+    },
+    {
+      "title": "4. Continuidade, segurança e retorno ao serviço",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema de tempo pode ser tecnicamente correto e ainda falhar operacionalmente se tiver fonte única, configuração sem controle ou monitoramento ausente. A continuidade depende de redundância real, segurança da rede, procedimento de contingência e critérios explícitos de retorno ao serviço.\n\n> **Siglas e termos deste capítulo**\n> - **ACL**: lista de controle de acesso que limita quais hosts podem consultar ou administrar um serviço.\n> - **NTS**: Network Time Security, mecanismo para autenticação e proteção da associação NTP quando suportado.\n> - **Redundância**: disponibilidade de caminhos ou equipamentos alternativos, com falhas suficientemente independentes.\n> - **UTC(NIST)**: realização do NIST usada aqui como exemplo de serviço rastreável, sem pressupor que seja fonte adequada para toda instalação.\n\n### Redundância útil e segura\n\nConfigure múltiplas fontes de tempo confiáveis e, quando a criticidade justificar, servidores locais redundantes. Fontes independentes reduzem o risco de aceitar uma fonte isolada errada; dois endereços que chegam ao mesmo equipamento e à mesma antena podem compartilhar a mesma falha. A RFC 8633 recomenda o uso de mais de uma fonte e que operadores monitorem servidores fora de sincronismo e logs. Planeje o que ocorre se fontes divergirem, se o mestre perder a antena ou se o link externo cair.\n\nNTP é serviço de infraestrutura: limite quem pode consultar e, principalmente, administrar. Evite expor funções de controle/monitoramento sem necessidade; mantenha software atualizado, filtre tráfego e monitore respostas inesperadas. A RFC 8633 observa que respostas NTP não solicitadas podem ser sinal de falsificação do endereço de origem de uma vítima. Em redes gerenciadas, aplique filtragem de entrada e saída e permita UDP/123 somente entre pares necessários.\n\n### Manutenção corretiva e retorno\n\nAntes de reiniciar, substituir ou atualizar, capture estado, horário de referência, logs e configuração. A troca deve ser autorizada pela janela operacional e ter plano de reversão, sobretudo porque saltos de relógio afetam logs, autenticação, gravações e correlação de eventos. Após a intervenção, verifique a referência e sua rastreabilidade, convergência dos clientes, alarmes, dispersão/offset e funcionamento de saídas. Mantenha observação pelo período definido pela criticidade; encerre a ocorrência só com evidência de estabilidade e registro da causa e da ação.\n\nSe houver discrepância entre fontes, não force manualmente uma delas como correta sem evidência. Isole a fonte suspeita, preserve logs, compare referências independentes e siga procedimento de escalonamento. Uma intervenção manual pode produzir timestamps inconsistentes e dificultar auditoria. Em eventos de leap second, use fontes, firmware e política de smear/step coerentes em todo o domínio, pois misturar tratamentos pode criar diferenças temporárias.\n\n### Como cai na prova\n\n- Redundância requer independência dos caminhos de falha, não apenas duas entradas de configuração.\n- Monitorar fonte, logs, offset e alarmes permite detectar degradação antes de afetar todos os consumidores.\n- A liberação do serviço exige confirmar estado sincronizado e comportamento dos clientes após a manutenção."
+    }
+  ],
+  "summary": "A manutenção de relógios sincronizados acompanha a cadeia inteira: referência de tempo, receptor e oscilador do mestre, transporte, clientes e apresentação local. Em NTPv4, avalie stratum, offset, delay, jitter, dispersão, reachability e logs em conjunto; stratum baixo não prova exatidão e stratum 16 indica não sincronismo. Previna falhas com inspeção física, linha de base, monitoramento, atualizações controladas e redundância independente. Diagnostique por camadas, preserve evidências, trate holdover como condição degradada e valide estabilidade e convergência após correções. Proteja UDP/123 e a administração, documente intervenções e siga uma política uniforme para mudanças de escala de tempo.",
+  "flashcards": [
+    {
+      "front": "O que representa o stratum 16 no NTPv4?",
+      "back": "O estado não sincronizado; não deve ser tratado como uma fonte saudável."
+    },
+    {
+      "front": "Stratum 1 garante sozinho uma hora correta?",
+      "back": "Não. Indica vínculo direto com referência, mas antena, receptor ou referência podem estar defeituosos."
+    },
+    {
+      "front": "O que é offset?",
+      "back": "Estimativa da diferença entre o relógio local e o relógio da associação."
+    },
+    {
+      "front": "O que é delay na associação NTP?",
+      "back": "Estimativa do atraso de ida e volta das mensagens."
+    },
+    {
+      "front": "O que jitter ajuda a identificar?",
+      "back": "Variação das estimativas de offset ao longo das amostras."
+    },
+    {
+      "front": "O que é holdover?",
+      "back": "Continuação da contagem pelo oscilador local após perder a referência externa."
+    },
+    {
+      "front": "Por que um ping não valida o NTP?",
+      "back": "Ping não confirma serviço NTP, associação ativa, fonte selecionada nem sincronismo."
+    },
+    {
+      "front": "Que porta usa normalmente o NTP?",
+      "back": "UDP/123, permitida apenas conforme os pares e a topologia necessários."
+    },
+    {
+      "front": "Duas fontes configuradas são necessariamente redundantes?",
+      "back": "Não se compartilham a mesma referência, equipamento, antena ou rota de falha."
+    },
+    {
+      "front": "Hora UTC certa e mostrador errado: hipótese inicial?",
+      "back": "Fuso horário ou regra de apresentação local incorreta."
+    },
+    {
+      "front": "Para que servem logs e telemetria do mestre?",
+      "back": "Detectar perda de referência, fonte discrepante, falha de rede e degradação antes do impacto."
+    },
+    {
+      "front": "Como interpretar offset crescente?",
+      "back": "Pode indicar deriva ou perda de disciplina; compare tendência, referência e alarmes."
+    },
+    {
+      "front": "Qual evidência deve ser guardada antes de uma troca?",
+      "back": "Estado, configuração, logs, fonte selecionada e horário da intervenção."
+    },
+    {
+      "front": "O que significa UTC(NIST)?",
+      "back": "Realização de UTC mantida pelo NIST e distribuída, entre outros meios, por seu ITS."
+    },
+    {
+      "front": "Uma rota compartilhada afeta a independência das fontes?",
+      "back": "Sim; falha comum pode degradar todas simultaneamente."
+    },
+    {
+      "front": "O que medir na validação após manutenção?",
+      "back": "Referência, sincronismo, offset, dispersão, alarmes, clientes e saídas."
+    },
+    {
+      "front": "Por que atualizar NTP e firmware com controle?",
+      "back": "Para corrigir falhas conhecidas mantendo configuração registrada e opção de reversão."
+    },
+    {
+      "front": "O que uma leap second exige operacionalmente?",
+      "back": "Política coerente de fonte, firmware e tratamento em todos os consumidores."
+    },
+    {
+      "front": "Uma fonte isolada divergente deve ser forçada como mestre?",
+      "back": "Não sem evidência; investigue, compare fontes e isole a suspeita conforme procedimento."
+    },
+    {
+      "front": "O que significa rastreabilidade de tempo?",
+      "back": "Cadeia documentada de comparações e referências que liga o horário distribuído a uma escala reconhecida."
+    }
+  ],
+  "tips": [
+    "Localize se a falha afeta um cliente, um segmento ou todos os consumidores antes de trocar componentes.",
+    "Leia stratum, estado de sincronismo, offset, jitter, dispersão e idade da amostra em conjunto.",
+    "Separe horário UTC de hora local: fuso errado pode imitar falha de sincronização.",
+    "Registre configuração e estado antes de reiniciar, atualizar ou substituir o mestre.",
+    "Teste NTP em UDP/123; conectividade IP genérica não comprova resposta NTP válida.",
+    "Depois da intervenção, valide fonte, clientes, alarmes e estabilidade ao longo do tempo."
+  ],
+  "traps": [
+    "Confundir stratum baixo com garantia de exatidão metrológica.",
+    "Tratar servidor alcançável como sincronizado, mesmo com stratum 16 ou referência perdida.",
+    "Chamar offset, delay e jitter de medidas equivalentes.",
+    "Considerar duas fontes redundantes mesmo quando dependem da mesma antena ou rota.",
+    "Atribuir toda diferença horária à referência, ignorando fuso e configuração de cliente.",
+    "Corrigir manualmente uma diferença ou leap second sem preservar evidência e política comum."
+  ],
+  "activeRecall": [
+    "Explique por que stratum 1 não prova sozinho que o horário distribuído está correto.",
+    "Diferencie offset, delay, jitter e root dispersion em um diagnóstico NTP.",
+    "Descreva como distinguir fuso incorreto de perda de sincronismo em uma estação.",
+    "Monte verificações para mestre acessível que não sincroniza clientes.",
+    "Explique holdover e que informação deve ser registrada.",
+    "Proponha evidências de redundância efetiva entre servidores de tempo.",
+    "Descreva como detectar deriva usando uma linha de base.",
+    "Explique por que ping não comprova NTP em UDP/123.",
+    "Descreva como investigar uma fonte discrepante sem forçá-la.",
+    "Descreva critérios para confirmar retorno ao serviço após reparo."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Hierarquia não equivale a exatidão",
+      "summary": "Stratum expressa distância lógica da referência em NTP; a qualidade da referência e da cadeia ainda precisa ser verificada."
+    },
+    {
+      "key": "e2",
+      "title": "Rede alcançável não é serviço sincronizado",
+      "summary": "Uma resposta IP não confirma que a associação NTP esteja ativa, selecionada e ligada a fonte válida."
+    },
+    {
+      "key": "e3",
+      "title": "As métricas descrevem fenômenos diferentes",
+      "summary": "Offset mede diferença, delay caracteriza ida e volta, jitter é variação e dispersão representa erro acumulado estimado."
+    },
+    {
+      "key": "e4",
+      "title": "Redundância precisa de independência",
+      "summary": "Fontes com o mesmo receptor, antena, alimentação ou rota podem falhar juntas e não protegem contra causa comum."
+    },
+    {
+      "key": "e5",
+      "title": "Hora de apresentação e referência são camadas distintas",
+      "summary": "Um relógio pode estar sincronizado em UTC e ainda exibir valor local incorreto por fuso ou regra de apresentação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Na manutenção de uma rede NTP, o servidor mestre responde aos clientes, mas apresenta stratum 16. Qual conclusão operacional é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor está sincronizado por referência local, pois atende pedidos NTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O serviço pode ser usado como hora válida, desde que haja resposta rápida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não sincronizado; investigar referência e alarmes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O estrato 16 confirma que a rede tem dezesseis saltos até UTC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O valor demonstra que o offset do servidor é exatamente dezesseis segundos.",
+          "correct": false
+        }
+      ],
+      "explanation": "No NTPv4, stratum 16 representa estado não sincronizado. A resposta de rede confirma apenas que o serviço respondeu; não torna válida a hora. Verifique fonte selecionada, referência e alarmes.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente NTP mostra a hora em UTC, mas seu mostrador local fica três horas diferente do padrão usado no prédio. Qual verificação vem primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o receptor GNSS do mestre, pois toda diferença horária vem da antena.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir fuso e apresentação local do cliente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o stratum do cliente até a diferença de três horas desaparecer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconfigurar o servidor para transmitir uma escala diferente a cada mostrador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar as fontes alternativas, pois elas provocam conversão incorreta de UTC.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sincronismo NTP e apresentação local são etapas distintas. Uma diferença inteira de horas sugere verificar fuso e regras locais antes de substituir referência ou mexer na hierarquia NTP.",
+      "section": "1. O que é mantido: uma cadeia de tempo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que descreve melhor o offset exibido para uma associação NTP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Diferença estimada entre o relógio local e a fonte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A variação acumulada na taxa de frequência do oscilador em todo o mês.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tempo físico gasto apenas pelo pacote de resposta na rede de retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A distância hierárquica da fonte até o primeiro relógio de referência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de consultas que não chegaram ao servidor durante a última hora.",
+          "correct": false
+        }
+      ],
+      "explanation": "Offset é a estimativa da diferença de relógio entre o sistema local e o par. Atraso, hierarquia e perda de pacotes são conceitos diferentes e devem ser avaliados separadamente.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico confirma que consegue pingar o mestre, mas o cliente não atualiza o relógio. Qual teste é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar somente o nome do computador e a velocidade do enlace físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o oscilador antes de verificar qualquer comunicação de serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a potência da antena GNSS para liberar a consulta do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar associação NTP e UDP/123 no caminho.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar o fuso local, pois ele reabre automaticamente a porta do protocolo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ping usa ICMP e não valida NTP. A manutenção precisa verificar a associação e se a comunicação NTP em UDP/123 está permitida nos pontos adequados da topologia.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor stratum 1 está ligado a receptor GNSS. Qual afirmação deve orientar a inspeção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O estrato elimina a necessidade de examinar a antena e o estado do receptor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O equipamento não pode atender clientes porque stratum 1 é reservado ao GNSS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Há vínculo direto, mas verifique alarmes e integridade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O estrato informa que o receptor está a exatamente um segundo de UTC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classificação prova que a rede de distribuição não introduz atraso algum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stratum 1 indica ligação direta a uma referência, mas não certifica funcionamento de antena, receptor, oscilador ou distribuição. A inspeção e os indicadores permanecem necessários.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que representa holdover em um servidor de tempo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O bloqueio permanente do serviço NTP até que todos os clientes reiniciem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contagem pelo oscilador após perda da referência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A troca automática do fuso UTC pelo horário de verão no servidor mestre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A manutenção de consultas em fila enquanto o firewall descarta UDP/123.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A seleção simultânea de todos os servidores como fontes de qualidade idêntica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Durante holdover, o oscilador local continua a contagem sem a referência externa. O erro tende a crescer conforme as características do oscilador, então a condição deve ser registrada como degradada.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que dois servidores de tempo que usam a mesma antena e o mesmo caminho de alimentação podem não oferecer redundância efetiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque servidores diferentes não podem consultar a mesma rede NTP local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque antenas comuns não recebem sinais de referência usados por NTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a redundância exige que ambos usem stratum 16 durante operação normal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque o NTP aceita somente uma fonte de tempo por domínio administrativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falha comum pode afetar ambos os servidores.",
+          "correct": true
+        }
+      ],
+      "explanation": "Redundância precisa de independência suficiente entre caminhos de falha. Componentes comuns, como antena e alimentação, podem derrubar ambos os servidores ao mesmo tempo.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante inspeção, o servidor responde, mas o offset aumenta gradualmente frente a fontes independentes. O que fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Analisar tendência, oscilador, temperatura, referência e mudanças recentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reduzir o stratum manualmente, pois isso corrige a deriva acumulada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a tendência enquanto o ping não apresentar perda aparente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o fuso, mesmo que o relógio interno continue em UTC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar as fontes alternativas para eliminar a comparação dos offsets.",
+          "correct": false
+        }
+      ],
+      "explanation": "Deriva gradual requer análise da série e das condições do oscilador, referência e ambiente. Alterar stratum ou fuso não corrige a causa e remover fontes comparativas elimina evidência útil.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Vários clientes do mesmo segmento perdem sincronismo, mas os clientes servidos por outro mestre seguem normais. Onde começar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituindo simultaneamente todos os relógios locais afetados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mudando o fuso de todo o domínio para forçar convergência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Examinando mestre, referência, enlace e filtros compartilhados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aumentando a precisão declarada sem examinar a referência externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligando o monitoramento, pois alarmes correlacionados não ajudam.",
+          "correct": false
+        }
+      ],
+      "explanation": "A falha correlacionada aponta para componente comum: mestre, referência, rede ou filtragem. A comparação com o segmento saudável delimita a camada provável.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um receptor informa perda de antena e o servidor passa a operar em holdover. Que informação priorizar no registro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome do usuário que costuma consultar a hora no painel frontal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A hora de início, o estado da referência e a incerteza estimada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de mostradores, sem registrar a falha de referência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O fuso dos clientes, que substitui os dados de qualidade do mestre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cor do cabo coaxial, como único dado para confirmar holdover.",
+          "correct": false
+        }
+      ],
+      "explanation": "Registre o início da perda, a condição do receptor e a incerteza conforme especificações e procedimentos locais. Isso permite avaliar a duração aceitável da operação degradada.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que práticas devem integrar uma atualização controlada do software NTP do mestre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar sem cópia e validar apenas a tela de login.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar logs antes da mudança para evitar alertas na janela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar fonte e firewall juntos, sem qualquer plano de reversão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar estado, planejar reversão e validar sincronismo após a mudança.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aplicar pacote sem conferir versão ou compatibilidade do receptor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudança controlada preserva estado e configuração, planeja reversão e valida fonte, métricas, alarmes e clientes. Uma interface acessível não comprova sincronismo.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um log registra resposta NTP sem pedido correspondente. Como tratar o evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como possível indício de abuso ou falsificação, preservando evidências.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como prova de que a antena recebeu um leap second correto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como confirmação de que todos os clientes exibem UTC corretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como evento normal que dispensa revisar tráfego e acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como indicação de que o servidor alcançou stratum zero espontaneamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 8633 descreve respostas não solicitadas como possível sinal de falsificação do endereço de origem de uma vítima. Analise logs e tráfego e mantenha controles de rede.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O monitoramento mostra delay elevado e jitter variável, embora uma amostra de offset esteja pequena. Qual leitura é prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O relógio está perfeito, então delay e jitter podem ser ignorados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Stratum baixo garante que assimetria não afete a estimativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar dispersão configurada elimina o atraso físico da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Offset pequeno prova que todos os clientes estão sincronizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Investigar rede e histórico, pois amostras instáveis reduzem confiança.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma amostra pequena não basta para concluir qualidade quando atraso e jitter variam. Investigue rota, congestionamento, assimetria e evolução das métricas.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual evidência comprova melhor o retorno ao serviço após substituir o mestre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um ping ao endereço IP imediatamente após ligar o equipamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma foto do rack feita antes da intervenção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tela indicando que a instalação do firmware terminou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fonte válida, sincronismo, métricas estáveis e clientes convergidos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A ausência de reclamações nos primeiros segundos da janela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Valide a cadeia completa: referência, estado do mestre, métricas e consumidores. Ping, instalação concluída ou silêncio momentâneo não demonstram estabilidade.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que observações ajudam a distinguir falha comum de falha isolada em um cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar apenas modelos de gabinete e cores dos indicadores luminosos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar clientes, fontes, rotas e horários dos eventos observados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Adicionar fontes sem observar quais foram selecionadas pelo serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar todos os mestres e clientes juntos para reduzir diferenças.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir temperatura de sala sem relação com o servidor afetado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comparar clientes afetados e saudáveis, fonte selecionada, rota e linha temporal ajuda a localizar a camada. Reiniciar tudo destrói evidências úteis.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como limitar administração indevida do servidor mantendo monitoramento autorizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir controle irrestrito, mas ocultar o nome do servidor no DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar logs e aceitar consultas de qualquer origem da Internet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restringir administração a hosts autorizados e monitorar conforme topologia.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar a mesma credencial em todos os clientes e fontes públicas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bloquear consultas internas e manter somente a interface web aberta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restringir funções administrativas a origens autorizadas reduz risco sem impedir monitoramento previsto. Exposição desnecessária e desativação de logs diminuem a capacidade de controle.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NIST Internet Time Service é exemplo de qual característica relevante para manutenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuição rastreável a UTC(NIST), inclusive pelo protocolo NTP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantia de precisão de laboratório em qualquer rede de clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituição das comparações de referência por ajuste manual diário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Serviço exclusivo para receptores GPS sem clientes na Internet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correção automática de fuso horário em cada mostrador conectado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O NIST declara que o ITS distribui tempo rastreável a UTC(NIST) por NTP e outros formatos. A qualidade no cliente também depende de rede, implementação e ambiente.",
+      "section": "1. O que é mantido: uma cadeia de tempo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resposta é apropriada diante de uma fonte isolada que diverge das demais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar correta a fonte de menor stratum sem examinar outras evidências.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Migrar clientes para ela sem registrar o estado anterior do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar logs para que a seleção automática recomece sem histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar fontes independentes e alarmes; isolar suspeita conforme procedimento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar o fuso até que os offsets pareçam mais próximos entre si.",
+          "correct": false
+        }
+      ],
+      "explanation": "Discordância pede investigação, não preferência cega por menor stratum. Preserve evidências, compare origens independentes e examine alarmes antes de isolar a fonte.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto cobre aspectos físicos e lógicos de uma inspeção preventiva do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a hora mostrada no painel frontal do mestre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas a versão do sistema operacional dos computadores clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente a continuidade elétrica do cabo de rede local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas o endereço IP e o nome DNS da referência externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alimentação, ambiente, antena, alarmes, fonte, rede e clientes.",
+          "correct": true
+        }
+      ],
+      "explanation": "A cadeia abrange elementos físicos, eletrônicos, referência, comunicação, configuração e consumidores. Inspecionar somente uma tela ou um cabo pode deixar causas relevantes sem detecção.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Clientes apresentam fuso incorreto e o mestre exibe stratum 16. Como evitar confundir os dois sintomas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Corrigir somente o fuso e considerar irrelevante o estado do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Investigar a referência inválida e corrigir a apresentação local separadamente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ajustar manualmente todos os relógios sem comparar fontes disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o stratum para ocultar a perda de sincronismo aos clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar o receptor e manter o mestre como referência válida por responder.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stratum 16 indica não sincronismo da fonte, enquanto fuso afeta apresentação. São problemas distintos e ambos devem ser tratados e validados.",
+      "section": "1. O que é mantido: uma cadeia de tempo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que limites de alarme de offset e dispersão devem considerar o requisito do serviço e as especificações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o aceitável depende da tolerância funcional e do ambiente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque NTP não produz indicadores que possam ser monitorados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque todo cliente deve tolerar qualquer erro durante sua vida útil.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque alarmes informam apenas o fuso escolhido no sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque stratum substitui qualquer requisito de qualidade do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tolerância aceitável varia conforme aplicação, especificação e ambiente. Um limite universal pode gerar alarmes inúteis ou deixar passar erro significativo.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após troca de antena, o receptor volta a rastrear satélites, mas os clientes continuam instáveis. Qual próximo passo é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encerrar, pois rastrear satélites prova convergência de todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar fontes alternativas e apagar o histórico de offset existente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar alarmes, referência selecionada, estabilidade e métricas nos clientes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ajustar cada mostrador sem confirmar o estado da referência restaurada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alongar a consulta até que a oscilação deixe de aparecer nos gráficos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Recepção física é apenas uma etapa. Confirme referência selecionada, alarmes, estabilidade do mestre e convergência dos clientes antes do retorno ao serviço.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação guarda timestamps NTP por muitos anos. Qual cuidado é tecnicamente relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar qualquer valor como hora Unix local sem identificar a era.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar segundos para evitar que o contador alcance valores altos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar stratum como substituto de uma data persistente válida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interpretar corretamente a era e o rollover do campo de segundos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Somar uma hora a cada reinicialização para compensar o calendário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O timestamp NTP tradicional tem campo de segundos de 32 bits e rollover de era em 2036. Aplicações persistentes precisam interpretar a era e a conversão corretamente.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que desenho de fontes oferece melhor tolerância a falhas comuns em uma instalação crítica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duas entradas que chegam ao mesmo servidor pela mesma rota externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fontes confiáveis com referências e caminhos independentes quando possível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Vários nomes DNS para a mesma origem, sem monitorar sua seleção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um mestre sem referência anunciado por vários nomes internos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fontes locais e públicas sem política de seleção ou verificação de estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diversidade real tolera falhas e permite encontrar candidatos discrepantes. Endereços duplicados ou origens com causa comum criam apenas aparência de redundância.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Somente um cliente está fora de hora; o mestre e os demais clientes estão corretos. O que investigar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma falha universal de UTC que afeta somente aquela estação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Troca imediata das antenas GNSS da instalação inteira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um erro de stratum do mestre invisível aos outros clientes normais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma falha geral de distribuição apesar dos outros clientes corretos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fonte selecionada, rota local, serviço, fuso e configuração do cliente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com mestre e demais clientes normais, comece pelo equipamento isolado: associação, rota, serviço, configuração e apresentação. A hipótese de falha comum não combina com os sintomas observados.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No NTP, jitter representa o atraso de ida e volta entre cliente e servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Jitter resume a variação das estimativas de offset; delay caracteriza o atraso de ida e volta. A tendência deve ser lida ao longo de várias amostras.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um computador está sincronizado em UTC, sua hora local exibida necessariamente estará correta mesmo com o fuso configurado errado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. UTC e apresentação local são camadas diferentes. Um cliente pode manter UTC corretamente e exibir hora deslocada por fuso ou regra local incorreta.",
+      "section": "1. O que é mantido: uma cadeia de tempo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NTPv4 define stratum 16 como uma condição de não sincronismo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma associação em stratum 16 indica que o relógio não está sincronizado e deve motivar investigação da referência e do estado do serviço.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ping bem-sucedido ao mestre demonstra que o cliente já recebeu uma amostra NTP válida e disciplinou o próprio relógio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ping confirma uma resposta ICMP, não a operação NTP. É preciso examinar a associação, a fonte selecionada e os indicadores de sincronismo do cliente.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas fontes NTP com equipamentos diferentes podem compartilhar uma falha comum se dependerem da mesma antena de referência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A independência de hardware não elimina dependências comuns. Antena, alimentação, rota ou referência compartilhadas podem afetar ambas as fontes.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o número do stratum reduz diretamente o offset medido entre o cliente e o servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Stratum expressa posição hierárquica, não uma correção numérica de offset. A diferença entre relógios é medida e disciplinada pelos mecanismos NTP, conforme a qualidade das fontes e da rede.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na manutenção preventiva, uma linha de base pode registrar offset, jitter, dispersão, fonte selecionada e alarmes do equipamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O histórico desses indicadores permite identificar tendências e correlacionar degradação com alarmes ou mudanças, desde que os limites sejam definidos para a instalação concreta.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A perda da referência externa não impede que um oscilador local continue contando tempo por algum período.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O equipamento pode entrar em holdover, mantendo a contagem pelo oscilador. A incerteza tende a aumentar e o mestre não deve ser reportado como sincronizado à referência perdida.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para confirmar NTP, basta verificar que a porta de administração web do servidor responde pelo navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A interface web não comprova a associação NTP. Deve-se verificar o tráfego NTP em UDP/123, o estado de sincronismo e a fonte efetivamente selecionada.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RFC 5905 descreve o uso de quatro timestamps para calcular estimativas de offset e atraso NTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O intercâmbio usa os instantes de envio, recebimento e retorno para estimar diferença de relógio e atraso de ida e volta, sujeitos às condições da rede.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estado de referência e a condição do receptor devem ser examinados mesmo quando o servidor mestre ainda responde aos clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Responder não prova que a referência está válida. Verifique fonte selecionada, stratum, alarmes do receptor, idade da amostra e indicadores de qualidade.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A manutenção deve tratar qualquer jitter alto como prova conclusiva de falha no oscilador local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Jitter pode refletir variação de rede, congestionamento, fonte instável ou comportamento do relógio. Deve ser comparado com histórico, delay, fonte e condições físicas antes de localizar a causa.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação de uma troca deve preservar estado, logs, configuração e horário da intervenção para permitir comparação e reversão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Guardar evidências antes da mudança permite avaliar impacto, recuperar configuração e correlacionar falhas com a intervenção; depois, registre validação e causa identificada.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de firewall que permite ICMP necessariamente libera NTP, pois ambos usam o mesmo protocolo de transporte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ICMP e NTP não são o mesmo protocolo de transporte. NTP usa UDP, normalmente na porta 123; as regras precisam refletir a topologia e os pares necessários.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RFC 8633 recomenda monitorar servidores fora de sincronismo e mensagens de log para identificar problemas operacionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As práticas atuais da IETF recomendam monitoramento remoto para detectar servidores fora de sincronismo e exame dos logs para identificar falhas e possíveis abusos.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A condição de holdover deve ser tratada como prova de que o equipamento continua rastreável à referência externa em tempo real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Holdover significa que a referência externa foi perdida e o oscilador local continua a contagem. Registre início e incerteza estimada e sinalize a degradação conforme o procedimento local.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fonte com menor stratum sempre tem menor erro real que outra fonte com stratum maior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Stratum indica distância hierárquica, não constitui medição suficiente de exatidão. Uma referência defeituosa pode distribuir erro mesmo em estrato baixo; compare fontes e métricas.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um domínio crítico, comparar fontes de referência independentes pode ajudar a revelar uma fonte discrepante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O NTP compara candidatos e pode descartar fontes inconsistentes. A independência importa: origens que compartilham a mesma antena ou rota podem apresentar falha comum.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de alterar fuso em um cliente, a manutenção não precisa confirmar novamente a referência NTP nem a apresentação local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A alteração corrige a apresentação, mas deve-se validar que o relógio continua sincronizado e que a hora local resultante atende à configuração esperada.",
+      "section": "1. O que é mantido: uma cadeia de tempo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RFC 8633 identifica respostas NTP não solicitadas como possível sinal de falsificação do endereço de origem de um sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Respostas sem solicitação correspondente podem indicar que alguém forjou o endereço da vítima em pedidos enviados ao servidor. Logs e monitoramento apoiam a investigação.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Offset e delay são dois nomes para a mesma grandeza, pois ambos resultam da troca de timestamps NTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Offset estima diferença entre relógios; delay estima o percurso de ida e volta. A distinção é necessária para diagnosticar assimetria, congestionamento e erro de sincronismo.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se fontes discordam, é prudente forçar manualmente a fonte de menor stratum como correta antes de preservar os logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Stratum menor não prova exatidão. Preserve evidências, compare origens independentes, investigue alarmes e isole a fonte suspeita conforme procedimento autorizado.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A variação de jitter pode ser investigada junto com congestionamento e instabilidade de rota, além do estado do oscilador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Jitter resume variação nas estimativas de offset e pode refletir mais de uma causa. Correlacione com delay, perda, rota, fonte selecionada e condições do relógio.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A substituição da antena GNSS é validada apenas quando o conector está fisicamente preso, mesmo que o receptor indique alarme persistente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Fixação física não comprova recepção válida. Após a substituição, examine alarmes, estado do receptor, fonte selecionada e estabilidade do relógio antes do retorno ao serviço.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um único erro na referência comum pode produzir saltos ou deriva correlacionados em muitos clientes do mesmo mestre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Clientes que compartilham mestre também compartilham erros da cadeia anterior. Se vários consumidores se desviam ao mesmo tempo, investigue fonte e mestre antes de reparar cada estação individualmente.",
+      "section": "1. O que é mantido: uma cadeia de tempo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após corrigir um servidor de tempo, basta observar que ele voltou a responder; a convergência dos clientes não faz parte da validação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O retorno exige confirmar estado sincronizado do servidor e funcionamento dos consumidores, incluindo alarmes, offset e estabilidade. A resposta do serviço isoladamente é insuficiente.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão NTP tradicional precisa tratar rollover de era em aplicações que armazenam timestamps por longos períodos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O formato de timestamp NTP de 32 bits para segundos sofre rollover de era em 2036. Implementações e aplicações devem interpretar a era corretamente, em vez de presumir que o contador nunca volta.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NIST Internet Time Service distribui informações de tempo rastreáveis a UTC(NIST), inclusive por NTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O ITS responde a pedidos por NTP e outros formatos, e o NIST declara a rastreabilidade de seu tempo a UTC(NIST). Isso ilustra uma fonte institucional documentada, sem tornar qualquer servidor automaticamente apropriado à instalação.",
+      "section": "1. O que é mantido: uma cadeia de tempo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma diferença horária que aparece apenas em um equipamento exige primeiro substituir a referência central compartilhada por todos os demais clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Falha isolada sugere verificar o cliente, sua associação, configuração, rota local e fuso antes de intervir no mestre comum. Compare com outros consumidores para localizar a camada afetada.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma janela de manutenção deve incluir registro da configuração anterior e caminho de reversão para mudança de firmware ou substituição do mestre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A configuração preservada e o plano de reversão reduzem o risco de prolongar uma indisponibilidade. Registre também estado prévio, horário, responsável e evidências de validação após a mudança.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RFC 8633 recomenda que operadores mantenham softwares de NTP atualizados e monitorem seus servidores e logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A RFC reúne práticas de operação estável, precisa e segura, incluindo atualização de implementações e monitoramento. Em produção, a atualização deve ser planejada e validada segundo o procedimento local.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Root dispersion informa o número de equipamentos físicos existentes entre o cliente e o servidor selecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Root dispersion representa uma estimativa acumulada de erro associada à sincronização, não uma contagem de equipamentos. A distância hierárquica é indicada separadamente pelo stratum.",
+      "section": "2. NTPv4, estratos e indicadores de qualidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O plano de continuidade deve prever comportamento e comunicação da condição degradada quando a referência externa é perdida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Durante holdover, a contagem pode continuar, mas a qualidade já não é sustentada pela referência externa. O procedimento deve registrar a perda, estimar a incerteza conforme especificação e orientar os consumidores.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor NTP deve aceitar administração remota de qualquer host da rede para que a redundância possa ser monitorada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A administração deve ser restrita aos hosts e operadores necessários. Monitoramento não requer liberar controle irrestrito; ACLs, autenticação e separação de funções reduzem risco operacional e de abuso.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se clientes divergem após um leap second, uma causa plausível é a mistura de políticas diferentes de aplicação desse evento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Fontes e clientes podem tratar o evento de forma diferente, inclusive com políticas de step ou smear. Uma política coerente e firmware compatível evitam diferenças temporárias entre consumidores.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar deriva gradual, é mais útil comparar séries temporais e condições do oscilador do que depender de uma única leitura instantânea.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Tendências de offset e frequência, temperatura, referência e eventos de rede ajudam a diferenciar deriva de salto abrupto ou oscilação transitória. A captura isolada não mostra evolução.",
+      "section": "3. Manutenção preventiva e diagnóstico de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como os formatos digitais comuns não representam literalmente 23:59:60, o operador deve inserir manualmente um segundo em cada relógio no momento do leap second.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A representação e o tratamento são definidos pelo protocolo, fontes e sistemas. O NIST descreve a forma como seu serviço trata leap second; a operação local deve seguir política uniforme e não realizar ajustes manuais ad hoc.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A seleção automática de uma fonte discrepante elimina a necessidade de monitorar alarmes e preservar logs durante a manutenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Algoritmos mitigam candidatos, mas a operação ainda precisa investigar alarmes, falhas comuns e abusos. Logs e telemetria dão evidência para identificar a causa e verificar o retorno ao serviço.",
+      "section": "4. Continuidade, segurança e retorno ao serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 5905 — Network Time Protocol Version 4: Specification and Algorithms",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Estratos, timestamps, métricas de associação, seleção de fontes e disciplina do relógio",
+      "url": "https://www.rfc-editor.org/rfc/rfc5905.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8633 — Network Time Protocol Best Current Practices",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Práticas atuais de configuração, diversidade de fontes, atualização, segurança e monitoramento NTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc8633.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST Internet Time Service (ITS)",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Serviço NTP e rastreabilidade da informação de tempo a UTC(NIST)",
+      "url": "https://www.nist.gov/pml/time-and-frequency-division/time-distribution/internet-time-service-its",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Leap second and UT1-UTC information",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "UTC e leap seconds; contexto de escalas de tempo e distribuição do tempo",
+      "url": "https://www.nist.gov/pml/time-and-frequency-division/time-realization/leap-seconds",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

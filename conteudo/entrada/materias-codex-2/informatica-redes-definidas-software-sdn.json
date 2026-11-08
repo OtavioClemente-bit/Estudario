@@ -1,0 +1,680 @@
+{
+  "id": "informatica.redes-definidas-software-sdn",
+  "subject": "Informática",
+  "title": "Fundamentos de redes definidas por software (SDN)",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Fundamentos de redes definidas por software (SDN)",
+    "Redes definidas por software SDN",
+    "Software-Defined Networking",
+    "Arquitetura de redes SDN",
+    "Plano de controle em redes SDN",
+    "Plano de dados em SDN",
+    "Controlador de rede definida por software",
+    "Programabilidade de redes por software",
+    "Separação entre controle e encaminhamento",
+    "Interfaces northbound e southbound",
+    "OpenFlow em redes definidas por software",
+    "Tabelas de fluxo SDN"
+  ],
+  "scope": {
+    "covers": "Fundamentos de Software-Defined Networking (SDN): separação entre plano de controle e plano de encaminhamento/dados; controle logicamente centralizado e controlador; planos de aplicação, controle e infraestrutura; interfaces northbound e southbound; programabilidade, abstração, políticas e automação; funcionamento de regras e tabelas de fluxo; papel do OpenFlow e mensagens usuais; diferenças entre SDN, redes tradicionais e NFV; benefícios, limites, disponibilidade, segurança e cenários de uso.",
+    "excludes": "Configuração completa de fabricantes, sintaxe de comandos específicos, implantação de controladores comerciais, programação detalhada de OpenFlow, desenho de data centers, NFV em profundidade e protocolos de roteamento não relacionados à arquitetura SDN."
+  },
+  "theoryTitle": "Fundamentos de redes definidas por software",
+  "chapters": [
+    {
+      "title": "1. A ideia central: separar controle e encaminhamento",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma rede tradicional, cada roteador ou switch costuma executar localmente protocolos e decisões de controle, além de encaminhar quadros e pacotes. Quando a equipe precisa mudar uma política em muitos equipamentos, configura cada um deles, e a rede pode ficar temporariamente inconsistente. **Software-Defined Networking (SDN)** organiza o controle da rede de modo programável e coordenado, separando as decisões sobre o tráfego da execução rápida do encaminhamento.\n\nA definição divulgada pela Open Networking Foundation (ONF) caracteriza SDN pela separação física do plano de controle em relação ao plano de encaminhamento e por um plano de controle que controla vários dispositivos. Isso não quer dizer que o controlador tenha de ser um único computador: o controle pode estar distribuído em vários servidores e continuar **logicamente centralizado**, apresentando uma visão coerente da rede.\n\n> **Siglas e termos deste capítulo**\n> - **SDN (Software-Defined Networking)**: arquitetura de rede cujo controle é programável e separado do encaminhamento.\n> - **Plano de controle (control plane)**: calcula caminhos, aplica políticas e decide como os equipamentos devem tratar o tráfego.\n> - **Plano de dados ou encaminhamento (data/forwarding plane)**: processa os pacotes e executa as ações instaladas, como encaminhar ou descartar.\n> - **Controlador SDN**: software que coordena a lógica de controle e conversa com dispositivos e aplicações.\n> - **Centralização lógica**: visão e política coordenadas, que podem ser implementadas por componentes físicos distribuídos.\n\n### A decisão e o pacote percorrem caminhos diferentes\n\nUma aplicação pode solicitar uma política, como permitir o tráfego entre dois serviços. O controlador traduz essa intenção em regras adequadas e as instala nos switches. Depois disso, os switches encaminham os pacotes localmente de acordo com suas tabelas; o tráfego normal não precisa passar pelo controlador. Se chegar um pacote sem regra correspondente, o dispositivo pode descartá-lo, aplicar uma regra de tabela-miss ou avisar o controlador, conforme a configuração e o protocolo utilizado.\n\n| Plano | Pergunta que responde | Exemplo de tarefa |\n| --- | --- | --- |\n| Controle | Que política ou caminho deve ser usado? | Calcular uma rota e instalar regras |\n| Dados/encaminhamento | O que fazer com este pacote agora? | Enviar o quadro pela porta de saída |\n\n### SDN não é um roteador central\n\nA centralização lógica não significa que cada pacote seja enviado ao controlador para que ele o retransmita. A separação permite que o controle tome decisões coordenadas enquanto os equipamentos continuam executando o encaminhamento. Assim, controle e tráfego de usuário têm funções diferentes, embora precisem se comunicar.\n\n### Como cai na prova\n\n- SDN separa a lógica de controle da função de encaminhar pacotes e torna o controle programável.\n- A visão do controlador pode ser logicamente centralizada sem existir um único servidor físico.\n- Afirmar que todo pacote precisa atravessar o controlador confunde controle com encaminhamento."
+    },
+    {
+      "title": "2. Camadas, controlador e interfaces",
+      "markdown": "### O problema que este assunto resolve\n\nA arquitetura SDN cria um ponto de coordenação entre políticas de alto nível e os mecanismos concretos dos equipamentos. Para entender o fluxo, é útil distinguir aplicações, controlador e infraestrutura. Os nomes das camadas variam entre modelos, mas a separação de responsabilidades continua sendo a chave.\n\n> **Siglas e termos deste capítulo**\n> - **Plano de aplicação**: aplicações ou serviços que expressam objetivos e políticas de rede.\n> - **Plano de controle**: lógica do controlador, que interpreta objetivos e coordena recursos.\n> - **Plano de infraestrutura**: switches, roteadores e outros elementos que encaminham o tráfego.\n> - **API northbound (voltada ao norte)**: interface pela qual aplicações ou clientes solicitam serviços ao controlador.\n> - **API southbound (voltada ao sul)**: interface pela qual o controlador programa, configura ou monitora os elementos de rede.\n> - **API (Application Programming Interface)**: interface de software usada por componentes para trocar solicitações e dados.\n\n### Do objetivo à regra de encaminhamento\n\nConsidere uma aplicação que pede prioridade para o tráfego de videoconferência. Pela interface northbound, ela comunica a intenção ao controlador. O controlador combina essa solicitação com o estado que conhece, escolhe ações e comunica regras aos switches por interfaces southbound. Os equipamentos passam a aplicar localmente as regras ao tráfego. A resposta de monitoramento pode retornar dos dispositivos ao controlador, permitindo ajustar as decisões.\n\n| Elemento | Papel | Exemplo concreto |\n| --- | --- | --- |\n| Aplicação | Expressa uma necessidade ou política | Solicitar isolamento entre dois grupos |\n| Controlador | Traduz e coordena a política | Distribuir regras coerentes a vários switches |\n| Dispositivo | Executa as regras no tráfego | Encaminhar ou descartar um pacote conforme a tabela |\n\nA interface northbound não precisa ser um protocolo universal único. Ela pode ser uma API ou modelo oferecido pelo controlador. Do mesmo modo, southbound não é sinônimo de OpenFlow: há diferentes mecanismos de configuração, controle e telemetria.\n\n### Visão global e estado da rede\n\nUm controlador pode reunir informações sobre topologia, enlaces, capacidades e regras ativas. A visão coordenada facilita aplicar uma política que afeta mais de um equipamento. Se a informação estiver desatualizada ou o controlador não alcançar um dispositivo, porém, decisões podem falhar ou levar tempo para convergir; a arquitetura não elimina a necessidade de tratar falhas e sincronização.\n\n### Como cai na prova\n\n- Northbound liga aplicações ao controlador; southbound liga o controlador aos elementos de rede.\n- A aplicação expressa uma intenção, o controlador coordena e o dispositivo executa o encaminhamento.\n- Não se deve presumir que toda interface SDN use um protocolo específico ou uma API padronizada única."
+    },
+    {
+      "title": "3. Programabilidade, regras de fluxo e OpenFlow",
+      "markdown": "### O problema que este assunto resolve\n\nA programabilidade permite definir como classes de tráfego devem ser tratadas sem repetir manualmente a mesma lógica em cada equipamento. Em implementações baseadas em fluxos, uma regra identifica tráfego por campos de correspondência e associa uma ação. O dispositivo executa essas regras na tabela de fluxo; o controlador é responsável por instalá-las ou modificá-las quando a política muda.\n\n> **Siglas e termos deste capítulo**\n> - **Fluxo (flow)**: conjunto de pacotes tratados segundo características ou política comuns.\n> - **Tabela de fluxo**: conjunto ordenado de entradas que o dispositivo consulta ao processar pacotes.\n> - **Campo de correspondência (match)**: característica usada para identificar tráfego, como porta de entrada ou campos de cabeçalho.\n> - **Ação**: instrução associada à regra, como encaminhar a uma porta, descartar ou alterar o processamento.\n> - **OpenFlow**: protocolo padronizado pela ONF para comunicação entre controlador e dispositivos OpenFlow, incluindo operações sobre tabelas e fluxos.\n> - **Packet-in / packet-out**: mensagens usadas em OpenFlow para notificar o controlador sobre um pacote e para solicitar o envio de um pacote, respectivamente.\n\n### Como uma tabela de fluxo decide\n\nUma entrada de fluxo pode conter campos de correspondência, prioridade, contadores, instruções e temporizadores. Quando um pacote chega, o switch compara seus campos com as entradas aplicáveis e segue a regra de maior prioridade correspondente. A ação pode encaminhar o pacote, descartá-lo ou direcionar seu processamento para outra tabela. Contadores permitem observar ocorrências. Se não houver correspondência, o comportamento de table-miss depende da configuração: pode descartar, enviar a outra tabela ou notificar o controlador.\n\nOpenFlow especifica mensagens de controle entre controlador e switch, como consulta de estatísticas, alteração de entradas e notificação de pacotes. Ele é um protocolo conhecido e relevante historicamente, mas **SDN é uma arquitetura**, não o nome de OpenFlow. Uma rede pode adotar princípios SDN usando outros mecanismos southbound.\n\n### Programar não significa transportar tudo ao controlador\n\nDepois que as regras são instaladas, o plano de dados costuma tratar os pacotes no próprio equipamento. O controlador atua no plano de controle, atualizando regras, recebendo eventos e coordenando políticas. Enviar ao controlador cada pacote de cada fluxo aumentaria a carga e não é uma exigência da arquitetura.\n\n### Como cai na prova\n\n- Tabela de fluxo associa critérios de correspondência a instruções e ações; contadores ajudam no monitoramento.\n- Packet-in pode informar o controlador sobre um pacote; packet-out pode pedir o envio de um pacote pelo switch.\n- OpenFlow é uma interface/protocolo possível para SDN, não requisito universal nem sinônimo da arquitetura."
+    },
+    {
+      "title": "4. Usos, vantagens, limites e distinções",
+      "markdown": "### O problema que este assunto resolve\n\nAo programar políticas de forma coordenada, SDN pode acelerar mudanças de configuração, automatizar tarefas repetidas, facilitar segmentação e dar aos operadores uma visão mais ampla dos recursos da rede. Por exemplo, uma política de isolamento pode ser aplicada em vários switches por uma aplicação, e não configurada como comandos independentes em cada caixa. Esses benefícios dependem de integração correta, qualidade do estado observado e segurança do controlador.\n\n> **Siglas e termos deste capítulo**\n> - **Automação de rede**: execução programática de tarefas de configuração, atualização ou monitoramento.\n> - **Plano de gerenciamento (management plane)**: funções administrativas, como configuração e monitoramento; alguns modelos distinguem esse plano do controle.\n> - **NFV (Network Functions Virtualisation)**: implementação de funções de rede, como firewall ou balanceamento, em software sobre infraestrutura computacional.\n> - **Disponibilidade**: capacidade do serviço de continuar funcionando apesar de falhas.\n> - **Telemetria**: coleta de informações sobre estado e desempenho dos dispositivos e enlaces.\n\n### SDN e NFV respondem a perguntas diferentes\n\nSDN trata principalmente de **como controlar e programar a conectividade e o encaminhamento**. NFV trata de **como implementar funções de rede como software**, em vez de depender exclusivamente de appliances especializados. Podem ser usadas juntas: SDN pode encaminhar tráfego para uma função virtual de firewall, enquanto NFV fornece o firewall virtual. Uma não substitui automaticamente a outra.\n\n### Benefícios e riscos caminham juntos\n\nUma política comum facilita consistência, mas um erro no controlador ou na aplicação pode propagar uma regra ruim a muitos dispositivos. O controlador e suas credenciais tornam-se componentes importantes para a segurança; devem ser protegidos e monitorados. Também é preciso planejar redundância, reconciliação de estado, latência de controle, capacidade dos dispositivos e operação durante perda de comunicação. Regras já instaladas podem continuar encaminhando tráfego, mas mudanças que dependem do controlador talvez não possam ser realizadas enquanto ele estiver inacessível.\n\n| Aspecto | Possível benefício | Cuidado operacional |\n| --- | --- | --- |\n| Política comum | Configuração coerente em vários dispositivos | Validar mudanças antes de distribuí-las |\n| Controle programável | Automatizar provisionamento e alterações | Proteger APIs e credenciais |\n| Visão coordenada | Ajustar tráfego segundo estado da rede | Manter estado e telemetria confiáveis |\n| Separação de planos | Evoluir controle sem mudar a lógica local de cada caixa | Garantir compatibilidade entre controlador e dispositivos |\n\n### Como cai na prova\n\n- SDN pode facilitar automação e consistência, mas não elimina falhas nem garante segurança por si só.\n- NFV virtualiza funções de rede; SDN programa o controle e o encaminhamento.\n- Controle logicamente centralizado pode ser redundante e distribuído fisicamente; disponibilidade precisa ser projetada."
+    }
+  ],
+  "summary": "SDN é uma arquitetura que separa o plano de controle, que decide políticas e caminhos, do plano de dados, que encaminha pacotes nos dispositivos. O controlador coordena regras e pode manter visão logicamente centralizada da rede sem ser um único servidor físico. Aplicações comunicam intenções ao controlador por interfaces northbound; interfaces southbound conectam o controlador aos elementos de rede. Em implementações baseadas em fluxo, tabelas com campos de correspondência, prioridade, contadores e instruções determinam ações locais. OpenFlow define comunicação entre controlador e switches OpenFlow, mas SDN não exige esse protocolo. A arquitetura facilita programabilidade, automação e aplicação coerente de políticas, porém exige proteger o controlador e planejar disponibilidade, estado, latência e comportamento em falhas. NFV implementa funções de rede em software e pode ser combinada com SDN, mas trata de questão diferente.",
+  "flashcards": [
+    { "front": "Qual é a ideia central de SDN?", "back": "Separar o controle programável da função de encaminhar pacotes e coordenar políticas por software." },
+    { "front": "O que faz o plano de controle?", "back": "Decide caminhos, políticas e regras que os dispositivos devem aplicar." },
+    { "front": "O que faz o plano de dados?", "back": "Processa e encaminha pacotes conforme as regras instaladas nos dispositivos." },
+    { "front": "Centralização lógica exige um único servidor?", "back": "Não. Controladores podem ser fisicamente distribuídos e oferecer uma visão coordenada." },
+    { "front": "Qual o papel do controlador SDN?", "back": "Coordenar o controle, interpretar políticas e programar ou monitorar elementos de rede." },
+    { "front": "O que é uma interface northbound?", "back": "A interface entre aplicações/clientes de rede e o controlador SDN." },
+    { "front": "O que é uma interface southbound?", "back": "A interface usada pelo controlador para controlar, configurar ou monitorar dispositivos." },
+    { "front": "Qual camada expressa uma intenção de serviço?", "back": "O plano de aplicação, que solicita uma política ao controlador." },
+    { "front": "O tráfego normal precisa passar pelo controlador?", "back": "Não. O dispositivo geralmente encaminha localmente usando regras previamente instaladas." },
+    { "front": "O que uma entrada de fluxo associa?", "back": "Campos de correspondência e instruções/ações para tratar o pacote correspondente." },
+    { "front": "Para que serve a prioridade de uma entrada de fluxo?", "back": "Para determinar qual regra prevalece quando mais de uma entrada corresponde ao pacote." },
+    { "front": "Para que servem contadores numa tabela de fluxo?", "back": "Para registrar estatísticas de correspondências e apoiar monitoramento." },
+    { "front": "O que é table-miss?", "back": "A situação em que nenhum fluxo corresponde; o tratamento depende da configuração da tabela." },
+    { "front": "O que significa packet-in em OpenFlow?", "back": "Mensagem que pode notificar o controlador sobre um pacote recebido pelo switch." },
+    { "front": "O que significa packet-out em OpenFlow?", "back": "Mensagem pela qual o controlador solicita ao switch uma ação de envio de pacote." },
+    { "front": "SDN e OpenFlow são sinônimos?", "back": "Não. SDN é uma arquitetura; OpenFlow é um protocolo associado à comunicação controlador-switch." },
+    { "front": "O que é NFV?", "back": "Implementação de funções de rede, como firewall, como software sobre infraestrutura computacional." },
+    { "front": "Como SDN e NFV podem trabalhar juntas?", "back": "SDN pode controlar o tráfego encaminhado para funções virtualizadas fornecidas por NFV." },
+    { "front": "Qual risco decorre de uma política incorreta no controlador?", "back": "A distribuição ampla pode propagar o erro a vários dispositivos e afetar muitos fluxos." },
+    { "front": "O que deve ser protegido além dos dispositivos numa rede SDN?", "back": "Controlador, APIs, credenciais e canais de controle, pois podem alterar políticas da rede." }
+  ],
+  "tips": [
+    "Memorize o fluxo: aplicação expressa intenção, controlador coordena e switch executa encaminhamento.",
+    "Associe northbound a aplicação-controlador e southbound a controlador-dispositivo.",
+    "Não confunda centralização lógica com um servidor físico único ou com encaminhamento centralizado.",
+    "Para questões de OpenFlow, identifique correspondência, prioridade, contadores e ações na tabela de fluxo.",
+    "Separe os conceitos: SDN programa o controle; NFV implementa funções de rede como software.",
+    "Em cenários de falha, pergunte se o problema afeta regras já instaladas, novas decisões ou o próprio plano de dados."
+  ],
+  "traps": [
+    "Afirmar que todo pacote precisa passar pelo controlador confunde o plano de controle com o encaminhamento local.",
+    "Tratar OpenFlow como sinônimo de SDN transforma um protocolo conhecido em requisito universal da arquitetura.",
+    "Dizer que controle logicamente centralizado significa um servidor único ignora implementações redundantes distribuídas.",
+    "Confundir northbound e southbound inverte as relações entre aplicações, controlador e dispositivos.",
+    "Atribuir à SDN a virtualização do firewall mistura controle de rede com a função de NFV.",
+    "Supor que SDN automaticamente evita erros e falhas ignora riscos de configuração, segurança e disponibilidade."
+  ],
+  "activeRecall": [
+    { "question": "Explique a separação entre plano de controle e plano de dados.", "answer": "O plano de controle decide políticas e caminhos; o plano de dados executa localmente o encaminhamento dos pacotes com regras instaladas." },
+    { "question": "Descreva a sequência entre uma aplicação e um pacote encaminhado em SDN.", "answer": "A aplicação solicita uma política por northbound; o controlador traduz a intenção; por southbound instala regras; o switch aplica a regra ao pacote." },
+    { "question": "Por que controle logicamente centralizado não significa servidor único?", "answer": "A lógica pode oferecer uma visão coordenada mesmo se os processos controladores forem distribuídos para escala ou disponibilidade." },
+    { "question": "Quais elementos comuns compõem uma entrada de fluxo?", "answer": "Campos de correspondência, prioridade, contadores, instruções/ações e, conforme o modelo, temporizadores e metadados." },
+    { "question": "O que pode acontecer quando um pacote não corresponde a nenhuma regra?", "answer": "O tratamento de table-miss pode descartá-lo, enviá-lo a outra tabela ou notificar o controlador, segundo a configuração." },
+    { "question": "Diferencie SDN de OpenFlow.", "answer": "SDN é uma arquitetura de controle programável separado do encaminhamento; OpenFlow é um protocolo possível para controlar switches e fluxos." },
+    { "question": "Diferencie SDN de NFV com um exemplo.", "answer": "SDN coordena políticas e conectividade; NFV fornece, por exemplo, um firewall virtual. SDN pode direcionar tráfego à função NFV." },
+    { "question": "Quais cuidados operacionais acompanham uma rede SDN?", "answer": "Proteger controlador e APIs, validar políticas, manter estado confiável, prever redundância e definir comportamento durante perda de comunicação." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Planos de controle e dados confundidos", "summary": "O controle escolhe políticas e caminhos; o plano de dados aplica regras e encaminha pacotes no dispositivo." },
+    { "key": "e2", "title": "Centralização lógica interpretada como equipamento único", "summary": "A visão de controle pode ser coordenada por uma implementação distribuída, com redundância física." },
+    { "key": "e3", "title": "Interfaces northbound e southbound invertidas", "summary": "Northbound conecta aplicações ao controlador; southbound conecta o controlador aos elementos da rede." },
+    { "key": "e4", "title": "OpenFlow tratado como a própria arquitetura SDN", "summary": "OpenFlow é um protocolo para comunicação e operações sobre fluxos; SDN pode usar outras interfaces." },
+    { "key": "e5", "title": "SDN e NFV tratados como a mesma tecnologia", "summary": "SDN programa controle e conectividade; NFV implementa funções de rede como software. As tecnologias podem ser combinadas." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer alterar por software a política de tráfego de vários switches coordenadamente. Qual característica descreve a arquitetura procurada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Substituir todos os enlaces físicos por túneis criados pelo controlador central.", "correct": false },
+        { "key": "B", "text": "Encaminhar cada pacote ao servidor de gerenciamento antes de sua entrega.", "correct": false },
+        { "key": "C", "text": "Manter uma tabela de roteamento independente e imutável em cada switch.", "correct": false },
+        { "key": "D", "text": "Transformar as aplicações de rede em funções executadas no plano de dados.", "correct": false },
+        { "key": "E", "text": "Separar as decisões de controle do encaminhamento executado pelos dispositivos.", "correct": true }
+      ],
+      "explanation": "SDN separa a lógica de controle programável da função de encaminhamento e permite coordenar regras em vários dispositivos. Não substitui enlaces, não exige enviar cada pacote ao controlador e não depende de tabelas imutáveis independentes.",
+      "section": "1. A ideia central: separar controle e encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura SDN, qual plano calcula políticas e decide as regras que serão instaladas nos equipamentos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O plano de dados, pois calcula os caminhos durante o envio de cada quadro.", "correct": false },
+        { "key": "B", "text": "O plano de aplicação, que substitui diretamente as tabelas dos switches.", "correct": false },
+        { "key": "C", "text": "O plano físico, que armazena políticas sem interação com software.", "correct": false },
+        { "key": "D", "text": "O plano de gerenciamento, que encaminha os pacotes de usuário entre portas.", "correct": false },
+        { "key": "E", "text": "O plano de controle, que coordena as decisões de rede e as regras.", "correct": true }
+      ],
+      "explanation": "O plano de controle toma decisões sobre políticas e encaminhamento e coordena sua instalação. O plano de dados executa as regras; a aplicação expressa objetivos e não substitui diretamente a tabela do equipamento.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um controlador SDN mantém visão coordenada da rede, embora seus processos estejam em três servidores. Como se descreve essa organização?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Controle distribuído fisicamente e necessariamente independente em cada servidor, sem coordenação de políticas ou estado compartilhado.", "correct": false },
+        { "key": "B", "text": "Encaminhamento centralizado, porque os servidores recebem todos os pacotes.", "correct": false },
+        { "key": "C", "text": "Controle local tradicional, sem comunicação entre os equipamentos da rede.", "correct": false },
+        { "key": "D", "text": "Controle logicamente centralizado, implementado sobre componentes distribuídos.", "correct": true },
+        { "key": "E", "text": "Virtualização de funções, que elimina a necessidade do plano de controle.", "correct": false }
+      ],
+      "explanation": "Centralização lógica descreve uma visão e uma política coordenadas, não o número de máquinas físicas. A implementação distribuída pode apoiar escala e disponibilidade sem exigir que os pacotes atravessem os servidores.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois que as regras foram instaladas nos switches, como o tráfego comum costuma ser encaminhado em SDN?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Cada pacote é enviado ao controlador para que ele escolha uma porta de saída.", "correct": false },
+        { "key": "B", "text": "O controlador retransmite os quadros entre todas as portas da rede.", "correct": false },
+        { "key": "C", "text": "A aplicação northbound recebe e entrega cada pacote aos destinatários.", "correct": false },
+        { "key": "D", "text": "Os próprios dispositivos aplicam localmente as regras de encaminhamento instaladas.", "correct": true },
+        { "key": "E", "text": "O plano de controle deixa de existir enquanto houver tráfego na rede.", "correct": false }
+      ],
+      "explanation": "A separação de planos permite que o controlador programe as regras, enquanto os dispositivos executam o encaminhamento local. Só eventos ou situações específicas podem provocar comunicação adicional com o controlador.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de qualidade de serviço solicita ao controlador que priorize o tráfego de voz. Por qual interface conceitual ela faz essa solicitação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Pela southbound, que liga diretamente a aplicação à porta física do switch.", "correct": false },
+        { "key": "B", "text": "Pela northbound, que permite ao cliente interagir com o controlador.", "correct": true },
+        { "key": "C", "text": "Pela interface de dados, que transporta as chamadas de voz ao controlador.", "correct": false },
+        { "key": "D", "text": "Pela interface de enlace, que substitui todas as APIs da rede SDN.", "correct": false },
+        { "key": "E", "text": "Pela interface OpenFlow obrigatória entre qualquer aplicação e qualquer switch.", "correct": false }
+      ],
+      "explanation": "A interface northbound permite que aplicações ou clientes solicitem serviços ao controlador. A southbound é usada entre controlador e elementos de rede; OpenFlow é uma opção de comunicação com dispositivos, não uma interface obrigatória de aplicação.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual interface conecta conceitualmente o controlador SDN a switches que serão programados?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Northbound, usada entre as aplicações e as políticas solicitadas.", "correct": false },
+        { "key": "B", "text": "User plane, que liga os usuários ao serviço de nomes da rede.", "correct": false },
+        { "key": "C", "text": "Southbound, usada para controlar ou monitorar os dispositivos de rede.", "correct": true },
+        { "key": "D", "text": "Application plane, que encaminha quadros da porta de entrada à saída.", "correct": false },
+        { "key": "E", "text": "Interface de transporte, que substitui a tabela de fluxo dos switches.", "correct": false }
+      ],
+      "explanation": "Southbound é a interface entre o controlador e os elementos da infraestrutura, podendo permitir controle, configuração ou monitoramento. Northbound conecta as aplicações ao controlador.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma solicitação de isolamento entre setores passa pela aplicação e controlador até virar regra no switch. Qual componente traduz a política em instruções para os dispositivos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O controlador, que coordena estado e programação da infraestrutura.", "correct": true },
+        { "key": "B", "text": "O enlace Ethernet, que interpreta diretamente a intenção do usuário.", "correct": false },
+        { "key": "C", "text": "A aplicação, que transmite comandos particulares diretamente a todos os switches sem passar por um componente de controle.", "correct": false },
+        { "key": "D", "text": "O plano de dados, que formula políticas administrativas para toda a rede.", "correct": false },
+        { "key": "E", "text": "A tabela MAC, que recebe as solicitações northbound e distribui configurações.", "correct": false }
+      ],
+      "explanation": "O controlador interpreta ou coordena a política recebida da aplicação e a converte em configuração apropriada para os dispositivos. O switch executa a regra; não cabe à tabela MAC receber a intenção da aplicação.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que não se pode presumir que todas as soluções SDN usem uma API northbound idêntica?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Porque aplicações SDN não podem trocar dados com os controladores.", "correct": false },
+        { "key": "B", "text": "Porque northbound é sempre uma conexão física sem formato de software.", "correct": false },
+        { "key": "C", "text": "Porque APIs só existem no plano de encaminhamento dos switches.", "correct": false },
+        { "key": "D", "text": "Porque o controlador pode oferecer diferentes APIs ou modelos para seus clientes.", "correct": true },
+        { "key": "E", "text": "Porque a interface northbound é definida exclusivamente pelo protocolo OpenFlow.", "correct": false }
+      ],
+      "explanation": "Northbound descreve a relação funcional entre aplicações e controlador, mas não determina uma API universal única. OpenFlow é associado à comunicação controlador-dispositivo, tipicamente southbound.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O controlador perde contato temporário com um switch que já possui regras instaladas. Qual conclusão é mais adequada sobre o tráfego já coberto por essas regras?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Todo encaminhamento cessa imediatamente porque os pacotes dependem do controlador.", "correct": false },
+        { "key": "B", "text": "As regras existentes ainda podem ser aplicadas localmente pelo switch.", "correct": true },
+        { "key": "C", "text": "O switch passa a receber novas políticas pela interface northbound.", "correct": false },
+        { "key": "D", "text": "O plano de dados passa a calcular uma política global sem comunicação.", "correct": false },
+        { "key": "E", "text": "Todos os fluxos são enviados ao servidor de aplicação até a reconexão.", "correct": false }
+      ],
+      "explanation": "O encaminhamento de pacotes que correspondem a regras instaladas pode continuar localmente. A perda de controle pode impedir mudanças ou tratamento de eventos que dependam do controlador, mas não implica automaticamente interromper toda regra existente.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma entrada de fluxo, que elemento identifica características do pacote que devem corresponder à regra?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Os campos de correspondência, como porta de entrada e cabeçalhos.", "correct": true },
+        { "key": "B", "text": "Os contadores, que determinam o endereço de destino do pacote.", "correct": false },
+        { "key": "C", "text": "Os temporizadores, que substituem todos os campos do cabeçalho.", "correct": false },
+        { "key": "D", "text": "A ação de saída, que identifica por si só o fluxo de entrada.", "correct": false },
+        { "key": "E", "text": "A prioridade, que contém o endereço IP completo do controlador.", "correct": false }
+      ],
+      "explanation": "Campos de correspondência permitem comparar propriedades do pacote com a entrada. A prioridade resolve precedência entre entradas aplicáveis; contadores medem ocorrências, enquanto ações definem o tratamento.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Duas entradas de fluxo correspondem ao mesmo pacote. Qual campo pode indicar qual regra tem precedência na tabela?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O contador, pois a regra mais usada sempre vence a comparação.", "correct": false },
+        { "key": "B", "text": "O cookie, que determina a prioridade de encaminhamento do pacote.", "correct": false },
+        { "key": "C", "text": "A prioridade, que participa da precedência entre entradas correspondentes.", "correct": true },
+        { "key": "D", "text": "O campo de tempo ocioso, que escolhe a saída mais rápida.", "correct": false },
+        { "key": "E", "text": "O número do controlador, que identifica a regra com maior escopo.", "correct": false }
+      ],
+      "explanation": "Em tabelas OpenFlow, a prioridade ajuda a selecionar a entrada prevalente entre regras que correspondem ao pacote. Contadores registram estatísticas e cookies são metadados opacos para uso do controlador, não critérios de processamento do pacote.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para que servem os contadores associados a entradas de fluxo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Para traduzir a intenção da aplicação em uma política de alto nível.", "correct": false },
+        { "key": "B", "text": "Para registrar estatísticas de pacotes ou bytes que correspondem à regra.", "correct": true },
+        { "key": "C", "text": "Para autenticar o controlador antes de instalar novas tabelas.", "correct": false },
+        { "key": "D", "text": "Para substituir o cabeçalho do pacote por uma mensagem northbound.", "correct": false },
+        { "key": "E", "text": "Para calcular a topologia física completa sem receber observações.", "correct": false }
+      ],
+      "explanation": "Contadores apoiam estatísticas e monitoramento das correspondências de uma regra. Não substituem APIs, autenticação ou coleta de informações topológicas.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela não encontra entrada correspondente para um pacote. Qual afirmação descreve corretamente essa condição de table-miss?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O pacote sempre é retransmitido ao controlador, qualquer que seja a configuração de table-miss definida para aquela tabela.", "correct": false },
+        { "key": "B", "text": "O switch cria uma entrada permanente com prioridade máxima para o pacote.", "correct": false },
+        { "key": "C", "text": "O controlador assume o plano de dados e encaminha todos os pacotes seguintes.", "correct": false },
+        { "key": "D", "text": "O comportamento depende da regra de falta de correspondência configurada.", "correct": true },
+        { "key": "E", "text": "A ausência de regra faz o switch ignorar todas as entradas da tabela.", "correct": false }
+      ],
+      "explanation": "A especificação OpenFlow permite diferentes tratamentos para table-miss, como descartar, continuar em outra tabela ou enviar uma notificação ao controlador. Não há um único comportamento obrigatório para toda configuração.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente SDN de OpenFlow?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "SDN é uma arquitetura; OpenFlow é um protocolo possível para controlar fluxos.", "correct": true },
+        { "key": "B", "text": "SDN é um protocolo de transporte; OpenFlow é um fabricante de switches.", "correct": false },
+        { "key": "C", "text": "SDN é uma tabela de roteamento; OpenFlow é o nome de seu controlador.", "correct": false },
+        { "key": "D", "text": "SDN é uma função NFV; OpenFlow é um tipo de firewall virtual.", "correct": false },
+        { "key": "E", "text": "SDN e OpenFlow são nomes intercambiáveis para a mesma especificação.", "correct": false }
+      ],
+      "explanation": "SDN designa uma arquitetura de controle programável separado do encaminhamento. OpenFlow padroniza comunicação e operações entre controlador e switches que o suportam, mas não é sinônimo da arquitetura.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um switch envia ao controlador uma notificação sobre um pacote recebido que não foi tratado localmente conforme a política. Qual tipo de mensagem OpenFlow pode representar essa notificação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Flow-delete, que comunica ao controlador a remoção de uma aplicação.", "correct": false },
+        { "key": "B", "text": "Packet-out, que notifica que o pacote entrou pela porta do switch.", "correct": false },
+        { "key": "C", "text": "Packet-in, que comunica ao controlador um pacote recebido pelo switch.", "correct": true },
+        { "key": "D", "text": "Table-stat, que transporta o pacote completo como regra de encaminhamento.", "correct": false },
+        { "key": "E", "text": "Port-mod, que anuncia uma nova política da aplicação northbound.", "correct": false }
+      ],
+      "explanation": "Packet-in é uma notificação do switch ao controlador sobre um pacote recebido, conforme o tratamento definido. Packet-out segue no sentido contrário: o controlador solicita ao switch uma ação de envio.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em OpenFlow, qual é a função conceitual de uma mensagem packet-out?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Informar que uma regra local venceu a tabela de roteamento do controlador.", "correct": false },
+        { "key": "B", "text": "Solicitar ao switch o envio ou processamento de um pacote indicado.", "correct": true },
+        { "key": "C", "text": "Notificar sempre a aplicação de que um enlace físico foi removido.", "correct": false },
+        { "key": "D", "text": "Atualizar automaticamente as credenciais administrativas do dispositivo.", "correct": false },
+        { "key": "E", "text": "Informar ao controlador a quantidade de bytes de todas as tabelas.", "correct": false }
+      ],
+      "explanation": "Packet-out é uma mensagem originada no controlador para que o switch execute o envio/encaminhamento de um pacote. Estatísticas e mudanças de porta têm mensagens próprias; não se deve inverter packet-in e packet-out.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer permitir que uma aplicação peça isolamento entre dois grupos, sem exigir que ela escreva diretamente comandos particulares de cada switch. Qual benefício SDN está em evidência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Abstração da infraestrutura por meio de uma interface de política.", "correct": true },
+        { "key": "B", "text": "Eliminação dos dispositivos físicos que encaminham o tráfego.", "correct": false },
+        { "key": "C", "text": "Desativação do plano de controle após a primeira configuração.", "correct": false },
+        { "key": "D", "text": "Conversão de todo tráfego Ethernet em mensagens para o controlador.", "correct": false },
+        { "key": "E", "text": "Substituição de aplicações por tabelas MAC imutáveis nos servidores.", "correct": false }
+      ],
+      "explanation": "Uma interface de política pode abstrair detalhes dos dispositivos e permitir que a aplicação expresse o objetivo. O controlador traduz esse objetivo para a infraestrutura, que continua encaminhando tráfego.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual vantagem operacional a automação SDN pode oferecer ao provisionar uma política em muitos switches?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Aplicar alterações coordenadas sem configurar manualmente cada caixa isoladamente.", "correct": true },
+        { "key": "B", "text": "Garantir que nenhuma mudança de política possa causar indisponibilidade.", "correct": false },
+        { "key": "C", "text": "Impedir que dispositivos encaminhem pacotes sem uma consulta contínua.", "correct": false },
+        { "key": "D", "text": "Remover a necessidade de monitorar enlaces e estado dos equipamentos.", "correct": false },
+        { "key": "E", "text": "Eliminar os protocolos e as interfaces entre componentes de rede.", "correct": false }
+      ],
+      "explanation": "A automação permite distribuir configurações de modo coordenado e reduz tarefas manuais repetitivas. Ela não garante ausência de falhas, não dispensa monitoramento e não elimina a comunicação entre os componentes.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe instancia um firewall virtual em servidores comuns e usa SDN para direcionar tráfego a ele. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O firewall virtual caracteriza NFV, e o controle do encaminhamento pode usar SDN.", "correct": true },
+        { "key": "B", "text": "O firewall é uma interface southbound, e SDN caracteriza sua virtualização.", "correct": false },
+        { "key": "C", "text": "NFV calcula rotas globais, enquanto SDN executa a filtragem de pacotes.", "correct": false },
+        { "key": "D", "text": "O controlador substitui o firewall e passa a inspecionar todo o conteúdo.", "correct": false },
+        { "key": "E", "text": "SDN e NFV são nomes da mesma função de segurança distribuída.", "correct": false }
+      ],
+      "explanation": "NFV permite implementar função de rede como software; o exemplo é um firewall virtual. SDN pode programar a conectividade para encaminhar tráfego até essa função, mas não se confunde com ela.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário mostra melhor o uso conjunto de SDN e NFV?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "NFV escolhe as portas físicas, enquanto SDN fornece energia aos servidores.", "correct": false },
+        { "key": "B", "text": "SDN controla conectividade até uma função virtual de firewall fornecida por NFV.", "correct": true },
+        { "key": "C", "text": "SDN executa a função de firewall e NFV substitui todas as tabelas de fluxo.", "correct": false },
+        { "key": "D", "text": "NFV remove o plano de dados, enquanto SDN encaminha cada pacote ao hipervisor.", "correct": false },
+        { "key": "E", "text": "SDN e NFV convertem aplicações de usuário em mensagens packet-in padronizadas.", "correct": false }
+      ],
+      "explanation": "NFV fornece a função virtualizada, como firewall, e SDN pode controlar os caminhos que conectam o tráfego a essa função. Os papéis são complementares, não substituições recíprocas.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma credencial comprometida permite alterar políticas no controlador SDN. Por que isso representa risco significativo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Porque o controlador pode distribuir alterações que afetam vários dispositivos e fluxos.", "correct": true },
+        { "key": "B", "text": "Porque as credenciais só autorizam consultar contadores sem mudar regras.", "correct": false },
+        { "key": "C", "text": "Porque a arquitetura impede que políticas sejam revisadas após instaladas.", "correct": false },
+        { "key": "D", "text": "Porque a interface northbound transporta diretamente a senha em cada pacote.", "correct": false },
+        { "key": "E", "text": "Porque o controlador não participa da configuração dos dispositivos SDN, que recebem toda política diretamente das aplicações.", "correct": false }
+      ],
+      "explanation": "O controlador coordena políticas e pode programar vários elementos; acesso indevido a ele ou às suas APIs pode propagar alterações amplas. A proteção de credenciais e a validação de mudanças são controles importantes.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A visão global do controlador está desatualizada porque alguns eventos de enlace não chegaram. Qual efeito é plausível?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A aplicação passa a encaminhar quadros sem consultar qualquer dispositivo.", "correct": false },
+        { "key": "B", "text": "O estado incorreto pode levar o controlador a instalar decisões inadequadas.", "correct": true },
+        { "key": "C", "text": "A tabela de fluxo deixa de aceitar campos de correspondência existentes.", "correct": false },
+        { "key": "D", "text": "O plano de dados passa a interpretar APIs northbound diretamente.", "correct": false },
+        { "key": "E", "text": "A perda de telemetria remove automaticamente todos os enlaces físicos e substitui os caminhos que o controlador conhece.", "correct": false }
+      ],
+      "explanation": "O controlador depende de informações de topologia e estado para coordenar decisões. Telemetria incompleta ou desatualizada pode resultar em regras impróprias; monitoramento e reconciliação de estado reduzem esse risco.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política automatizada válida no laboratório é distribuída sem revisão e bloqueia o acesso de vários setores. Que cuidado teria reduzido esse risco?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Validar alterações e controlar sua distribuição antes de aplicá-las amplamente.", "correct": true },
+        { "key": "B", "text": "Desativar os contadores para que os switches escolham regras aleatórias.", "correct": false },
+        { "key": "C", "text": "Encaminhar todos os pacotes ao plano northbound para revisão individual.", "correct": false },
+        { "key": "D", "text": "Remover o controlador e manter regras locais sem documentação.", "correct": false },
+        { "key": "E", "text": "Substituir a automação SDN por uma função NFV de balanceamento.", "correct": false }
+      ],
+      "explanation": "A automação amplia a velocidade e o alcance das mudanças, inclusive de erros. Revisão, teste, autorização e implantação gradual ajudam a evitar que uma política defeituosa afete simultaneamente muitos dispositivos.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede OpenFlow, onde permanece a parte de data path responsável pelo encaminhamento rápido dos pacotes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "No controlador, que processa todo quadro recebido por qualquer switch.", "correct": false },
+        { "key": "B", "text": "Na aplicação northbound, que calcula a saída física de cada pacote.", "correct": false },
+        { "key": "C", "text": "No switch, que aplica as regras às quais o pacote corresponde.", "correct": true },
+        { "key": "D", "text": "No servidor de gerenciamento, que substitui as tabelas de fluxo.", "correct": false },
+        { "key": "E", "text": "Na interface southbound, que funciona como enlace de dados de usuário.", "correct": false }
+      ],
+      "explanation": "A separação move decisões de alto nível para o controlador, mas a parte de encaminhamento permanece no switch. O dispositivo aplica as regras e encaminha localmente os pacotes correspondentes.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um controlador recebe informações de topologia e enlace. Para que esse estado é útil ao plano de controle?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Para transformar os contadores das tabelas em cabeçalhos de usuário.", "correct": false },
+        { "key": "B", "text": "Para eliminar a necessidade de conhecer a disponibilidade dos enlaces.", "correct": false },
+        { "key": "C", "text": "Para substituir as aplicações e os dispositivos da infraestrutura.", "correct": false },
+        { "key": "D", "text": "Para apoiar decisões de caminho e política com uma visão da rede.", "correct": true },
+        { "key": "E", "text": "Para enviar os pacotes de usuário à interface northbound em sequência.", "correct": false }
+      ],
+      "explanation": "Informações de topologia e estado ajudam o controlador a escolher caminhos e coordenar políticas. Se estiverem incompletas ou desatualizadas, as decisões podem ser inadequadas; monitoramento continua necessário.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução usa uma API própria entre aplicações de rede e controlador e outra tecnologia para falar com switches. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A solução não pode ser SDN, porque as interfaces precisam ser idênticas.", "correct": false },
+        { "key": "B", "text": "A API de aplicação deve ser OpenFlow para permitir controle lógico.", "correct": false },
+        { "key": "C", "text": "O controlador pode usar interfaces diferentes nas relações northbound e southbound.", "correct": true },
+        { "key": "D", "text": "A tecnologia dos switches passa a constituir o plano de aplicação, executando intenções de serviço sem a coordenação de um controlador.", "correct": false },
+        { "key": "E", "text": "O plano de dados precisa executar as solicitações da aplicação diretamente.", "correct": false }
+      ],
+      "explanation": "Northbound e southbound nomeiam relações funcionais distintas, e não exigem uma tecnologia idêntica. A aplicação conversa com o controlador por uma interface; o controlador pode usar outro mecanismo para programar os dispositivos.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que a equipe de uma rede SDN deve proteger as APIs e as credenciais administrativas do controlador?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Porque APIs são usadas exclusivamente para encaminhar tráfego criptografado.", "correct": false },
+        { "key": "B", "text": "Porque uma credencial permite consultar apenas informações sem efeito operacional.", "correct": false },
+        { "key": "C", "text": "Porque o controlador não tem capacidade de modificar regras nos dispositivos.", "correct": false },
+        { "key": "D", "text": "Porque os switches deixam de validar qualquer entrada de fluxo após a conexão.", "correct": false },
+        { "key": "E", "text": "Porque acesso indevido pode alterar políticas distribuídas a elementos de rede.", "correct": true }
+      ],
+      "explanation": "O controlador pode coordenar mudanças em diversos dispositivos. Proteger as credenciais e interfaces que o acessam reduz o risco de um agente indevido distribuir políticas que interrompam ou redirecionem tráfego.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote corresponde a uma entrada cujo tratamento encaminha o tráfego por uma porta. Qual plano executa essa ação no funcionamento normal?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O plano de aplicação, que escolhe cada porta física em tempo real.", "correct": false },
+        { "key": "B", "text": "O plano de dados do dispositivo, aplicando a regra instalada.", "correct": true },
+        { "key": "C", "text": "A interface northbound, que atua como tabela de comutação.", "correct": false },
+        { "key": "D", "text": "O controlador, que recebe e retransmite todos os pacotes de usuário.", "correct": false },
+        { "key": "E", "text": "O plano de gerenciamento, que opera como canal de transmissão Ethernet.", "correct": false }
+      ],
+      "explanation": "O plano de dados do switch aplica as regras instaladas e executa o encaminhamento. O controlador coordena decisões, mas os pacotes correspondentes não precisam passar por ele.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede automatiza a distribuição de políticas por software. Qual limite ainda precisa ser considerado no projeto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A automação impede qualquer erro de configuração em aplicações de rede.", "correct": false },
+        { "key": "B", "text": "A separação dos planos torna dispensável planejar a capacidade dos switches.", "correct": false },
+        { "key": "C", "text": "As regras SDN não podem ser verificadas após sua instalação nos dispositivos.", "correct": false },
+        { "key": "D", "text": "A coordenação centralizada elimina todos os pontos de falha do sistema.", "correct": false },
+        { "key": "E", "text": "Falhas, capacidade, estado atualizado e segurança continuam exigindo planejamento.", "correct": true }
+      ],
+      "explanation": "SDN facilita programar e coordenar mudanças, mas não elimina falhas físicas, erros de política, limites de capacidade ou riscos de segurança. Disponibilidade, estado confiável e validação devem ser projetados.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na definição da ONF, a separação de controle e encaminhamento permite que o controle da rede seja diretamente programável.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Ao desacoplar as funções de controle e encaminhamento, a arquitetura permite programar o controle por software e abstrair a infraestrutura para aplicações e serviços.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em SDN, o plano de dados toma as decisões globais de política e o plano de controle encaminha os pacotes em cada porta.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O plano de controle coordena políticas e regras; o plano de dados aplica as regras e encaminha os pacotes. A afirmação troca as responsabilidades dos planos.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação SDN pode manter o plano de controle logicamente centralizado usando componentes controladores redundantes em servidores distintos.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Centralização lógica descreve uma visão e coordenação comuns. A distribuição física de processos pode apoiar resiliência ou escala, desde que preserve a coordenação necessária.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como o controlador instala regras antes do tráfego, o encaminhamento comum costuma ser executado nos dispositivos de rede.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O controlador coordena o controle; os switches mantêm e aplicam regras no plano de dados. O controlador não precisa retransmitir continuamente cada pacote.",
+      "section": "1. A ideia central: separar controle e encaminhamento", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A interface northbound descreve a comunicação conceitual entre o controlador e os dispositivos de encaminhamento.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Northbound conecta aplicações ou clientes ao controlador. A comunicação do controlador com os elementos de rede é associada à interface southbound.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface southbound pode ser usada para o controlador configurar ou monitorar um elemento de rede.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A relação southbound permite controlar, configurar ou monitorar elementos reais ou virtuais da infraestrutura, conforme o protocolo e a solução adotados.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pode expressar uma política por meio do controlador sem escrever diretamente cada comando específico de cada switch.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A abstração permite expressar objetivos em nível mais alto. O controlador coordena a tradução para configurações compatíveis com os dispositivos envolvidos.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A ONF define que todo controlador SDN deve ser executado em um único servidor físico para manter uma visão centralizada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A centralização é lógica: o controlador pode ter implementação distribuída. A arquitetura não exige um único servidor físico, e a redundância pode ser usada para disponibilidade.",
+      "section": "2. Camadas, controlador e interfaces", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada de fluxo pode combinar campos de correspondência, prioridade, contadores e instruções para tratar pacotes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A especificação de switch OpenFlow descreve esses componentes em uma entrada de fluxo, que permite identificar tráfego e determinar como processá-lo.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O controlador usa os contadores de uma regra para que eles funcionem como ações executadas no cabeçalho do pacote.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Contadores registram estatísticas de correspondências. As instruções e ações determinam o processamento do pacote; são funções distintas na entrada de fluxo.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra table-miss pode ser configurada para descartar o pacote que não corresponde a nenhuma outra entrada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Entre os tratamentos possíveis para falta de correspondência estão descarte, encaminhamento a outra tabela ou envio de notificação ao controlador, conforme configuração.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "OpenFlow é obrigatório em toda implementação SDN, pois não existem outros mecanismos de comunicação southbound.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. OpenFlow é um protocolo importante, mas SDN é uma arquitetura e pode usar outros protocolos, APIs ou modelos para controlar e monitorar dispositivos.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em OpenFlow, uma mensagem packet-in pode comunicar ao controlador que um pacote chegou ao switch e requer tratamento previsto pela configuração.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Packet-in é uma notificação que pode levar informações de um pacote recebido ao controlador, como em determinados casos de table-miss.",
+      "section": "3. Programabilidade, regras de fluxo e OpenFlow", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "NFV e SDN podem ser combinadas, mas virtualizar uma função de firewall não é a mesma tarefa que programar o encaminhamento até essa função.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. NFV implementa funções de rede como software; SDN coordena políticas e conectividade. Uma rede pode direcionar tráfego por SDN para um firewall fornecido por NFV.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma visão global do controlador torna desnecessário monitorar o estado dos enlaces, pois as políticas SDN permanecem corretas diante de qualquer falha.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Decisões coordenadas dependem de informações atuais sobre a rede. Telemetria, monitoramento e tratamento de falhas continuam necessários, e SDN não garante por si só que políticas se mantenham corretas após qualquer evento.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra maliciosa instalada por meio de credenciais comprometidas pode afetar diversos dispositivos se o controlador coordenar políticas sobre eles.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O alcance coordenado do controlador é útil para automação, mas também amplia o impacto potencial de credenciais roubadas ou políticas incorretas. Proteger APIs e validar alterações é essencial.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O plano de dados pode continuar aplicando regras instaladas mesmo quando uma mudança de política depende de restabelecer a comunicação com o controlador.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Regras ativas podem permanecer no dispositivo e atender tráfego correspondente. Atualizar políticas ou tratar certos eventos pode depender da comunicação com o controlador, por isso o comportamento em falhas deve ser planejado.",
+      "section": "4. Usos, vantagens, limites e distinções", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Software-Defined Networking (SDN) Definition",
+      "publisher": "Open Networking Foundation",
+      "reference": "Definição de SDN, separação entre controle e encaminhamento, programabilidade e controle logicamente centralizado.",
+      "url": "https://opennetworking.org/sdn-definition/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ONF Specifications",
+      "publisher": "Open Networking Foundation",
+      "reference": "Papel do OpenFlow, comunicação entre controlador e switch e separação de data path e control path.",
+      "url": "https://opennetworking.org/sdn-resources/onf-specifications/onf-specifications/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenFlow Switch Specification Version 1.3.1",
+      "publisher": "Open Networking Foundation",
+      "reference": "Entradas e tabelas de fluxo, correspondência, prioridade, contadores, instruções, table-miss e mensagens OpenFlow.",
+      "url": "https://opennetworking.org/wp-content/uploads/2013/04/openflow-spec-v1.3.1.pdf",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Framework for SDN: Scope and Requirements",
+      "publisher": "Open Networking Foundation",
+      "reference": "Terminologia de controlador, interface northbound entre aplicações e controlador e interface southbound com elementos de rede.",
+      "url": "https://opennetworking.org/wp-content/uploads/2014/10/Framework_for_SDN_-Scope_and_Requirements.pdf",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

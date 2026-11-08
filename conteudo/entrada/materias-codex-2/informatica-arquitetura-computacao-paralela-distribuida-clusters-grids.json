@@ -1,0 +1,1766 @@
+{
+  "id": "informatica.arquitetura-computacao-paralela-distribuida-clusters-grids",
+  "subject": "Informática",
+  "title": "Arquiteturas de computação paralela e distribuída: clusters e grids",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Computação paralela e distribuída",
+    "Arquitetura de computação paralela e distribuída",
+    "Taxonomia de Flynn para computadores",
+    "SISD SIMD MISD e MIMD",
+    "Arquiteturas SMP e MPP em sistemas paralelos",
+    "Computação em aglomerados de computadores",
+    "Clusters de alto desempenho computacional",
+    "Computação em grades computacionais distribuídas",
+    "Balanceamento de carga em sistemas paralelos",
+    "Avaliação de desempenho de computadores paralelos",
+    "Paralelismo e concorrência em sistemas computacionais",
+    "Clusters e grids de computação distribuída"
+  ],
+  "scope": {
+    "covers": "Diferenças e relações entre concorrência, paralelismo e computação distribuída; fluxos de instruções e dados na taxonomia de Flynn (SISD, SIMD, MISD, MIMD); memória compartilhada e distribuída; arquiteturas SMP e MPP; organização, usos e limites de clusters e grids; escalonamento e balanceamento de carga estático e dinâmico; métricas de desempenho, speedup, eficiência, escalabilidade, overhead e benchmarks.",
+    "excludes": "Programação detalhada com MPI, OpenMP ou CUDA; configuração de produtos específicos de nuvem; administração de sistemas operacionais e redes; fórmulas avançadas de análise de algoritmos paralelos."
+  },
+  "theoryTitle": "De vários fluxos de trabalho a uma computação coordenada",
+  "chapters": [
+    {
+      "title": "1. Concorrência, paralelismo e distribuição",
+      "markdown": "### O problema que este assunto resolve\n\nUma tarefa grande pode levar tempo demais para um único núcleo ou computador. A ideia é dividir o trabalho, executar partes que não dependam umas das outras e combinar os resultados. O ganho depende de a divisão valer o custo de coordenar as partes.\n\n> **Siglas e termos deste capítulo**\n> - **Concorrência**: organização de várias tarefas em andamento durante períodos sobrepostos; elas podem alternar o uso de um núcleo.\n> - **Paralelismo**: execução efetivamente simultânea de operações em unidades de processamento distintas.\n> - **Processo e thread**: unidades de execução; threads do mesmo processo podem compartilhar espaço de endereçamento.\n> - **Nó**: computador participante de um sistema maior.\n> - **Memória compartilhada/distribuída**: memória acessível por endereço comum aos processadores / memória local a cada nó, trocada por comunicação.\n\nConcorrência é uma propriedade de organização e progresso: por exemplo, um núcleo alterna entre duas tarefas, mantendo ambas ativas sem executá-las no mesmo instante. Paralelismo é uma propriedade de execução: dois núcleos podem calcular ao mesmo tempo. Um programa pode ser concorrente sem obter paralelismo, e um programa paralelo normalmente contém tarefas concorrentes coordenadas.\n\nComputação distribuída envolve componentes em computadores distintos que comunicam por uma rede. Cada nó tem recursos locais e pode falhar ou atrasar sem que os demais parem no mesmo instante. Um sistema distribuído pode executar trabalho em paralelo, mas os conceitos não são sinônimos: um processador multicore pode ser paralelo sem ser distribuído; um serviço distribuído pode coordenar tarefas que não executam simultaneamente.\n\n| Modelo | Onde executa | Como compartilha informação | Exemplo típico |\n| --- | --- | --- | --- |\n| Concorrente | Uma ou várias unidades | Estado ou mensagens | Servidor que atende várias conexões alternando tarefas |\n| Paralelo | Unidades simultâneas, no mesmo computador ou em vários | Memória comum ou troca de mensagens | Dividir uma matriz entre núcleos |\n| Distribuído | Nós autônomos ligados por rede | Mensagens e protocolos | Vários servidores cooperando em uma aplicação |\n\nA divisão do trabalho traz custos: comunicação, sincronização, criação de tarefas, contenção por memória e espera pela parte mais lenta. Uma dependência sequencial impõe uma parcela que não pode ser acelerada simplesmente acrescentando processadores.\n\n### Como cai na prova\n\n- Alternância de tarefas em um núcleo demonstra concorrência, não simultaneidade física.\n- Núcleos distintos executando operações ao mesmo tempo caracterizam paralelismo.\n- Memória local por nó e troca de mensagens são indícios de distribuição.\n- Mais processadores não garantem menor tempo: comunicação, sincronização e fração sequencial podem consumir o ganho."
+    },
+    {
+      "title": "2. Taxonomia de Flynn e organização de memória",
+      "markdown": "### O problema que este assunto resolve\n\nA taxonomia de Flynn classifica arquiteturas pelo número de fluxos de instruções e de dados em execução. Ela oferece uma forma compacta de distinguir uma unidade sequencial, uma operação aplicada a muitos dados e múltiplos processadores autônomos.\n\n> **Siglas e termos deste capítulo**\n> - **SISD**: Single Instruction, Single Data; um fluxo de instruções e um de dados.\n> - **SIMD**: Single Instruction, Multiple Data; uma instrução opera sobre vários elementos de dados.\n> - **MISD**: Multiple Instruction, Single Data; vários fluxos de instrução atuam sobre um fluxo de dados.\n> - **MIMD**: Multiple Instruction, Multiple Data; processadores executam instruções e dados distintos.\n> - **SMP**: Symmetric Multiprocessor; multiprocessamento simétrico com memória compartilhada.\n> - **MPP**: Massively Parallel Processing; processamento paralelo massivo, usualmente com nós de memória distribuída.\n\n| Classe | Instruções | Dados | Leitura prática |\n| --- | --- | --- | --- |\n| SISD | Um fluxo | Um fluxo | Execução sequencial convencional |\n| SIMD | Um fluxo | Vários fluxos | Mesma operação aplicada a elementos distintos, como vetores |\n| MISD | Vários fluxos | Um fluxo | Classe rara; pode modelar etapas ou análises distintas sobre uma sequência |\n| MIMD | Vários fluxos | Vários fluxos | Processadores independentes executam tarefas e dados diferentes |\n\nA classificação olha para fluxos, não para quantidade de máquinas, compartilhamento de memória ou desempenho. Um sistema MIMD pode ser SMP ou MPP; muitos processadores modernos combinam núcleos MIMD com unidades SIMD. MISD aparece pouco em sistemas comerciais gerais, então exemplos devem ser tratados com cuidado.\n\nEm SMP, vários processadores têm acesso a um espaço de endereçamento compartilhado e, em geral, sistema operacional e recursos comuns. A comunicação por memória é conveniente, mas contenção de barramento, coerência de cache e acesso NUMA podem limitar a escala. Em MPP, vários nós possuem memória local; o programa divide os dados e troca mensagens pela interconexão. A escala pode ser grande, mas o software precisa tratar comunicação e distribuição de dados. SMP e MPP descrevem organização de sistema, não categorias adicionais de Flynn.\n\n### Como cai na prova\n\n- SIMD significa uma instrução e múltiplos dados, não múltiplas instruções.\n- MIMD admite fluxos autônomos; SMP e clusters MPP podem se encaixar nessa classe.\n- Memória compartilhada sugere SMP; vários nós com memória privada e mensagens sugerem MPP.\n- A taxonomia não mede velocidade nem diz se a comunicação é por rede."
+    },
+    {
+      "title": "3. Clusters e grids",
+      "markdown": "### O problema que este assunto resolve\n\nQuando um único computador não oferece capacidade, disponibilidade ou armazenamento suficientes, vários recursos podem cooperar. Cluster e grid fazem isso com graus diferentes de proximidade, administração e autonomia.\n\n> **Siglas e termos deste capítulo**\n> - **Cluster (aglomerado)**: conjunto de computadores conectados e coordenados para funcionar como recurso integrado.\n> - **Nó de computação**: máquina que executa uma parte do trabalho.\n> - **Interconexão**: rede que transporta mensagens entre nós.\n> - **Grid (grade)**: federação de recursos computacionais administrados por domínios distintos e compartilhados para tarefas comuns.\n> - **Middleware**: camada que apresenta recursos, agenda tarefas ou coordena comunicação.\n\nUm cluster costuma reunir nós próximos, com rede de baixa latência e administração coordenada. Pode atender a alto desempenho, alta disponibilidade ou balanceamento de requisições. Em cluster de alto desempenho, um trabalho é dividido entre nós; em alta disponibilidade, réplicas ou nós de reserva ajudam a manter o serviço após falha; em cluster de balanceamento, requisições são encaminhadas a instâncias aptas. Esses objetivos podem coexistir, mas não são a mesma função.\n\nUma grade (grid) agrega recursos que podem pertencer a instituições diferentes, ter hardware e políticas heterogêneas e estar geograficamente afastados. Um middleware ou escalonador negocia recursos e distribui tarefas. Grades favorecem trabalhos independentes ou de acoplamento mais frouxo, porque a latência e a autonomia entre domínios tornam comunicação frequente e sincronização apertada caras. Compartilhar a grade não implica que todos os nós usem o mesmo sistema operacional ou pertençam a um único administrador.\n\n| Característica | Cluster | Grid\n| --- | --- | --- |\n| Administração | Mais centralizada | Federação entre domínios |\n| Localização e rede | Em geral próximos, rede rápida | Podem ser geograficamente dispersos |\n| Hardware e política | Frequentemente mais homogêneos | Podem ser heterogêneos e autônomos |\n| Trabalho adequado | Paralelismo acoplado e serviços integrados | Lotes independentes e recursos compartilhados |\n\n### Como cai na prova\n\n- “Um sistema” com nós próximos e coordenados aponta para cluster.\n- Recursos de várias organizações, heterogêneos e federados apontam para grid.\n- Cluster de alta disponibilidade detecta falhas e transfere ou replica serviço; balanceador distribui carga.\n- Uma grid não é simplesmente uma rede local grande: autonomia administrativa e compartilhamento de recursos são traços importantes."
+    },
+    {
+      "title": "4. Balanceamento de carga e escalonamento",
+      "markdown": "### O problema que este assunto resolve\n\nSe tarefas de durações diferentes forem distribuídas sem critério, alguns processadores terminam cedo e ficam ociosos enquanto outros ainda trabalham. Balancear é atribuir trabalho para reduzir essa espera e aproveitar os recursos, respeitando comunicação, capacidade e dependências.\n\n> **Siglas e termos deste capítulo**\n> - **Carga**: trabalho pendente ou recurso consumido, como CPU, memória, rede ou fila.\n> - **Escalonador**: componente que decide onde e quando uma tarefa será executada.\n> - **Balanceamento estático**: atribuição definida antes da execução, usando informação conhecida.\n> - **Balanceamento dinâmico**: distribuição ajustada durante a execução a partir da carga observada.\n> - **Migração**: mover tarefa em andamento ou pendente para outro nó.\n\nNa estratégia estática, o particionamento é feito antes do processamento. É simples e tem pouco custo de controle quando tarefas e capacidades são previsíveis; perde eficiência se a duração real variar ou houver falhas. Na estratégia dinâmica, um coordenador, fila compartilhada ou protocolo redistribui tarefas durante a execução. Ela se adapta a cargas variáveis, mas a medição, comunicação, migração e decisões do escalonador também consomem tempo.\n\nUma fila central facilita a atribuição de tarefas, mas pode virar gargalo ou ponto de falha. Filas locais e roubo de trabalho reduzem a dependência de um coordenador: um nó ocioso busca trabalho em outro. A escolha entre enviar trabalho ao menos carregado, deixar tarefas em fila ou migrar execução depende do custo de transferência e dos dados associados. Em cluster com tarefas ligadas a dados, enviar o cálculo até os dados pode ser melhor que mover grandes volumes.\n\nO objetivo não é necessariamente igualar a quantidade de tarefas. Um nó mais potente pode receber mais trabalho; tarefas com dependências devem respeitar precedências; distribuir demais tarefas pequenas aumenta overhead. Boa política considera CPU, memória, rede, afinidade e prazo, não só a contagem de processos.\n\n### Como cai na prova\n\n- Tarefas previsíveis distribuídas previamente: balanceamento estático.\n- Carga variável medida em execução: balanceamento dinâmico, com custo de monitoramento.\n- Contagem igual de tarefas não garante tempos iguais se capacidades e durações diferirem.\n- Migração pode aliviar um nó, mas custar mais que deixar o trabalho terminar onde começou."
+    },
+    {
+      "title": "5. Avaliação de desempenho e escalabilidade",
+      "markdown": "### O problema que este assunto resolve\n\nDizer que um sistema é “mais rápido” só tem sentido quando se identifica a tarefa, o tamanho do problema, a métrica e as condições de medição. Uma máquina pode se destacar em álgebra linear densa e ser mediana em acesso a disco ou em tarefas com muitas mensagens.\n\n> **Siglas e termos deste capítulo**\n> - **T1**: tempo da execução sequencial de referência.\n> - **Tp**: tempo de execução paralela com p processadores.\n> - **Speedup**: razão T1/Tp, aceleração observada.\n> - **Eficiência**: speedup dividido por p; indica aproveitamento médio dos processadores.\n> - **Throughput e latência**: trabalhos concluídos por unidade de tempo / tempo para uma solicitação individual.\n> - **Benchmark**: carga de teste definida para comparar desempenho.\n\nSpeedup ideal seria p quando p processadores reduzem o tempo por um fator p; na prática, parte sequencial, comunicação, sincronização, desbalanceamento e contenção reduzem o ganho. Se Tp não cair proporcionalmente ao aumento de p, a eficiência diminui. Speedup superlinear pode ocorrer em cenários específicos, por exemplo quando a memória agregada permite manter dados em cache, mas não é uma expectativa geral.\n\nEscalabilidade forte mantém o tamanho do problema fixo e pergunta como o tempo muda ao aumentar processadores. Escalabilidade fraca aumenta o problema junto com os recursos e observa se o tempo se mantém aproximadamente constante. Essas avaliações respondem perguntas diferentes. Medições precisam fixar entrada, configuração, versão, aquecimento, concorrência e número de execuções; relatar somente o pico teórico confunde capacidade máxima nominal com desempenho obtido.\n\nLINPACK/HPL, usado na lista TOP500, mede solução de sistemas densos de equações lineares e fornece números como Rmax (desempenho medido para o maior problema executado), Rpeak (pico teórico) e Nmax (tamanho correspondente). É útil para comparação nessa carga, mas não representa por si só todo o desempenho de um sistema. Uma avaliação prática escolhe benchmarks que representem o uso pretendido e pode incluir tempo, throughput, latência, consumo e custo.\n\n### Como cai na prova\n\n- Speedup = T1/Tp; eficiência = speedup/p.\n- Amdahl explica o limite imposto pela parcela sequencial quando o tamanho do problema é fixo.\n- Escalabilidade forte fixa o problema; fraca cresce o problema com os recursos.\n- TOP500/LINPACK compara desempenho em álgebra linear densa, não em toda aplicação possível."
+    }
+  ],
+  "summary": "Concorrência organiza tarefas que progridem em períodos sobrepostos; paralelismo executa operações simultaneamente; computação distribuída coordena nós autônomos por comunicação. Flynn classifica fluxos de instrução e dados: SISD (um e um), SIMD (um e vários), MISD (vários e um) e MIMD (vários e vários). SMP compartilha espaço de memória, enquanto MPP combina nós com memória local e comunicação entre eles. Clusters tendem a ser próximos e administrados em conjunto; grids federam recursos possivelmente heterogêneos e sob domínios distintos. Balanceamento estático distribui previamente; dinâmico reage à carga durante a execução, com custo de coordenação. Speedup compara tempos, eficiência normaliza pelo número de processadores, escalabilidade forte mantém o problema fixo e fraca cresce a carga com os recursos. O desempenho depende também de comunicação, sincronização, desbalanceamento e da adequação do benchmark à aplicação.",
+  "flashcards": [
+    {
+      "front": "Concorrência exige dois núcleos executando ao mesmo tempo?",
+      "back": "Não. Tarefas podem progredir por alternância em um único núcleo."
+    },
+    {
+      "front": "O que caracteriza paralelismo?",
+      "back": "Execução simultânea de operações em unidades de processamento distintas."
+    },
+    {
+      "front": "Qual é a característica de memória de um sistema distribuído?",
+      "back": "Cada nó tem memória local; nós trocam informação por comunicação, normalmente mensagens pela rede."
+    },
+    {
+      "front": "O que significam os dois eixos de Flynn?",
+      "back": "Número de fluxos de instruções e número de fluxos de dados."
+    },
+    {
+      "front": "Defina SISD.",
+      "back": "Um fluxo de instruções opera sobre um fluxo de dados."
+    },
+    {
+      "front": "Defina SIMD.",
+      "back": "Um fluxo de instruções aplica operações a múltiplos fluxos ou elementos de dados."
+    },
+    {
+      "front": "Defina MISD.",
+      "back": "Múltiplos fluxos de instruções atuam sobre um fluxo de dados; é uma classe rara."
+    },
+    {
+      "front": "Defina MIMD.",
+      "back": "Múltiplos fluxos de instruções atuam sobre múltiplos fluxos de dados."
+    },
+    {
+      "front": "O que caracteriza SMP?",
+      "back": "Processadores compartilham espaço de endereçamento e recursos de memória."
+    },
+    {
+      "front": "O que caracteriza MPP?",
+      "back": "Vários nós paralelos com memória local, coordenados para executar partes de um trabalho."
+    },
+    {
+      "front": "Como se comunicam processadores em SMP?",
+      "back": "Podem ler e escrever memória compartilhada, sujeitos a contenção e coerência."
+    },
+    {
+      "front": "Como se comunicam nós em MPP?",
+      "back": "Trocam mensagens pela interconexão, pois cada nó tem memória própria."
+    },
+    {
+      "front": "O que costuma caracterizar um cluster?",
+      "back": "Nós conectados, próximos e coordenados como recurso integrado."
+    },
+    {
+      "front": "O que costuma caracterizar uma grid?",
+      "back": "Federação de recursos compartilhados entre domínios administrativos possivelmente distintos."
+    },
+    {
+      "front": "Balanceamento estático é feito quando?",
+      "back": "Antes da execução, com base nas tarefas e capacidades estimadas."
+    },
+    {
+      "front": "Qual o custo do balanceamento dinâmico?",
+      "back": "Medição, comunicação, coordenação e eventual migração de tarefas."
+    },
+    {
+      "front": "Como se calcula speedup?",
+      "back": "Tempo sequencial de referência dividido pelo tempo paralelo: T1/Tp."
+    },
+    {
+      "front": "Como se calcula eficiência paralela?",
+      "back": "Speedup dividido pelo número de processadores usados."
+    },
+    {
+      "front": "O que fixa a escalabilidade forte?",
+      "back": "O tamanho do problema enquanto aumenta o número de processadores."
+    },
+    {
+      "front": "O que varia na escalabilidade fraca?",
+      "back": "O tamanho da carga aumenta junto com os recursos computacionais."
+    },
+    {
+      "front": "O que mede LINPACK na lista TOP500?",
+      "back": "Desempenho ao resolver sistemas densos de equações lineares; não representa toda carga de trabalho."
+    },
+    {
+      "front": "Por que adicionar núcleos pode não acelerar uma aplicação?",
+      "back": "Fração sequencial, comunicação, sincronização, contenção e desequilíbrio consomem o ganho."
+    }
+  ],
+  "tips": [
+    "Para Flynn, conte primeiro fluxos de instruções e depois fluxos de dados; não confunda dados múltiplos com processadores múltiplos.",
+    "SMP remete a memória compartilhada; MPP, a múltiplos nós e memória distribuída.",
+    "Cluster descreve conjunto integrado; grid descreve federação de recursos, com frequência entre organizações.",
+    "Balanceamento estático decide antes; dinâmico mede e redistribui durante a execução.",
+    "Antes de calcular speedup, confirme que T1 e Tp usam a mesma tarefa e entrada.",
+    "Um benchmark só sustenta conclusões sobre as cargas e condições que representa."
+  ],
+  "traps": [
+    "Concorrência e paralelismo não são sinônimos: concorrência pode ocorrer por alternância num núcleo.",
+    "SIMD não significa vários fluxos de instruções; significa uma instrução e vários dados.",
+    "SMP e MPP não são classes da taxonomia de Flynn; descrevem organização de memória e processadores.",
+    "Grid não pressupõe um único proprietário ou hardware uniforme; a federação pode reunir domínios heterogêneos.",
+    "Distribuir a mesma quantidade de tarefas não equilibra necessariamente a carga se tarefas e nós diferem.",
+    "Um resultado alto em LINPACK não prova que o sistema será igualmente rápido em qualquer aplicação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que uma execução concorrente pode não ser paralela.",
+      "answer": "Um núcleo pode alternar entre tarefas concorrentes, mantendo ambas em progresso em períodos sobrepostos sem executá-las no mesmo instante."
+    },
+    {
+      "question": "Classifique SIMD e MIMD pelos fluxos de instrução e dados.",
+      "answer": "SIMD tem um fluxo de instruções e vários de dados; MIMD tem múltiplos fluxos de ambos."
+    },
+    {
+      "question": "Compare SMP e MPP quanto à memória e comunicação.",
+      "answer": "SMP compartilha espaço de memória entre processadores; MPP distribui memória entre nós e troca dados por mensagens."
+    },
+    {
+      "question": "Compare cluster e grid em administração e rede.",
+      "answer": "Cluster costuma ter nós próximos, rede rápida e controle coordenado; grid agrega recursos possivelmente distantes, heterogêneos e administrados por domínios distintos."
+    },
+    {
+      "question": "Quando escolher balanceamento dinâmico e qual seu custo?",
+      "answer": "Quando a carga varia ou é difícil prever tarefas; custa monitoramento e coordenação e pode exigir comunicação ou migração."
+    },
+    {
+      "question": "Calcule speedup se T1=120 segundos e Tp=30 segundos em 4 processadores. Qual a eficiência?",
+      "answer": "Speedup = 120/30 = 4; eficiência = 4/4 = 1, ou 100% para essa medição."
+    },
+    {
+      "question": "Diferencie escalabilidade forte e fraca.",
+      "answer": "A forte mantém o problema fixo e aumenta processadores; a fraca aumenta problema e recursos juntos."
+    },
+    {
+      "question": "O que se pode e o que não se pode concluir do LINPACK usado no TOP500?",
+      "answer": "Pode-se comparar o desempenho na solução de sistemas densos de equações lineares sob as condições do benchmark; não se conclui que uma máquina é mais rápida em toda aplicação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Concorrência confundida com simultaneidade",
+      "summary": "Concorrência trata de tarefas em progresso intercalado ou sobreposto; paralelismo exige execução simultânea em unidades distintas."
+    },
+    {
+      "key": "e2",
+      "title": "Fluxos da taxonomia invertidos",
+      "summary": "SISD, SIMD, MISD e MIMD são distinguidos pela quantidade de fluxos de instruções e de dados, nessa ordem."
+    },
+    {
+      "key": "e3",
+      "title": "SMP e MPP tratados como nomes equivalentes",
+      "summary": "SMP usa memória compartilhada; MPP distribui memória entre nós e depende de comunicação entre eles."
+    },
+    {
+      "key": "e4",
+      "title": "Cluster e grid reduzidos a tamanho da rede",
+      "summary": "Cluster tende à integração e administração coordenada; grid agrega recursos federados, muitas vezes heterogêneos e autônomos."
+    },
+    {
+      "key": "e5",
+      "title": "Mais processadores considerados garantia de ganho",
+      "summary": "Fração serial, comunicação, sincronização, contenção e desequilíbrio reduzem speedup e eficiência; benchmark representa somente certas cargas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um servidor atende diversas conexões com um único núcleo, alternando entre tarefas para que todas avancem. Qual conceito descreve diretamente essa organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Paralelismo, pois toda alternância executa tarefas no mesmo instante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escalabilidade fraca, pois cresce a quantidade de solicitações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Computação distribuída, pois cada conexão usa memória privada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concorrência, pois tarefas progridem em períodos intercalados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Balanceamento estático, pois o núcleo fixa a ordem de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um único núcleo pode alternar entre tarefas e manter várias em progresso, o que é concorrência. Paralelismo exige execução simultânea em unidades distintas; distribuir conexões num só servidor não cria, por si, sistema distribuído.",
+      "section": "1. Concorrência, paralelismo e distribuição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa divide uma matriz em quatro partes e quatro núcleos calculam essas partes simultaneamente. Qual propriedade está sendo usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concorrência sem execução simultânea entre tarefas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distribuição exclusivamente por memória compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Paralelismo com operações em execução simultânea.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Escalabilidade fraca com problema de tamanho fixo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Grid federada com nós de instituições diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quatro núcleos executando partes do cálculo no mesmo intervalo constituem paralelismo. A descrição não informa vários computadores nem domínios administrativos, portanto não basta para caracterizar distribuição ou grid.",
+      "section": "1. Concorrência, paralelismo e distribuição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na classificação de Flynn, qual combinação representa uma arquitetura SIMD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um fluxo de instruções opera sobre vários fluxos de dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Vários fluxos de instruções operam sobre um fluxo de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um fluxo de instruções opera sobre um fluxo de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Vários fluxos de instruções operam sobre vários fluxos de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um fluxo de dados alterna entre instruções sem execução paralela.",
+          "correct": false
+        }
+      ],
+      "explanation": "SIMD expande-se como Single Instruction, Multiple Data: uma instrução ou operação é aplicada a múltiplos dados. As outras combinações correspondem a SISD, MISD ou MIMD, ou não descrevem a classificação.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um multiprocessador SMP se caracteriza principalmente por qual organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nós de organizações diferentes sem um espaço de memória comum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um processador que opera sobre dados vetoriais em sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Vários processadores com acesso a memória compartilhada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Máquinas remotas sem coordenação ou comunicação entre si.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um escalonador que replica solicitações entre servidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em SMP, os processadores compartilham um espaço de endereçamento e recursos de memória. Sistemas remotos federados apontam a grid; nós com memória local e mensagens são característicos de arquiteturas distribuídas como MPP.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição reúne servidores próprios e recursos de outras universidades, administrados por domínios diferentes, para executar lotes científicos. Qual modelo é mais compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um sistema SMP com espaço de memória compartilhado globalmente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um cluster homogêneo sob administração de um único nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um processador SIMD que executa uma instrução vetorial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma grade que federa recursos computacionais distribuídos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um sistema SISD com uma única unidade de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A federação de recursos que pertencem a domínios administrativos distintos é característica de grid. Ela pode reunir máquinas heterogêneas e dispersas, ao contrário do uso típico de SMP e de clusters integrados.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador define, antes de iniciar um lote, quantas tarefas previsíveis cada nó receberá. Que estratégia de balanceamento foi adotada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Balanceamento dinâmico por migração durante o processamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação de dados para tolerar falha de processador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escalonamento oportunista com medição contínua da fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Balanceamento estático com atribuição prévia do trabalho.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escalabilidade forte com aumento do tamanho da entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atribuição ocorre antes da execução e não reage a medições em tempo real, caracterizando balanceamento estático. Migração e decisões baseadas na carga observada são mecanismos dinâmicos.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação leva 80 segundos em uma referência sequencial e 20 segundos com quatro processadores. Qual é seu speedup observado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,25, pois o tempo paralelo é um quarto do sequencial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "2, pois se subtraem os dois tempos e divide-se por quatro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4, pois o tempo sequencial dividido pelo paralelo é quatro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "20, pois esse é o tempo medido com os processadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "80, pois esse é o tempo medido na referência sequencial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Speedup é T1/Tp. Logo, 80/20 = 4. A quantidade de processadores não substitui a razão entre tempos, e subtração não é a definição da métrica.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A avaliação fixa o tamanho da entrada e aumenta o número de processadores para observar a redução do tempo. Que aspecto ela mede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalabilidade forte, pois o problema permanece fixo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escalabilidade fraca, pois o problema cresce com os nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Throughput, pois mede trabalhos concluídos por unidade de tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Latência, pois mede o tempo de uma solicitação isolada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceamento dinâmico, pois a carga é redistribuída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escalabilidade forte examina como recursos adicionais afetam um problema de tamanho fixo. Na escalabilidade fraca, o tamanho do problema cresce junto com os recursos.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O benchmark LINPACK empregado no TOP500 resolve sistemas densos de equações lineares, e seu resultado descreve por completo o desempenho em qualquer aplicação científica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. LINPACK fornece uma medida útil para a carga de álgebra linear densa que executa. Nenhum resultado de um único benchmark representa todo o comportamento de uma máquina em aplicações com padrões distintos de cálculo, memória e comunicação.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Concorrência pode existir em um núcleo que alterna entre tarefas, mesmo que elas nunca executem no mesmo instante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Concorrência descreve tarefas cujo progresso se sobrepõe no tempo em sentido organizacional; um núcleo pode alternar entre elas. Paralelismo, em contraste, exige execução simultânea em unidades distintas.",
+      "section": "1. Concorrência, paralelismo e distribuição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na classe SISD da taxonomia de Flynn, múltiplas unidades executam instruções diferentes sobre fluxos de dados distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SISD significa um fluxo de instruções e um fluxo de dados. A descrição dada corresponde à classe MIMD, com múltiplos fluxos de instruções e de dados.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster de alta disponibilidade pode usar nós redundantes para manter o serviço quando um nó falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Redundância, detecção de falhas e transferência do serviço para outro nó são mecanismos de alta disponibilidade. Isso é distinto do objetivo de dividir um cálculo para diminuir seu tempo.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Balanceamento estático redistribui tarefas continuamente com base em medições atualizadas da CPU de cada nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Distribuição feita antes da execução é estática. Reagir a medições durante o processamento caracteriza estratégia dinâmica e acrescenta custos de observação e coordenação.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A eficiência paralela pode ser calculada dividindo-se o speedup observado pelo número de processadores usados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Para p processadores, eficiência é speedup/p. Ela compara a aceleração medida com a aceleração linear ideal, embora sua interpretação dependa das condições e da referência usada.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa em execução paralela necessariamente precisa distribuir seus dados entre computadores conectados por rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Paralelismo pode ocorrer em múltiplos núcleos de um único computador, inclusive com memória compartilhada. Comunicação em rede é comum em sistemas distribuídos, mas não é requisito de toda execução paralela.",
+      "section": "1. Concorrência, paralelismo e distribuição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na classe MIMD, processadores podem executar instruções diferentes sobre dados diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. MIMD significa Multiple Instruction, Multiple Data e admite múltiplos fluxos de ambos. É uma categoria ampla que inclui diversos sistemas multiprocessados e distribuídos.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma grid exige que todos os recursos pertençam ao mesmo administrador e tenham hardware idêntico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma grid pode federar recursos heterogêneos sob diferentes domínios administrativos. Coordenação e políticas de compartilhamento permitem cooperar sem transformar todos os recursos em uma única máquina homogênea.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A escalabilidade fraca aumenta a carga do problema junto com os recursos computacionais adicionados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A avaliação fraca aumenta problema e recursos em conjunto e observa se o tempo ou outro indicador se mantém. A avaliação forte conserva o tamanho do problema ao aumentar processadores.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um SMP, processadores compartilham um espaço de endereçamento, mas contenção por memória e coerência de cache podem afetar a escala.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Memória compartilhada simplifica o acesso entre processadores, mas barramentos, caches e topologias NUMA podem limitar largura de banda ou aumentar latência conforme cresce a concorrência.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura MPP, cada nó precisa acessar diretamente o mesmo espaço físico de memória de todos os outros nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A arquitetura MPP é associada a nós com memória local distribuída. Os nós cooperam por comunicação, frequentemente troca explícita de mensagens, em vez de depender de um espaço físico de memória globalmente compartilhado.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede local com vários servidores é sempre um grid, mesmo que todos sejam administrados como um único cluster integrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma rede local pode interligar um cluster. A noção de grid destaca federação e compartilhamento de recursos entre domínios que preservam autonomia; a localização em rede, sozinha, não define o modelo.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila central de tarefas pode simplificar a distribuição, mas também se tornar gargalo ou ponto de falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A fila central oferece um ponto único para atribuir trabalho, mas sua capacidade e disponibilidade podem limitar o sistema. Filas locais e roubo de trabalho são alternativas que também trazem custos de coordenação.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se quatro processadores obtêm speedup igual a quatro, a eficiência paralela observada é 100%.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Eficiência é speedup dividido pelo número de processadores: 4/4 = 1, ou 100%. O resultado descreve a medição considerada e não garante eficiência perfeita para outras entradas ou configurações.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um escalonador dinâmico não tem overhead, pois usa a carga observada para sempre escolher o nó mais livre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Observar carga, trocar informações e decidir para onde enviar trabalho consome recursos e pode causar migração. Além disso, uma medição pode ficar desatualizada antes de a tarefa chegar ao nó escolhido.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fração sequencial do programa pode limitar o speedup mesmo quando são acrescentados muitos processadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A parte sequencial continua levando tempo e não se divide entre os processadores. A lei de Amdahl formaliza esse limite para problema fixo; comunicação e desequilíbrio podem reduzi-lo ainda mais.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por ser um benchmark usado para ranquear supercomputadores, o LINPACK mede também de forma direta latência de aplicações web e tolerância a falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O LINPACK citado pelo TOP500 avalia a solução de sistemas densos de equações lineares. Latência de serviço e tolerância a falhas exigem métricas e testes próprios.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa divide o mesmo algoritmo vetorial entre unidades que aplicam uma operação uniforme a elementos distintos. Qual classe de Flynn melhor descreve o padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SISD, pois existe uma sequência única de dados vetoriais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SIMD, pois uma instrução é aplicada a vários dados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MISD, pois múltiplos dados recebem instruções diferentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MIMD, pois cada unidade executa instruções independentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMP, pois a memória compartilhada define o número de fluxos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aplicar a mesma operação a elementos diferentes corresponde a SIMD. O eixo da taxonomia é o número de fluxos de instruções e dados, e não o tipo de memória como em SMP.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo de sensores é processado em paralelo por módulos distintos, cada qual executando instruções próprias sobre os mesmos dados recebidos. Qual classe de Flynn se aproxima dessa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SISD, com uma unidade sequencial e um único fluxo de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SIMD, com instruções idênticas para dados diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MISD, com instruções distintas sobre um fluxo de dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "MIMD, com instruções e dados sempre idênticos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MPP, com memória compartilhada entre todos os processadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "MISD significa múltiplos fluxos de instruções e um fluxo de dados. É uma classe rara; a descrição didática de vários filtros independentes sobre o mesmo sinal é um exemplo possível, embora sistemas reais possam ter detalhes mais complexos.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pode executar em ambiente MIMD usando memória compartilhada ou nós com memória distribuída. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MIMD descreve os fluxos; SMP e MPP descrevem organização de memória e nós.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MIMD define obrigatoriamente que todos os núcleos compartilham memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MIMD exige uma instrução uniforme aplicada a múltiplos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SMP e MPP são subdivisões formais da classe MISD.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMP exige rede entre organizações e memória local por nó.",
+          "correct": false
+        }
+      ],
+      "explanation": "Flynn classifica fluxos de instrução e dados. SMP e MPP classificam aspectos de organização do sistema: memória compartilhada ou nós com memória distribuída. Portanto, são dimensões diferentes e sistemas MIMD podem apresentar ambas as organizações.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura MPP com dados particionados por nó, qual custo precisa ser considerado ao dividir o cálculo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conversão automática de todas as memórias locais em um único cache.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A comunicação necessária para trocar dados entre partições.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A garantia de que todos os processadores têm carga idêntica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A eliminação das dependências entre etapas do algoritmo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bloqueio de qualquer execução simultânea entre os nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada nó em MPP tem memória local, portanto dados necessários em outros nós precisam ser comunicados. Essa troca e a sincronização associada podem reduzir o ganho do paralelismo e devem entrar na divisão do trabalho.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer distribuir consultas entre servidores de uma mesma instalação, com administração central e baixa latência entre máquinas. Qual escolha descreve melhor esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma grid, pois qualquer conjunto de máquinas em rede é federado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um cluster, com nós coordenados e conectividade próxima.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um sistema SISD, pois há um único ponto de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma arquitetura SIMD, pois consultas são necessariamente iguais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma MPP, que exige memória única compartilhada por servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Máquinas próximas, administradas em conjunto e coordenadas como recurso integrado formam tipicamente um cluster. Grid costuma denotar federação de recursos com autonomia de domínios, não qualquer rede de computadores.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo de trabalho tende a se adaptar melhor a uma grid com nós distantes e redes de latência variável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tarefa que exige sincronização fina e troca constante de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um lote de tarefas independentes com pouca comunicação entre elas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma seção crítica global que bloqueia todos os nós a cada operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um cálculo que depende de memória física compartilhada entre instituições.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma aplicação que precisa acessar caches locais como se fossem únicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tarefas independentes ou de acoplamento frouxo toleram melhor latência e autonomia de uma grid. Comunicação frequente e barreiras de sincronização podem esperar o nó mais lento e tornar a rede um gargalo.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa continuar disponível após falha de uma máquina e também atender requisições em várias réplicas. Qual função está mais diretamente associada ao encaminhamento das requisições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O balanceador de carga, que escolhe uma instância apta para cada requisição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O benchmark, que reinicia a réplica mais lenta após cada medição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O protocolo SIMD, que distribui uma instrução para cada usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O particionador MPP, que converte os servidores em memória compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A grade federada, que necessariamente armazena uma cópia de cada sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um balanceador encaminha requisições entre instâncias disponíveis segundo uma política. A alta disponibilidade depende também de detecção de falha e recuperação ou redundância; a presença de balanceador, isoladamente, não garante esses mecanismos.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tarefas têm durações imprevisíveis e alguns nós ficam ociosos enquanto outros mantêm filas longas. Qual resposta é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter uma atribuição fixa e impedir qualquer observação de carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar balanceamento dinâmico, incluindo seu custo de coordenação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a contagem de tarefas por nó sem observar suas capacidades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Migrar sempre todas as tarefas para o nó que concluiu primeiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o escalonador por uma medição única de throughput.",
+          "correct": false
+        }
+      ],
+      "explanation": "A carga imprevisível e desigual favorece decisões dinâmicas baseadas no estado observado. Ainda é preciso ponderar o custo de medir, comunicar e migrar trabalho, pois uma política de controle pode consumir o ganho esperado.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois nós recebem cinco tarefas cada, mas um nó é duas vezes mais rápido e as tarefas têm durações diferentes. Que conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A contagem igual comprova que a carga e o tempo final serão iguais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A distribuição pode continuar desequilibrada por capacidade e duração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A diferença desaparece porque nós MIMD executam sempre no mesmo ritmo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nó rápido deve aguardar o outro antes de iniciar qualquer tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A eficiência é necessariamente 100% por haver tarefas em ambos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Equilibrar quantidade de tarefas não equivale a equilibrar custo computacional. Capacidades distintas, duração variável, dados transferidos e dependências influenciam o término; a distribuição deve refletir o trabalho e os recursos.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um nó ocioso obtém uma tarefa de um nó sobrecarregado por meio de um mecanismo de roubo de trabalho. Qual é a finalidade principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir ociosidade e melhorar a distribuição durante a execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Transformar memória local de nós em espaço compartilhado global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evitar toda comunicação entre tarefas paralelas do programa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir apenas a latência de uma requisição externa isolada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fixar antes da execução a mesma quantidade em cada processador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Roubo de trabalho permite que unidades ociosas busquem tarefas em filas de unidades mais ocupadas, ajustando a distribuição dinamicamente. A transferência ainda pode custar comunicação e depende de tarefas que possam ser movidas.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução sequencial leva 150 segundos e a paralela leva 30 segundos em cinco processadores. Qual é a eficiência observada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "20%, pois se divide o tempo paralelo pelo sequencial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "50%, pois se divide o speedup pela metade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "100%, pois o speedup de cinco dividido por cinco é um.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "5%, pois cinco é o número de processadores utilizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "500%, pois o speedup deve ser multiplicado por cinco.",
+          "correct": false
+        }
+      ],
+      "explanation": "O speedup é 150/30 = 5. Dividindo por cinco processadores, a eficiência é 1, ou 100%. É o resultado dessa execução e entrada, não uma garantia para outros casos.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara máquinas usando apenas tempo para concluir um lote de milhares de solicitações por segundo. Qual métrica está mais diretamente em foco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Latência, pois mede o atraso de uma chamada individual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Throughput, pois mede trabalhos concluídos por unidade de tempo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Speedup, pois compara automaticamente duas arquiteturas distintas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eficiência, pois corresponde ao tamanho da fila de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rpeak, pois representa o maior throughput observado na rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Throughput é a taxa de conclusão de trabalhos ou solicitações. Latência mede o tempo de resposta individual; speedup exige uma referência comparável, e eficiência normaliza speedup pelo número de processadores.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma medição informa Rpeak maior que Rmax em um teste LINPACK. Como interpretar os termos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rpeak é o limite teórico nominal; Rmax é o desempenho medido no teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Rpeak é a latência do maior sistema; Rmax é o tamanho do problema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rpeak é a memória máxima; Rmax é a taxa de falha tolerada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rpeak e Rmax são tempos de execução medidos em entradas diferentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rmax é sempre a capacidade teórica e Rpeak é a medida obtida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rpeak representa o pico teórico de desempenho, enquanto Rmax é o desempenho observado pelo benchmark para a execução reportada. A distinção evita tratar capacidade nominal como resultado sustentado.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma limitação comum da taxonomia de Flynn?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela classifica sistemas apenas pela velocidade de relógio dos processadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela considera fluxos de instrução e dados, mas não detalha toda a topologia.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela separa arquiteturas por sistema operacional e fabricante de CPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela define somente máquinas paralelas com memória distribuída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela organiza máquinas por tamanho de cluster e distância geográfica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxonomia é útil para distinguir multiplicidades de fluxos, mas é uma classificação ampla e não descreve por si só rede, topologia, coerência, hierarquia de memória ou políticas de escalonamento.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema combina núcleos que executam fluxos independentes e unidades vetoriais que aplicam uma operação a vários elementos. Qual afirmação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A presença de unidades vetoriais impede que o sistema seja MIMD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Toda instrução vetorial transforma a máquina inteira em MISD.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Flynn classifica a máquina apenas pela unidade mais numerosa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um sistema pode combinar organização MIMD com componentes SIMD.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SMP identifica vetorização e elimina fluxos de instrução múltiplos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Máquinas modernas podem combinar paralelismo entre núcleos com instruções SIMD dentro de cada núcleo. A taxonomia descreve padrões relevantes de execução, e componentes distintos podem apresentar características de classes diferentes.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster MPP tem baixa latência dentro do nó, mas custo alto para trocar dados entre nós. Qual decisão tende a ajudar um cálculo iterativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Particionar para reduzir comunicação frequente e preservar localidade dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a troca de mensagens a cada operação aritmética simples.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicar todo o estado em todos os nós antes de cada iteração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distribuir dependências sequenciais sem alterar o algoritmo original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a rede, pois MPP fornece uma memória física única.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em memória distribuída, comunicação frequente pode dominar o cálculo. Uma partição que mantenha dados próximos do processamento e reduza trocas tende a ser melhor, desde que preserve dependências e correção do algoritmo.",
+      "section": "2. Taxonomia de Flynn e organização de memória",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma grid contém máquinas heterogêneas e domínios com políticas próprias. Que consequência arquitetural deve ser prevista pelo escalonador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os nós concluirão a mesma tarefa no mesmo tempo por definição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capacidade, disponibilidade e políticas podem variar entre recursos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O escalonador poderá usar qualquer recurso sem autorização local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rede elimina a necessidade de considerar formatos de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A heterogeneidade garante que tarefas sejam independentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Recursos federados podem diferir em capacidade, software, disponibilidade e regras de uso. O escalonador precisa considerar esses limites e negociar recursos; heterogeneidade não garante compatibilidade nem independência entre tarefas.",
+      "section": "3. Clusters e grids",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço web tem instâncias sem estado e uma fila de requisições variável. Que política pode repartir novas solicitações sem migrar computações em andamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encaminhar cada requisição nova a uma instância segundo carga ou fila.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mover continuamente processos ativos entre nós a cada resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar Flynn SIMD para fazer todos os servidores responderem juntos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuir todas as requisições a um nó até sua falha completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar cada requisição em todas as instâncias sem critério.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para requisições independentes, o balanceador pode escolher uma instância com base em fila ou carga para cada nova solicitação. Isso distribui demanda sem migrar processos em andamento; duplicar indiscriminadamente aumenta carga e pode duplicar efeitos.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa demora mais para migrar e transferir seu estado do que para terminar no nó atual. Que decisão de balanceamento é mais razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Migrá-la mesmo assim, pois todo movimento reduz o tempo total.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Evitar a migração se seu custo superar o benefício esperado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Replicar sua execução em todos os nós e descartar os demais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Forçar a migração e ignorar dependências do estado em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Classificar a decisão como balanceamento estático após o início.",
+          "correct": false
+        }
+      ],
+      "explanation": "Balanceamento deve reduzir o tempo total, incluindo transferência de estado e dados. Quando o custo de mover a tarefa excede o ganho de executá-la em outro nó, deixá-la terminar pode ser a melhor decisão.",
+      "section": "4. Balanceamento de carga e escalonamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um benchmark produz tempos muito diferentes porque cada execução usa número distinto de processos e entrada diferente. Qual correção melhora a comparação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter condições comparáveis e registrar carga, entrada e configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher o menor tempo sem considerar as diferenças experimentais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar tempos por pico teórico e omitir a carga testada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar cada máquina com o problema que mais lhe favorece.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar os tempos de máquinas distintas para obter speedup.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comparação confiável requer identificar condições relevantes e usar cargas e entradas equivalentes, registrando configuração e método. Selecionar resultados sem controlar variáveis mistura efeitos do sistema com diferenças do experimento.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A parcela paralelizável de um programa é alta, mas o desempenho deixa de crescer ao adicionar nós. Qual conjunto de fatores pode explicar o resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o pico teórico, que aumenta mais rápido que a memória instalada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comunicação, sincronização, contenção e desequilíbrio entre tarefas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A definição de SISD, que exige memória compartilhada entre nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A eficiência, que cresce sempre na mesma proporção dos processadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O throughput, que mede apenas a parcela serial do programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fração paralela não elimina custos de comunicação e coordenação. Nós podem disputar memória ou rede e terminar em tempos distintos, deixando recursos esperando; esses efeitos reduzem speedup conforme se acrescentam processadores.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time aumenta o tamanho da simulação proporcionalmente ao número de processadores e busca manter aproximadamente o mesmo tempo de execução. Como classificar a avaliação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalabilidade forte, por conservar o tamanho original do problema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escalabilidade fraca, por crescer a carga com os recursos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Throughput, pois toda medição de tempo é taxa de conclusão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Latência, pois mede a demora de uma solicitação isolada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceamento estático, pois compara somente um instante inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na escalabilidade fraca, o problema cresce com a capacidade adicionada e observa-se se o tempo permanece próximo. Na forte, a carga é mantida fixa para ver como recursos adicionais reduzem o tempo.",
+      "section": "5. Avaliação de desempenho e escalabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to Parallel Computing Tutorial",
+      "publisher": "Lawrence Livermore National Laboratory",
+      "reference": "Taxonomia de Flynn, termos de paralelismo, SMP, memória distribuída, comunicação e sincronização",
+      "url": "https://hpc.llnl.gov/documentation/tutorials/introduction-parallel-computing-tutorial",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Processor and memory affinity",
+      "publisher": "Open MPI",
+      "reference": "Afinidade de processo, contenção, topologia NUMA e localidade de memória",
+      "url": "https://docs.open-mpi.org/en/main/tuning-apps/affinity.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is Distributed Computing?",
+      "publisher": "Amazon Web Services",
+      "reference": "Sistemas distribuídos, paralelismo, clusters e grids",
+      "url": "https://aws.amazon.com/what-is/distributed-computing/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The LINPACK Benchmark",
+      "publisher": "TOP500",
+      "reference": "Escopo do LINPACK, resolução de sistemas densos, Rmax, Rpeak e limites da comparação",
+      "url": "https://www.top500.org/project/linpack/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flynn’s Taxonomy of Computer Systems",
+      "publisher": "NASA Technical Reports Server",
+      "reference": "Definição dos quatro grupos de Flynn e limites da taxonomia",
+      "url": "https://ntrs.nasa.gov/api/citations/19820021146/downloads/19820021146.pdf",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

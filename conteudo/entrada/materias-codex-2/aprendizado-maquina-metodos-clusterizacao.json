@@ -1,0 +1,2224 @@
+{
+  "id": "aprendizado-maquina.metodos-clusterizacao",
+  "subject": "Ciência de Dados",
+  "title": "Métodos de clusterização no aprendizado de máquina",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Aprendizado de máquina e métodos de clusterização",
+    "Agrupamento por partição em aprendizado de máquina",
+    "Métodos de agrupamento por partição",
+    "Clusterização por centroides e partições",
+    "Agrupamento por densidade com DBSCAN",
+    "Métodos de clusterização baseados em densidade",
+    "Agrupamento hierárquico aglomerativo e divisivo",
+    "Métodos hierárquicos de agrupamento de dados",
+    "Algoritmos de clusterização não supervisionada",
+    "Agrupamento por partição, densidade e métodos hierárquicos"
+  ],
+  "scope": {
+    "covers": "Aprendizado não supervisionado por agrupamento; representação e preparação dos dados; métodos por partição, especialmente K-means e K-medoids; centróides, atribuição, função objetivo, inicialização, convergência, escolha de k, escala e limitações; métodos por densidade, incluindo DBSCAN, eps, min_samples, pontos centrais, de borda e ruído, densidade variável e OPTICS/HDBSCAN como extensões; métodos hierárquicos aglomerativos e divisivos, dendrograma, distância entre grupos, ligações single, complete, average e Ward; comparação, métricas internas, interpretação e seleção do método.",
+    "excludes": "Classificação supervisionada, redução de dimensionalidade como assunto autônomo, modelos de mistura em profundidade, implementação extensa em bibliotecas e aplicações setoriais específicas."
+  },
+  "theoryTitle": "Como os algoritmos formam grupos a partir dos dados",
+  "chapters": [
+    {
+      "title": "1. O problema de agrupar dados",
+      "markdown": "### O problema que este assunto resolve\n\nClusterização é a organização de observações em grupos segundo semelhanças representadas pelos atributos. É uma tarefa não supervisionada: em geral não há rótulo correto fornecido para cada linha. O algoritmo recebe uma representação dos objetos e uma noção de distância ou vizinhança e propõe uma estrutura. O grupo resultante é uma hipótese útil para explorar os dados, não uma verdade natural automaticamente descoberta.\n\n> **Siglas e termos deste capítulo**\n> - **Cluster**: grupo de observações consideradas próximas ou conectadas segundo um critério.\n> - **Atributo (feature)**: característica usada para representar cada observação.\n> - **Escala**: unidade e amplitude numérica de um atributo.\n> - **Distância**: medida de dissimilaridade entre observações.\n> - **Não supervisionado**: aprendizado sem uma resposta-alvo rotulada usada para treinar.\n> - **Pré-processamento**: tratamento de ausências, escalas e representação antes do ajuste.\n\n### A representação decide o que significa ser parecido\n\nSe idade está em anos e renda em milhares de unidades monetárias, uma distância euclidiana pode ser dominada pela renda apenas por sua escala numérica. Padronizar ou normalizar atributos pode ser necessário, mas a transformação deve respeitar a semântica: uma variável binária, uma categoria codificada como número e uma variável contínua não são intercambiáveis. Para categorias, distâncias próprias ou codificações justificadas evitam interpretar códigos arbitrários como magnitudes. Valores extremos também afetam distâncias e centróides.\n\nA distância euclidiana mede comprimento em linha reta; a Manhattan soma diferenças absolutas por coordenada. A escolha altera vizinhanças e forma dos grupos. Correlação, variáveis redundantes, atributos irrelevantes e alta dimensionalidade podem fazer a distância refletir mais o desenho da representação do que uma semelhança substantiva. É preciso examinar os atributos e documentar transformações.\n\n### Clusterização não é classificação\n\nNa classificação, exemplos rotulados orientam a fronteira entre classes. Na clusterização, o algoritmo forma grupos sem receber essas classes. Um cluster numerado como 0 não equivale por si só à classe “cliente fiel”; esse significado depende de análise posterior. Se rótulos existirem, podem ajudar a avaliar uma solução, mas não devem ser confundidos com a informação usada pelo método não supervisionado.\n\n| Família | Como forma grupos | Exemplo |\n| --- | --- | --- |\n| Partição | Divide os dados em k grupos, realocando observações segundo um critério | K-means |\n| Densidade | Conecta regiões com concentração suficiente de pontos e separa ruído | DBSCAN |\n| Hierárquica | Une ou divide grupos em níveis sucessivos | Aglomerativo |\n\n### Como cai na prova\n\n- A clusterização não exige rótulo-alvo conhecido; os nomes dos grupos são atribuídos na interpretação.\n- A distância depende da escala, dos atributos e da métrica, portanto não é uma propriedade absoluta dos objetos.\n- Partição exige ou produz um número de grupos; densidade e hierarquia podem expressar ruído ou vários níveis.\n- Um algoritmo pode encontrar estrutura matemática que não seja útil: validação e conhecimento do problema continuam necessários."
+    },
+    {
+      "title": "2. Métodos por partição: K-means e alternativas",
+      "markdown": "### O problema que este assunto resolve\n\nMétodos por partição procuram uma divisão direta dos dados em um número definido de grupos. No K-means, cada grupo é representado pela média de seus pontos, chamada centróide. O procedimento alterna atribuição e atualização: associa cada observação ao centróide mais próximo e recalcula cada centróide como média dos elementos associados. Repete até estabilizar as atribuições ou atingir o critério de parada.\n\n> **Siglas e termos deste capítulo**\n> - **k**: quantidade de grupos solicitada ao algoritmo.\n> - **Centróide**: vetor de médias das coordenadas dos pontos de um grupo.\n> - **Inércia**: soma dos quadrados das distâncias de cada ponto ao centróide associado.\n> - **Inicialização**: escolha dos centros iniciais antes das iterações.\n> - **K-means++**: estratégia de inicialização que espalha os centros iniciais.\n> - **K-medoids**: método que representa o grupo por uma observação real, o medoide.\n\n### O que o K-means otimiza e o que não garante\n\nA função objetivo usual é a soma dos quadrados intragrupo. Cada passo de atribuição ou atualização não aumenta essa soma, mas o algoritmo pode parar em um mínimo local. Inicializações diferentes podem levar a partições diferentes; várias execuções e uma semente controlada ajudam a avaliar estabilidade e reproduzir resultados. K-means++ costuma escolher centros iniciais mais bem distribuídos que uma seleção aleatória simples, sem garantir o ótimo global.\n\nO método tende a funcionar melhor quando grupos são compactos, aproximadamente convexos e comparáveis em escala. É sensível a outliers porque a média e o quadrado da distância dão grande influência a valores extremos. Também requer k previamente, atribui cada observação a algum grupo e pode dividir uma forma alongada ou não convexa de modo inadequado. Centr óides podem não corresponder a observações reais, e a média de variáveis categóricas não tem interpretação direta.\n\nK-medoids substitui médias por representantes observados e pode usar dissimilaridades mais gerais; isso melhora a interpretabilidade do representante e pode reduzir sensibilidade a extremos, embora possa custar mais computação. Não se deve dizer que ele elimina toda sensibilidade ou que não precisa definir quantidade de grupos.\n\n### Escolher k e avaliar a partição\n\nO método do cotovelo plota a inércia contra k: a redução tende a diminuir conforme k cresce, e procura-se uma região em que o ganho marginal se torna menor. O cotovelo é uma heurística, não prova de que existe um k verdadeiro. A silhueta compara, para cada ponto, a proximidade média ao próprio grupo com a proximidade ao grupo vizinho mais próximo; valores maiores indicam separação relativa melhor, e valores negativos podem sinalizar atribuição inadequada. Ela depende da métrica e não substitui interpretação.\n\nA inércia nunca aumenta ao permitir mais centróides e chega a zero se cada observação formar seu próprio grupo; por isso não se escolhe k simplesmente pelo menor valor. Também se examinam tamanhos dos grupos, estabilidade a reamostragens e inicializações, utilidade e plausibilidade substantiva.\n\n### Como cai na prova\n\n- K-means minimiza soma de quadrados intragrupo alternando atribuição ao centro e recálculo das médias.\n- k é informado antes do ajuste; o algoritmo não descobre sozinho o número ideal.\n- Escalonamento, outliers, inicialização e geometria afetam a solução.\n- Cotovelo e silhueta são evidências para comparar soluções, não oráculos que definem universalmente a quantidade correta."
+    },
+    {
+      "title": "3. Métodos por densidade: DBSCAN e variantes",
+      "markdown": "### O problema que este assunto resolve\n\nMétodos por densidade formam grupos onde há concentração local de observações. No DBSCAN, dois parâmetros centrais são eps, raio da vizinhança, e min_samples, número mínimo de observações nessa vizinhança para caracterizar um ponto central. A contagem considera o próprio ponto. O algoritmo expande grupos a partir de pontos centrais conectados por vizinhanças; pontos sem conexão suficiente podem ser rotulados como ruído.\n\n> **Siglas e termos deste capítulo**\n> - **eps**: raio máximo que define a vizinhança local.\n> - **min_samples**: quantidade mínima na vizinhança para um ponto ser central.\n> - **Ponto central**: ponto cuja vizinhança alcança o mínimo de densidade.\n> - **Ponto de borda**: ponto não central alcançável a partir de um central.\n> - **Ruído**: observação que não pertence a grupo denso segundo os parâmetros.\n> - **OPTICS**: ordena observações para representar estrutura de densidade em diferentes alcances.\n\n### eps e min_samples trabalham juntos\n\nAumentar eps amplia vizinhanças; aumentar min_samples exige maior concentração local. Um eps pequeno pode fragmentar grupos e classificar pontos como ruído; um eps grande pode unir grupos distintos. Se min_samples aumenta, regiões precisam reunir mais observações para criar núcleo denso. A escala e a métrica de distância são decisivas: valores de eps não são transferíveis automaticamente entre conjuntos com escalas diferentes. Um gráfico das distâncias ao k-ésimo vizinho pode auxiliar a procurar uma mudança de inclinação, mas não escolhe o parâmetro sem julgamento.\n\nDBSCAN não pede k e pode detectar grupos de formatos não convexos, além de deixar pontos isolados como ruído. Contudo, um único eps pode ser inadequado quando os grupos têm densidades muito diferentes. Uma observação de borda alcançável por dois grupos pode receber rótulo dependente da ordem de expansão; o importante é distinguir borda de núcleo e não interpretar o número do rótulo como ordenação.\n\nOPTICS registra uma ordenação e alcançabilidade para examinar densidades em diferentes escalas; HDBSCAN constrói uma hierarquia baseada em densidade e seleciona grupos estáveis, sendo alternativa quando há densidades variadas. São métodos relacionados, mas não são sinônimos de DBSCAN nem dispensam decisões sobre parâmetros e interpretação.\n\n### Como cai na prova\n\n- DBSCAN usa eps e min_samples, distingue pontos centrais, de borda e ruído, e não requer informar k.\n- eps é raio da vizinhança, não limite máximo de distância entre quaisquer membros de um grupo.\n- Padronização e métrica alteram a vizinhança; densidades variáveis dificultam um eps único.\n- Um ponto de ruído é ruído relativamente ao conjunto, à métrica e aos parâmetros escolhidos, não necessariamente erro de coleta."
+    },
+    {
+      "title": "4. Métodos hierárquicos e escolha consciente",
+      "markdown": "### O problema que este assunto resolve\n\nA clusterização hierárquica revela agrupamentos em diferentes níveis de detalhe. No método aglomerativo, cada observação começa como um grupo e fusões sucessivas juntam os pares mais próximos segundo uma regra de ligação. No divisivo, começa-se com um grupo e sucessivamente separam-se partes. O dendrograma representa as fusões ou divisões e a altura indica a dissimilaridade na qual ocorreu a operação. Cortar a árvore em determinada altura produz uma partição; também se pode pedir uma quantidade de grupos.\n\n> **Siglas e termos deste capítulo**\n> - **Aglomerativo**: estratégia bottom-up que funde grupos.\n> - **Divisivo**: estratégia top-down que subdivide um grupo.\n> - **Dendrograma**: árvore que registra a sequência e a altura das junções.\n> - **Ligação (linkage)**: regra usada para definir distância entre grupos.\n> - **Single linkage**: menor distância entre pares de pontos de grupos distintos.\n> - **Ward**: fusão que busca menor aumento da soma de quadrados intragrupo.\n\n### A regra de ligação muda a árvore\n\nSingle linkage usa o par mais próximo e pode encadear pontos, formando grupos alongados. Complete linkage usa o par mais distante e tende a favorecer grupos mais compactos. Average linkage considera a distância média entre pares de pontos dos grupos. Ward escolhe a fusão que menos aumenta a variação intragrupo; em sua formulação usual requer distância euclidiana e não deve ser tratada como qualquer linkage aplicado a qualquer matriz arbitrária. A mesma matriz de dados pode produzir hierarquias distintas conforme métrica e ligação.\n\nUma vez feita uma fusão aglomerativa, o algoritmo básico não desfaz a decisão em etapas posteriores; uma escolha inicial ruim pode persistir. Em geral, a estrutura hierárquica pode custar memória e tempo, sobretudo quando todas as distâncias entre pares são calculadas. Restrições de conectividade podem reduzir o conjunto de fusões admissíveis e incorporar uma noção de vizinhança.\n\n### Comparar famílias sem procurar um vencedor universal\n\n| Situação | Abordagem que pode ser útil | Limite a verificar |\n| --- | --- | --- |\n| Grupos compactos e k justificável | K-means | Inicialização, escala e outliers |\n| Formas irregulares e ruído relevante | DBSCAN | Densidades diferentes e escolha de eps |\n| Necessidade de explorar níveis | Hierárquico | Ligação, corte e custo |\n\nA validação interna pode usar silhueta ou outras medidas de coesão e separação, mas muitas métricas favorecem geometrias específicas. Se rótulos externos confiáveis existirem, medidas externas podem comparar a partição com eles; isso avalia concordância, não transforma o aprendizado em supervisionado retroativamente. Analise também estabilidade, explicabilidade dos grupos, distribuição dos atributos e efeitos de decisões de pré-processamento.\n\n### Como cai na prova\n\n- Aglomerativo funde; divisivo separa; ambos descrevem uma hierarquia.\n- A altura de junção e a regra de ligação dão significado ao dendrograma.\n- Single, complete, average e Ward não medem distância entre grupos da mesma maneira.\n- A escolha do método depende da geometria, ruído, densidade, escala, custo e finalidade analítica."
+    }
+  ],
+  "summary": "Clusterização é aprendizado não supervisionado que agrupa observações conforme atributos, distâncias e critérios escolhidos. K-means particiona em k grupos por atribuição a centróides e minimiza a soma de quadrados intragrupo, mas depende de escala e inicialização, é sensível a extremos e não resolve sozinho o k ideal. DBSCAN expande regiões densas com eps e min_samples, distingue pontos centrais e de borda e pode marcar ruído sem exigir k; densidades muito diferentes desafiam um único eps. Métodos hierárquicos aglomerativos fundem e divisivos separam grupos, registrando os níveis em dendrograma; single, complete, average e Ward induzem critérios diferentes. Métricas internas, estabilidade e interpretação devem ser combinadas, pois não existe método universalmente melhor.",
+  "flashcards": [
+    {
+      "front": "Clusterização é supervisionada?",
+      "back": "Em geral, não: forma grupos sem uma variável-alvo rotulada que indique a classe de cada observação."
+    },
+    {
+      "front": "O que é k no K-means?",
+      "back": "A quantidade de grupos solicitada previamente ao algoritmo."
+    },
+    {
+      "front": "Como K-means atualiza um centróide?",
+      "back": "Calcula a média coordenada dos pontos atualmente atribuídos ao grupo."
+    },
+    {
+      "front": "O que mede a inércia do K-means?",
+      "back": "A soma dos quadrados das distâncias dos pontos aos centróides associados."
+    },
+    {
+      "front": "Por que inicializações múltiplas ajudam?",
+      "back": "Porque K-means pode convergir a mínimos locais diferentes conforme os centros iniciais."
+    },
+    {
+      "front": "Qual a função do K-means++?",
+      "back": "Espalhar probabilisticamente centros iniciais para favorecer uma inicialização útil."
+    },
+    {
+      "front": "O que representa um medoide?",
+      "back": "Uma observação real escolhida como representante de um grupo."
+    },
+    {
+      "front": "O método do cotovelo prova o k ótimo?",
+      "back": "Não; é uma heurística que procura onde a redução da inércia passa a render menos."
+    },
+    {
+      "front": "O que compara a silhueta?",
+      "back": "A proximidade ao próprio grupo com a proximidade ao grupo alternativo mais próximo."
+    },
+    {
+      "front": "O que significa eps no DBSCAN?",
+      "back": "O raio máximo usado para definir a vizinhança de um ponto."
+    },
+    {
+      "front": "min_samples inclui o ponto central?",
+      "back": "Sim, a contagem da vizinhança inclui o próprio ponto."
+    },
+    {
+      "front": "O que é um ponto central?",
+      "back": "Ponto cuja vizinhança contém pelo menos min_samples observações."
+    },
+    {
+      "front": "O que é ponto de borda no DBSCAN?",
+      "back": "Ponto que não é central, mas é alcançável a partir de um central."
+    },
+    {
+      "front": "Como o DBSCAN representa ruído?",
+      "back": "Atribui como ruído os pontos que não pertencem a uma região densa segundo os parâmetros."
+    },
+    {
+      "front": "DBSCAN exige escolher k?",
+      "back": "Não; o número de grupos resulta das regiões densas encontradas."
+    },
+    {
+      "front": "Uma limitação do eps único?",
+      "back": "Pode não representar simultaneamente grupos cuja densidade varia bastante."
+    },
+    {
+      "front": "O que OPTICS acrescenta?",
+      "back": "Ordenação e alcançabilidade para inspecionar estrutura de densidade em diferentes escalas."
+    },
+    {
+      "front": "O que é clustering aglomerativo?",
+      "back": "Começa com grupos individuais e os funde sucessivamente."
+    },
+    {
+      "front": "O que é clustering divisivo?",
+      "back": "Começa com um grupo e o subdivide sucessivamente."
+    },
+    {
+      "front": "O que mostra a altura no dendrograma?",
+      "back": "A dissimilaridade associada à fusão ou divisão representada naquele nível."
+    },
+    {
+      "front": "Como funciona single linkage?",
+      "back": "Usa a menor distância entre pares de pontos de dois grupos."
+    },
+    {
+      "front": "Como funciona complete linkage?",
+      "back": "Usa a maior distância entre pares de pontos de grupos distintos."
+    },
+    {
+      "front": "Como funciona average linkage?",
+      "back": "Usa a distância média entre pares de pontos de dois grupos."
+    },
+    {
+      "front": "Qual é o critério de Ward?",
+      "back": "Escolhe a fusão que menos aumenta a soma de quadrados intragrupo."
+    }
+  ],
+  "tips": [
+    "Antes de comparar grupos, verifique escalas e se a métrica representa semelhança útil para os atributos.",
+    "Em K-means, lembre a sequência: atribuir ao centróide mais próximo, recalcular médias, repetir.",
+    "Não selecione k pelo menor valor de inércia; ela tende a cair com mais grupos.",
+    "No DBSCAN, raciocine sobre eps e min_samples em conjunto e inclua a unidade da escala usada.",
+    "No dendrograma, identifique a ligação e a altura de corte antes de contar os grupos.",
+    "Compare qualidade interna, estabilidade e utilidade interpretável; um único índice não decide tudo."
+  ],
+  "traps": [
+    "Um cluster não é automaticamente uma classe verdadeira nem recebe significado pelo número atribuído.",
+    "K-means não descobre k e sua convergência não significa ótimo global.",
+    "A média do grupo torna o K-means sensível a outliers; o medoide é uma observação real.",
+    "eps não limita a distância máxima entre todos os pares de pontos de um cluster DBSCAN.",
+    "Ponto de ruído é definido pelos dados e parâmetros, não necessariamente por falha de medição.",
+    "Dendrogramas e ligações diferentes podem resultar de critérios diferentes sobre os mesmos dados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que escala e métrica podem mudar a clusterização.",
+      "answer": "Distâncias comparam coordenadas; atributos de grande escala podem dominar e métricas diferentes ordenam pares de forma diferente, alterando atribuições e vizinhanças."
+    },
+    {
+      "question": "Descreva os passos centrais do K-means e seu objetivo.",
+      "answer": "Atribui pontos ao centro mais próximo e recalcula cada centro como média; repete para reduzir soma de quadrados intragrupo até estabilizar ou parar."
+    },
+    {
+      "question": "Por que cotovelo e silhueta não dão resposta automática sobre k?",
+      "answer": "São critérios heurísticos ou relativos, dependentes dos dados, métrica e geometria; devem ser combinados com estabilidade e interpretação."
+    },
+    {
+      "question": "Diferencie ponto central, de borda e ruído no DBSCAN.",
+      "answer": "Central satisfaz o mínimo de vizinhos; borda não satisfaz esse mínimo, mas é alcançável desde um central; ruído não integra grupo denso conforme os parâmetros."
+    },
+    {
+      "question": "Como eps e min_samples afetam grupos de densidade?",
+      "answer": "eps define alcance local e min_samples define densidade mínima; raio maior pode unir regiões e mínimo maior exige mais concentração."
+    },
+    {
+      "question": "Compare single, complete, average e Ward.",
+      "answer": "Single usa menor distância entre grupos, complete a maior, average a média dos pares, e Ward minimiza aumento de soma de quadrados intragrupo."
+    },
+    {
+      "question": "Como se interpreta uma árvore hierárquica?",
+      "answer": "As folhas representam observações; junções e alturas registram fusões; um corte em nível escolhido produz uma partição."
+    },
+    {
+      "question": "Proponha critérios para comparar famílias de clusterização.",
+      "answer": "Considere geometria e densidades, ruído, escala, escolha de parâmetros, custo, métricas internas, estabilidade e utilidade substantiva."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Clusterização confundida com classificação",
+      "summary": "Clusterização busca estrutura sem rótulos-alvo; números de clusters não correspondem automaticamente a classes sem interpretação ou comparação externa."
+    },
+    {
+      "key": "e2",
+      "title": "Inércia tratada como escolha automática de k",
+      "summary": "Mais centróides tendem a reduzir inércia, podendo chegar a zero com um centro por observação; cotovelo é heurística e requer avaliação adicional."
+    },
+    {
+      "key": "e3",
+      "title": "Parâmetros do DBSCAN invertidos",
+      "summary": "eps define raio e min_samples define densidade mínima, contando o próprio ponto; ambos dependem da métrica e escala."
+    },
+    {
+      "key": "e4",
+      "title": "Linkages hierárquicos tomados como equivalentes",
+      "summary": "Single, complete, average e Ward definem critérios diferentes para fusão e podem produzir árvores distintas."
+    },
+    {
+      "key": "e5",
+      "title": "Resultado algorítmico tomado como estrutura verdadeira",
+      "summary": "Soluções dependem de representação, métrica, parâmetros e pré-processamento; estabilidade, avaliação e conhecimento do domínio são necessários."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Clusterização costuma formar grupos sem usar rótulo-alvo fornecido para cada observação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O algoritmo procura estrutura nos atributos e não aprende a reproduzir uma classe conhecida como objetivo supervisionado. Os grupos precisam ser interpretados depois do ajuste.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se dois algoritmos atribuem os rótulos 0 e 1 a grupos, o grupo 0 representa necessariamente a classe negativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Rótulos numéricos de cluster são identificadores arbitrários, sem significado positivo ou negativo intrínseco. A interpretação exige examinar os dados ou compará-los a informação externa.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável com amplitude numérica muito maior pode dominar distâncias euclidianas se os atributos não forem tratados adequadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distância euclidiana agrega diferenças coordenadas e uma escala grande pode contribuir desproporcionalmente. Padronização pode ajudar quando fizer sentido para a semântica dos atributos.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Codificar categorias como números inteiros sempre preserva uma distância quantitativa válida entre categorias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Códigos podem impor ordem e intervalos inexistentes, como se a categoria 4 fosse mais distante da 1 que da 3. A representação precisa refletir a natureza categórica.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A métrica escolhida pode alterar quais observações são consideradas vizinhas e, portanto, a estrutura agrupada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Distância euclidiana e Manhattan, por exemplo, combinam diferenças de maneiras distintas. Como métodos usam proximidade ou vizinhança, a métrica interfere no resultado.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O pré-processamento é irrelevante porque a clusterização depende exclusivamente do algoritmo selecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Escala, ausências, atributos redundantes e codificação influenciam distâncias e densidades antes mesmo da otimização. A escolha do algoritmo não corrige automaticamente uma representação ruim.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No K-means, cada centróide é recalculado como a média dos pontos atualmente atribuídos ao grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Após a etapa de atribuição, o centro de cada grupo é obtido pela média coordenada dos seus membros. A alternância continua até o critério de parada.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "K-means recebe k como quantidade de grupos a formar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A quantidade de clusters é definida como parâmetro antes do ajuste. O algoritmo otimiza a partição condicionada a essa escolha.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "K-means converge sempre para a solução global de menor inércia, independentemente dos centros iniciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A alternância pode estacionar em mínimo local e diferentes inicializações podem produzir resultados distintos. Repetições ajudam a avaliar, mas não provam ótimo global.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A inércia do K-means não aumenta quando se permite que cada observação tenha seu próprio centróide.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Mais centros permitem reduzir ou manter a soma de quadrados intragrupo; com um centro por ponto, a inércia é zero. Por isso o menor valor isolado não determina k útil.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O K-means é robusto a observações extremas porque a média reduz sua influência sobre o centróide.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Valores extremos podem deslocar bastante a média e ainda recebem grande penalidade pela distância ao quadrado. Um medoide ou tratamento justificado de extremos pode ser considerado conforme o problema.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar K-means com diferentes inicializações pode revelar que a solução depende dos centros escolhidos no início.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Como o procedimento pode parar em mínimos locais, as inicializações produzem partições e inércias distintas. Comparar execuções ajuda a examinar essa instabilidade.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A silhueta usa somente a quantidade total de pontos e ignora a distância entre grupos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ela relaciona proximidade dentro do próprio grupo com a proximidade ao grupo alternativo mais próximo. Assim, considera coesão e separação relativas.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "K-medoids representa cada grupo por uma observação efetivamente presente nos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O medoide é um membro observado escolhido como representante, ao contrário do centróide do K-means, que pode ser um vetor médio não observado.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em DBSCAN, min_samples determina o raio da vizinhança e eps define a quantidade mínima de pontos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. eps é o raio máximo da vizinhança; min_samples é o limiar de contagem que define um ponto central. Os parâmetros têm papéis complementares, mas distintos.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma observação de ruído no DBSCAN pode estar corretamente medida e ainda assim não pertencer a uma região densa identificada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Ruído é uma classificação relativa à métrica, aos dados e aos parâmetros do agrupamento. Não é um diagnóstico automático de erro de coleta.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DBSCAN precisa que o analista informe previamente o número final de grupos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O algoritmo forma tantos grupos densos quantos os dados e parâmetros produzirem. O analista escolhe eps e min_samples, não k diretamente.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ponto de borda satisfaz necessariamente a contagem mínima de vizinhos exigida para ser central.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O ponto de borda não alcança min_samples em sua própria vizinhança, mas é alcançável por um ponto central e pode integrar aquele grupo.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A contagem usada para decidir se um ponto é central inclui o próprio ponto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. min_samples conta observações na vizinhança incluindo a observação examinada. O detalhe importa em regiões pequenas e limiares baixos.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar eps sempre separa grupos próximos, pois reduz o número de vizinhos de cada observação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um raio maior inclui mais pontos na vizinhança e pode conectar ou unir regiões antes separadas. O efeito depende da geometria e do limiar min_samples.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um único eps pode ter dificuldade para representar simultaneamente grupos com densidades muito diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um raio adequado à região esparsa pode conectar regiões da mais densa, enquanto um raio pequeno pode fragmentar a esparsa. OPTICS ou HDBSCAN podem ser alternativas a examinar.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No agrupamento hierárquico aglomerativo, o procedimento começa com observações em grupos separados e realiza fusões sucessivas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A estratégia bottom-up parte de grupos unitários e une grupos conforme o critério de ligação, construindo uma hierarquia.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método divisivo começa com observações isoladas e as funde até restar um único grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Essa descrição é aglomerativa, que inicia com grupos unitários e os funde. O método divisivo começa com um grupo amplo e o separa em partes sucessivas, produzindo a hierarquia na direção top-down.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O dendrograma registra níveis de junção, e um corte escolhido na árvore pode produzir uma partição plana.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As folhas representam observações e a árvore conserva a ordem e a altura das fusões. Um corte horizontal separa os ramos que ainda não se uniram naquele nível e, por isso, define os grupos da partição escolhida.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Single linkage define a distância entre dois grupos pela maior distância entre qualquer par de seus pontos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Single linkage usa o par mais próximo. A maior distância caracteriza complete linkage, que tende a favorecer grupos mais compactos.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A formulação usual de Ward escolhe a fusão que menos aumenta a soma de quadrados intragrupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Ward avalia o incremento da variação intragrupo produzido por cada fusão. Sua interpretação usual está ligada à geometria euclidiana.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O K-means procura minimizar qual quantidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somar os quadrados das distâncias de cada ponto ao centróide atribuído.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O número total de atributos usados na tabela de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A distância máxima entre os pares de grupos formados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de pontos que permanecem sem qualquer rótulo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar as distâncias de todos os pares de observações, sem considerar os grupos atribuídos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A inércia do K-means é a soma dos quadrados intragrupo até o centróide de cada atribuição. Ela não corresponde à distância entre grupos ou a uma contagem de atributos.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde à etapa de atribuição no K-means?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar toda observação distante da média geral antes de atribuir pontos aos grupos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Vincular cada observação ao centróide mais próximo pela métrica adotada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir cada atributo numérico pelo rótulo do grupo observado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Unir grupos até que a árvore hierárquica tenha uma única raiz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar como ruído todos os pontos sem vizinhos em raio definido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na atribuição, cada ponto vai para o centro mais próximo conforme a distância entre seus atributos e os centróides atuais. As demais descrições tratam de filtragem, transformação, fusão hierárquica ou densidade.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que o K-means pode retornar soluções diferentes em execuções distintas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distância euclidiana é substituída por uma distância aleatória após cada passo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de grupos muda automaticamente a cada observação processada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A inicialização pode alterar atribuições e conduzir a mínimos locais distintos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os rótulos de treinamento são sorteados novamente durante cada atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os centróides são removidos depois da primeira iteração do procedimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "K-means é sensível à inicialização e sua otimização alternada pode chegar a mínimos locais diferentes. Repetir o ajuste permite observar a variação entre soluções.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem ajuda a selecionar k sem tratar um único critério como prova definitiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter k igual a um, porque toda base forma um grupo natural único.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher sempre k igual ao número de atributos numéricos disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o maior k possível, pois a inércia então será necessariamente maior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar cotovelo, silhueta, estabilidade e interpretação dos grupos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escolher o valor com maior rótulo numérico após uma única inicialização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cotovelo e silhueta são ferramentas comparativas, e estabilidade e interpretação acrescentam critérios relevantes. Nenhuma dessas heurísticas revela sempre um número natural e único.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção distingue corretamente centróide e medoide?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O centróide é uma observação extrema; o medoide é a média calculada para o grupo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O centróide é sempre ruído; o medoide é sempre o ponto mais distante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O centróide é um rótulo de classe; o medoide é uma variável-alvo contínua.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O centróide só existe em hierarquias; o medoide só existe em DBSCAN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O centróide é uma média vetorial; o medoide é uma observação do conjunto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Centróides são vetores médios e podem não corresponder a uma linha observada; medoides são exemplares reais escolhidos para representar o grupo.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que efeito um ponto extremo pode ter sobre K-means?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode deslocar a média e aumentar muito a soma de distâncias ao quadrado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É automaticamente excluído por não satisfazer min_samples no próprio grupo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Faz o algoritmo converter seus atributos em categorias ordinais válidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante que a inicialização k-means++ selecione o ótimo global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impede a comparação da inércia entre qualquer inicialização possível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A média e os quadrados das distâncias dão influência elevada a extremos. K-means não possui uma regra automática de remoção de outliers.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como interpretar uma silhueta negativa para uma observação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A silhueta negativa comprova que a observação foi coletada com erro de medição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode estar, em média, mais próxima de outro grupo que do grupo atribuído.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A observação tem necessariamente peso negativo na função de custo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de grupos solicitado foi igual a zero durante o ajuste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A observação é obrigatoriamente um centróide de outro agrupamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma silhueta negativa sugere que a observação está, em média, mais próxima do grupo alternativo do que daquele ao qual foi atribuída. É um indício de possível atribuição inadequada segundo a métrica, não uma prova de erro de coleta nem uma medida causal.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação favorece considerar um método baseado em densidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dados em que a única estrutura desejada é uma árvore de fusões completa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A necessidade de fixar sempre o mesmo número de centróides antes do ajuste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Grupos irregulares e pontos isolados que possam ser tratados como ruído.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma tarefa supervisionada com rótulos de classe obrigatórios para cada linha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um conjunto em que proximidade entre pontos não tem qualquer significado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos de densidade podem captar formas não convexas e separar ruído, sem exigir k. Ainda é necessário verificar se a noção de vizinhança representa o problema.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição define eps no DBSCAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distância máxima permitida entre qualquer par do mesmo grupo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de grupos que a rotina deve produzir antes de parar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de vezes em que cada centroide será inicializado ao acaso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O raio máximo que determina quais pontos entram na vizinhança local.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A fração de variância explicada por cada componente principal retido.",
+          "correct": false
+        }
+      ],
+      "explanation": "eps delimita a vizinhança local. Não limita todas as distâncias entre membros conectados de um cluster, que pode se estender por encadeamento de vizinhos.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que min_samples determina no DBSCAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de folhas que o dendrograma deve exibir após o corte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O maior raio que pode separar dois centróides já calculados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de reinicializações aleatórias do K-means antes de comparar as soluções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de execuções aleatórias do método aglomerativo completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mínimo de observações na vizinhança para que um ponto seja central.",
+          "correct": true
+        }
+      ],
+      "explanation": "min_samples é o limiar de densidade local para caracterizar um ponto como central e inclui o próprio ponto na contagem. Uma vizinhança que não alcança esse mínimo não torna a observação central, embora ela ainda possa ser alcançável como ponto de borda.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma observação é de borda no DBSCAN quando qual condição ocorre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não alcança sozinha min_samples, mas é alcançável a partir de um ponto central.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É a única observação cuja distância a si mesma supera o raio eps.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É central porque sua própria vizinhança contém mais observações que o mínimo exigido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Foi escolhida como centróide porque minimiza a soma quadrática do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Está fora de toda vizinhança e, por isso, sempre recebe um rótulo central.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ponto de borda não é central, mas pertence ao alcance de um ponto central. Essa distinção separa densidade suficiente da conectividade ao grupo.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer descobrir grupos sem fixar k e manter pontos isolados identificáveis como ruído. Qual método atende diretamente a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "K-means com k igual ao número total de observações da base.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DBSCAN com vizinhança definida por eps e densidade mínima por min_samples.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ward com uma fusão forçada até todos os pontos formarem um único grupo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "K-medoids com cada observação usada obrigatoriamente como representante final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regressão logística treinada com uma categoria de ruído inventada previamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "DBSCAN não requer k e pode marcar como ruído pontos que não se conectam a regiões densas. A escolha de eps e min_samples ainda exige análise.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de escala dos atributos sem reajuste de eps tende a ter qual consequência possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformar min_samples no número final de grupos por definição matemática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter necessariamente cada distância e todo rótulo exatamente inalterados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar vizinhanças e mudar quais regiões parecem suficientemente densas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter automaticamente os pontos de ruído em centróides observados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar a dependência do método em relação à métrica escolhida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escala e métrica determinam as distâncias usadas na vizinhança; mudar as unidades pode alterar alcance efetivo de eps e, com isso, regiões densas e ruído.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando grupos têm densidades distintas, qual cuidado é específico ao DBSCAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar a inércia de cada região para forçar tamanhos iguais aos grupos densos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar k até que cada ponto central gere um cluster exclusivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar min_samples pela altura de corte de um dendrograma completo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar se um só eps representa bem todas as regiões de densidade distinta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover todas as observações de borda antes de medir vizinhanças.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um raio pode ser pequeno demais para a região esparsa ou grande demais para a densa. OPTICS e HDBSCAN são opções relacionadas para investigar variação de densidade.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa caracteriza corretamente OPTICS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Define sempre um único raio universal e proíbe examinar outros alcances.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Calcula médias de k centróides e descarta toda observação distante deles.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Produz somente uma árvore de fusões definida pelo critério de Ward.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trata pontos de ruído como dados ausentes e completa categorias antes da ordenação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordena pontos e registra alcançabilidade para explorar diferentes densidades.",
+          "correct": true
+        }
+      ],
+      "explanation": "OPTICS preserva informação de ordenação e alcançabilidade para estudar estrutura de densidade em diferentes alcances. Não é uma regra de centróides nem sinônimo de Ward.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que sequência descreve o método aglomerativo básico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Começar com grupos unitários e fundi-los segundo uma regra de ligação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Iniciar com uma única média global e gerar classes com rótulos conhecidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcular uma vizinhança eps e remover toda observação não central.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuir pontos aos centróides e nunca recalcular os centros obtidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dividir repetidamente cada atributo até formar uma regressão linear.",
+          "correct": false
+        }
+      ],
+      "explanation": "O aglomerativo começa com grupos unitários e realiza fusões sucessivas; a ligação define como se compara a distância entre grupos.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao priorizar o maior afastamento entre membros de dois grupos, que linkage está sendo aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Complete calcula a menor distância e favorece encadeamento de pontos próximos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Complete linkage define a distância entre grupos pelo par mais distante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Complete considera o par mais distante entre os grupos, favorecendo maior compacidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Complete usa a probabilidade posterior dos grupos para atualizar seus rótulos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Complete mede exclusivamente a diferença de rótulos conhecidos de treinamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Complete linkage usa a maior distância entre pares de grupos, ao contrário de single, que usa a menor. Essa escolha muda a forma das fusões.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual agregação de distâncias entre observações define o average linkage?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelo menor valor observado entre quaisquer dois pontos dos grupos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pelo número de grupos restantes depois de uma divisão top-down.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pela distância mínima entre um ponto de cada grupo, regra própria do single linkage.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pela média das distâncias entre pares de pontos dos grupos distintos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Pela maior diferença absoluta entre os centróides iniciais escolhidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Average linkage faz a média das distâncias intergrupos entre pares de observações. Single e complete usam, respectivamente, o mínimo e o máximo.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para limitar o crescimento da variação interna ao fundir grupos, qual critério pode ser usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele junta grupos pelo par de pontos mais próximo, sem avaliar variância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele procura o ponto com mais vizinhos em uma esfera de raio eps.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele exige um rótulo de classe correto para cada observação da amostra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele seleciona a partição com a maior quantidade de observações de ruído.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele escolhe a fusão com menor aumento da soma de quadrados intragrupo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ward escolhe a fusão com menor incremento da variação intragrupo, usualmente na formulação euclidiana. Não é critério de densidade nem de rótulo supervisionado.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como obter uma partição de uma hierarquia já calculada sem alterar a sequência de fusões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar os agrupamentos existentes naquele nível de dissimilaridade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover a raiz e transformar os atributos em classes supervisionadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar retroativamente a distância usada nas fusões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todos os pontos de borda em observações centrais de DBSCAN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recalcular os centróides até que a inércia se torne necessariamente zero.",
+          "correct": false
+        }
+      ],
+      "explanation": "O corte separa os ramos que ainda não foram unidos naquele nível e produz uma partição. Ele não altera a sequência de fusões que o dendrograma já registra.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual direção de construção caracteriza um procedimento hierárquico top-down?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O divisivo estima apenas centróides e não representa níveis de grupos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O divisivo começa com um grupo e o separa em subconjuntos sucessivos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O divisivo inicia cada observação isolada e funde os pares mais próximos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O divisivo classifica ruído por densidade sem formar qualquer hierarquia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O divisivo calcula a média de cada classe verdadeira indicada nos rótulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia divisiva é top-down: começa com um conjunto e o subdivide. Aglomerativo é bottom-up, pois parte de grupos unitários e os funde sucessivamente.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sob distância euclidiana e critério de soma quadrática, que métodos podem favorecer grupos compactos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DBSCAN com eps infinito, que preserva todas as formas sem unir pontos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Single linkage, que sempre evita cadeias de pontos interligados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "K-means ou Ward, verificando pressupostos de escala e geometria dos dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Classificação supervisionada, mesmo sem rótulos ou variável-alvo observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma partição aleatória, que minimiza garantidamente a soma de quadrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "K-means e Ward usam critérios ligados à soma de quadrados e podem favorecer grupos compactos. A adequação depende da geometria, escala e pressupostos dos dados.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao repetir o ajuste com reamostragens e sementes diferentes, que aspecto da solução é examinado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prova que os grupos correspondem a categorias naturais em qualquer população.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substitui a necessidade de escolher atributos e interpretar as distâncias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que todos os métodos produzam a mesma quantidade de grupos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ajuda a verificar se a estrutura persiste sob variações razoáveis dos dados ou do ajuste.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converte medidas internas em rótulos supervisionados corretos automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estabilidade verifica sensibilidade a mudanças plausíveis nos dados ou na inicialização. Persistência aumenta a confiança operacional, mas não prova que exista uma taxonomia natural.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se os dados mostram cadeias curvas de pontos e observações dispersas, que família vale testar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "K-means em qualquer k, pois centróides preservam exatamente formas alongadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ward sem métrica, pois seu critério independe da geometria dos atributos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificação binária, pois pontos isolados são automaticamente uma classe real.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Complete linkage, pois seu corte sempre identifica outliers como ruído explícito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Métodos por densidade, como DBSCAN, com verificação de eps e densidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Métodos de densidade podem captar formas irregulares e marcar pontos isolados como ruído. É preciso validar eps e observar se densidades diferentes limitam o DBSCAN.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de gerar a partição, como a equipe deve interpretar o rótulo numérico atribuído a um grupo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma medida ordinal que indica qualidade superior aos grupos com número menor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um rótulo identificador do grupo, que ainda precisa de interpretação substantiva.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A classe verdadeira que foi usada como resposta durante o treinamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A probabilidade calibrada de que cada observação pertença à população geral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distância acumulada do ponto a todos os membros de outros agrupamentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os índices de cluster identificam partições sem impor ordem, qualidade ou classe verdadeira. A descrição exige examinar os atributos e o contexto.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que regra define single linkage entre dois grupos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A maior distância entre todo par de pontos dos grupos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A menor distância entre um ponto de cada grupo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A média dos quadrados das coordenadas de todos os atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O aumento da soma de quadrados intragrupo após a fusão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade mínima de amostras contidas no raio eps.",
+          "correct": false
+        }
+      ],
+      "explanation": "Single linkage usa o par intergrupos mais próximo. Complete usa o mais distante; Ward avalia incremento da soma de quadrados.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que regra distingue complete linkage de single linkage?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Complete linkage escolhe centros aleatórios e atualiza suas médias a cada iteração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Complete calcula a menor distância e favorece encadeamento de pontos próximos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Complete considera o par mais distante entre os grupos, favorecendo maior compacidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Complete usa a probabilidade posterior dos grupos para atualizar seus rótulos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Complete mede exclusivamente a diferença de rótulos conhecidos de treinamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Complete linkage usa a maior distância entre pares de grupos, ao contrário de single, que usa a menor. Essa escolha muda a forma das fusões.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como average linkage calcula a distância entre grupos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelo incremento da soma de quadrados intragrupo, conforme o critério de Ward.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pelo menor valor observado entre quaisquer dois pontos dos grupos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pela maior diferença absoluta entre os centróides iniciais escolhidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pela média das distâncias entre pares de pontos dos grupos distintos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Pela contagem de observações sem vizinhos no raio definido pelo usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Average linkage faz a média das distâncias intergrupos entre pares de observações. Single e complete usam, respectivamente, o mínimo e o máximo.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o critério de Ward está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele seleciona a partição com a maior quantidade de observações de ruído.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele junta grupos pelo par de pontos mais próximo, sem avaliar variância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele procura o ponto com mais vizinhos em uma esfera de raio eps.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele exige um rótulo de classe correto para cada observação da amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele escolhe a fusão que produz o menor aumento da soma de quadrados intragrupo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ward escolhe a fusão com menor incremento da variação intragrupo, usualmente na formulação euclidiana. Não é critério de densidade nem de rótulo supervisionado.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significa cortar um dendrograma em determinada altura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar os agrupamentos existentes naquele nível de dissimilaridade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover a raiz e transformar os atributos em classes supervisionadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar retroativamente a distância usada nas fusões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todos os pontos de borda em observações centrais de DBSCAN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recalcular os centróides até que a inércia se torne necessariamente zero.",
+          "correct": false
+        }
+      ],
+      "explanation": "O corte determina quais ramos ainda estão separados naquele nível e, assim, produz uma partição. Não muda a história de fusões já representada.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que descrição diferencia método divisivo do aglomerativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O divisivo começa com um grupo e o separa em subconjuntos sucessivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O divisivo inicia cada observação isolada e funde os pares mais próximos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O divisivo estima apenas centróides e não representa níveis de grupos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O divisivo classifica ruído por densidade sem formar qualquer hierarquia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O divisivo calcula a média de cada classe verdadeira indicada nos rótulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Divisivo é top-down: parte de um conjunto amplo e o subdivide. Aglomerativo é bottom-up: começa com grupos unitários e os funde.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação pode favorecer grupos compactos sob critérios geométricos usuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "K-means ou Ward, verificando pressupostos de escala e geometria dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DBSCAN com eps infinito, que preserva todas as formas sem unir pontos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Single linkage, que sempre evita cadeias de pontos interligados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classificação supervisionada, mesmo sem rótulos ou variável-alvo observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma partição aleatória, que minimiza garantidamente a soma de quadrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "K-means e Ward relacionam-se à soma de quadrados intragrupo e podem ser adequados a grupos compactos; a adequação depende de geometria, escala e outros pressupostos.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a estabilidade entre amostras ou inicializações é útil ao avaliar clusters?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajuda a verificar se a estrutura se mantém diante de variação razoável nos dados ou no ajuste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Prova que os grupos correspondem a categorias naturais em qualquer população.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui a necessidade de escolher atributos e interpretar as distâncias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante que todos os métodos produzam a mesma quantidade de grupos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte medidas internas em rótulos supervisionados corretos automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estabilidade examina sensibilidade a mudanças plausíveis; persistência da partição fortalece confiança operacional, mas não prova que seja uma taxonomia natural ou útil.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa grupos alongados, não convexos, e alguns pontos isolados. Qual família é candidata natural para avaliação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métodos por densidade, como DBSCAN, com verificação de eps e densidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "K-means em qualquer k, pois centróides preservam exatamente formas alongadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ward sem métrica, pois seu critério independe da geometria dos atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classificação binária, pois pontos isolados são automaticamente uma classe real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Complete linkage, pois seu corte sempre identifica outliers como ruído explícito.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos de densidade podem representar grupos de forma irregular e identificar ruído. A escolha deve ser validada, pois parâmetros e densidades distintas podem limitar DBSCAN.",
+      "section": "3. Métodos por densidade: DBSCAN e variantes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a leitura mais correta de um número de cluster produzido por um algoritmo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um identificador para o grupo, cujo significado substantivo ainda precisa ser interpretado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma medida ordinal que indica qualidade superior aos grupos com número menor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classe verdadeira que foi usada como resposta durante o treinamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A probabilidade calibrada de que cada observação pertença à população geral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distância acumulada do ponto a todos os membros de outros agrupamentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os índices de cluster identificam partições sem impor ordem, qualidade ou classe verdadeira. A descrição exige examinar os atributos e o contexto.",
+      "section": "1. O problema de agrupar dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual propriedade diferencia métodos por partição de uma hierarquia completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigem rótulos-alvo e constroem uma árvore de decisões para predizer classes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dão grupos para k escolhido, sem registrar todos os níveis de fusão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definem ruído exclusivamente pela quantidade de atributos categóricos presentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não dependem de distância, inicialização, escala ou qualquer escolha do analista.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sempre encontram grupos de densidade diferente sem parâmetros configuráveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "K-means e K-medoids procuram uma partição direta para quantidade escolhida. Métodos hierárquicos representam fusões ou divisões sucessivas em vários níveis.",
+      "section": "2. Métodos por partição: K-means e alternativas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre validação interna de clusterização é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um índice interno alto garante relevância prática dos grupos em qualquer domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Índices internos medem coesão e separação, mas dependem da geometria.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Métricas internas usam sempre rótulos verdadeiros conhecidos durante o treinamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A avaliação interna elimina a dependência dos clusters em relação à escala.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma única métrica identifica necessariamente o algoritmo universalmente correto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Medidas internas quantificam propriedades definidas, como compacidade e separação, mas suas preferências dependem da geometria e não substituem avaliação contextual.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição externa coincide parcialmente com categorias conhecidas. Como interpretar essa comparação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como prova de que o algoritmo recebeu rótulos supervisionados em cada iteração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como concordância entre grupos e categorias, sem usar estas como treino.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como garantia de que o número de clusters não dependeu de parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como demonstração de que qualquer agrupamento futuro terá a mesma estrutura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como substituição da análise de escala e representação dos atributos usados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Categorias conhecidas podem servir à avaliação externa da concordância, desde que não sejam confundidas com rótulos usados pelo método não supervisionado.",
+      "section": "4. Métodos hierárquicos e escolha consciente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Clustering — scikit-learn User Guide",
+      "publisher": "scikit-learn",
+      "reference": "Comparação de algoritmos, K-means, métodos hierárquicos e DBSCAN; características e limitações das famílias.",
+      "url": "https://scikit-learn.org/stable/modules/clustering.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "KMeans — scikit-learn API",
+      "publisher": "scikit-learn",
+      "reference": "Centros, inicialização, número de grupos, inércia e comportamento do algoritmo.",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DBSCAN — scikit-learn API",
+      "publisher": "scikit-learn",
+      "reference": "eps, min_samples, pontos centrais, ruído e ausência de exigência de k prévio.",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AgglomerativeClustering — scikit-learn API",
+      "publisher": "scikit-learn",
+      "reference": "Agrupamento aglomerativo, ligação, corte por quantidade ou limiar de distância.",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HDBSCAN — scikit-learn API",
+      "publisher": "scikit-learn",
+      "reference": "Clusterização hierárquica baseada em densidade e grupos de densidades variadas.",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.cluster.HDBSCAN.html",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

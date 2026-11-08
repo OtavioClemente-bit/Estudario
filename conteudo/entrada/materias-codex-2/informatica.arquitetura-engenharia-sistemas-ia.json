@@ -1,0 +1,1594 @@
+{
+  "id": "informatica.arquitetura-engenharia-sistemas-ia",
+  "subject": "Informática",
+  "title": "Arquitetura e engenharia de sistemas de IA",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura e engenharia de sistemas de IA",
+    "Engenharia de sistemas de inteligência artificial",
+    "Arquitetura de aplicações com inteligência artificial",
+    "Projeto de sistemas de inteligência artificial",
+    "Ciclo de vida de sistemas de IA em produção",
+    "Engenharia de aprendizado de máquina em produção",
+    "MLOps e arquitetura de sistemas inteligentes",
+    "Sistemas de IA: dados, modelos e operação",
+    "Implantação e monitoramento de modelos de IA",
+    "Arquitetura de soluções de aprendizado de máquina"
+  ],
+  "scope": {
+    "covers": "Concepção, arquitetura e engenharia de sistemas de inteligência artificial ao longo do ciclo de vida: definição do problema e critérios de sucesso; arquitetura de dados, treinamento, avaliação, registro de artefatos, implantação e inferência; pipelines reproduzíveis, MLOps, observabilidade, deriva e retreinamento; segurança, privacidade, supervisão humana, gestão de risco e governança; sistemas generativos com recuperação de informação, ferramentas e salvaguardas.",
+    "excludes": "Derivação matemática aprofundada de algoritmos, treinamento detalhado de arquiteturas neurais específicas, administração de um provedor de nuvem particular e interpretação jurídica de leis de proteção de dados."
+  },
+  "theoryTitle": "Projetar, entregar e operar sistemas de IA",
+  "chapters": [
+    {
+      "title": "1. Da necessidade ao sistema de IA",
+      "markdown": "### O problema que este assunto resolve\n\nUm modelo isolado não é um sistema de IA. Para entregar uma previsão ou resposta útil, é preciso combinar dados, código, modelo, interfaces, infraestrutura, controles e pessoas. A engenharia começa antes da escolha do algoritmo: define quem usará o resultado, qual decisão será apoiada, quais erros são aceitáveis e como o benefício será medido.\n\n> **Siglas e termos deste capítulo**\n> - **IA**: inteligência artificial; neste contexto, sistema que produz previsões, recomendações, conteúdo ou decisões a partir de entradas.\n> - **ML**: aprendizado de máquina, no qual parâmetros são ajustados com dados.\n> - **SLO**: objetivo de nível de serviço, como latência ou disponibilidade pretendida.\n> - **TEVV**: teste, avaliação, verificação e validação.\n\n### Enquadrar a tarefa antes de modelar\n\nTraduza a necessidade de negócio ou serviço em uma tarefa observável. Classificação estima categorias; regressão estima valores; ranking ordena candidatos; detecção de anomalias identifica observações incomuns; geração produz texto, imagem ou outro conteúdo. Uma linha de base simples (regra fixa ou modelo trivial) dá uma comparação para saber se a solução mais complexa acrescenta valor.\n\nDefina a unidade de previsão, o instante em que os dados estão disponíveis e a ação posterior. Por exemplo, prever inadimplência na data de análise não pode usar um campo que só se torna conhecido depois do pagamento. Essa informação futura cria vazamento de dados e produz avaliação artificialmente alta. Separe treino, validação e teste segundo o processo real: em séries temporais, respeite a ordem temporal; para entidades repetidas, evite que registros correlacionados apareçam em partições diferentes.\n\n| Decisão de projeto | Pergunta verificável |\n| --- | --- |\n| Objetivo | Qual resultado operacional deve melhorar? |\n| População e contexto | Para quem e em que condições o modelo será usado? |\n| Erros | Qual o custo de falso positivo e falso negativo? |\n| Limites | Quando encaminhar a um humano ou recusar a previsão? |\n| Linha de base | O que uma regra simples já alcança? |\n\n### Requisitos atravessam o ciclo todo\n\nAlém da qualidade preditiva, registre limites de latência, volume, disponibilidade, custo, privacidade, segurança, explicabilidade e acessibilidade. Um modelo um pouco mais preciso pode ser inadequado se não responder dentro do prazo da operação ou se exigir dados que não podem ser usados. Converta requisitos em critérios de aceitação mensuráveis e associe cada um a um teste ou indicador.\n\n### Como cai na prova\n\n- O escopo da solução deve especificar finalidade, população, contexto de uso, benefícios esperados e custos de erros.\n- Separação aleatória não é automaticamente adequada: dependência temporal ou por entidade exige partições que evitem vazamento.\n- Métrica offline é evidência necessária, mas não demonstra sozinha que o sistema melhora o processo em uso."
+    },
+    {
+      "title": "2. Arquitetura de dados, treinamento e artefatos",
+      "markdown": "### O problema que este assunto resolve\n\nTreinar novamente um modelo meses depois só é útil se a equipe souber quais dados, transformações, código e parâmetros produziram a versão anterior. A arquitetura deve preservar linhagem e tornar execuções rastreáveis, repetíveis e auditáveis.\n\n> **Siglas e termos deste capítulo**\n> - **Pipeline**: sequência automatizada de etapas com entradas e saídas definidas.\n> - **Feature**: variável derivada ou selecionada para representar um exemplo ao modelo.\n> - **Feature store**: serviço para definir, armazenar e disponibilizar features em treino e inferência.\n> - **Registro de modelos**: catálogo de versões de modelos e metadados, estados e aprovações.\n> - **Artefato**: saída versionada, como conjunto de dados, modelo, relatório ou pacote de execução.\n\n### Caminho dos dados\n\nUma arquitetura típica ingere dados de fontes identificadas, valida esquema e qualidade, aplica transformações versionadas, cria conjuntos de treino e avaliação e registra proveniência. Verificações concretas incluem campos ausentes, tipos incompatíveis, valores fora de faixa, duplicidade, atraso e alterações de distribuição. Dados de treino e de inferência precisam receber transformações compatíveis; diferenças entre elas causam *training-serving skew*.\n\nO armazenamento analítico histórico favorece consultas e treinamento em lote. Para inferência online com baixa latência, um armazenamento de features online pode fornecer os valores correntes; o armazenamento offline mantém histórico para análises e treinamento. Essa duplicidade exige mecanismos para manter definições e valores coerentes. Dados sensíveis pedem controle de acesso, minimização, retenção definida e proteção em trânsito e repouso.\n\n### Pipeline reproduzível\n\nSepare preparação, treinamento, avaliação e publicação em etapas com contratos explícitos. Registre, no mínimo, identificador e versão dos dados, código, configuração, parâmetros, ambiente de execução, métricas, modelo resultante e responsável. Fixar sementes ajuda, mas não garante por si só reprodução idêntica quando há hardware ou operações não determinísticas. O objetivo operacional é poder reconstruir a linhagem e explicar diferenças entre execuções.\n\nO registro de modelos mantém versões e metadados e pode representar estados como candidato, aprovado e arquivado. Uma política de promoção impede que um artefato seja servido só porque o treinamento terminou: a versão passa por avaliação, verificações e aprovação apropriadas ao risco. Dados e modelos devem ser tratados como ativos controlados, não como arquivos anônimos em diretórios pessoais.\n\n| Componente | Responsabilidade típica |\n| --- | --- |\n| Catálogo e armazenamento de dados | Localizar dados, controlar acesso e preservar histórico |\n| Validação de dados | Detectar esquema inválido, ausências e anomalias |\n| Orquestrador | Executar etapas, dependências, tentativas e agenda |\n| Rastreamento de experimentos | Guardar parâmetros, métricas e artefatos de cada execução |\n| Registro de modelos | Versionar candidatos e controlar promoção |\n\n### Como cai na prova\n\n- Um registro de modelos não substitui a validação: ele cataloga versões e seus metadados.\n- Guardar o modelo sem dados, código e configuração identificados não permite reconstruir a execução.\n- Feature store offline e online servem a padrões distintos; consistência entre treino e serviço precisa ser projetada."
+    },
+    {
+      "title": "3. Avaliar, implantar e integrar à aplicação",
+      "markdown": "### O problema que este assunto resolve\n\nUm modelo aprovado em um notebook ainda precisa ser empacotado, disponibilizado e integrado a um fluxo de trabalho. A arquitetura de inferência define como a aplicação envia entradas, recebe resultados, trata falhas e controla a versão ativa.\n\n> **Siglas e termos deste capítulo**\n> - **Inferência**: cálculo de uma saída do modelo para uma entrada.\n> - **Batch**: processamento de um conjunto de exemplos em lote, sem resposta imediata por chamada.\n> - **Canary**: liberação inicial para uma pequena parte do tráfego, com comparação e possibilidade de reversão.\n> - **Shadow**: execução paralela de uma versão candidata sem usar sua saída para decidir a resposta ao usuário.\n> - **A/B**: comparação controlada de versões em grupos de tráfego, com métrica definida.\n\n### Avaliação adequada ao custo dos erros\n\nNão escolha métrica por conveniência. Em classes desbalanceadas, acurácia pode parecer alta mesmo quando a classe importante quase nunca é detectada. Precisão responde que proporção dos positivos previstos está correta; revocação mede a proporção dos positivos reais encontrados. A curva ROC e a área sob ela avaliam discriminação em vários limiares; a precisão-revocação é informativa quando positivos são raros. Calibração verifica se previsões de probabilidade correspondem às frequências observadas.\n\nAvalie fatias relevantes (por período, região ou grupo pertinente), incerteza, robustez a entradas inválidas e desempenho sob as condições esperadas. Métrica técnica não substitui avaliação do efeito no processo e dos impactos sobre pessoas afetadas. Defina limiar de aceitação e condição de interrupção antes de observar o resultado final.\n\n### Padrões de implantação\n\nInferência em lote calcula resultados periodicamente e os grava para consumo posterior; é adequada quando a resposta não precisa ser imediata. Serviço online recebe requisição e responde em tempo próximo do real, exigindo orçamento de latência, capacidade e disponibilidade. Em dispositivos, a inferência local reduz dependência de rede, mas limita recursos e complica atualização.\n\nImplemente interface versionada, validação de entrada, autenticação, autorização, limites de taxa, timeout e respostas de erro explícitas. Empacote dependências e configuração para evitar que ambientes de teste e produção se comportem de modo diferente. Liberação gradual, shadow e canary diminuem o alcance inicial de um defeito; monitore critérios definidos e mantenha procedimento para retornar à versão anterior.\n\n### Como cai na prova\n\n- A saída de um modelo não deve ser promovida sem avaliação prévia e limiar de aceitação.\n- Batch é apropriado quando o resultado pode ser calculado e consumido depois; endpoint online atende chamadas interativas.\n- Shadow compara uma candidata sem deixar que sua saída controle a decisão real; canary serve parte pequena do tráfego."
+    },
+    {
+      "title": "4. Operação, MLOps e engenharia de risco",
+      "markdown": "### O problema que este assunto resolve\n\nDepois da implantação, mudam os dados, o comportamento dos usuários, os serviços dependentes e os riscos. Operar IA exige telemetria técnica e avaliação contínua do resultado, além de responsáveis capazes de responder a alertas e incidentes.\n\n> **Siglas e termos deste capítulo**\n> - **MLOps**: práticas de engenharia para desenvolver, implantar e operar sistemas de aprendizado de máquina de modo reproduzível.\n> - **Deriva de dados**: mudança na distribuição ou nas características das entradas.\n> - **Deriva de conceito**: mudança na relação entre entradas e resultado que se deseja prever.\n> - **Observabilidade**: capacidade de entender o estado interno do serviço a partir de métricas, logs e rastros.\n> - **Human-in-the-loop**: participação humana em revisão, exceção, supervisão ou correção do fluxo.\n\n### Monitorar o serviço e o modelo\n\nAcompanhe disponibilidade, latência por percentis, erros, filas, saturação de recursos, custo e volume. Registre versões do modelo e das features envolvidas em cada resposta, com proteção contra exposição de dados sensíveis. Quando rótulos de referência chegam depois, compare previsões com resultados reais e acompanhe qualidade por coortes. Sem rótulos imediatos, indicadores de entrada, comportamento e feedback humano podem sinalizar mudança, mas não provam isoladamente perda de acurácia.\n\nDeriva é um sinal para investigar, não uma ordem automática de retreinar. Uma alteração pode ser sazonal, legítima ou prejudicial; confira qualidade dos dados, contexto, impacto e desempenho. Retreinar sem governança pode incorporar rótulos ruins ou perpetuar vieses. Estabeleça critérios, aprovação, avaliação contra a versão atual, implantação controlada e plano de retorno.\n\n### Governar e responder a riscos\n\nO AI Risk Management Framework do NIST organiza atividades em quatro funções: **Govern**, com políticas, papéis e cultura de risco; **Map**, que caracteriza contexto, usos, componentes, benefícios e impactos; **Measure**, que avalia e monitora riscos com métodos e métricas; **Manage**, que prioriza riscos e define respostas. A governança atravessa as demais funções; elas não formam uma sequência rígida de etapas. O framework é voluntário e contextual, não um algoritmo de aprovação automática.\n\nMapeie também componentes de terceiros, serviços de modelo, conjuntos de dados, prompts e ferramentas. Defina controles de acesso e segredos, isolamento, auditoria e limites de consumo. Para usos de maior impacto, preveja supervisão humana com autoridade e informação suficientes para contestar, corrigir ou interromper; uma pessoa apenas clicando em confirmar não constitui supervisão efetiva. Documente limitações, usos previstos e proibidos, responsáveis, incidentes e canais de contestação.\n\n### Sistemas generativos em composição\n\nUma aplicação generativa pode encadear interface, orquestrador, modelo de linguagem, recuperação de documentos, ferramentas externas, filtros e armazenamento de contexto. Em geração aumentada por recuperação (RAG), o sistema localiza trechos de fontes e os fornece ao modelo; isso pode melhorar fundamentação e atualidade, mas não garante resposta correta. Preserve identificação da fonte, autorização no momento da busca e avaliação de recuperação e resposta.\n\nTrate conteúdo recuperado e entrada do usuário como dados não confiáveis. Instruções maliciosas em documentos podem tentar desviar o modelo; separe instruções de dados, limite ferramentas por privilégio mínimo e peça confirmação antes de ações consequentes. Avalie vazamento de informação, prompt injection, conteúdo inseguro, alucinação, latência e custo. Um filtro de saída não compensa ferramentas excessivamente privilegiadas.\n\n### Como cai na prova\n\n- Deriva, feedback tardio e alerta de qualidade demandam investigação; nenhum deles determina retreinamento sem avaliação.\n- Govern é transversal no NIST AI RMF; Map, Measure e Manage ajudam a identificar, avaliar e tratar riscos.\n- RAG acrescenta recuperação de fontes, mas não torna a resposta automaticamente verdadeira nem autoriza ignorar controles de acesso."
+    }
+  ],
+  "summary": "Um sistema de IA em produção reúne finalidade e critérios de aceitação, dados rastreáveis, pipeline reproduzível, modelo versionado, interface de inferência, infraestrutura, controles e operação humana. O projeto parte do problema, da população afetada e do custo dos erros; evita vazamento entre treino e avaliação; define requisitos de desempenho, privacidade, segurança e custo. A arquitetura de dados valida esquemas, controla acesso e registra proveniência. Pipelines versionam dados, código, configuração e artefatos; registro de modelos mantém versões e estados de promoção. A avaliação escolhe métricas compatíveis com desbalanceamento e impacto, testa fatias, incerteza e condições reais. Inferência pode ser batch, online ou local; implantação gradual, métricas, logs, rastros e reversão ajudam a controlar falhas. MLOps automatiza execução, publicação e monitoramento. Deriva é sinal de investigação, não gatilho cego de retreinamento. No NIST AI RMF, Govern atravessa Map, Measure e Manage. Aplicações generativas podem combinar modelo, RAG, ferramentas e filtros; recuperação não garante verdade, e documentos e prompts são entradas não confiáveis. Segurança exige privilégio mínimo, supervisão humana efetiva, controle de terceiros, documentação e resposta a incidentes.",
+  "flashcards": [
+    {
+      "front": "Que partes, além do modelo, formam um sistema de IA?",
+      "back": "Finalidade, dados, código e transformações, modelo, interface, infraestrutura, controles, monitoramento e pessoas que operam ou usam as saídas."
+    },
+    {
+      "front": "O que é vazamento de dados na avaliação?",
+      "back": "Uso no treinamento ou nas features de informação que não estaria disponível na previsão real, inflando artificialmente o desempenho medido."
+    },
+    {
+      "front": "Por que separar treino, validação e teste temporalmente em séries?",
+      "back": "Para evitar que dados futuros influenciem treinamento ou seleção e simular a ordem em que o sistema realmente preverá."
+    },
+    {
+      "front": "Qual a diferença entre precisão e revocação?",
+      "back": "Precisão: fração dos positivos previstos que é correta. Revocação: fração dos positivos reais encontrados."
+    },
+    {
+      "front": "Por que acurácia pode enganar em dados desbalanceados?",
+      "back": "Uma previsão constante da classe majoritária pode acertar quase tudo e ainda falhar em detectar a classe rara relevante."
+    },
+    {
+      "front": "O que registrar para rastrear um experimento?",
+      "back": "Versões de dados e código, configuração, parâmetros, ambiente, métricas, artefatos resultantes e responsável."
+    },
+    {
+      "front": "Para que serve um registro de modelos?",
+      "back": "Catalogar versões de artefatos e metadados e apoiar estados, avaliação e promoção controlada."
+    },
+    {
+      "front": "O que caracteriza training-serving skew?",
+      "back": "Diferença entre como as features são produzidas no treino e como são calculadas ou servidas na inferência."
+    },
+    {
+      "front": "Quando inferência batch é apropriada?",
+      "back": "Quando resultados podem ser calculados em lotes e consumidos posteriormente, sem resposta imediata por requisição."
+    },
+    {
+      "front": "O que um canary faz?",
+      "back": "Direciona inicialmente uma parcela pequena do tráfego à versão nova, observando resultados antes de ampliar a liberação."
+    },
+    {
+      "front": "O que significa execução shadow?",
+      "back": "Executar a versão candidata em paralelo e comparar sua saída sem usá-la para decidir a resposta real."
+    },
+    {
+      "front": "O que monitora observabilidade técnica?",
+      "back": "Por exemplo, disponibilidade, latência, erros, filas, saturação, volume, versão ativa e custo."
+    },
+    {
+      "front": "O que é deriva de dados?",
+      "back": "Mudança da distribuição ou características das entradas recebidas pelo sistema."
+    },
+    {
+      "front": "Deriva de dados implica retreinamento imediato?",
+      "back": "Não; é um sinal para investigar contexto, qualidade e impacto, e avaliar antes de alterar o modelo."
+    },
+    {
+      "front": "Quais são as quatro funções do NIST AI RMF?",
+      "back": "Govern, Map, Measure e Manage; Govern é transversal às demais."
+    },
+    {
+      "front": "O que a função Map faz?",
+      "back": "Caracteriza contexto, finalidade, componentes, benefícios, riscos e impactos possíveis do sistema."
+    },
+    {
+      "front": "O que a função Measure faz?",
+      "back": "Avalia, analisa, compara e monitora riscos e propriedades de confiança com métodos e métricas documentados."
+    },
+    {
+      "front": "O que é RAG?",
+      "back": "Geração aumentada por recuperação: trechos recuperados de fontes são fornecidos como contexto ao modelo generativo."
+    },
+    {
+      "front": "RAG garante que toda resposta esteja correta?",
+      "back": "Não; recuperação pode falhar, fontes podem estar erradas e o modelo pode interpretar ou citar incorretamente."
+    },
+    {
+      "front": "O que significa privilégio mínimo para ferramentas de IA?",
+      "back": "Dar a cada componente somente permissões e ações necessárias, limitando impacto de erro ou abuso."
+    },
+    {
+      "front": "Qual é uma supervisão humana efetiva?",
+      "back": "A pessoa tem informação, competência e autoridade para revisar, contestar, corrigir ou interromper o processo."
+    },
+    {
+      "front": "Por que registrar versão do modelo em cada resposta?",
+      "back": "Permite relacionar comportamento, incidentes e resultados à versão realmente usada e apoiar investigação ou reversão."
+    }
+  ],
+  "tips": [
+    "Percorra a cadeia necessidade → dados → treinamento → avaliação → registro → implantação → monitoramento.",
+    "Antes de aceitar uma métrica, verifique classe rara, custo de cada tipo de erro, limiar e população avaliada.",
+    "Para reprodução, procure linhagem conjunta de dado, código, configuração, ambiente e artefato.",
+    "Separe monitoramento da infraestrutura (latência e erros) do monitoramento do modelo (qualidade e deriva).",
+    "No AI RMF, associe Govern a papéis e políticas; Map ao contexto; Measure à evidência; Manage à resposta priorizada.",
+    "Em sistemas generativos, examine toda a cadeia: fontes, busca, modelo, ferramentas, permissões, saída e ação humana."
+  ],
+  "traps": [
+    "Confundir um arquivo de modelo com o sistema completo: aplicação, dados, serviço, controles e operação também integram a solução.",
+    "Tomar acurácia alta como prova suficiente quando as classes estão muito desbalanceadas.",
+    "Considerar deriva uma ordem automática de retreinamento, sem verificar causa e efeito operacional.",
+    "Achar que execução shadow já pode controlar a decisão entregue ao usuário; sua saída é paralela para comparação.",
+    "Tratar RAG como garantia de verdade ou de autorização: recuperação e controle de acesso são problemas distintos.",
+    "Chamar de supervisão humana um clique formal sem capacidade real de compreender, contestar ou interromper."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a arquitetura mínima de um serviço que fornece previsões de IA.",
+      "answer": "Fontes e validação de dados, transformações, treinamento e avaliação, registro versionado do modelo, serviço/interface de inferência, controles e telemetria com responsáveis por operação."
+    },
+    {
+      "question": "Como evitar vazamento em avaliação de uma previsão temporal?",
+      "answer": "Respeitar a ordem cronológica na separação e excluir de features qualquer informação que só se torna disponível depois do instante da previsão."
+    },
+    {
+      "question": "Quais evidências tornam um treinamento rastreável?",
+      "answer": "Identificadores de dados e código, transformação, parâmetros, ambiente, métricas, artefatos e responsável vinculados à execução."
+    },
+    {
+      "question": "Compare deploy batch, online e local.",
+      "answer": "Batch calcula conjuntos periodicamente; online responde a chamadas com baixa latência; local executa no dispositivo, reduzindo dependência de rede e impondo limites de recurso e atualização."
+    },
+    {
+      "question": "Por que medir precisão e revocação em vez de olhar apenas acurácia?",
+      "answer": "Em classes raras, acurácia pode ocultar falha na classe importante; precisão e revocação explicitam tipos diferentes de erro nos positivos."
+    },
+    {
+      "question": "O que deve acontecer após alerta de deriva?",
+      "answer": "Investigar mudança, dados, contexto e impacto; confirmar desempenho quando possível, decidir mitigação e só então avaliar retreinamento controlado."
+    },
+    {
+      "question": "Explique as funções do NIST AI RMF e a relação entre elas.",
+      "answer": "Govern estabelece governança transversal; Map caracteriza contexto e riscos; Measure avalia e monitora; Manage prioriza e trata respostas. As funções informam umas às outras e não são uma sequência rígida."
+    },
+    {
+      "question": "Que controles reduzem o risco de prompt injection em uma aplicação com ferramentas?",
+      "answer": "Tratar conteúdo externo como dado não confiável, separar instruções e conteúdo, limitar permissões e ferramentas, validar ações, pedir confirmação para efeitos relevantes e registrar interações."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Modelo confundido com sistema",
+      "summary": "Sistema inclui contexto, dados, transformações, modelo, interfaces, infraestrutura, controles e operação humana; requisitos precisam refletir o uso real."
+    },
+    {
+      "key": "e2",
+      "title": "Métricas sem contexto",
+      "summary": "Acurácia pode esconder falhas em classe rara; escolher precisão, revocação, calibração e limiares conforme custos e população."
+    },
+    {
+      "key": "e3",
+      "title": "Treinamento não reproduzível",
+      "summary": "Vincular artefato a dados, código, configuração e ambiente; alinhar features offline e online e manter promoção sob controle."
+    },
+    {
+      "key": "e4",
+      "title": "Operação confundida com retreinamento automático",
+      "summary": "Monitorar infraestrutura e desempenho; deriva ou alerta inicia investigação, e promoção de modelo exige avaliação e implantação controlada."
+    },
+    {
+      "key": "e5",
+      "title": "Confiança excessiva em componentes generativos",
+      "summary": "RAG não garante verdade; ferramentas exigem privilégio mínimo, conteúdo externo é não confiável e supervisão humana precisa ter autoridade efetiva."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual elemento transforma uma necessidade vaga em critério verificável para desenvolver um sistema de IA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir o objetivo operacional por uma meta de disponibilidade da infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar primeiro uma arquitetura neural e adaptar o objetivo ao resultado obtido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Maximizar a quantidade de dados sem especificar qual decisão será influenciada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adotar a métrica padrão da biblioteca, sem relacioná-la ao custo dos erros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+            "text": "Definir a decisão apoiada e seu critério de sucesso.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um projeto começa identificando quem usa a saída, qual decisão ela apoia e como o efeito será medido. Escolher algoritmo ou métrica sem esse contexto pode otimizar algo irrelevante.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma análise de crédito feita no instante do pedido, qual prática evita vazamento de informação na avaliação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluir todos os campos disponíveis e remover somente os que tenham valores ausentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar histórico de pagamento registrado depois da decisão como variável de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Limitar features a dados disponíveis no instante da previsão e separar por tempo quando necessário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ajustar o limiar usando o conjunto final de teste antes de medir o resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar exemplos difíceis nos conjuntos de treino e teste para estabilizar a métrica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A avaliação deve reproduzir a informação existente no momento de uso. Dados futuros, como o pagamento posterior, revelam indiretamente o resultado e tornam a estimativa artificialmente otimista.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base possui 98% de exemplos negativos. Qual interpretação de um classificador que sempre prevê negativo é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sua revocação para positivos necessariamente será alta por causa da acurácia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sua precisão positiva será alta mesmo sem emitir previsão positiva alguma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A métrica ROC substitui a necessidade de verificar erros na classe rara.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A acurácia pode ser alta enquanto a detecção dos positivos falha completamente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O conjunto desbalanceado impede qualquer avaliação quantitativa válida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao prever sempre a classe majoritária, o sistema pode acertar quase todos os registros e ainda ter revocação nula para a classe positiva. Acurácia precisa ser lida junto de métricas adequadas ao objetivo.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um sistema que prevê demanda semanal e será usado no próximo trimestre, qual divisão dos dados é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar aleatoriamente todas as semanas, misturando períodos futuros e passados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+            "text": "Treinar em períodos passados e testar em um período posterior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Colocar semanas alternadas em treino e teste para garantir a mesma distribuição temporal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Treinar no trimestre futuro e testar apenas com observações mais antigas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reutilizar o mesmo período em todos os subconjuntos e corrigir a métrica depois.",
+          "correct": false
+        }
+      ],
+      "explanation": "A separação cronológica aproxima o cenário de previsão futura e impede que informação de períodos posteriores contamine o treinamento. Misturar semanas pode superestimar generalização temporal.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de base simples elimina a necessidade de comparar o desempenho da solução de IA com alternativas mais simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A linha de base existe justamente para permitir a comparação de ganho, custo e complexidade da abordagem proposta em relação a uma alternativa simples.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a métrica de teste foi usada repetidamente para ajustar hiperparâmetros, ela continua sendo uma estimativa independente do desempenho final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ao orientar escolhas repetidas, o conjunto de teste influencia o desenvolvimento e deixa de ser uma avaliação final independente. A seleção deve ocorrer em treino e validação, preservando teste para avaliação posterior.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa prever falhas raras em equipamentos; perder uma falha custa mais que investigar um falso alarme. Que avaliação deve priorizar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acurácia global, sem discriminar o tipo de erro cometido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Latência média do treinamento, tomada como medida de acerto operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantidade total de parâmetros, como substituto da taxa de falhas detectadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Percentual de negativos corretos, mesmo que as falhas não sejam detectadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Revocação e custo dos falsos negativos, avaliados no limiar de operação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Como deixar uma falha passar tem custo elevado, é essencial medir a proporção de falhas detectadas e analisar o custo do limiar escolhido. Acurácia agregada pode esconder esse risco.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Requisitos de latência, custo, disponibilidade e privacidade não alteram decisões de arquitetura quando a métrica preditiva permanece igual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A solução também precisa cumprir requisitos de serviço e restrições de dados. Um modelo com qualidade equivalente pode ser inviável se não responder no prazo ou exigir tratamento de dados inadequado.",
+      "section": "1. Da necessidade ao sistema de IA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida ajuda a descobrir dados de entrada incompatíveis antes de consumi-los no treinamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aguardar a avaliação em produção para identificar colunas incompatíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar épocas de treinamento até o algoritmo absorver qualquer formato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar alterações de esquema e confiar que o modelo as interpretará.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o registro de linhagem para simplificar a leitura dos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar esquema, tipos, ausências e faixas esperadas na etapa de ingestão.",
+          "correct": true
+        }
+      ],
+      "explanation": "Validações explícitas de esquema e qualidade detectam problemas de dados antes que eles contaminem treinamento ou inferência. Treinar por mais tempo não corrige contratos incompatíveis.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O armazenamento offline de features é projetado principalmente para obter valores atuais com baixa latência em cada chamada online.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O armazenamento offline conserva valores históricos e atende treinamento e processamento em lote; o online costuma atender recuperação de baixa latência na inferência.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que deve acompanhar uma versão de modelo para permitir investigar como ela foi produzida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome escolhido pelo time e a data em que o endpoint foi ativado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas os pesos finais, pois os dados não influenciam a execução treinada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma cópia do painel de monitoramento, sem identificação de entradas ou parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+            "text": "Registrar dados, código, configuração, ambiente e métricas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O endereço da máquina de treinamento, sem preservar dependências ou configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "A linhagem vincula o modelo aos dados, ao código e às condições de execução, além de registrar resultados e artefatos. O peso isolado não explica nem reconstrói o processo.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro de modelos funciona como catálogo versionado de artefatos e metadados e pode apoiar processos de aprovação e promoção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O registro ajuda a localizar versões e seus metadados e a controlar estados de ciclo de vida. Ele não substitui avaliação nem aprovação adequada ao risco.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que situação uma feature store online é mais útil que consultar diretamente um histórico analítico extenso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando a equipe quer guardar exclusivamente os relatórios finais de treinamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando se pretende substituir controles de acesso por cache compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando a inferência pode esperar horas por uma consulta completa em lote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando chamadas online precisam obter features atuais com baixa latência.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Quando é necessário apagar toda a história para acelerar o treinamento retrospectivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O armazenamento online é otimizado para servir valores correntes com baixa latência a chamadas interativas. O histórico offline continua útil para treinamento e análise, e a consistência entre os dois precisa ser tratada.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Versionar apenas o modelo final é suficiente para reconstruir integralmente um experimento, mesmo sem registrar dados, código e parâmetros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O resultado depende das entradas, transformações, código, configuração e ambiente. Sem esses vínculos, não é possível reconstruir ou explicar diferenças com confiança.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração na transformação de features foi feita só no serviço de inferência. Que risco técnico surge?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo passa automaticamente a aprender a transformação atualizada sem novo treinamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode haver diferença entre features vistas no treinamento e aquelas servidas em produção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A mudança elimina a necessidade de registrar a versão das features utilizadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O registro de modelos corrige a divergência sem alteração de código ou validação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A qualidade permanece garantida porque o nome da coluna foi preservado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma transformação diferente entre treino e inferência causa training-serving skew. A equipe deve compartilhar ou validar a lógica de transformação e versioná-la junto à execução.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução de treinamento fixa a semente aleatória e, por isso, está garantida a produzir resultado idêntico em qualquer hardware e biblioteca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Fixar sementes ajuda a controlar fontes de aleatoriedade, mas operações, bibliotecas e hardware podem introduzir não determinismo. Registre o ambiente e as condições da execução.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade de separar preparação, treinamento e avaliação em etapas de pipeline com entradas e saídas definidas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir que cada etapa seja rastreada, repetida e validada por seus artefatos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantir que nenhuma etapa precise registrar suas dependências ou parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impedir que a equipe compare versões distintas de um mesmo modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar avaliação somente depois que o modelo já estiver disponível ao público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir toda validação de dados por mais capacidade computacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Etapas explícitas permitem controlar dependências, rastrear saídas, repetir partes e detectar falhas antes da promoção. A automação não elimina validação nem registro.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo de promoção pode impedir que todo modelo recém-treinado passe diretamente a atender usuários, aguardando avaliações e aprovações previstas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A conclusão do treinamento cria um candidato, não uma prova de prontidão. Critérios e aprovações devem ser atendidos antes da implantação conforme o risco e o processo definido.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida reduz a exposição de dados sensíveis usados por componentes de treinamento e inferência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar todos os conjuntos para contas compartilhadas e remover a trilha de acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter os dados sem prazo de retenção para facilitar qualquer treinamento futuro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar minimização, acesso controlado, proteção de dados e retenção definida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Armazenar dados em logs de texto para permitir depuração irrestrita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que cada ferramenta terceirizada retenha entradas sem controle contratual ou técnico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Minimização e controle de acesso reduzem a quantidade de dados exposta e quem pode usá-la; proteção e retenção definida complementam esses controles. Logs podem conter informação sensível e requerem cautela.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando positivos são raros, a curva precisão-revocação pode ser mais informativa sobre o desempenho na classe positiva do que a acurácia isolada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Precisão e revocação descrevem os acertos e erros relevantes na classe positiva e tornam visível o compromisso entre falsos alarmes e casos encontrados.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa responder em tempo interativo a cada consulta. Qual padrão de inferência atende melhor esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Calcular previsões mensalmente em lote e enviar uma planilha ao solicitante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Treinar um modelo novo para cada chamada, sem endpoint persistente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar exclusivamente a avaliação final em um ambiente offline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Disponibilizar serviço online com orçamento de latência e capacidade definidos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Armazenar os parâmetros do modelo em um catálogo sem interface de consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma interface online atende requisições interativas, desde que dimensionada para latência, concorrência e disponibilidade requeridas. Processamento em lote é adequado quando o resultado pode aguardar.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma liberação shadow direciona parte das decisões reais para a versão candidata, enquanto a versão anterior fica apenas registrando resultados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Em shadow, a candidata roda paralelamente e sua saída é comparada, sem controlar a resposta real. Direcionar tráfego que influencia usuários é outra modalidade de liberação, como canary.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão distingue uma liberação canary de uma troca imediata para todos os consumidores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A candidata recebe primeiro uma parcela limitada do tráfego, sob critérios de observação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A candidata é treinada sem qualquer comparação com a versão atualmente aprovada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão anterior é apagada antes de observar qualquer resultado de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As respostas são calculadas apenas em lote e nunca associadas a tráfego.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe troca o modelo e desativa todos os mecanismos de monitoramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Canary limita inicialmente a exposição da versão nova, permitindo observar indicadores e interromper ou ampliar a liberação conforme critérios. Isso reduz o alcance inicial de defeitos.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API de inferência deve validar entradas e impor autenticação, limites de consumo e timeouts compatíveis com o serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esses controles protegem o contrato da interface, limitam abuso e ajudam a falhar de modo controlado. A saída do modelo não dispensa controles convencionais de aplicação.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço apresenta baixa latência média, mas ocasionalmente ultrapassa o prazo máximo em muitas chamadas concorrentes. Qual indicador operacional é especialmente útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Número de épocas usadas no treinamento original, sem relação com o tráfego atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Percentis de latência, taxa de erros e saturação sob carga representativa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Acurácia histórica em treino, tomada como estimativa de disponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quantidade de documentos no repositório, sem medir tempo de resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A data de criação do endpoint, usada como proxy para desempenho concorrente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Média pode ocultar a cauda lenta. Percentis mostram a experiência em chamadas mais demoradas; taxa de erros e saturação revelam falhas e limites de capacidade sob concorrência.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Calibração verifica se probabilidades previstas correspondem aproximadamente às frequências observadas entre previsões de confiança semelhante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um modelo calibrado que atribui certa probabilidade a muitos casos deve apresentar, em média, frequência observada próxima a essa probabilidade; isso é diferente de medir apenas ordenação ou acurácia.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint ficou sem responder após a atualização de modelo. Qual combinação ajuda a reduzir duração e impacto do incidente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter versão anterior disponível, observar alertas e executar procedimento de reversão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar todos os logs para evitar que registros antigos confundam a análise.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar autenticação e limites até a nova versão recuperar a latência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Treinar novamente em produção antes de verificar dependências e erros do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aguardar rótulos do modelo para diagnosticar uma falha de disponibilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Versões preservadas, telemetria e procedimento de reversão permitem restaurar serviço e investigar. Retreinamento não corrige necessariamente uma falha de infraestrutura ou integração.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O monitoramento de IA deve observar apenas métricas preditivas; disponibilidade, custo e latência pertencem a sistemas sem modelos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um serviço de IA depende de infraestrutura e integração como outros sistemas e também requer métricas operacionais, além de qualidade do modelo e impactos do uso.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde à deriva de conceito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma coluna muda de tipo no esquema de entrada, sem mudança na relação preditiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O vínculo entre entradas e resultado-alvo muda ao longo do tempo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O serviço recebe mais chamadas por minuto, mantendo as mesmas relações observadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endpoint passa a responder por outro endereço, mas preserva seu modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma cópia do artefato é movida para outro diretório de armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Deriva de conceito refere-se a mudança na relação entre entradas e o alvo que se pretende prever. Mudança na distribuição de entradas é deriva de dados, embora os fenômenos possam coexistir.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta de deriva, sem rótulos atualizados ou análise do contexto, prova que a acurácia caiu e exige substituir imediatamente o modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Mudança de entradas não demonstra, por si, degradação da qualidade nem indica qual resposta é adequada. O alerta precisa ser investigado com contexto e evidência disponível antes de decidir mitigação ou retreinamento.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção associa corretamente as funções do NIST AI RMF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Govern define governança; Map caracteriza contexto; Measure avalia; Manage prioriza respostas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Govern treina o modelo; Map publica; Measure compra infraestrutura; Manage rotula dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Map aprova leis; Measure substitui testes; Govern encerra monitoramento após implantação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manage cria conjuntos de teste; Govern escolhe hiperparâmetros; Measure atende usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As quatro funções são fases rígidas executadas uma vez e sem retorno entre elas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O framework organiza atividades de risco em Govern, Map, Measure e Manage. Govern é transversal e as funções informam a gestão ao longo do ciclo, sem constituir uma receita rígida em sequência única.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na função Map do NIST AI RMF, é pertinente caracterizar finalidade, contexto de uso, componentes, benefícios e impactos possíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Map estabelece contexto e identifica usos, componentes e impactos relevantes; essa compreensão fundamenta avaliação e priorização posteriores.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Rótulos reais chegam com atraso de semanas. Qual estratégia fornece evidência útil nesse intervalo sem alegar que já mede acurácia final?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar que toda mudança de entrada equivale a erro de previsão confirmado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Parar de observar o sistema até os rótulos chegarem e apagar métricas operacionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Monitorar qualidade de entrada, mudanças, comportamento e feedback, depois validar com rótulos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Retreinar diariamente usando as próprias previsões como rótulos corretos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Avaliar apenas a média de latência como se fosse medida de acerto do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Indicadores de entrada, processo e feedback podem revelar sinais e orientar investigação, mas não substituem a comparação com resultados reais. Quando os rótulos chegam, avalie qualidade diretamente.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No AI RMF, a função Govern atravessa Map, Measure e Manage e estabelece políticas, papéis e cultura de gestão de risco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Govern é transversal e estrutura responsabilidades e políticas para que mapeamento, medição e tratamento de riscos ocorram com direção organizacional.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação RAG consulta documentos internos antes de responder. Que propriedade é necessário preservar ao recuperar trechos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A recuperação deve ignorar identidade do usuário para maximizar cobertura documental.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema deve aplicar autorização pertinente e manter referência aos trechos usados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todo trecho recuperado torna a resposta factual e elimina necessidade de avaliação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os documentos recuperados devem substituir controles e instruções do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A busca deve ser executada sem registrar versões de índice ou configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "RAG não deve vazar documentos a quem não tem acesso, e referências ajudam a rastrear a base usada. A presença de texto recuperado não garante que a resposta esteja correta.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento recuperado pode conter instruções maliciosas que tentam controlar o modelo; por isso, conteúdo externo deve ser tratado como entrada não confiável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Prompt injection pode estar em conteúdo fornecido ao modelo. Separar instruções e dados, validar ações e limitar ferramentas reduz a chance de conteúdo documental induzir comportamento não autorizado.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual controle limita o impacto caso um modelo generativo seja induzido a chamar uma ferramenta externa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder acesso administrativo global para que a ferramenta não falhe por permissão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover autenticação e confiar que o modelo recusará pedidos maliciosos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir toda ação sem registro, pois a resposta é produzida por linguagem natural.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar privilégio mínimo, validação da ação e confirmação quando houver efeito relevante.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tamanho do contexto para que instruções externas se tornem inofensivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Privilégio mínimo reduz o alcance de ações indevidas. Validação e confirmação humana para operações consequentes acrescentam barreiras independentes; confiar só na recusa do modelo é insuficiente.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação com RAG recupera trechos de fontes e os inclui como contexto, mas ainda pode gerar afirmações incorretas ou não sustentadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Recuperação acrescenta evidência contextual, mas busca, seleção e geração podem falhar. É necessário avaliar a cadeia e as respostas, e não presumir correção automática.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa revisora só pode aprovar ou rejeitar, não vê evidências e não consegue suspender o fluxo. Isso constitui supervisão humana suficiente para um uso de alto impacto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Supervisão efetiva requer informação, competência e autoridade para contestar, corrigir ou interromper conforme necessário. Uma confirmação formal sem capacidade de intervenção não controla o risco de forma significativa.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de controles é coerente para operar um sistema de previsão que recebe rótulos de resultado posteriormente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+            "text": "Monitorar serviço e entradas, comparar previsões com rótulos e responder a incidentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Monitorar somente o treinamento inicial e confiar que a distribuição futura não mudará.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a avaliação por comentários livres e publicar qualquer versão candidata.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar logs e métricas após cada implantação para evitar comparações entre modelos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acionar retreinamento automático sempre que uma métrica qualquer oscilar por um período.",
+          "correct": false
+        }
+      ],
+      "explanation": "A operação combina rastreabilidade, saúde técnica, sinais de dados e avaliação com resultados reais quando disponíveis. Incidentes precisam de responsáveis e ações; oscilação isolada não deve promover automaticamente novo modelo.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Retreinar com previsões antigas do próprio modelo tratadas automaticamente como rótulos verdadeiros pode propagar erros em vez de corrigi-los.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Previsões não confirmadas não equivalem a resultados observados; realimentá-las como verdade pode reforçar erros e vieses. Dados e rótulos de retreinamento precisam de controle e validação.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao integrar um serviço de modelo de terceiro, qual decisão de arquitetura e governança é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que o fornecedor responde por todos os riscos e dispensar o inventário de dependências.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar dados completos sem verificar permissões, retenção ou comportamento do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+            "text": "Mapear dependências, dados, controles e contingências.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover logs de chamadas e versões para não depender de metadados do fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Promover automaticamente qualquer atualização do terceiro sem repetir testes de integração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Componentes de terceiros fazem parte do sistema e introduzem dependências, riscos de dados e mudanças de comportamento. Mapeamento, controles, monitoramento e plano de contingência preservam capacidade de gestão.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe agenda treinamento semanal e quer garantir que nenhum modelo não avaliado chegue ao endpoint. Qual controle de fluxo é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar o arquivo assim que o processo de treinamento terminar com código de saída zero.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sobrescrever o modelo ativo a cada execução para evitar versões concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o registro de versões para impedir a promoção de artefatos antigos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir que a agenda ignore alertas de desempenho durante a implantação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir critérios de avaliação e aprovação antes da promoção da versão candidata.",
+          "correct": true
+        }
+      ],
+      "explanation": "A conclusão do treinamento só produz um candidato. O pipeline deve bloquear promoção até que a versão satisfaça verificações e aprovações definidas, preservando rastreabilidade e controle da implantação.",
+      "section": "2. Arquitetura de dados, treinamento e artefatos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de triagem precisa manter serviço enquanto uma nova versão é avaliada com tráfego real limitado. Que estratégia facilita reduzir a exposição inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover simultaneamente a versão atual e todas as métricas de serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aguardar que a versão candidata acumule rótulos sem executar inferência alguma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar todas as chamadas à candidata e decidir depois se houve regressão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o modelo sem preservar o artefato anterior nem o procedimento de retorno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar liberação canary com parcela limitada, critérios de observação e plano de reversão.",
+          "correct": true
+        }
+      ],
+      "explanation": "Canary restringe a exposição inicial e permite observar indicadores antes de ampliar o tráfego. Preservar a versão anterior e definir reversão ajuda a manter continuidade se houver regressão.",
+      "section": "3. Avaliar, implantar e integrar à aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação generativa consulta base documental e pode executar ações em sistemas externos. Qual salvaguarda deve limitar o alcance de instruções maliciosas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dar à ferramenta permissão ampla para que o modelo complete qualquer tarefa solicitada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+            "text": "Limitar permissões e validar ações sensíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tratar documentos como confiáveis sempre que vierem do índice de busca interno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir execução das ferramentas sem validar a ação nem confirmar seus efeitos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a validação das ações para reduzir a latência em todas as chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A defesa combina privilégio mínimo com validação das ações, pois documentos recuperados podem conter conteúdo adversarial. Operações com consequência relevante também podem exigir confirmação humana; confiança no modelo ou no índice não basta.",
+      "section": "4. Operação, MLOps e engenharia de risco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Artificial Intelligence Risk Management Framework (AI RMF 1.0)",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Funções Govern, Map, Measure e Manage; gestão contínua de riscos e avaliação durante o ciclo de vida.",
+      "url": "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Artificial Intelligence Risk Management Framework (AI RMF 1.0)",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Publicação NIST AI 100-1; finalidade, caráter voluntário e outcomes de gestão de riscos de IA.",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Machine learning operations (MLOps)",
+      "publisher": "Microsoft Learn / Azure Architecture Center",
+      "reference": "Arquitetura MLOps v2: dados, configuração, desenvolvimento, implantação, CI/CD e retreinamento.",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/machine-learning-operations-v2",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ML lifecycle architecture diagram",
+      "publisher": "Amazon Web Services",
+      "reference": "Componentes de arquitetura do ciclo de vida, feature stores online/offline, linhagem, registro de modelos, monitoramento e retreinamento.",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/architecture-diagram.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Best practices by ML lifecycle",
+      "publisher": "Amazon Web Services",
+      "reference": "Práticas por fase do ciclo: objetivo, formulação, processamento, desenvolvimento, implantação e monitoramento de modelos.",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/best-practices-by-ml-lifecycle-phase.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

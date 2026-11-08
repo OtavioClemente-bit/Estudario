@@ -1,0 +1,1815 @@
+{
+  "id": "informatica.framework-java-primefaces",
+  "subject": "Informática",
+  "title": "Framework Java PrimeFaces",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "PrimeFaces.",
+    "Framework Java PrimeFaces",
+    "Biblioteca PrimeFaces para Jakarta Faces",
+    "Componentes de interface PrimeFaces",
+    "PrimeFaces com Jakarta Faces",
+    "Desenvolvimento web com PrimeFaces",
+    "PrimeFaces e componentes JSF",
+    "Ajax parcial no PrimeFaces",
+    "DataTable do PrimeFaces",
+    "Formulários e eventos PrimeFaces"
+  ],
+  "scope": {
+    "covers": "PrimeFaces como biblioteca de componentes de interface para Jakarta Faces; configuração Maven e namespace Facelets; componentes de formulário e DataTable; EL, beans e ciclo de vida de Faces; requisições Ajax, atributos process e update, validação e mensagens; paginação, ordenação, filtro, seleção e carregamento lazy; temas, recursos visuais e acessibilidade; diferenças entre PrimeFaces, PrimeFlex e PrimeReact.",
+    "excludes": "Programação Java básica, especificação completa de Jakarta Faces, configuração detalhada de servidores, persistência JPA, regras internas de cada componente que dependam de uma versão específica e desenvolvimento com PrimeReact em React."
+  },
+  "theoryTitle": "PrimeFaces: componentes web para Jakarta Faces",
+  "chapters": [
+    {
+      "title": "1. O que é PrimeFaces e como entra numa aplicação",
+      "markdown": "### O problema que este assunto resolve\n\nUma página web corporativa costuma precisar de formulários, tabelas, menus, diálogos, calendários e mensagens. Construir cada interação do zero exige muito código no navegador e no servidor. O PrimeFaces oferece uma biblioteca de componentes prontos para aplicações baseadas em **Jakarta Faces** (o nome atual da tecnologia antes conhecida como JavaServer Faces ou JSF). A página continua sendo declarada em Facelets, geralmente em arquivos XHTML, mas pode usar tags como `<p:commandButton>` e `<p:dataTable>` para renderizar componentes interativos.\n\n> **Siglas e termos deste capítulo**\n> - **Jakarta Faces**: tecnologia Java para construir interfaces web orientadas a componentes e executadas no servidor.\n> - **Facelets**: tecnologia de declaração de páginas e composição de interfaces usada por Jakarta Faces.\n> - **XHTML**: formato de marcação com sintaxe XML, frequentemente usado nas páginas Facelets.\n> - **EL**: Expression Language; expressões como `#{clienteView.nome}` conectam a página a propriedades e métodos do servidor.\n> - **Namespace**: identificação usada no XHTML para associar um prefixo, como `p:`, a uma biblioteca de tags.\n> - **Componente**: unidade de interface mantida no modelo de Jakarta Faces e renderizada como elementos HTML e recursos de navegador.\n\n### Biblioteca de componentes, não um substituto de Java\n\nO PrimeFaces acrescenta componentes visuais e comportamentos à base de Jakarta Faces. A página usa tags XHTML, enquanto beans Java fornecem dados e ações. Por exemplo, `value=\"#{pedidoView.pedidos}\"` liga a tabela a uma coleção do bean, e `action=\"#{pedidoView.salvar}\"` liga um botão a uma ação do servidor. O PrimeFaces não substitui o Java, o servidor Faces, o banco de dados ou a camada de negócio.\n\nNo Maven, a dependência tradicional usa o grupo `org.primefaces` e o artefato `primefaces`; a versão e o classificador devem ser escolhidos conforme a geração de Jakarta Faces e o ambiente do projeto. O namespace da biblioteca no XHTML é `xmlns:p=\"primefaces\"` nas versões atuais documentadas. Aplicações mais antigas podem exibir namespaces e artefatos diferentes, por isso exemplos precisam ser lidos no contexto da versão adotada.\n\n| Parte | Responsabilidade típica | Exemplo |\n| --- | --- | --- |\n| Página Facelets | Estrutura da tela e declaração dos componentes | `<p:inputText value=\"#{clienteView.nome}\" />` |\n| Bean gerenciado | Estado da tela e métodos chamados pela página | `clienteView.salvar()` |\n| PrimeFaces | Componentes ricos, Ajax e recursos visuais | `<p:commandButton update=\"mensagens\" />` |\n| Jakarta Faces | Modelo de componentes, conversão, validação e ciclo de requisição | processamento do formulário |\n\n### Componentes e biblioteca visual\n\nA biblioteca inclui componentes de entrada, comandos, tabelas, calendários, diálogos, menus, mensagens, gráficos e outros. O elemento `<p:...>` indica uma tag da biblioteca PrimeFaces; `<h:...>` indica uma tag HTML padrão de Jakarta Faces, e `<f:...>` indica tags centrais de Faces. A presença de uma tag PrimeFaces não elimina a necessidade de declarar um formulário Faces quando o componente envia dados ao servidor.\n\nPrimeFaces também oferece recursos de tema. **PrimeFlex** é um conjunto separado de classes utilitárias CSS para layout, e **PrimeIcons** é um conjunto de ícones; não são nomes alternativos da biblioteca de componentes PrimeFaces. **PrimeReact** é uma biblioteca de componentes para React e não usa a arquitetura de Jakarta Faces.\n\n### Como cai na prova\n\n- PrimeFaces é uma biblioteca de interface para Jakarta Faces, com tags Facelets como `p:dataTable` e `p:commandButton`.\n- O bean Java fornece dados e ações; o componente renderiza e processa a interação na página.\n- Não confunda PrimeFaces com PrimeFlex (utilitários CSS), PrimeIcons (ícones) ou PrimeReact (React)."
+    },
+    {
+      "title": "2. Formulários, componentes e expressões EL",
+      "markdown": "### O problema que este assunto resolve\n\nUm campo visível na página precisa exibir um valor, receber uma alteração e, quando houver envio, participar do processamento do servidor. Os componentes Faces fazem essa ponte. Um `<p:inputText>` é ligado a uma propriedade por EL; o valor submetido passa por conversão e validação, é associado ao modelo e pode ser lido pela ação do bean conforme o ciclo de vida da requisição.\n\n> **Siglas e termos deste capítulo**\n> - **Formulário (`h:form`)**: componente Faces que delimita controles enviados numa submissão.\n> - **`p:inputText`**: campo de texto PrimeFaces ligado a um valor do modelo.\n> - **`p:commandButton`**: botão de comando que normalmente envia o formulário por Ajax.\n> - **Conversor**: transforma texto submetido em tipo Java, como data ou número.\n> - **Validador**: verifica se o valor atende a uma regra antes da ação de negócio.\n> - **`FacesMessage`**: mensagem associada à interface, geralmente apresentada por um componente de mensagens.\n\n### Ligação entre página e bean\n\nUma página típica associa os campos a propriedades e os comandos a métodos. O botão PrimeFaces usa Ajax por padrão; com `ajax=\"false\"`, faz uma submissão tradicional. `type=\"button\"` cria um botão que não submete o formulário e pode executar JavaScript; `type=\"reset\"` restaura os controles no navegador. Não se deve confundir o botão visual com a ação de negócio: a lógica de salvar continua no bean ou na camada de serviço.\n\nAtributos como `required`, `validator`, `converter`, `disabled` e `rendered` controlam participação e apresentação do componente. Um campo com `required=\"true\"` pode impedir que a ação seja invocada se estiver vazio. Mensagens de validação podem ser exibidas por `<p:message for=\"campo\">` para um componente específico ou `<p:messages>` para uma área de mensagens. O `for` precisa resolver para o identificador correto dentro dos contêineres de nomenclatura.\n\n### Ciclo de vida em termos práticos\n\nNo envio de um formulário, Faces restaura a árvore de componentes, aplica valores recebidos, converte e valida entradas, atualiza o modelo, invoca ações e renderiza a resposta. Uma falha de conversão ou validação normalmente pula a atualização do modelo e a ação, mantendo o usuário na tela com mensagens. O atributo `immediate` altera a fase de processamento de eventos/ações e pode fazer uma ação ocorrer antes da validação normal; não é um atalho genérico para corrigir mensagens ou dados que não chegam ao bean.\n\n| Situação | Resultado esperado |\n| --- | --- |\n| Campo ligado por `value` e incluído no processamento | Valor validado pode atualizar a propriedade do bean |\n| Campo fora de `process` em uma requisição parcial | Seu valor pode não ser decodificado nem atualizado nessa requisição |\n| Campo obrigatório inválido | A ação de negócio pode não ser executada |\n| Componente de mensagens atualizado na resposta | Mensagens Faces podem aparecer sem recarregar a página inteira |\n\n### Como cai na prova\n\n- `value` liga dados; `action` invoca um método ou navegação; `update` escolhe componentes a renderizar na resposta Ajax.\n- Validação ocorre antes da chamada normal da ação; erro de validação costuma impedir a ação e preservar a tela.\n- O comando deve estar dentro de um formulário Faces para enviar os campos correspondentes."
+    },
+    {
+      "title": "3. Ajax parcial: process, update e eventos",
+      "markdown": "### O problema que este assunto resolve\n\nUma submissão tradicional envia a página e recebe uma nova renderização completa. No Ajax parcial, a aplicação envia uma requisição ao servidor e atualiza apenas regiões escolhidas da tela. Isso reduz a interrupção visual, mas exige distinguir com precisão quais componentes serão **processados** e quais serão **atualizados**.\n\n> **Siglas e termos deste capítulo**\n> - **Ajax**: comunicação assíncrona entre navegador e servidor sem recarga completa da página.\n> - **PPR**: Partial Page Rendering, renderização parcial da resposta.\n> - **`process`**: alvos cujos valores e eventos participam do processamento servidor na requisição parcial.\n> - **`update`**: componentes cujo markup será incluído na resposta e substituído no navegador.\n> - **`p:ajax`**: comportamento Ajax anexado a um componente e a um evento.\n> - **Fila Ajax**: mecanismo que ordena requisições do navegador para evitar concorrência inesperada; pode ser alterado por opções específicas.\n\n### Processar não é renderizar\n\nConsidere um formulário com campo de filtro, botão e tabela. Se o botão usa `process=\"filtro\"`, o servidor processa o valor do filtro; `update=\"resultado\"` manda redesenhar a região com id `resultado`. Atualizar um componente não significa automaticamente processar todos os campos da página. Inversamente, processar um campo não obriga a incluí-lo na renderização da resposta. Essa distinção é o ponto mais cobrado.\n\nPrimeFaces oferece palavras-chave de busca como `@this` (componente que iniciou a requisição), `@form` (formulário), `@all` e `@none`, além de ids e expressões de busca. A resolução de ids pode exigir caminho absoluto ou referência relativa por causa de contêineres de nomenclatura, como formulários, tabelas e abas. Um componente que ainda não produziu markup por estar condicionalmente não renderizado não pode ser atualizado diretamente; costuma-se atualizar um contêiner que sempre exista.\n\n`<p:ajax event=\"change\" listener=\"#{view.alterar}\" update=\"painel\">` associa um listener de servidor ao evento suportado e pode atualizar uma região. `delay` descarta chamadas próximas e mantém a mais recente quando configurado; `async=\"true\"` deixa de enfileirar aquela requisição. Essas opções mudam a política de envio, mas não substituem a definição de `process` e `update`.\n\n### Exemplo mental de ciclo parcial\n\nAo clicar em um botão de pesquisa, o navegador envia os campos processados do formulário. Faces converte e valida esses valores, atualiza as propriedades e executa o método de pesquisa. O servidor então renderiza o componente indicado em `update`, e a resposta substitui essa região no DOM. Se o campo não foi processado, o método pode enxergar o valor antigo; se a região de resultado não foi atualizada, o método pode ter encontrado dados novos sem que a tabela visível mude.\n\n### Como cai na prova\n\n- `process` controla o processamento no servidor; `update` controla a renderização parcial devolvida.\n- `p:ajax` liga um evento a listener e pode definir a região atualizada.\n- Problemas de valor antigo geralmente pedem verificar inclusão do campo em `process`; tela desatualizada pede verificar `update` e o id."
+    },
+    {
+      "title": "4. DataTable, estado dos dados e desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nListas de registros precisam ser apresentadas de modo que o usuário consiga localizar e selecionar dados sem escrever toda a interface de navegação. `<p:dataTable>` é um componente PrimeFaces para exibir coleções em colunas; inclui recursos como paginação, ordenação, seleção, filtragem e carregamento sob demanda. A propriedade `value` aponta para os dados e `var` nomeia cada linha durante a expressão das colunas.\n\n> **Siglas e termos deste capítulo**\n> - **DataTable**: componente de tabela de dados do PrimeFaces.\n> - **Paginação**: divisão visual de registros em páginas.\n> - **Lazy loading**: busca de partes dos dados conforme a tabela solicita páginas, filtros ou ordenações.\n> - **`LazyDataModel`**: modelo de dados do PrimeFaces usado para implementar carregamento sob demanda.\n> - **`filteredValue`**: propriedade onde podem ser mantidos os resultados filtrados localmente.\n> - **Contêiner de nomenclatura**: componente que forma um escopo de ids, como formulário ou tabela.\n\n### Estrutura e recursos principais\n\nUma tabela associa cada coluna ao objeto da linha, por exemplo `field=\"nome\"` ou `#{cliente.nome}`. `paginator=\"true\"` ativa paginação; `rows` define quantas linhas aparecem por página. Ordenação e filtros podem ser definidos por coluna, e opções de seleção permitem guardar a linha escolhida em uma propriedade do bean. A tabela ainda tem eventos Ajax para mudança de página, ordenação, filtro, seleção e edição, conforme o recurso usado.\n\n| Necessidade | Recurso típico | Observação |\n| --- | --- | --- |\n| Mostrar uma coleção | `value` e `var` | A coleção/modelo vem do bean |\n| Separar resultados em páginas | `paginator` e `rows` | Paginação de interface pode ser local |\n| Filtrar linhas | filtro em coluna ou filtro global | Pode demandar consulta ao servidor em grandes volumes |\n| Exibir muitos registros sem carregar tudo | `lazy=\"true\"` e modelo lazy | Bean fornece dados e contagem conforme parâmetros da busca |\n| Selecionar registro | `selection` e modo de seleção | Tipo e estado precisam corresponder à linha/modelo |\n\nEm uma tabela local, a coleção pode estar inteira na memória do servidor e a biblioteca faz operações sobre ela. Para volumes grandes, `LazyDataModel` delega a consulta da página à aplicação: a implementação busca registros usando `first`, `pageSize`, filtros e ordenação, e informa a quantidade total. Ativar o modo lazy sem implementar a obtenção de dados e a contagem coerentes não torna o banco de dados automaticamente mais eficiente.\n\nIDs internos de componentes em uma tabela podem receber índices de linha. Por isso, ao referenciar um componente dentro de outro contêiner de nomenclatura, use a busca de expressão adequada e verifique o client id renderizado; ids duplicados fora das regras Faces podem tornar a atualização ambígua.\n\n### Como cai na prova\n\n- `value` aponta a coleção/modelo; `var` representa a linha atual dentro das colunas.\n- Paginação, filtro e ordenação são recursos da tabela; `lazy` delega a busca incremental ao modelo da aplicação.\n- Lazy loading não é sinônimo de paginação automática no banco nem elimina a responsabilidade de implementar consultas adequadas."
+    },
+    {
+      "title": "5. Temas, acessibilidade e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nAlém de funcionar, a interface precisa ter aparência consistente, oferecer pistas visuais e permitir uso por teclado e tecnologias assistivas. PrimeFaces fornece estilos e temas, mas uma equipe continua responsável por escolher rótulos, mensagens, contraste, ordem de foco e comportamento que façam sentido para seus usuários.\n\n> **Siglas e termos deste capítulo**\n> - **Tema**: conjunto de estilos visuais aplicado aos componentes.\n> - **CSS**: linguagem de apresentação visual de páginas.\n> - **ARIA**: atributos de acessibilidade que descrevem papéis, estados e propriedades para tecnologias assistivas.\n> - **Client id**: id renderizado no HTML, que pode diferir do id declarado na página por causa de contêineres.\n> - **Widget**: objeto de JavaScript que representa alguns componentes no navegador.\n\n### Tema, recursos e marcação\n\nTemas definem cores, espaçamentos e aparência sem trocar a lógica dos beans. A aplicação precisa incluir recursos compatíveis com a versão escolhida e configurar o tema conforme a distribuição usada. PrimeFaces atual usa temas baseados em tokens e estilos CSS; exemplos antigos podem citar temas e configuração diferentes. PrimeFlex complementa o layout com classes utilitárias, mas não substitui tema nem biblioteca de componentes.\n\nComponentes complexos podem expor `widgetVar` para obter o widget no JavaScript do navegador. O widget é um recurso do lado cliente: chamar uma função nele não executa automaticamente a lógica do bean, a menos que a ação provoque uma requisição ou esteja ligada a um mecanismo servidor. Atributos de eventos como `onstart` e `oncomplete` executam JavaScript no início ou conclusão de uma chamada Ajax.\n\n### Diagnóstico de falhas recorrentes\n\nQuando um comando não invoca o método, confirme que está dentro do formulário, que o componente está habilitado e que validação/conversão não falhou. Quando o bean recebe valor antigo, confira `process` e o vínculo EL. Quando a ação funciona mas a tela não muda, confira `update`, client id e se o destino já existe no HTML. Quando a atualização não encontra componente, examine contêineres de nomenclatura e referências relativas/absolutas. Para depurar, inspecione as mensagens Faces, a requisição Ajax no navegador e os ids renderizados.\n\nAcessibilidade inclui rótulos compreensíveis, foco visível, navegação por teclado, mensagens de erro associadas aos campos e não depender só da cor. A documentação e os componentes incorporam semântica e atributos ARIA, mas isso não corrige texto de rótulo inadequado nem torna acessível qualquer composição automaticamente.\n\n### Como cai na prova\n\n- Tema altera apresentação; bean e camada de negócio continuam responsáveis pelos dados e operações.\n- `widgetVar` identifica um widget do navegador; não é o nome do bean nem substitui EL.\n- Diagnostique separadamente formulário, validação, `process`, `update`, id e existência da região no markup."
+    }
+  ],
+  "summary": "PrimeFaces é uma biblioteca de componentes para Jakarta Faces, declarada em páginas Facelets com tags como p:inputText, p:commandButton e p:dataTable. Beans Java expõem propriedades e ações por EL. Em requisições parciais, process seleciona o que será processado no servidor e update define o que será renderizado na resposta. DataTable oferece paginação, ordenação, filtragem e seleção; para grandes conjuntos, um LazyDataModel deve consultar e contar dados sob demanda. Temas controlam a aparência, e PrimeFlex é um pacote CSS separado. Diagnóstico de problemas exige conferir formulário, validação, EL, ids, process e update.",
+  "flashcards": [
+    {
+      "front": "Para qual tecnologia Java o PrimeFaces fornece componentes de interface?",
+      "back": "Jakarta Faces, antes conhecida como JavaServer Faces (JSF)."
+    },
+    {
+      "front": "Em qual tipo de página são declaradas normalmente as tags p: do PrimeFaces?",
+      "back": "Em páginas Facelets, geralmente arquivos XHTML."
+    },
+    {
+      "front": "O que a expressão #{clienteView.nome} faz na página?",
+      "back": "Usa EL para acessar uma propriedade do bean chamado clienteView."
+    },
+    {
+      "front": "Qual é o papel típico do atributo value em p:dataTable?",
+      "back": "Apontar para a coleção ou modelo de dados exibido pela tabela."
+    },
+    {
+      "front": "Para que serve var em p:dataTable?",
+      "back": "Nomeia a linha atual para uso nas expressões das colunas."
+    },
+    {
+      "front": "Qual comportamento Ajax vem normalmente em p:commandButton?",
+      "back": "Submissão Ajax habilitada por padrão; ajax=false solicita envio tradicional."
+    },
+    {
+      "front": "O que o atributo process seleciona numa requisição Ajax?",
+      "back": "Os componentes cujos valores e eventos serão processados no servidor."
+    },
+    {
+      "front": "O que o atributo update seleciona numa requisição Ajax?",
+      "back": "Os componentes que serão renderizados e atualizados na resposta parcial."
+    },
+    {
+      "front": "O que acontece normalmente se um campo obrigatório falha na validação?",
+      "back": "A ação normal pode não ser invocada e mensagens de erro são disponibilizadas."
+    },
+    {
+      "front": "Para que serve p:message?",
+      "back": "Exibir uma mensagem Faces associada a um componente específico."
+    },
+    {
+      "front": "O que faz paginator=true na tabela?",
+      "back": "Habilita controles de paginação para dividir os registros exibidos."
+    },
+    {
+      "front": "Como LazyDataModel ajuda com tabelas grandes?",
+      "back": "Permite buscar sob demanda a página solicitada e informar a contagem de registros."
+    },
+    {
+      "front": "O lazy=true consulta sozinho o banco de dados?",
+      "back": "Não; a aplicação precisa implementar o modelo lazy e suas consultas."
+    },
+    {
+      "front": "O que é PrimeFlex?",
+      "back": "Uma biblioteca separada de classes utilitárias CSS para layout."
+    },
+    {
+      "front": "O que é PrimeReact?",
+      "back": "Uma biblioteca de componentes para React, distinta de PrimeFaces e Jakarta Faces."
+    },
+    {
+      "front": "Para que serve widgetVar?",
+      "back": "Nomeia o widget JavaScript de um componente para uso no lado cliente."
+    },
+    {
+      "front": "O que deve ser conferido quando o servidor recebe valor antigo?",
+      "back": "Se o campo foi incluído no processamento com process e se seu value EL está correto."
+    },
+    {
+      "front": "O que deve ser conferido quando a ação executa mas a tela não muda?",
+      "back": "O update, o client id e a presença do destino no markup renderizado."
+    },
+    {
+      "front": "Qual o papel de h:form?",
+      "back": "Delimitar controles Faces que participam de uma submissão de formulário."
+    },
+    {
+      "front": "O que faz o atributo ajax=false no commandButton?",
+      "back": "Desativa o envio Ajax do botão e realiza uma submissão tradicional."
+    },
+    {
+      "front": "Qual diferença geral entre tema e componente?",
+      "back": "Componente implementa estrutura/comportamento; tema determina aparência visual."
+    },
+    {
+      "front": "O que `p:ajax event` define?",
+      "back": "O evento do componente que iniciará o comportamento Ajax associado."
+    }
+  ],
+  "tips": [
+    "Memorize a separação: value liga dados, action chama método, process lê/valida e update redesenha.",
+    "Ao ler uma página, identifique primeiro h:form, bean EL e os componentes p: que enviam dados.",
+    "Em DataTable, associe value à coleção, var à linha e selection ao estado de seleção.",
+    "Em tabela com muito volume, pergunte como o LazyDataModel busca a página e calcula o total.",
+    "Se um id Ajax falha, verifique o client id real e os contêineres de nomenclatura próximos.",
+    "Não misture PrimeFaces, PrimeFlex, PrimeIcons e PrimeReact: cada nome indica uma função diferente."
+  ],
+  "traps": [
+    "Afirmar que update processa o campo do formulário. Errado: process define o processamento; update define a renderização da resposta.",
+    "Afirmar que todo commandButton faz submissão completa. Errado: Ajax vem habilitado por padrão; ajax=false troca para envio tradicional.",
+    "Dizer que uma falha de validação ainda executa a ação normal de salvar. Em geral, Faces interrompe o fluxo antes da ação.",
+    "Dizer que lazy=true torna automaticamente eficiente qualquer consulta. A aplicação deve implementar carregamento e contagem coerentes.",
+    "Tratar PrimeFlex como o framework de componentes PrimeFaces. PrimeFlex fornece classes utilitárias CSS em pacote separado.",
+    "Usar id declarado sem considerar formulário e tabela. Contêineres podem alterar o client id e exigir outra expressão de busca."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como PrimeFaces se relaciona com Jakarta Faces e com um bean Java.",
+      "answer": "PrimeFaces acrescenta componentes de interface à arquitetura de Jakarta Faces. A página Facelets declara esses componentes e usa EL para ligar propriedades e métodos de beans Java."
+    },
+    {
+      "question": "Diferencie process e update em uma ação Ajax.",
+      "answer": "Process escolhe quais componentes terão valores e eventos processados no servidor; update escolhe quais componentes serão renderizados e substituídos na resposta parcial."
+    },
+    {
+      "question": "Descreva o fluxo de um campo obrigatório inválido ao clicar em salvar.",
+      "answer": "Faces recebe o valor, converte e valida. Se required ou outra validação falhar, a propriedade pode não ser atualizada e a ação normal de salvar não é chamada; a interface exibe mensagens."
+    },
+    {
+      "question": "Como se monta uma DataTable ligada ao bean?",
+      "answer": "Use value para apontar à coleção/modelo, var para nomear a linha atual e colunas que leem propriedades dessa linha; paginator, filtros e seleção habilitam recursos adicionais."
+    },
+    {
+      "question": "Quando um LazyDataModel é apropriado e o que sua implementação precisa fazer?",
+      "answer": "É adequado a grandes volumes; a implementação consulta a página solicitada conforme posição, tamanho, filtros e ordenação e também informa o total de registros correspondente."
+    },
+    {
+      "question": "Por que o método pode receber o valor antigo do campo após uma chamada Ajax?",
+      "answer": "O campo pode não ter sido incluído em process, ou o vínculo value EL pode apontar para propriedade errada."
+    },
+    {
+      "question": "Como investigar uma resposta Ajax que executa a ação mas não atualiza o painel?",
+      "answer": "Confirme update, procure o client id correto e verifique se o componente-alvo já tem markup para ser substituído."
+    },
+    {
+      "question": "Compare PrimeFaces, PrimeFlex e PrimeReact.",
+      "answer": "PrimeFaces é uma biblioteca de componentes para Jakarta Faces; PrimeFlex fornece utilitários CSS de layout; PrimeReact oferece componentes para aplicações React."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Processamento parcial confundido com renderização",
+      "summary": "process define o que o servidor processa; update define o que a resposta Ajax renderiza. Um não substitui o outro."
+    },
+    {
+      "key": "e2",
+      "title": "Ciclo de validação ignorado",
+      "summary": "Conversão e validação precedem a ação normal. Campos inválidos podem impedir atualização do modelo e execução do método."
+    },
+    {
+      "key": "e3",
+      "title": "Modelo de tabela mal compreendido",
+      "summary": "value indica os dados, var nomeia a linha e lazy requer implementação de consultas e totalização; não cria otimização automática."
+    },
+    {
+      "key": "e4",
+      "title": "Ids e contêineres de nomenclatura",
+      "summary": "Formulários, tabelas e outros contêineres afetam client ids. Referências Ajax precisam localizar corretamente o componente renderizado."
+    },
+    {
+      "key": "e5",
+      "title": "Bibliotecas com nomes parecidos",
+      "summary": "PrimeFaces é para Jakarta Faces; PrimeFlex é utilitário CSS; PrimeIcons é conjunto de ícones; PrimeReact é para React."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa criar uma tela Java com campos, tabelas e diálogos reutilizáveis em páginas Facelets. Qual tecnologia oferece esse conjunto de componentes integrado ao modelo Faces?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PrimeFaces, componentes ricos para Jakarta Faces",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "PrimeFlex, como mecanismo Java de persistência relacional",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PrimeReact, como extensão de tags da página Facelets",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PrimeIcons, como framework de ciclo de vida dos beans",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PrimeFaces, como servidor web que substitui Jakarta Faces",
+          "correct": false
+        }
+      ],
+      "explanation": "PrimeFaces fornece componentes de interface para aplicações baseadas em Jakarta Faces, declarados em páginas Facelets. PrimeFlex é utilitário CSS, PrimeIcons fornece ícones, PrimeReact atende React e PrimeFaces não substitui o servidor ou o modelo Faces.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma página Facelets atual, qual namespace associa o prefixo p às tags do PrimeFaces?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "xmlns:p=\"jakarta.faces.html\"",
+          "correct": false
+        },
+        { "key": "B", "text": "xmlns:p=\"primefaces\"", "correct": true },
+        {
+          "key": "C",
+          "text": "xmlns:p=\"jakarta.faces.core\"",
+          "correct": false
+        },
+        { "key": "D", "text": "xmlns:p=\"primeflex\"", "correct": false },
+        {
+          "key": "E",
+          "text": "xmlns:p=\"java.enterprise.faces\"",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação atual do PrimeFaces declara o namespace primefaces para o prefixo p. jakarta.faces.html e jakarta.faces.core identificam bibliotecas padrão de Faces; primeflex é outro pacote e a última URI não é namespace da biblioteca.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página associa value=\"#{clienteView.nome}\" a um campo de texto. O que essa expressão EL representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma classe CSS que define o formato do campo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um seletor JavaScript para localizar o elemento",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma rota HTTP que abre outra página Facelets",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A propriedade nome do bean clienteView por EL",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um comando SQL que lê a coluna nome do cliente",
+          "correct": false
+        }
+      ],
+      "explanation": "A expressão EL acessa a propriedade nome do bean clienteView, fazendo a ligação entre o componente e o modelo servidor. Ela não define CSS, seletor JavaScript, rota ou consulta SQL.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O componente p:dataTable está ligado a uma lista de clientes do bean. Qual é a função mais direta de seu atributo var?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir a quantidade máxima de páginas da tabela",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher a propriedade usada para filtrar registros",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nomear a linha atual nas expressões das colunas",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ativar a busca preguiçosa no banco de dados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Selecionar o tema visual da tabela PrimeFaces",
+          "correct": false
+        }
+      ],
+      "explanation": "O atributo var dá um nome à linha atual enquanto as colunas são avaliadas, permitindo expressões como #{cliente.nome}. Tamanho de página, filtro, carregamento lazy e tema são definidos por outros atributos ou configurações.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um botão PrimeFaces precisa enviar o formulário sem requisição Ajax. Qual configuração faz essa mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir update como false no componente de saída",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir process como none no botão de comando",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir immediate como true no formulário Faces",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir partialSubmit como true no botão PrimeFaces",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir ajax como false no commandButton",
+          "correct": true
+        }
+      ],
+      "explanation": "O commandButton usa Ajax por padrão e o atributo ajax=false solicita submissão tradicional. update, process e partialSubmit ajustam outros aspectos do processamento parcial; immediate altera fase de evento, não o modo de envio.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time quer usar classes CSS prontas para organizar colunas e espaçamentos, mantendo componentes Jakarta Faces na página. Qual pacote se destina a utilitários de layout?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PrimeFlex, conjunto de classes CSS utilitárias de layout",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "PrimeIcons, como conjunto de controladores de formulário",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PrimeReact, como módulo de estilos para páginas JSF",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DataTable, como grade CSS independente de dados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FacesMessage, como sistema de posicionamento das colunas",
+          "correct": false
+        }
+      ],
+      "explanation": "PrimeFlex é uma biblioteca separada de utilitários CSS usados para layout. PrimeIcons trata de ícones, PrimeReact é para React, DataTable apresenta dados e FacesMessage representa mensagens da aplicação.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um commandButton solicita atualizar a tabela após uma pesquisa Ajax, mas deve também processar o campo de consulta. Como os atributos se dividem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "process redesenha a tabela e update lê o valor do campo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "process seleciona o campo e update redesenha a tabela",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "process chama o método e update valida o campo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "process escolhe o bean e update decide a regra de negócio",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "process desativa Ajax e update submete o formulário",
+          "correct": false
+        }
+      ],
+      "explanation": "process inclui o campo no ciclo de processamento parcial para que seu valor seja recebido e validado; update inclui a tabela na renderização parcial da resposta. Os outros enunciados trocam papéis ou atribuem ações de negócio a esses atributos.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente dataTable deve exibir oito registros por página e oferecer controles para avançar entre páginas. Que configuração expressa diretamente essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "selection=true e rows=8 na tabela",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "lazy=true e pageLinks=8 na tabela",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "filter=true e paginatorPosition=8 na tabela",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "paginator=true e rows=8 na tabela",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "draggableRows=true e first=8 na tabela",
+          "correct": false
+        }
+      ],
+      "explanation": "paginator habilita paginação e rows indica a quantidade exibida por página. Selection, lazy, filtro e arrastar linhas atendem a outros comportamentos; first indica o índice inicial, não o tamanho da página.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor encontra PrimeReact numa pesquisa e pretende usar seus componentes dentro de uma página Facelets com beans Jakarta Faces. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PrimeReact é o módulo Ajax de PrimeFaces e usa os mesmos beans",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PrimeReact adiciona tags p: à biblioteca padrão Faces",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PrimeReact é voltado a React, não à arquitetura Facelets/Faces",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "PrimeReact instala automaticamente PrimeFaces no servidor Java",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PrimeReact é o tema escuro oficial das páginas Jakarta Faces",
+          "correct": false
+        }
+      ],
+      "explanation": "PrimeReact é uma biblioteca de interface para aplicações React. PrimeFaces é a biblioteca relacionada a Jakarta Faces; usar componentes React não significa que eles sejam tags Facelets ou beans Faces.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um formulário, um campo required não passa na validação ao submeter o botão. O que ocorre normalmente com a ação de negócio ligada ao botão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ação é chamada antes da validação e salva o valor vazio",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A validação é ignorada por ser um componente PrimeFaces",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A propriedade é atualizada com um valor padrão automático",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O formulário chama a ação e limpa as mensagens depois",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ação normal pode ser impedida e gerar uma mensagem",
+          "correct": true
+        }
+      ],
+      "explanation": "No ciclo comum de Faces, conversão e validação vêm antes da atualização do modelo e da invocação da ação. Uma falha de campo obrigatório impede o fluxo normal e permite apresentar a mensagem de validação.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe declara um p:ajax com event=\"change\" e listener=\"#{cadastroView.recalcular}\". Qual descreve a função dessa configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o listener do servidor quando ocorrer o evento associado",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter toda mudança do banco em evento do navegador",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o processamento do campo até o próximo formulário",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma nova página Facelets chamada recalcular",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o bean cadastroView por um widget JavaScript",
+          "correct": false
+        }
+      ],
+      "explanation": "p:ajax associa um comportamento Ajax ao evento suportado pelo componente e pode invocar um listener de servidor. Não é gatilho de mudança do banco, página, substituto do bean ou mecanismo de desativação do campo.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo é alterado e enviado por Ajax, mas o método de pesquisa continua usando a propriedade antiga do bean. Qual verificação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o atributo update contém todos os estilos CSS da tela",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se o campo está em process e ligado à propriedade EL correta",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Se o tema foi instalado antes da biblioteca de ícones",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se a tabela tem paginação e colunas arrastáveis",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a ação foi marcada como método de construção Java",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o campo fica fora de process, seu valor pode não passar pelo processamento parcial. Também é preciso conferir se value aponta para a propriedade correta. update trata do que volta renderizado, não do que chega ao bean.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela deve buscar apenas a página solicitada em um catálogo com milhões de registros. Qual abordagem se ajusta melhor quando a aplicação implementa a consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Carregar a lista completa e ocultar as linhas fora da página",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar seleção simples e reduzir o número de colunas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar paginação e filtrar os dados no navegador",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modelo lazy consulta páginas e informa a contagem total",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Declarar paginator sem alterar como os dados são carregados",
+          "correct": false
+        }
+      ],
+      "explanation": "O carregamento lazy delega à aplicação a consulta da parte pedida e a informação do total, evitando trazer toda a coleção para a tabela. Apenas habilitar paginator ou ocultar linhas não garante busca incremental no banco.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente condicional ainda não produziu markup no navegador; a requisição Ajax tenta atualizá-lo diretamente e não o encontra. Qual solução costuma ser apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar o contêiner persistente que envolve a região",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar o bean e recriar a árvore de componentes pelo cliente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retirar o formulário para que o componente ganhe um id global",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar lazy loading ao painel até ele aparecer no navegador",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir update como vazio para forçar a substituição do DOM",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma atualização parcial substitui markup existente. Se o alvo condicional não foi renderizado e não existe no DOM, atualize um contêiner persistente cuja região possa receber a nova renderização.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DataTable local possui a lista inteira no bean e usa paginação na interface. Qual afirmação descreve corretamente esse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A paginação local garante que o banco envie só uma página",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A paginação impede que a tabela aplique ordenação",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A lista pode permanecer toda em memória na paginação local",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A seleção da linha ativa automaticamente o modelo lazy",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A coleção precisa ser substituída por um tema CSS",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação da interface não implica por si só que o banco buscou apenas uma fatia. Em modelo local, a coleção pode estar inteira carregada; lazy loading exige um modelo e consultas sob demanda.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A página apresenta mensagens de validação relacionadas a um campo específico. Qual recurso da biblioteca pode renderizar a mensagem associada ao componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "p:ajaxStatus configurado como coluna da tabela",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "p:outputLabel com seleção de todos os beans",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "p:dataTable com filtro global da página",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "p:commandButton com update de todos os campos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "p:message ligado ao id do campo correspondente",
+          "correct": true
+        }
+      ],
+      "explanation": "p:message pode apresentar uma mensagem Faces associada a um componente específico por meio de sua referência. ajaxStatus sinaliza requisições, outputLabel rotula, dataTable apresenta coleções e commandButton inicia uma ação.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após adicionar a dependência PrimeFaces ao projeto, a página pode declarar tags p: e usar os componentes junto ao modelo de Jakarta Faces.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A biblioteca é integrada ao ambiente Jakarta Faces e suas tags são declaradas em páginas Facelets. A dependência e o namespace precisam ser compatíveis com a geração da plataforma escolhida.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo update de um commandButton Ajax especifica os componentes cujos valores serão convertidos e validados no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. update seleciona componentes renderizados na resposta Ajax; process seleciona os componentes que participam do processamento servidor, que inclui decodificação, conversão e validação conforme o caso.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com paginator ativado, a DataTable pode dividir os registros exibidos em páginas e permitir navegação entre elas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. paginator habilita a paginação visual da tabela e rows define o tamanho de página. Isso, isoladamente, não determina se a coleção foi carregada inteira ou sob demanda.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PrimeFlex e PrimeFaces são dois nomes para o mesmo conjunto de componentes Jakarta Faces, com as mesmas tags XHTML.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. PrimeFaces é a biblioteca de componentes para Jakarta Faces; PrimeFlex é um pacote separado de utilitários CSS para organização de layout.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo var de uma DataTable fornece um nome para acessar a linha atual nas expressões de suas colunas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. var nomeia o objeto de cada linha durante a renderização da tabela, permitindo referenciar suas propriedades nas colunas.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma conversão ou validação falha no fluxo normal de Faces, a ação de negócio pode deixar de ser chamada nessa submissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O ciclo valida os valores antes de atualizar o modelo e invocar a ação normal. A falha registra mensagens e mantém a tela para correção do usuário.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção lazy de uma tabela implementa automaticamente qualquer consulta de paginação no banco, sem código no modelo de dados da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A aplicação deve implementar o modelo de dados lazy, consultar registros conforme parâmetros de página, filtro e ordenação e fornecer a contagem total pertinente.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome widgetVar identifica um widget no navegador e não substitui o nome do bean usado em expressões EL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. widgetVar é usado para localizar o objeto JavaScript de certos componentes. Bean e propriedades do servidor são acessados por EL e pertencem a outra camada.",
+      "section": "5. Temas, acessibilidade e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o destino de uma atualização Ajax ainda não existe no markup porque sua renderização condicional está desativada, atualizar um contêiner persistente pode tornar a região disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A substituição parcial precisa localizar markup existente no navegador. Um contêiner sempre renderizado pode ser atualizado e receber a nova renderização do componente condicional.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O PrimeFaces adiciona componentes a Jakarta Faces, mas não elimina a responsabilidade da aplicação por configurar dependências compatíveis e fornecer dados e métodos nos beans.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A biblioteca fornece tags e comportamentos visuais; a aplicação continua responsável pela plataforma Faces compatível e pela lógica de estado e negócio exposta aos componentes.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O evento passado ao atributo event de p:ajax deve ser suportado pelo componente ao qual o comportamento foi associado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O comportamento Ajax se associa a um evento reconhecido pelo componente, como change em campos ou action em componentes de comando, conforme a documentação do componente.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Habilitar paginação em uma DataTable prova que somente os registros da página visível estão carregados no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Paginação pode operar sobre uma coleção local já carregada. Busca incremental de conjuntos grandes depende de modelo lazy e de uma implementação que consulte os dados sob demanda.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PrimeReact é uma coleção de tags XHTML que usa p: como prefixo e integra diretamente o ciclo de vida de Jakarta Faces.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. PrimeReact é destinado a interfaces React. A biblioteca de componentes associada a Jakarta Faces e às tags p: é PrimeFaces.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolheu PrimeFaces para construir uma aplicação web com Jakarta Faces. Qual é o papel típico da página XHTML nesse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar diretamente todos os registros persistidos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar estrutura e componentes ligados aos dados do servidor",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir os beans por folhas de estilo CSS",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar consultas SQL sem passar pela aplicação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fornecer o servidor HTTP embutido da biblioteca",
+          "correct": false
+        }
+      ],
+      "explanation": "Facelets em XHTML declara a interface e os componentes, que podem ligar valores e ações aos beans por EL. Persistência, estilos e servidor HTTP são responsabilidades distintas.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um commandButton deve executar JavaScript no navegador sem iniciar submissão Ajax ou tradicional. Qual tipo expressa esse uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "type=\"submit\" com ajax true e action vazia",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "type=\"reset\" com listener de banco de dados",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "type=\"button\" com evento de cliente",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "type=\"action\" com processo de navegação Faces",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "type=\"ajax\" com validação do formulário inteiro",
+          "correct": false
+        }
+      ],
+      "explanation": "O tipo button é destinado a um botão de cliente que executa JavaScript sem submeter o formulário. Submit envia dados, reset restaura controles, e action/ajax não são tipos HTML desse componente.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código declara uma tabela com value=\"#{consultaView.resultados}\" e var=\"registro\". Como uma coluna pode acessar o nome de cada item?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usando #{consultaView.value.nome} como nome global",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usando #{p:dataTable.registro.nome} no namespace",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usando #{FacesContext.resultados.nome} na coluna",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usando #{registro.nome} para a linha atual",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usando #{var.resultados.nome} para acessar o bean",
+          "correct": false
+        }
+      ],
+      "explanation": "var define o nome que representa o objeto da linha durante a avaliação das colunas; portanto registro.nome acessa a propriedade nome daquela linha. As demais expressões trocam o escopo do bean, do namespace ou do atributo.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um inputText está fora da lista de process de um botão Ajax. O método acionado pelo botão pode receber a propriedade atualizada com o valor recém-digitado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois update sempre processa todos os campos vizinhos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, pois Ajax envia e valida toda a árvore Faces",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, desde que a tabela tenha paginação ativa",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; basta declarar um tema diferente no formulário",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não necessariamente; o campo precisa participar do processamento",
+          "correct": true
+        }
+      ],
+      "explanation": "Um componente fora de process pode não ser decodificado, convertido, validado nem associado ao modelo nessa requisição. update controla o retorno renderizado e não adiciona automaticamente o campo ao processamento servidor.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer exibir filtro por coluna e ordenar a DataTable conforme o campo selecionado. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DataTable tem recursos de filtro e ordenação associados a seus dados",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Esses recursos existem só em PrimeFlex, sem ligação aos dados",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ordenação depende de alterar o tema visual da página",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O filtro substitui o modelo value e exclui o bean",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PrimeIcons executa consultas de filtro no lugar da tabela",
+          "correct": false
+        }
+      ],
+      "explanation": "DataTable inclui mecanismos de filtro e ordenação para os dados exibidos. A execução local ou lazy depende do modelo e da configuração; estilos e ícones não implementam essa lógica de dados.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação PrimeFaces apresenta um botão de salvar e uma área de mensagens. Qual sequência é compatível com o ciclo normal quando os campos são válidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Renderizar tudo, validar depois e nunca atualizar o bean",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Invocar a ação antes de receber os valores do formulário",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Receber, converter, validar, atualizar modelo e invocar a ação",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar JavaScript, persistir e ignorar os componentes Faces",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualizar tema, filtrar mensagens e descartar a requisição",
+          "correct": false
+        }
+      ],
+      "explanation": "No fluxo comum, os valores submetidos são aplicados à árvore, convertidos e validados; depois atualizam o modelo e permitem invocar a ação. A resposta então renderiza componentes, total ou parcialmente.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página ainda usa o antigo namespace de PrimeFaces de um exemplo de outra geração. O que se deve verificar antes de adaptar o XHTML?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o navegador suporta tabelas HTML com cabeçalhos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se as versões de Faces e PrimeFaces correspondem ao exemplo",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Se o bean usa nomes de propriedades sem letras maiúsculas",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se PrimeFlex está listado antes de PrimeIcons no CSS",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a aplicação pode remover todos os formulários da interface",
+          "correct": false
+        }
+      ],
+      "explanation": "PrimeFaces evolui com versões de Jakarta Faces e os exemplos antigos podem usar namespaces, classificadores ou configurações diferentes. Verificar as versões compatíveis evita copiar uma declaração de outra geração sem ajuste.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo process pode limitar a requisição parcial aos componentes relevantes em vez de processar todos os controles da página.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. process define componentes participantes do processamento servidor em uma requisição parcial, o que pode evitar conversão e validação de campos alheios à ação.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PrimeFaces é apenas uma folha de estilos CSS e não oferece componentes que participam do processamento de Jakarta Faces.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. É uma biblioteca de componentes integrada a Jakarta Faces, com processamento servidor, comportamentos Ajax e recursos visuais; uma folha CSS isolada não descreve seu papel.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela pode manter ordenação, filtro e seleção como interações associadas aos dados, além de simplesmente apresentar células HTML estáticas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. DataTable é um componente de dados que oferece esses recursos e outros, com estado e eventos associados ao modelo que fornece as linhas.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo update processa campos no servidor e o atributo process define quais elementos HTML serão substituídos no navegador após o Ajax.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A descrição está invertida: process seleciona processamento servidor e update seleciona componentes renderizados na resposta parcial.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna de DataTable pode usar o objeto nomeado em var para mostrar uma propriedade do registro correspondente à linha atual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O alias de var fica disponível durante a renderização da linha e suas colunas podem usá-lo para acessar atributos daquele objeto.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PrimeIcons é o nome do modelo de dados lazy que implementa paginação de registros no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. PrimeIcons é um conjunto de ícones. LazyDataModel é o modelo de dados associado ao carregamento sob demanda de uma tabela, implementado pela aplicação.",
+      "section": "1. O que é PrimeFaces e como entra numa aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página com campos de entrada pode usar h:form para delimitar os componentes Faces que participam da submissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. h:form é o formulário de Jakarta Faces que organiza controles submetidos; comandos PrimeFaces normalmente operam dentro desse formulário para enviar seus valores.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o campo não participa de process, o servidor sempre recebe seu valor novo só porque outro componente o incluiu em update.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. update define renderização da resposta, não a leitura do valor submetido. Para atualizar o modelo, o campo precisa participar do processamento da requisição, entre outros requisitos do formulário.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tema PrimeFaces pode alterar a apresentação dos componentes sem assumir a lógica de negócio que permanece nos beans e serviços da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Temas controlam estilos e aparência; dados, validações de domínio e operações continuam pertencendo à aplicação e às camadas servidoras apropriadas.",
+      "section": "5. Temas, acessibilidade e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atributos ARIA e suporte de teclado em componentes ajudam a acessibilidade, mas rótulos, mensagens e composição da tela ainda precisam ser adequados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os componentes podem fornecer semântica e comportamentos de acessibilidade, mas a aplicação ainda precisa apresentar rótulos compreensíveis, foco visível, mensagens associadas e uma composição utilizável.",
+      "section": "5. Temas, acessibilidade e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela grande tem lazy ativado, mas a aplicação sempre carrega toda a coleção no bean antes de renderizá-la. Qual avaliação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O carregamento é lazy porque há uma tabela paginada",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modo lazy não ajuda se toda a coleção já está carregada",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O modo lazy converte a coleção em arquivos CSS",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A consulta ficou incremental porque o tema separa as páginas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bean deixa de participar da tabela ao usar lazy",
+          "correct": false
+        }
+      ],
+      "explanation": "Lazy loading busca partes dos dados sob demanda; se o bean já carrega todos os registros, a estratégia não evita esse custo. A aplicação precisa implementar o carregamento paginado no modelo correspondente.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma chamada Ajax bem-sucedida, uma área de resultado continua mostrando o conteúdo anterior embora o método tenha encontrado novos dados. Qual ajuste verificar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se update inclui a área e resolve seu client id correto",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se process inclui todos os temas e classes visuais",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se widgetVar substituiu a propriedade do bean na EL",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se p:message está dentro de uma coluna selecionável",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a dependência PrimeFlex está configurada como listener",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta parcial só substitui os componentes pedidos em update e que podem ser localizados. Verifique a expressão de atualização e o client id, especialmente dentro de contêineres de nomenclatura.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela precisa guardar a linha escolhida pelo usuário. Qual mecanismo da DataTable relaciona seleção da interface a uma propriedade da aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "filterBy associado a um bean de ícones",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "paginator associado ao tema do formulário",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "selection ligada à propriedade de seleção do bean",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "rows ligado ao listener de navegação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "widgetVar associado à consulta SQL do componente",
+          "correct": false
+        }
+      ],
+      "explanation": "A seleção pode ser ligada à propriedade do bean por meio do atributo selection, com modo e tipo de seleção adequados. Paginação, filtro, tamanho de página e widgetVar têm outros papéis.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição Ajax dentro de componentes aninhados não encontra o id indicado. Qual causa é plausível no modelo de Jakarta Faces?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O atributo rows converte os ids em nomes de beans",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A presença de um tema remove a árvore de componentes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PrimeFlex altera os namespaces de todos os campos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contêineres de nomenclatura podem alterar ou escopar o client id",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A paginação substitui ids por nomes de arquivos Java",
+          "correct": false
+        }
+      ],
+      "explanation": "Formulários, tabelas e outros contêineres criam escopos de identificação; o id renderizado pode conter segmentos adicionais. É necessário resolver a referência no contexto correto.",
+      "section": "5. Temas, acessibilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PrimeFaces pode atualizar parcialmente componentes Jakarta Faces, e o alvo da resposta não precisa ser exclusivamente outro componente PrimeFaces.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O mecanismo de renderização parcial pode atualizar componentes da árvore Faces, inclusive tags padrão, desde que a referência identifique corretamente o alvo renderizável.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo immediate deve ser usado como substituto geral de process e update sempre que uma ação Ajax não funcionar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. immediate altera a fase em que eventos ou ações são tratados; process e update definem participação no processamento parcial e na renderização. Cada atributo resolve uma questão diferente.",
+      "section": "2. Formulários, componentes e expressões EL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os atributos onstart e oncomplete de um comportamento Ajax permitem executar callbacks de JavaScript no começo e na conclusão da requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. São callbacks do lado cliente associados ao ciclo da requisição Ajax; eles não substituem o listener servidor nem a definição de quais componentes serão processados e atualizados.",
+      "section": "3. Ajax parcial: process, update e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DataTable em modo lazy precisa fornecer à biblioteca apenas os registros visíveis, sem informar o total de resultados que corresponde à busca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A paginação e os relatórios precisam conhecer a quantidade total correspondente aos filtros; o modelo lazy fornece tanto a página consultada quanto a contagem coerente.",
+      "section": "4. DataTable, estado dos dados e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface acessível deve apresentar erros de validação de modo associado e compreensível, mesmo quando a biblioteca já fornece atributos ARIA no componente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Semântica automática ajuda tecnologias assistivas, mas a aplicação ainda deve fornecer rótulos, mensagens, foco e conteúdo compreensíveis para orientar a correção dos dados.",
+      "section": "5. Temas, acessibilidade e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tema, paginação e filtro tornam desnecessário testar navegação por teclado e mensagens associadas aos campos numa aplicação PrimeFaces.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Recursos do componente não substituem a avaliação da composição da tela, rotulagem, foco, mensagens e uso com teclado. A equipe deve conferir a experiência real da aplicação.",
+      "section": "5. Temas, acessibilidade e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PrimeFaces Showcase — visão geral, instalação e temas",
+      "publisher": "PrimeTek",
+      "reference": "Biblioteca de componentes para Jakarta Faces, Maven, namespace Facelets, temas e recursos gerais",
+      "url": "https://showcase.primefaces.org/index.xhtml",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PrimeFaces VDL Documentation — dataTable",
+      "publisher": "PrimeFaces",
+      "reference": "Descrição e atributos de DataTable, paginação, filtragem, ordenação, seleção e lazy loading",
+      "url": "https://primefaces.github.io/primefaces/vdldoc/primefaces/dataTable.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PrimeFaces VDL Documentation — ajax",
+      "publisher": "PrimeFaces",
+      "reference": "Comportamento Ajax, event, listener, process, update, callbacks e envio parcial",
+      "url": "https://primefaces.github.io/primefaces/vdldoc/primefaces/ajax.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PrimeFaces VDL Documentation — commandButton",
+      "publisher": "PrimeFaces",
+      "reference": "Submissão Ajax padrão, atributos de ação e atualização parcial",
+      "url": "https://primefaces.github.io/primefaces/vdldoc/primefaces/commandButton.html",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

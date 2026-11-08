@@ -1,0 +1,1623 @@
+{
+  "id": "informatica.virtualizacao-containers-identidade-nuvem",
+  "subject": "Informática",
+  "title": "Máquinas virtuais, contêineres, IAM e auditoria em nuvem",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Máquinas virtuais e contêineres em nuvem",
+    "Virtualização de servidores em nuvem",
+    "Contêineres Docker e imagens",
+    "IAM e identidade em nuvem",
+    "Gerenciamento de identidade e acesso em nuvem",
+    "Auditoria de operações em nuvem",
+    "Máquinas virtuais, contêineres, IAM e auditoria em nuvem",
+    "Controle de acesso baseado em função na nuvem",
+    "Registros de auditoria de provedores de nuvem",
+    "Isolamento e execução de aplicações em nuvem"
+  ],
+  "scope": {
+    "covers": "Virtualização de hardware e hipervisores; máquinas virtuais, imagens, instâncias, snapshots e redes; contêineres, imagens, camadas, runtime, volumes, redes e orquestração; comparação entre VM e contêiner, isolamento e persistência; IAM em nuvem, identidades humanas e de serviço, autenticação, autorização, políticas, menor privilégio, funções e credenciais temporárias; auditoria de operações de controle e de dados, eventos, trilhas, retenção, integridade, monitoramento e investigação, com exemplos oficiais de AWS e Microsoft Azure.",
+    "excludes": "Comandos avançados de administração de hipervisores ou Kubernetes, configuração detalhada de redes de cada provedor, preços e limites comerciais, legislação de proteção de dados e procedimentos específicos de resposta a incidentes não apresentados nas fontes citadas."
+  },
+  "theoryTitle": "Execução, identidade e rastreabilidade em nuvem",
+  "chapters": [
+    {
+      "title": "1. Virtualização e máquinas virtuais",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor físico costuma ter capacidade ociosa e, sem isolamento, aplicações diferentes disputam sistema operacional, memória e processador. A virtualização permite repartir os recursos de uma máquina física em ambientes computacionais isolados. Cada ambiente pode executar seu próprio sistema operacional convidado, como se dispusesse de um computador separado. Na nuvem, o cliente solicita uma máquina virtual (VM) como recurso sob demanda, escolhe características e sistema operacional disponíveis, configura a rede e inicia uma instância. A nuvem administra a infraestrutura física, mas a administração do sistema convidado e das aplicações continua sendo responsabilidade do cliente, conforme o modelo de serviço contratado.\n\n> **Siglas e termos deste capítulo**\n> - **Hipervisor**: camada que cria e administra VMs, distribuindo recursos físicos entre elas.\n> - **Host**: máquina física que fornece processador, memória, armazenamento e interfaces.\n> - **Convidado (guest)**: sistema operacional executado dentro da VM.\n> - **Instância**: VM provisionada como recurso de computação em um provedor.\n> - **Imagem**: modelo usado para criar VMs com sistema e configuração inicial.\n> - **Snapshot**: captura do estado de discos em determinado momento; não substitui, por si só, uma estratégia de backup.\n\n### O que a virtualização oferece\n\nO hipervisor abstrai detalhes do hardware e apresenta dispositivos virtuais aos sistemas convidados. Um hipervisor do tipo 1 executa diretamente sobre o hardware; um tipo 2 opera sobre um sistema operacional hospedeiro. Na nuvem pública, o usuário em geral não escolhe nem administra diretamente o hipervisor: seleciona uma família de instâncias e controla o sistema operacional convidado por console, acesso remoto ou ferramentas de gestão. A separação lógica permite consolidar cargas, criar ambientes de teste e dimensionar recursos sem comprar um servidor físico para cada aplicação.\n\nA VM tem kernel próprio. Isso dá liberdade para executar sistemas operacionais e versões diferentes no mesmo host, mas consome mais armazenamento e memória do que um contêiner equivalente, pois cada VM inclui o sistema operacional convidado. A fronteira de isolamento de uma VM costuma ser mais ampla que a de processos de contêiner, embora nenhuma tecnologia dispense correções, configuração segura e controle de acesso.\n\n| Recurso | Uso concreto | Cuidado\n| --- | --- | --- |\n| Imagem de VM | Criar instâncias com sistema e configuração-base padronizados | Atualizar e revisar a imagem antes de reutilizá-la\n| Snapshot | Registrar um estado de disco para retorno ou cópia | Consistência de aplicações e retenção precisam ser planejadas\n| Rede virtual | Associar interfaces, sub-redes e regras de tráfego | Uma VM iniciada não deve ficar exposta sem necessidade\n| Tamanho da instância | Definir capacidade de CPU, memória e rede | Dimensionar conforme carga medida, evitando excesso ou insuficiência\n\n### Como cai na prova\n\nA VM virtualiza um computador completo para o sistema convidado, incluindo kernel próprio. A imagem é um molde; a instância é o recurso em execução. Snapshot registra estado de disco, mas não é sinônimo automático de backup íntegro e recuperável. O provedor cuida da infraestrutura física, enquanto o cliente ainda responde por itens como contas locais, atualizações do guest, dados e regras de acesso que estejam sob seu controle."
+    },
+    {
+      "title": "2. Contêineres, imagens e isolamento",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação pode funcionar no computador de quem a desenvolveu e falhar em outro ambiente por divergência de bibliotecas, dependências ou configurações. Um contêiner empacota a aplicação e suas dependências em uma unidade portátil que o runtime executa com isolamento de processos e recursos do sistema operacional. Uma imagem é o artefato imutável que descreve o sistema de arquivos e os metadados de execução; um contêiner é uma instância criada a partir da imagem. Diversos contêineres podem partir da mesma imagem, cada um com processo e ciclo de vida próprios.\n\n> **Siglas e termos deste capítulo**\n> - **Runtime**: componente que baixa, cria, inicia, monitora e encerra contêineres.\n> - **Camada**: parte reutilizável do sistema de arquivos da imagem.\n> - **Registro (registry)**: serviço que armazena e distribui imagens.\n> - **Volume**: armazenamento persistente ligado ao ciclo de vida do contêiner.\n> - **Orquestrador**: sistema que agenda contêineres, monitora estado e coordena réplicas.\n> - **Namespace e cgroup**: mecanismos do Linux associados, respectivamente, ao isolamento de visões de recursos e à limitação/contabilização de recursos.\n\n### Imagem não é contêiner; contêiner não é VM\n\nA imagem não é o processo em execução nem guarda automaticamente alterações feitas em um contêiner descartável. Ao remover o contêiner, dados gravados somente em sua camada gravável podem desaparecer. Dados que precisam sobreviver a reinícios ou substituições devem ser colocados em volume ou serviço de armazenamento apropriado. Variáveis de ambiente ajudam a configurar processos, mas não são cofre de segredos: pessoas com acesso de inspeção ao contêiner ou ao mecanismo de implantação podem conseguir lê-las. Segredos devem ser entregues por mecanismo próprio de gestão e com acesso restrito.\n\nContêineres Linux compartilham o kernel do host. Por isso iniciam com menos sobrecarga que VMs, mas esse compartilhamento também significa que o isolamento depende do kernel, do runtime, das permissões e da configuração. O contêiner não traz um kernel Linux independente. Em sistemas Windows ou macOS, uma solução de desktop pode executar contêineres Linux dentro de uma VM Linux gerenciada, pois o kernel precisa ser compatível. Uma VM, em contraste, apresenta hardware virtual a um sistema convidado completo.\n\n| Aspecto | Máquina virtual | Contêiner\n| --- | --- | --- |\n| Unidade empacotada | Sistema convidado e aplicação | Aplicação e dependências\n| Kernel | Cada VM executa seu guest | Compartilhado com o host (no caso Linux)\n| Inicialização | Geralmente inclui boot do guest | Inicia o processo do contêiner\n| Persistência | Discos virtuais têm ciclo de vida próprio | Volume ou armazenamento externo deve persistir dados\n| Uso típico | Sistemas distintos e isolamento de máquina | Serviços reproduzíveis e escaláveis\n\n### Como cai na prova\n\nNão confunda imagem (molde) com contêiner (execução), nem camada gravável com armazenamento persistente. Orquestração automatiza posicionamento, reinício e escala, mas não elimina a necessidade de imagens atualizadas, limites de recursos e gestão de segredos. Contêineres podem rodar dentro de VMs; as tecnologias são complementares, não mutuamente excludentes."
+    },
+    {
+      "title": "3. IAM: identidade, autenticação e autorização",
+      "markdown": "### O problema que este assunto resolve\n\nNa nuvem, pessoas, aplicações e serviços fazem chamadas para criar recursos, ler dados e alterar configurações. O gerenciamento de identidade e acesso (IAM) associa uma identidade a permissões e avalia se cada ação sobre cada recurso é permitida. IAM não é apenas cadastro de usuários: inclui autenticação, autorização, credenciais, políticas, papéis e relações de confiança.\n\n> **Siglas e termos deste capítulo**\n> - **Identidade**: usuário, grupo, função/papel ou identidade de carga de trabalho que pode fazer solicitações.\n> - **Autenticação**: verificação de quem ou do que está solicitando acesso.\n> - **Autorização**: decisão sobre quais ações a identidade pode executar em quais recursos.\n> - **Política**: declaração de permissões ou restrições avaliada pelo serviço IAM.\n> - **MFA**: autenticação multifator, que combina fatores distintos para dificultar uso indevido de credenciais.\n> - **Credencial temporária**: credencial de validade limitada, emitida para uma sessão ou função.\n\n### Usuários humanos e identidades de serviço\n\nUma pessoa pode autenticar-se por provedor corporativo, federação ou usuário próprio do provedor. Para automações, tarefas de VM e aplicações, prefira uma identidade de carga de trabalho ou papel com credenciais temporárias, em vez de gravar uma chave de longa duração no código, na imagem ou em arquivo distribuído. A relação de confiança define quem pode assumir um papel; a política de permissões define o que o papel pode fazer depois de assumido. São controles diferentes: confiar em uma identidade para assumir a função não concede, por si, todas as ações de serviço.\n\nO princípio do menor privilégio concede somente as ações, recursos e condições necessários à tarefa. Em vez de dar permissão administrativa a toda a equipe, uma política pode permitir que um operador consulte instâncias de um projeto e que uma rotina altere apenas os objetos de armazenamento que processa. Grupos e funções ajudam a atribuir permissões por responsabilidade. Permissões herdadas, políticas amplas e credenciais compartilhadas dificultam identificar quem realizou uma ação e ampliam o impacto de comprometimento.\n\nAutenticação multifator reduz o risco de uma senha roubada ser suficiente para entrar. Não corrige, porém, uma política excessivamente permissiva nem protege uma chave de aplicação exposta. Segredos devem ser armazenados em serviço apropriado, rotacionados quando necessário e liberados só às identidades que precisam deles. Credenciais temporárias reduzem a janela de uso comparadas a chaves permanentes, mas ainda devem ser protegidas enquanto válidas.\n\n### Como cai na prova\n\nAutenticação responde “quem está solicitando?”; autorização responde “o que pode fazer?”. Uma política de confiança controla quem assume um papel; a política de permissões controla as ações autorizadas. Menor privilégio é uma regra de desenho concreta, não uma declaração genérica: restrinja ações, recursos e condições. MFA, rotação e credenciais temporárias são controles complementares, não substitutos da autorização correta."
+    },
+    {
+      "title": "4. Auditoria, eventos e trilhas em nuvem",
+      "markdown": "### O problema que este assunto resolve\n\nUma alteração de rede, uma concessão de privilégio ou uma leitura de objeto pode explicar uma interrupção ou exposição. Sem registros, a equipe não reconstrói com segurança quem fez o quê, quando, por qual interface e sobre qual recurso. Serviços de auditoria registram eventos de atividade da conta. Um evento útil para investigação identifica, conforme o serviço, a identidade, a ação, o horário, a origem, os recursos afetados, parâmetros da solicitação e resultado. Registro não é o mesmo que prevenção: é preciso combinar trilha com alertas, controles de acesso, retenção e análise.\n\n> **Siglas e termos deste capítulo**\n> - **Evento de gerenciamento (management event)**: operação de controle, como criar instância ou alterar política IAM.\n> - **Evento de dados (data event)**: acesso ou alteração de dados em um recurso, como leitura de objeto, conforme serviço e configuração.\n> - **Trilha (trail)**: configuração de entrega contínua de eventos a um destino de armazenamento ou análise.\n> - **Event history**: consulta interativa a eventos recentes, com escopo e retenção definidos pelo provedor.\n> - **Log de identidade**: registro de autenticações, alterações de contas, grupos ou credenciais.\n> - **SIEM**: sistema que centraliza e correlaciona eventos de segurança.\n\n### Exemplo AWS: CloudTrail\n\nO AWS CloudTrail registra chamadas de API feitas por console, SDKs e ferramentas de linha de comando. As chamadas de IAM e AWS STS também aparecem como eventos CloudTrail; detalhes podem indicar identidade, endereço IP de origem, horário e conteúdo da solicitação. O Event history apresenta os eventos de gerenciamento recentes por região, com janela de consulta documentada de 90 dias. Ele não exibe eventos de dados. Para manter registro contínuo, configura-se uma trail que entrega arquivos, por exemplo, a um bucket S3; para eventos de dados, é necessário configurá-los em uma trail ou event data store. Portanto, “CloudTrail habilitado” não significa que todo tipo de acesso a dados está automaticamente incluído em qualquer consulta.\n\n### Exemplo Azure e investigação\n\nO Azure Activity Log registra operações de gerenciamento em recursos Azure, como criação de VM, mudança de uma política de acesso a Key Vault ou falha em implantação do Resource Manager. É possível consultá-lo para auditoria e criar alertas. Ele é distinto dos logs de sistema operacional da VM (por exemplo, Windows Event Log ou Linux Syslog), que mostram atividade dentro do convidado. Os relatórios do Microsoft Entra ID cobrem atividades de autenticação e de gestão de usuários/grupos. Para uma investigação, correlacione identidade e eventos de controle com logs do serviço ou do sistema convidado, verificando o intervalo temporal e a região.\n\nUma estratégia operacional define quais eventos coletar, quem pode ler ou apagar os registros, destino, retenção e encaminhamento para alertas. Restringir alterações nas trilhas evita que a mesma identidade investigada apague evidências; armazenamento central e controles de integridade ajudam a preservar confiança. A retenção deve atender à necessidade de auditoria e às regras aplicáveis da organização.\n\n### Como cai na prova\n\nCloudTrail Event history e Azure Activity Log focam atividade de gerenciamento, mas não são equivalentes a logs internos do sistema operacional. A janela recente de consulta AWS não representa retenção ilimitada nem coleta automática de todos os eventos de dados. Uma trilha persistente exige configuração de entrega e escopo. Logs permitem reconstruir eventos e alertar; não impedem, por si, a ação que registram."
+    },
+    {
+      "title": "5. Combinação segura dos componentes",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações em nuvem combinam VMs, contêineres, identidades e logs. Cada fronteira cobre um risco diferente: a VM isola sistemas convidados; o contêiner empacota processos; IAM determina quem chama APIs; a auditoria permite reconstruir operações. Uma configuração segura combina essas camadas em vez de esperar que uma delas resolva tudo.\n\n> **Siglas e termos deste capítulo**\n> - **Superfície de ataque**: pontos pelos quais alguém pode tentar acessar ou alterar o sistema.\n> - **Imagem mínima**: imagem que contém somente componentes necessários à aplicação.\n> - **Patch**: atualização que corrige falha ou vulnerabilidade.\n> - **Segredo**: senha, token, chave ou certificado que dá acesso a um sistema.\n> - **Plano de controle**: APIs e recursos usados para provisionar e administrar a nuvem.\n> - **Plano de dados**: tráfego e operações que usam os recursos provisionados.\n\n### Uma implantação rastreável\n\nUma equipe pode criar uma imagem de VM revisada, iniciar instâncias em sub-rede apropriada, executar serviços em contêineres sem privilégios desnecessários e entregar a cada workload uma identidade própria. O papel da aplicação recebe somente as ações necessárias sobre seus dados; operadores humanos usam autenticação forte e papéis temporários. A configuração de auditoria registra alterações de IAM e de infraestrutura, enquanto logs do serviço e do guest apoiam diagnóstico. Alertas sinalizam eventos de risco, como alteração inesperada de política ou criação de credencial.\n\nA cadeia de suprimento também importa. Use imagens de origem conhecida, fixe versões ou digests quando a reprodutibilidade for importante, aplique patches, remova ferramentas e pacotes sem uso e evite executar o processo como administrador. Não inclua segredos em camadas de imagem: excluir o arquivo numa camada posterior pode não removê-lo das camadas anteriores. Limite CPU e memória para impedir que um processo consuma recursos compartilhados sem controle.\n\nEm nuvem, uma política ampla associada à identidade de uma VM pode transformar a invasão de um processo em acesso a muitos recursos. Segmentar permissões por aplicação reduz esse efeito. Da mesma forma, acesso a socket do runtime, modo privilegiado e montagem de diretórios do host podem enfraquecer o isolamento do contêiner. A administração do host e a configuração do serviço de orquestração continuam relevantes.\n\n| Camada | Controle prático | Evidência para auditoria\n| --- | --- | --- |\n| VM e rede | Imagem corrigida, acesso administrativo restrito e regras mínimas | Eventos de criação, alteração de rede e acesso ao guest\n| Contêiner | Imagem revisada, usuário sem privilégio, limites e volume planejado | Registro de implantação, logs de runtime e aplicação\n| Identidade | Papel próprio, credenciais temporárias e política mínima | Eventos de autenticação, assunção de papel e mudança de política\n| Auditoria | Coleta, entrega protegida, retenção e alertas | Evento pesquisável e cópia preservada no destino\n\n### Como cai na prova\n\nA resposta adequada a um cenário costuma combinar controles: identidade específica com permissões restritas, workload sem privilégio, armazenamento persistente explícito e eventos enviados a destino protegido. Snapshot não substitui log de atividade; log não corrige permissão; contêiner não substitui IAM. O desenho deve permitir operar a aplicação e também explicar depois as alterações feitas."
+    }
+  ],
+  "summary": "Máquinas virtuais virtualizam um computador completo e executam um sistema operacional convidado; contêineres empacotam aplicações e dependências e, no caso Linux, compartilham o kernel do host. Imagens são moldes, instâncias de contêiner são processos em execução e dados persistentes precisam de volume ou serviço externo. IAM autentica identidades e autoriza ações por políticas, papéis e relações de confiança. O menor privilégio limita ações, recursos e condições; MFA e credenciais temporárias reduzem riscos sem substituir políticas corretas. Auditoria registra operações: AWS CloudTrail captura chamadas de API e diferencia eventos de gerenciamento e de dados; Event history mostra eventos recentes de gerenciamento por região por 90 dias, enquanto coleta contínua depende de trilha configurada. Azure Activity Log cobre operações de gerenciamento; logs do guest e relatórios do Microsoft Entra ID cobrem outras fontes. Centralização, proteção, retenção, correlação e alertas tornam os registros úteis para investigação.",
+  "flashcards": [
+    {
+      "front": "O que é hipervisor?",
+      "back": "Camada que cria e administra máquinas virtuais, repartindo recursos do host físico entre sistemas convidados."
+    },
+    {
+      "front": "O que diferencia uma VM de um contêiner Linux?",
+      "back": "A VM executa um sistema convidado com kernel próprio; o contêiner compartilha o kernel do host e isola processos e recursos."
+    },
+    {
+      "front": "Imagem de contêiner e contêiner em execução são a mesma coisa?",
+      "back": "Não. Imagem é o artefato modelo; contêiner é uma instância criada e executada a partir dela."
+    },
+    {
+      "front": "Como manter dados após remover um contêiner?",
+      "back": "Guardar os dados em volume persistente ou serviço externo, não apenas na camada gravável do contêiner."
+    },
+    {
+      "front": "Qual a função de um registro de imagens?",
+      "back": "Armazenar e distribuir imagens de contêiner para ambientes de execução."
+    },
+    {
+      "front": "Autenticação responde a qual pergunta?",
+      "back": "Quem ou o que está fazendo a solicitação?"
+    },
+    {
+      "front": "Autorização responde a qual pergunta?",
+      "back": "Quais ações a identidade autenticada pode executar sobre quais recursos?"
+    },
+    {
+      "front": "O que estabelece uma política de confiança de um papel?",
+      "back": "Quais identidades ou serviços podem assumir o papel; não define sozinha todas as permissões de serviço."
+    },
+    {
+      "front": "O que é menor privilégio?",
+      "back": "Conceder apenas ações, recursos e condições necessários à tarefa da identidade."
+    },
+    {
+      "front": "Por que preferir credenciais temporárias para workloads?",
+      "back": "Elas expiram e reduzem o período de exposição em comparação com chaves permanentes embutidas no código."
+    },
+    {
+      "front": "O que registra AWS CloudTrail?",
+      "back": "Eventos de atividade e chamadas de API da conta, inclusive chamadas a IAM e STS."
+    },
+    {
+      "front": "O que o CloudTrail Event history apresenta?",
+      "back": "Eventos de gerenciamento recentes por região; a documentação indica janela de 90 dias, sem eventos de dados."
+    },
+    {
+      "front": "Como obter entrega contínua de eventos CloudTrail?",
+      "back": "Configurar uma trail com destino de entrega, como bucket S3, e selecionar o escopo de eventos desejado."
+    },
+    {
+      "front": "Que tipo de atividade consta no Azure Activity Log?",
+      "back": "Operações de gerenciamento de recursos Azure, como criação de VM e alteração de política de acesso."
+    },
+    {
+      "front": "Logs do guest e Activity Log são iguais?",
+      "back": "Não. Logs do guest registram atividade dentro do sistema operacional; Activity Log registra operações de gerenciamento Azure."
+    },
+    {
+      "front": "Para que servem relatórios do Microsoft Entra ID?",
+      "back": "Para consultar atividades de autenticação e atividades administrativas sobre usuários e grupos."
+    },
+    {
+      "front": "Por que variáveis de ambiente não são cofre de segredos?",
+      "back": "Quem inspeciona o processo ou o contêiner pode conseguir ler seus valores."
+    },
+    {
+      "front": "Snapshot de disco é automaticamente um backup recuperável?",
+      "back": "Não. Consistência da aplicação, cópia, retenção e teste de restauração precisam ser planejados."
+    },
+    {
+      "front": "Como logs ajudam numa investigação?",
+      "back": "Permitem correlacionar identidade, ação, horário, origem, recurso e resultado, se esses campos forem coletados."
+    },
+    {
+      "front": "Qual controle reduz o impacto de uma política IAM ampla?",
+      "back": "Separar identidades por workload e limitar cada política às ações e recursos realmente necessários."
+    }
+  ],
+  "tips": [
+    "Identifique se o enunciado fala do plano de gerenciamento, do sistema convidado ou do acesso aos dados; cada camada produz registros diferentes.",
+    "Quando aparecer imagem, pergunte se é imagem de VM ou de contêiner: ambas são modelos, mas empacotam componentes diferentes.",
+    "Se a questão envolver dados que devem sobreviver ao ciclo de vida do contêiner, procure volume ou armazenamento externo.",
+    "Separe autenticação, política de confiança e política de permissões; elas respondem perguntas distintas.",
+    "Em auditoria AWS, confirme região, tipo de evento e configuração de trail antes de concluir que uma ação deveria aparecer.",
+    "Desconfie de afirmações que tratem um log como prevenção ou que chamem snapshot de backup completo sem requisitos adicionais."
+  ],
+  "traps": [
+    "Dizer que todo contêiner possui kernel próprio: em contêineres Linux, os processos compartilham o kernel do host.",
+    "Confundir imagem de contêiner com instância em execução ou supor que a camada gravável preserva dados após remoção.",
+    "Afirmar que MFA corrige autorização excessiva: fator adicional não restringe as ações de uma política ampla.",
+    "Supor que Event history do CloudTrail mostra eventos de dados ou preserva consulta recente indefinidamente.",
+    "Confundir Azure Activity Log com Windows Event Log ou Linux Syslog da máquina virtual.",
+    "Acreditar que qualquer identidade autorizada a assumir papel ganha automaticamente permissões administrativas."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho entre host físico, hipervisor e sistema convidado.",
+      "answer": "O host fornece recursos físicos; o hipervisor os abstrai e distribui; cada VM executa um sistema convidado com kernel próprio."
+    },
+    {
+      "question": "Explique a diferença entre imagem, contêiner e volume.",
+      "answer": "Imagem é o modelo; contêiner é a instância em execução; volume é armazenamento cujo ciclo de vida pode persistir além do contêiner."
+    },
+    {
+      "question": "Diferencie autenticação, autorização e confiança de papel.",
+      "answer": "Autenticação verifica identidade; autorização decide ações permitidas; confiança define quem pode assumir um papel."
+    },
+    {
+      "question": "Como reduzir o privilégio de uma aplicação hospedada em VM?",
+      "answer": "Atribuir identidade própria, usar credenciais temporárias e limitar ações e recursos da política ao trabalho da aplicação."
+    },
+    {
+      "question": "Por que um Event history vazio não prova que nenhum acesso a objeto ocorreu?",
+      "answer": "O Event history AWS não mostra eventos de dados; esses eventos exigem configuração de coleta adequada em trail ou event data store."
+    },
+    {
+      "question": "Quais fontes correlacionar ao investigar alteração em uma VM Azure?",
+      "answer": "Azure Activity Log para operações de gerenciamento, logs do sistema convidado para atividade interna e logs de identidade para autenticações e mudanças de usuário/grupo."
+    },
+    {
+      "question": "Quais decisões tornam uma trilha de auditoria confiável?",
+      "answer": "Definir eventos e destino, controlar quem lê ou altera, configurar retenção, proteger cópias e criar análise/alertas."
+    },
+    {
+      "question": "Cite três riscos de uma implantação de contêiner mal configurada.",
+      "answer": "Executar como administrador, expor socket do runtime ou diretórios do host, e guardar segredos em imagem ou variável acessível."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre VM, imagem e instância",
+      "summary": "A VM é o ambiente computacional virtual com sistema convidado; imagem é molde; instância é o recurso provisionado em execução. Snapshot é captura de estado, sem garantia automática de recuperação consistente."
+    },
+    {
+      "key": "e2",
+      "title": "Contêiner como máquina completa",
+      "summary": "Contêiner Linux compartilha kernel do host e isola processos e recursos. Imagem não é execução e dados escritos somente na camada do contêiner não são persistência confiável."
+    },
+    {
+      "key": "e3",
+      "title": "Autenticação confundida com autorização",
+      "summary": "Provar identidade não concede acesso ilimitado. Política de confiança permite assumir papel; política de permissões delimita ações e recursos."
+    },
+    {
+      "key": "e4",
+      "title": "Privilégio excessivo e credencial permanente",
+      "summary": "Permissões amplas e chaves duradouras aumentam o impacto de roubo ou comprometimento. Identidades separadas, menor privilégio e credenciais temporárias reduzem a exposição."
+    },
+    {
+      "key": "e5",
+      "title": "Logs tratados como coleta universal",
+      "summary": "Cada fonte tem escopo: Event history não apresenta eventos de dados, Activity Log não equivale a log do guest e uma trilha precisa de configuração e retenção."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um host que executa vários sistemas convidados, qual componente distribui CPU e memória entre as máquinas virtuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O hipervisor administra as VMs e distribui recursos físicos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O registro de imagens, que agenda sistemas operacionais no host físico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O snapshot, que mantém a execução e reparte processador entre convidados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O IAM, que virtualiza memória e configura os dispositivos de cada guest.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O volume de contêiner, que inicializa o sistema operacional hospedeiro.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hipervisor é a camada de virtualização que cria e administra máquinas virtuais e apresenta recursos virtuais aos convidados. Registro de imagens distribui artefatos, snapshot captura estado de disco, IAM avalia acesso e volume armazena dados; nenhum deles agenda CPU e memória das VMs.",
+      "section": "1. Virtualização e máquinas virtuais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa iniciar três servidores com o mesmo sistema-base, mas cada um deve executar aplicações isoladas. Qual elemento funciona como molde inicial para criar essas VMs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A interface de rede, pois copia o sistema operacional para cada servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A imagem de VM fornece o sistema e a configuração-base.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O evento de auditoria, que reconstrói os discos a cada inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O papel IAM, que armazena o sistema convidado e suas bibliotecas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O volume de contêiner, que equivale ao guest completo da VM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A imagem de VM é o modelo usado para criar instâncias com sistema operacional e configuração-base. Uma interface conecta a instância à rede; evento de auditoria registra atividade; papel IAM concede permissões; volume de contêiner persiste dados, mas não é imagem de sistema convidado.",
+      "section": "1. Virtualização e máquinas virtuais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer executar versões distintas de sistemas operacionais convidados no mesmo host virtualizado. Qual característica da VM atende diretamente a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada imagem de VM é um processo sem sistema operacional convidado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todas as VMs precisam compartilhar a mesma camada gravável de contêiner.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada VM executa seu próprio sistema convidado e kernel.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A rede virtual traduz automaticamente chamadas de kernel entre guests.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O snapshot substitui o sistema operacional durante a execução da VM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A VM apresenta hardware virtual a um sistema operacional convidado, permitindo executar guests diferentes no host, conforme a plataforma. Compartilhamento de kernel é característica dos contêineres Linux; imagem, rede e snapshot não substituem um sistema convidado.",
+      "section": "1. Virtualização e máquinas virtuais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador captura o estado do disco de uma VM antes de uma atualização. Qual conclusão sobre esse snapshot é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele registra um estado de disco, mas a consistência e a recuperação precisam ser planejadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele substitui sempre um backup, pois garante restauração íntegra de toda aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele grava chamadas de API e identifica a pessoa que acessou a VM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele transforma uma instância em imagem de contêiner sem alterar arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele replica automaticamente memória, rede e dados para outra região.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snapshot é uma captura do estado de discos. A garantia de consistência da aplicação, cópia em local adequado, retenção e restauração testada dependem do desenho do serviço e da estratégia de proteção. Ele não é, por definição, log de API nem replicação completa de todos os componentes.",
+      "section": "1. Virtualização e máquinas virtuais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma nuvem pública, qual responsabilidade costuma permanecer com o cliente ao usar uma VM IaaS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a manutenção física de discos e switches do provedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fabricar os processadores físicos e manter o hipervisor do provedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a infraestrutura de energia do centro de dados contratado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Corrigir o guest e administrar contas e dados sob seu controle.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Definir a arquitetura física compartilhada de todas as regiões.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modelo de infraestrutura como serviço, o provedor administra a infraestrutura física e a camada de virtualização; o cliente mantém responsabilidades sobre sistema convidado, aplicações, dados e configurações sob seu controle. A divisão exata depende do serviço e do modelo contratado.",
+      "section": "1. Virtualização e máquinas virtuais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois serviços Linux pequenos serão implantados em hosts diferentes e precisam compartilhar artefatos de aplicação reproduzíveis. Qual descrição favorece contêineres?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada serviço deve carregar um sistema convidado completo com kernel independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A imagem empacota aplicação e dependências para o runtime.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um snapshot de VM é a unidade padrão de execução de cada processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma política IAM instala bibliotecas e mantém o processo em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um log de auditoria substitui a distribuição dos arquivos binários.",
+          "correct": false
+        }
+      ],
+      "explanation": "A imagem de contêiner empacota aplicação e dependências; o runtime cria instâncias consistentes em ambientes compatíveis. Isso evita incluir um guest completo em cada pacote de aplicação. IAM controla acesso e logs registram atividade, não distribuem os binários.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo grava relatórios apenas na camada gravável do contêiner. O contêiner será removido e recriado durante a implantação. Qual providência preserva os relatórios?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma política de confiança para converter logs em arquivos permanentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar mais uma camada à imagem depois que o processo terminar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar MFA para que o runtime preserve o conteúdo removido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar volume persistente ou armazenamento externo para os relatórios.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Publicar a porta do contêiner para armazenar dados no host remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contêineres são substituíveis; dados gravados somente na camada gravável ligada ao contêiner podem se perder com sua remoção. Volume ou armazenamento externo tem ciclo de vida separado e é a opção apropriada para persistência. MFA e política de confiança tratam identidade, não persistência.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe executa contêineres Linux em uma máquina host e pergunta se cada contêiner inicializa um kernel Linux independente. Qual resposta descreve o modelo usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; cada imagem contém um kernel completo que o runtime inicia isoladamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; contêineres Linux compartilham o kernel do host.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sim; o registro de imagens fornece um kernel novo a cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; contêineres executam diretamente no hipervisor sem sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; o volume persistente mantém um kernel separado por aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contêineres Linux compartilham o kernel do host, embora mecanismos de isolamento ofereçam visões separadas de processos e recursos. Uma VM executa um sistema convidado com kernel próprio. O registro armazena imagens e o volume persiste dados, sem fornecer kernel independente.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente uma imagem de contêiner de um contêiner?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contêiner é a política IAM usada para publicar a imagem na nuvem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Imagem é o processo ativo; contêiner é o arquivo imutável armazenado no registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Imagem persiste todos os dados de cada instância sem volume adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contêiner é sempre uma VM com sistema convidado completo e independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Imagem é o modelo; contêiner é a instância em execução.",
+          "correct": true
+        }
+      ],
+      "explanation": "A imagem descreve o sistema de arquivos e metadados para execução. O runtime cria um contêiner como instância concreta dessa imagem. O contêiner não é necessariamente uma VM e os dados mutáveis não passam automaticamente a integrar a imagem nem a persistir após remoção.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time usa macOS e precisa executar contêineres Linux, cujo kernel não é o kernel nativo do sistema. Qual arquitetura de desktop é compatível com essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar snapshot de disco como substituto permanente do kernel Linux.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter a política IAM do macOS em um kernel Linux para cada imagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar os contêineres numa VM Linux gerenciada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar o contêiner sem runtime, diretamente a partir do registro remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um volume persistente que traduza instruções de kernel entre sistemas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Soluções de desktop podem manter uma VM Linux gerenciada para fornecer o kernel compatível necessário aos contêineres Linux em Windows ou macOS. Isso demonstra que contêineres e VMs podem ser usados em conjunto; IAM, snapshot e volume têm outras funções.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de implantação guarda a senha do banco em variável de ambiente do contêiner. Qual avaliação de segurança é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É seguro por definição, pois variáveis de ambiente não podem ser inspecionadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inspeção do contêiner pode expor o valor; use gestão restrita de segredos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A senha vira parte criptografada do kernel compartilhado automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O runtime converte a senha em um evento de auditoria não legível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A persistência em volume impede que operadores leiam a variável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variáveis de ambiente são convenientes, mas pessoas com acesso de inspeção ao contêiner ou ao mecanismo de implantação podem obter seus valores. Segredos devem ser fornecidos por mecanismo próprio e com acesso restrito. Volume não criptografa nem oculta automaticamente uma variável.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista pergunta se o IAM trata apenas de criar contas de usuários humanos. Qual descrição é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IAM registra exclusivamente erros de kernel dentro do guest da VM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IAM apenas distribui CPU, memória e discos para máquinas virtuais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IAM é o mecanismo de armazenamento persistente usado pelos contêineres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IAM também controla identidades de serviço, autenticação e permissões.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "IAM substitui a rede virtual e instala aplicações em instâncias.",
+          "correct": false
+        }
+      ],
+      "explanation": "IAM administra identidades humanas e de serviço, autenticação e autorização para ações sobre recursos. Provisionamento de CPU e armazenamento, persistência, logs de kernel e redes pertencem a outras camadas, ainda que possam ser acessados por políticas IAM.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solicitação apresenta credenciais válidas, mas a política não permite ler o objeto requerido. Qual conceito explica a recusa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autenticação falhou porque o recurso não possui um hipervisor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A autorização negou uma ação que a identidade não recebeu permissão para executar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O snapshot removeu a identidade do registro de contêineres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A imagem da VM expirou e revogou a senha do solicitante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O volume persistente classificou a chamada como evento de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação verifica a identidade apresentada; autorização avalia se a ação solicitada é permitida sobre o recurso. Credencial válida não garante que a política conceda leitura. Hipervisor, snapshot, imagem e volume não tomam essa decisão IAM.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de nuvem possui política de confiança e política de permissões. Para que serve a primeira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar o sistema convidado e selecionar o tamanho da instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir que qualquer solicitante pode administrar todos os recursos da conta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar a senha permanente que a aplicação grava em seu código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar chamadas de API e entregá-las automaticamente a um bucket.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Indicar quem pode assumir a função; permissões definem suas ações.",
+          "correct": true
+        }
+      ],
+      "explanation": "A relação ou política de confiança indica quem pode assumir o papel. Depois da assunção, políticas de permissões determinam ações e recursos acessíveis. Confiança não é concessão automática de administração e não substitui as configurações de auditoria ou computação.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina precisa ler objetos de um único conjunto de armazenamento e não altera sua configuração. Como aplicar menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir somente as ações de leitura necessárias sobre os objetos daquele conjunto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder administração total para evitar futuras solicitações de acesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar a credencial de um operador com todos os processos da conta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir alteração de políticas e exclusão de todos os recursos da região.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Liberar a ação para todos os usuários e filtrar os acessos pelo log depois.",
+          "correct": false
+        }
+      ],
+      "explanation": "Menor privilégio limita ações e recursos à tarefa: a rotina recebe leitura sobre os objetos de que precisa, sem administração ou mudança de política. Registrar excessos não substitui a prevenção, e credenciais compartilhadas prejudicam rastreabilidade e contenção.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação em VM precisa acessar um serviço de armazenamento. Qual escolha reduz a dependência de segredo de longa duração dentro do código?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar uma senha compartilhada na camada mais baixa da imagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar a chave administrativa de um usuário para a imagem da VM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir identidade própria, credencial temporária e permissões mínimas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a autorização e confiar somente no endereço IP da instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o snapshot como repositório protegido de credenciais permanentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identidades próprias de workload e credenciais temporárias evitam embutir chaves duradouras na imagem ou no código. As permissões devem limitar-se ao armazenamento necessário. Endereço IP e snapshot não substituem autenticação e autorização, e credenciais administrativas ampliam o impacto de exposição.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização ativa autenticação multifator para administradores. Qual risco esse controle reduz mais diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A perda de dados gravados na camada de um contêiner removido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A existência de permissões excessivas em uma política de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A falta de retenção de eventos de dados no serviço de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bloquear autenticação baseada apenas em senha roubada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A instalação de uma versão vulnerável do sistema convidado.",
+          "correct": false
+        }
+      ],
+      "explanation": "MFA requer fatores adicionais além da senha e reduz o risco de autenticação baseada somente em uma senha roubada. Não corrige política de permissões ampla, persistência de contêiner, retenção de eventos ou vulnerabilidade do guest; esses riscos exigem controles próprios.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar uma chave de acesso permanente usada por uma automação, qual medida reduz sua janela de exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar a identidade por credenciais temporárias e restringir sua duração e permissões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Duplicar a chave em mais imagens para evitar falha de inicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder privilégios administrativos e confiar que a chave não será copiada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar a chave em variável de ambiente sem limitar quem inspeciona o processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar auditoria para impedir que o uso da chave seja registrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Credenciais temporárias expiram e diminuem o período em que uma cópia pode ser reutilizada; permissões mínimas limitam o impacto. Replicar segredo amplia exposição, variável de ambiente é inspecionável por quem tem acesso suficiente e desativar logs reduz capacidade de detectar uso indevido.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe procura no CloudTrail quem chamou uma operação de criação de função IAM. Qual fonte de atividade deve consultar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O snapshot da instância, que contém a lista de usuários autenticados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente logs de kernel da VM onde o console foi aberto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A camada gravável da imagem de contêiner da equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O volume de armazenamento, que registra chamadas de toda a conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eventos de gerenciamento, incluindo chamadas de IAM e STS.",
+          "correct": true
+        }
+      ],
+      "explanation": "CloudTrail registra chamadas de API de IAM e STS como eventos de atividade, incluindo ações realizadas pelo console e por APIs. Logs do sistema convidado cobrem atividade dentro da VM, enquanto camada de imagem, volume e snapshot não substituem o registro de chamadas de gerenciamento da conta.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um auditor quer pesquisar eventos de gerenciamento recentes da conta AWS pela interface CloudTrail. Qual afirmação sobre Event history está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibe eventos de gerenciamento recentes por região dentro da janela documentada de 90 dias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exibe indefinidamente todos os eventos de dados sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mostra apenas logs internos de sistemas operacionais executados em VMs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Entrega obrigatoriamente cada evento em bucket de armazenamento contínuo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registra somente operações feitas pela interface gráfica, nunca por API.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do CloudTrail descreve Event history como consulta aos eventos de gerenciamento recentes por região, com janela de 90 dias. Não é apresentação de eventos de dados nem de logs de sistema operacional, e entrega contínua a um destino exige configurar uma trail.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa arquivar continuamente arquivos de eventos CloudTrail em armazenamento próprio. Qual configuração atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma trail e configurar a entrega dos eventos a um destino, como bucket S3.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho da VM que hospeda o console CloudTrail.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Salvar os eventos apenas na camada gravável de um contêiner temporário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma política de confiança sem configurar coleta ou destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar snapshot da rede para converter chamadas em arquivos históricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma trail configura a entrega contínua dos eventos CloudTrail a um destino, como bucket S3. Consultar Event history é útil para eventos recentes, mas não configura por si só arquivamento contínuo. VM, camada de contêiner, política de confiança e snapshot não substituem a configuração de trail.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa investigar leitura de objetos armazenados em AWS e encontra apenas Event history sem registros relacionados. Qual conclusão é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Event history não apresenta eventos de dados; verifique trail ou event data store configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ausência prova que nenhum objeto foi lido, pois todo acesso fica ali automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O evento de leitura deve estar no log do sistema operacional de qualquer VM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A política IAM apaga do Event history todos os eventos de leitura bem-sucedidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um snapshot do bucket mostrará a identidade e a chamada de API que o criou.",
+          "correct": false
+        }
+      ],
+      "explanation": "Event history do CloudTrail não mostra eventos de dados. A coleta desses eventos deve ser habilitada em uma trail ou event data store para os recursos pertinentes. Portanto, ausência nessa visualização não prova que não houve leitura; logs de guest, políticas e snapshots respondem a perguntas diferentes.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de política de acesso ao Key Vault Azure precisa ser investigada como operação sobre recurso. Qual fonte registra operações de gerenciamento Azure?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Azure Activity Log, que inclui operações como mudança de política de acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Windows Event Log, que registra todas as chamadas do Resource Manager.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A imagem do contêiner, que mantém o histórico administrativo do tenant.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O volume da VM, que substitui os registros da plataforma Azure.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A relação de confiança IAM, que armazena operações de todos os provedores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Azure Monitor descreve Activity Log para operações de gerenciamento de recursos, incluindo mudança de política de acesso e erros de implantação. Windows Event Log e Linux Syslog são fontes de dentro da VM; imagem, volume e relação de confiança não são o registro da plataforma.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma investigação, é preciso saber se um usuário entrou no Microsoft Entra ID e se houve alteração de grupo. Qual conjunto de registros é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relatórios e logs do Microsoft Entra ID sobre autenticação e gestão de usuários ou grupos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente Azure Activity Log, que substitui todo registro de identidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O snapshot de qualquer VM, pois contém autenticações do tenant.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O registro de imagens Docker, que identifica mudanças de grupo corporativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O log de rede do contêiner, que armazena senhas e alterações de usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Microsoft Entra ID fornece logs e relatórios sobre atividades de entrada e informações de atividade de usuários e grupos. Activity Log registra operações de gerenciamento de recursos Azure, que é uma fonte distinta; snapshots, registros de imagens e logs de rede não substituem auditoria de identidade.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer alertar quando uma política IAM ampla for criada e preservar registros para investigação futura. Qual combinação é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar eventos de gerenciamento, encaminhá-los a destino protegido e criar regra de alerta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confiar apenas no log do guest e apagar os eventos após cada implantação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar memória das VMs e usar imagens como trilha de auditoria da conta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder administrador a todos e consultar os logs somente após um incidente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar trilhas para que a alteração não possa ser sobrescrita pelo serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A coleta de eventos de gerenciamento permite identificar criação ou mudança de política; destino protegido e retenção favorecem investigação, e uma regra de alerta reduz o tempo de detecção. Log do guest não cobre APIs da conta e apagar eventos prejudica evidência. Privilégio amplo aumenta risco, não resolve auditoria.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura, uma VM executa o runtime que inicia vários contêineres da aplicação. Essa composição é possível porque VMs e contêineres são tecnologias complementares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma VM oferece um sistema convidado e pode hospedar um runtime de contêineres. A VM define uma fronteira de máquina virtual; os contêineres compartilham o kernel desse guest e isolam aplicações. Não é necessário escolher uma tecnologia e excluir a outra.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em contêiner Linux, cada instância normalmente inicializa um kernel independente, assim como uma máquina virtual completa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Contêineres Linux compartilham o kernel do host e usam mecanismos do sistema operacional para isolar processos e controlar recursos. Uma VM é que executa um sistema convidado com kernel próprio.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A imagem de contêiner é um modelo que pode originar várias instâncias, enquanto cada contêiner representa uma execução concreta com ciclo de vida próprio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A imagem contém os arquivos e metadados para a execução. O runtime cria uma instância, que pode iniciar, parar ou ser removida independentemente de outras instâncias construídas a partir da mesma imagem.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dados gravados somente na camada gravável de um contêiner são garantia de persistência depois que o contêiner for removido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A camada gravável acompanha o ciclo de vida do contêiner e pode ser descartada com ele. Dados que precisam sobreviver devem ser colocados em volume persistente ou serviço de armazenamento externo apropriado.",
+      "section": "2. Contêineres, imagens e isolamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma identidade autenticada pode ter a solicitação negada porque a política IAM não autoriza a ação sobre o recurso pretendido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Autenticação verifica quem faz a solicitação, enquanto autorização avalia as ações permitidas. Credenciais válidas não concedem automaticamente leitura, escrita ou administração sobre qualquer recurso.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política de confiança de um papel e sua política de permissões são dois nomes para o mesmo conjunto de ações autorizadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A política de confiança determina quais identidades podem assumir o papel. Políticas de permissões definem ações e recursos que o papel pode acessar depois de assumido; são controles distintos.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Conceder a uma automação somente as ações e os recursos necessários à sua tarefa aplica o princípio do menor privilégio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Menor privilégio restringe a identidade ao conjunto mínimo de ações e recursos necessários. Isso reduz o impacto de credencial exposta, erro operacional ou comprometimento da aplicação.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação multifator torna desnecessário revisar políticas de autorização que concedem acesso amplo a recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. MFA dificulta autenticação com uma senha roubada, mas não reduz as ações que uma política permite depois que a identidade é autenticada. A autorização ainda precisa aplicar menor privilégio.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Credenciais temporárias para uma aplicação podem reduzir o período de exposição em relação a uma chave permanente embutida no código.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Credenciais temporárias expiram e evitam depender de uma chave de longa duração distribuída com o código. Ainda devem ser protegidas durante sua validade e associadas a permissões restritas.",
+      "section": "3. IAM: identidade, autenticação e autorização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CloudTrail registra chamadas de API para IAM e STS, inclusive as originadas pelo console e por ferramentas de API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação AWS descreve integração de IAM e STS com CloudTrail para registrar chamadas de API como eventos, incluindo atividade realizada no console e em chamadas programáticas. Os detalhes ajudam a identificar solicitante, horário e origem.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Event history do CloudTrail apresenta eventos de dados de leitura de objetos junto com os eventos de gerenciamento recentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Event history mostra eventos de gerenciamento recentes por região, mas não eventos de dados. A coleta de eventos de dados exige configuração em uma trail ou event data store conforme o serviço e o recurso.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A janela documentada de 90 dias do CloudTrail Event history significa que essa visualização oferece retenção histórica ilimitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A janela de Event history é limitada aos 90 dias recentes de eventos de gerenciamento por região. Para manter um registro contínuo e consultável além dessa janela, é necessário configurar entrega e retenção em outros recursos, como uma trail.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Azure Activity Log registra operações de gerenciamento sobre recursos Azure, como criação de VM e alterações em políticas de acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O Activity Log registra operações de gerenciamento de recursos Azure, incluindo criação de máquina virtual e alteração de política de acesso a um serviço. É uma fonte da plataforma e não se confunde com log interno do sistema operacional.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Windows Event Log e Linux Syslog de uma VM registram necessariamente todas as chamadas feitas ao Azure Resource Manager.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Esses logs registram atividade dentro do sistema convidado. Operações da plataforma sobre recursos Azure são consultadas no Activity Log ou em fontes de gerenciamento apropriadas; fontes distintas podem ser correlacionadas numa investigação.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma trilha de auditoria útil define quais eventos coletar, para onde entregá-los e como proteger sua leitura, alteração e retenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Coleta sem escopo, destino protegido e retenção planejada pode deixar lacunas ou permitir adulteração. Controles de acesso, armazenamento central, cópia preservada e regras de alerta ajudam a tornar os registros disponíveis e confiáveis para auditoria.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como logs registram operações, sua existência impede por si só que uma identidade execute ação não autorizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Logs dão evidência para monitoramento e investigação, mas não substituem controles preventivos de autorização. Políticas IAM, limites e alertas precisam ser configurados para prevenir ou detectar ações; apenas gravar um evento não bloqueia a chamada.",
+      "section": "4. Auditoria, eventos e trilhas em nuvem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contêiner executado com privilégios amplos e acesso ao socket do runtime pode enfraquecer o isolamento pretendido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Modo privilegiado, acesso ao socket do runtime ou montagem de diretórios do host podem ampliar muito o que o processo consegue controlar. Contêineres exigem configuração restritiva, atualização de imagens e limites de recursos; seu isolamento não elimina riscos de configuração.",
+      "section": "5. Combinação segura dos componentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separar a identidade de cada aplicação e limitar cada papel aos recursos usados por ela reduz o impacto de comprometimento de um workload.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Identidades separadas evitam que todas as aplicações compartilhem o mesmo conjunto de permissões. Ao limitar cada papel a ações e recursos necessários, uma credencial comprometida oferece menos caminhos para acessar outras partes do ambiente.",
+      "section": "5. Combinação segura dos componentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Remover um arquivo secreto em uma camada posterior garante que ele nunca existiu nas camadas anteriores da imagem de contêiner.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Camadas da imagem podem permanecer no histórico do artefato; uma camada posterior que apaga o arquivo não garante sua remoção das camadas anteriores. Segredos não devem ser incluídos na imagem e devem ser fornecidos por mecanismo de gestão de segredos.",
+      "section": "5. Combinação segura dos componentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Logs de aplicação, logs do guest e eventos de gerenciamento podem fornecer evidências complementares sobre uma mesma falha em nuvem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Eventos da plataforma mostram operações sobre recursos; logs do guest revelam atividade interna do sistema; logs da aplicação mostram o comportamento do serviço. Correlacionar horários, identidades e recursos permite reconstruir melhor uma sequência do que depender de uma fonte isolada.",
+      "section": "5. Combinação segura dos componentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação de menor privilégio, imagem atualizada e registro centralizado de operações trata controles diferentes e pode ser combinada numa mesma implantação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Menor privilégio reduz ações acessíveis à identidade; atualização reduz exposição a vulnerabilidades conhecidas; logs centralizados apoiam detecção e investigação. Nenhum controle substitui integralmente os demais, por isso a arquitetura combina prevenção, redução de superfície e evidência.",
+      "section": "5. Combinação segura dos componentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Docker Docs: What is a container?",
+      "publisher": "Docker",
+      "reference": "Diferenças entre contêineres e máquinas virtuais, kernel compartilhado e execução em plataformas desktop",
+      "url": "https://docs.docker.com/learn/content/what-is-a-container/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Docker Docs: Docker overview",
+      "publisher": "Docker",
+      "reference": "Imagens, contêineres, ciclo de vida, isolamento, armazenamento e rede",
+      "url": "https://docs.docker.com/get-started/docker-overview/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AWS IAM: Security best practices",
+      "publisher": "Amazon Web Services",
+      "reference": "Menor privilégio, MFA e credenciais temporárias",
+      "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Logging IAM and AWS STS API calls with AWS CloudTrail",
+      "publisher": "Amazon Web Services",
+      "reference": "Registro de chamadas IAM/STS, Event history e entrega de trilha",
+      "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Viewing recent management events with the console",
+      "publisher": "Amazon Web Services",
+      "reference": "Escopo regional, janela de 90 dias e ausência de eventos de dados em Event history",
+      "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events-console.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Azure security logging and auditing",
+      "publisher": "Microsoft Learn",
+      "reference": "Fontes de logs de recursos, Entra ID, VMs e auditoria Azure",
+      "url": "https://learn.microsoft.com/en-us/azure/security/fundamentals/log-audit",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Activity Log in Azure Monitor",
+      "publisher": "Microsoft Learn",
+      "reference": "Operações de gerenciamento Azure e alertas",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/platform/activity-log",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

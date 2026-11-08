@@ -1,0 +1,2032 @@
+{
+  "id": "informatica.programacao-avancada",
+  "subject": "Informática",
+  "title": "Programação Avançada",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programação Avançada",
+    "Técnicas avançadas de programação",
+    "Conceitos avançados de programação",
+    "Programação avançada em Java e Python",
+    "Programação genérica e tipos parametrizados",
+    "Concorrência e paralelismo em programação",
+    "Execução assíncrona de tarefas",
+    "Gerenciamento automático de memória",
+    "Coleta de lixo em linguagens gerenciadas",
+    "Programação orientada a objetos avançada"
+  ],
+  "scope": {
+    "covers": "Técnicas avançadas transversais à programação: tipos genéricos, parâmetros de tipo e limites; concorrência, paralelismo, tarefas, futuros e sincronização; análise de custo assintótico e estruturas de dados; memória gerenciada, alcançabilidade e coleta de lixo; princípios de desenho e padrões Strategy, Factory Method, Observer e Adapter; leitura de cenários de desempenho e escolha da técnica adequada, com exemplos oficiais de Java, Python e .NET.",
+    "excludes": "Sintaxe elementar e fundamentos gerais de linguagens; catálogo completo de padrões de projeto; programação funcional, orientação a objetos ou programação concorrente como disciplinas autônomas; arquitetura distribuída, administração de sistemas, segurança de aplicações e otimização específica de compilador ou processador."
+  },
+  "theoryTitle": "Técnicas avançadas para construir programas confiáveis e eficientes",
+  "chapters": [
+    {
+      "title": "1. Tipos genéricos e contratos de tipo",
+      "markdown": "### O problema que este assunto resolve\n\nUma coleção que guarda qualquer objeto aceita valores sem relação entre si. O erro aparece mais tarde, quando o programa converte um valor supondo um tipo diferente. A programação genérica permite escrever uma classe ou função uma vez, parametrizada por tipos, e deixar o compilador verificar os usos. Em Java, `Caixa<T>` pode guardar e devolver um `T`; `Lista<String>` declara que os elementos são texto. O parâmetro de tipo não é um valor de execução: ele descreve o contrato dos dados manipulados.\n\n> **Siglas e termos deste capítulo**\n> - **Tipo parametrizado**: tipo que recebe um ou mais parâmetros de tipo, como `Mapa<K,V>`.\n> - **Genérico**: classe, interface ou método cuja definição declara parâmetros de tipo.\n> - **Limite (bound)**: requisito que restringe quais tipos podem ocupar um parâmetro.\n> - **Inferência de tipo**: compilador deduz o parâmetro a partir dos argumentos e do contexto.\n> - **Curinga (wildcard)**: tipo desconhecido expresso por `?` em Java.\n\n### Parâmetros, limites e variância de leitura/escrita\n\nUma classe `Par<K,V>` relaciona dois tipos: uma chave `K` e um valor `V`. Um método genérico pode declarar parâmetros próprios, de escopo limitado ao método; em Java, eles aparecem antes do tipo de retorno, como `<T> T primeiro(List<T> itens)`. O compilador normalmente infere `T` pela lista passada. Um limite superior, como `<T extends Number>`, admite `Number` e seus subtipos; permite chamar operações garantidas por esse contrato sem aceitar qualquer objeto.\n\nCuringas expressam relações de uso. `? extends Number` é apropriado quando o código lê valores como `Number`: a lista pode ser de `Integer` ou `Double`, mas não é seguro inserir um `Integer`, pois o objeto real poderia ser uma lista de `Double`. `? super Integer` admite listas de `Integer` ou de supertipo, sendo útil para inserir inteiros; ao ler, o valor só é garantido como `Object`. A mnemônica PECS resume: produtor, `extends`; consumidor, `super`. Não é uma regra mecânica para todos os casos: a assinatura deve refletir o que o método realmente faz.\n\n| Declaração | Uso seguro típico | Limite prático |\n| --- | --- | --- |\n| `List<T>` | Ler e escrever valores T | Tipo conhecido pela declaração |\n| `List<? extends Number>` | Ler como Number | Não inserir Number arbitrário |\n| `List<? super Integer>` | Inserir Integer | Leitura geral resulta em Object |\n| `<T extends Comparable<T>>` | Comparar T pelo contrato | Exige implementação compatível de Comparable |\n\n### Apagamento de tipos e limites\n\nNa implementação tradicional de genéricos Java, o compilador usa apagamento de tipos: parâmetros genéricos são removidos ou substituídos por seus limites na representação de execução, com conversões e métodos de ponte quando necessários. Por isso não se pode, em geral, testar `valor instanceof List<String>` nem criar diretamente `new T[]`. Não confunda a verificação estática dos usos com a existência de um objeto `List<String>` que conserva sempre `String` como informação reificável em execução. Tipos crus, como `List` sem parâmetro, perdem parte da verificação e podem introduzir avisos e erros de conversão.\n\n### Como cai na prova\n\n- Um método que apenas percorre e consulta números aceita `? extends Number`; um método que insere inteiros pode receber `? super Integer`.\n- Parâmetro de tipo declarado no método tem escopo daquele método, mesmo que a classe não seja genérica.\n- Inferência evita escrever parâmetros explicitamente quando argumentos e contexto bastam.\n- Apagamento não significa que genéricos sejam inúteis: a checagem de compatibilidade continua sendo feita pelo compilador."
+    },
+    {
+      "title": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação pode esperar por rede, disco ou outros serviços enquanto atende novas tarefas; também pode dividir cálculos em núcleos diferentes. **Concorrência** é lidar com várias tarefas cujos períodos se sobrepõem; **paralelismo** é executar instruções ao mesmo tempo em unidades de processamento distintas. Concorrência pode existir num único núcleo por alternância. Paralelismo costuma ser concorrente, mas os conceitos não são sinônimos.\n\n> **Siglas e termos deste capítulo**\n> - **I/O**: entrada e saída, como leitura de arquivo ou chamada de rede.\n> - **Thread**: fluxo de execução dentro de um processo.\n> - **Processo**: instância isolada de programa, com espaço de memória próprio.\n> - **Executor**: objeto que recebe tarefas e define onde executá-las.\n> - **Future**: representação de resultado que pode ficar pronto depois.\n> - **Race condition**: resultado depende da ordem imprevisível de acessos concorrentes.\n\n### Escolher entre threads, processos e corrotinas\n\nEm Python, `concurrent.futures` oferece uma interface comum `Executor` e resultados `Future`. `ThreadPoolExecutor` agenda chamadas numa piscina de threads e costuma ser adequado para sobrepor operações de I/O. `ProcessPoolExecutor` executa em processos separados e é opção para cálculo intensivo que pode ser dividido; argumentos e resultados precisam ser comunicados entre processos, com custo de serialização. `asyncio` trabalha com corrotinas e um laço de eventos; uma corrotina cede controle quando aguarda operação assíncrona. `concurrent.futures.Future` e `asyncio.Future` são abstrações distintas.\n\nA existência de várias threads não garante que uma rotina CPU-bound rode em paralelo em toda implementação de linguagem. No CPython tradicional, o GIL limita execução simultânea de bytecode Python por threads; operações de I/O podem liberar a execução. A documentação atual também descreve `InterpreterPoolExecutor`, com interpretadores isolados em workers e paralelismo multicore, mas isso traz comunicação explícita e serialização. A escolha depende do runtime e da versão, não apenas do nome da API.\n\n### Compartilhamento, sincronização e impasses\n\nQuando duas tarefas atualizam o mesmo estado mutável, operações aparentemente simples podem se intercalar e perder atualizações. Uma seção crítica protegida por lock dá exclusão mútua, mas locks ampliam espera e exigem disciplina. Evite manter um lock durante I/O lento; defina ordem consistente de aquisição para reduzir deadlocks; prefira mensagens, dados imutáveis ou propriedade exclusiva quando isso simplificar a coordenação. Deadlock exige um ciclo de dependência de recursos; starvation ocorre quando uma tarefa fica indefinidamente sem oportunidade.\n\nUm `Future` representa trabalho submetido e seu resultado ou exceção. Em Python, `Executor.submit` devolve um Future; `result()` espera e devolve o resultado ou propaga a exceção da tarefa. `as_completed` permite processar os Futures à medida que terminam, em vez de esperar a ordem de envio. Cancelar só funciona se a execução ainda não começou ou puder ser interrompida pelo executor.\n\n| Perfil de trabalho | Estratégia frequentemente adequada | Cuidado principal |\n| --- | --- | --- |\n| Muitas esperas de rede/arquivo | I/O assíncrono ou pool de threads | Limitar concorrência e tratar timeouts |\n| Cálculo divisível por CPU | Processos ou workers realmente paralelos | Custo de cópia e divisão do trabalho |\n| Estado compartilhado | Sincronização ou redução de compartilhamento | Corridas, deadlock e contenção |\n\n### Como cai na prova\n\n- Sobrepor esperas é concorrência; executar cálculos simultaneamente em núcleos distintos é paralelismo.\n- Pool de threads não é garantia universal de paralelismo CPU: runtime e GIL importam.\n- `as_completed` produz os futuros conforme a conclusão, não na ordem original da lista.\n- Um lock protege acesso coordenado, mas não corrige por si só uma estratégia de bloqueio que provoque deadlock."
+    },
+    {
+      "title": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nUma implementação correta pode ficar inviável quando a quantidade de dados cresce. A análise assintótica descreve como o custo cresce com o tamanho da entrada `n`, abstraindo constante e detalhes de máquina. `O(1)` é custo constante; `O(log n)` cresce lentamente; `O(n)` percorre proporcionalmente os dados; `O(n log n)` é comum em ordenações eficientes por comparação; `O(n²)` pode surgir de dois laços aninhados que percorrem a entrada. Big O é um limite assintótico superior, não uma medida direta de segundos.\n\n> **Siglas e termos deste capítulo**\n> - **n**: tamanho ou parâmetro da entrada analisada.\n> - **Big O**: notação de limite superior assintótico.\n> - **Espaço auxiliar**: memória extra além da entrada e do resultado exigido.\n> - **Hash table**: estrutura que usa função hash para localizar chaves.\n> - **Amortizado**: custo médio por operação ao longo de uma sequência, mesmo que algumas operações sejam caras.\n\n### Contar o que realmente cresce\n\nEm um laço simples que visita cada elemento uma vez, o trabalho é linear. Dois laços independentes, cada um percorrendo `n`, somam `O(n)+O(n)=O(n)`; laços aninhados podem produzir `O(n²)`. Se a cada etapa o problema é reduzido à metade, como busca binária em sequência ordenada, o número de etapas cresce como `O(log n)`. Em laços com fatores diferentes, expresse os parâmetros separadamente, como `O(nm)`, antes de assumir que são iguais.\n\nEstruturas mudam custos de operações: busca numa lista sem ordenação exige até percorrer elementos; uma tabela hash tem busca média constante sob distribuição adequada, mas pode degradar com colisões; árvore de busca balanceada mantém busca, inserção e remoção logarítmicas; fila de prioridade baseada em heap permite obter/remover extremo em custo logarítmico, e consultar o extremo em constante. Custos concretos dependem da implementação e das hipóteses.\n\nO crescimento de memória também importa. Um algoritmo que guarda todos os resultados intermediários pode trocar tempo por espaço. Cache, alocação e acesso à memória afetam desempenho real, mas não invalidam a análise assintótica. Otimização deve partir de medição representativa: perfilador localiza hotspots; teste de carga avalia latência e vazão sob demanda; benchmarks isolados podem distorcer o cenário por aquecimento, dados ou contenção.\n\n### Como cai na prova\n\n- Somar dois laços sequenciais lineares continua O(n); aninhar dois percursos dependentes de n tende a O(n²).\n- Busca binária requer dados ordenados e acesso compatível com a divisão por posição.\n- Complexidade média de hash não garante pior caso constante.\n- Aumentar threads não resolve necessariamente gargalo de I/O, contenção ou algoritmo quadrático."
+    },
+    {
+      "title": "4. Gestão de memória e desenho extensível",
+      "markdown": "### O problema que este assunto resolve\n\nProgramas gerenciados liberam o desenvolvedor da liberação manual de cada objeto, mas não eliminam o problema de manter referências desnecessárias nem substituem a gestão de recursos externos. No .NET, o coletor acompanha objetos do heap gerenciado alcançáveis a partir de raízes, como variáveis locais, campos estáticos e registradores; objetos inalcançáveis podem ter sua memória recuperada. Referência esquecida em cache ou evento continua alcançável e pode manter memória retida. Arquivos, sockets e handles nativos devem ser fechados pelo mecanismo de descarte determinístico (`IDisposable`/`using` em C#), sem aguardar o coletor.\n\n> **Siglas e termos deste capítulo**\n> - **GC**: coletor de lixo, responsável por recuperar memória de objetos inalcançáveis.\n> - **Heap gerenciado**: área de alocação administrada pelo runtime.\n> - **Raiz (root)**: referência a partir da qual o coletor determina alcançabilidade.\n> - **Hotspot**: trecho que concentra custo observado na execução.\n> - **Acoplamento**: dependência direta entre componentes.\n\n### Coleta e descarte de recursos\n\nUm coletor decide quando coletar, rastreia raízes e identifica objetos alcançáveis; ele não conhece a intenção de negócio. Se um cache guarda referências sem limite, os objetos continuam vivos ainda que não sejam usados pelo usuário. Em .NET, gerações separam objetos por sobrevivência: objetos que persistem podem ser tratados em gerações mais antigas, reduzindo o trabalho de coleta frequente dos recém-criados. Chamar coleta forçada sem evidência pode piorar pausas e desempenho.\n\nMemória e recursos do sistema são responsabilidades diferentes. Um objeto que representa um arquivo pode permanecer alcançável enquanto o arquivo precisa ser fechado; a coleta não é estratégia de fechamento previsível. Use bloco de descarte/`using` ou `try/finally` para garantir liberação no fluxo de saída, inclusive quando ocorre exceção.\n\n### Extensibilidade sem excesso de acoplamento\n\nPadrões de projeto são soluções recorrentes de desenho, não componentes obrigatórios nem código pronto a copiar. **Strategy** encapsula algoritmos intercambiáveis por uma interface comum; uma tela de cálculo de frete pode receber política de transportadora em vez de concentrar todas as regras num `if` extenso. **Factory Method** delega a subclasses ou implementações a criação do produto concreto, mantendo o cliente dependente de uma abstração. **Observer** notifica assinantes quando o estado de um objeto muda, como painel e auditoria reagindo a um evento; assinantes devem poder se inscrever e sair da inscrição. **Adapter** converte a interface de um componente existente para a interface esperada pelo cliente, sem alterar necessariamente o componente adaptado.\n\nEsses padrões promovem extensão e reduzem dependências específicas, porém cada camada tem custo de compreensão e manutenção. Aplique quando existir variação ou incompatibilidade real, e avalie se uma função simples já expressa a regra. Princípios úteis: encapsular o que varia, preferir depender de interfaces estáveis e manter responsabilidades coesas. Não existe padrão universalmente melhor.\n\n### Como cai na prova\n\n- GC recupera objetos inalcançáveis; não fecha arquivo no momento de negócio necessário.\n- Observer estabelece notificação entre publicador e assinantes; Adapter traduz uma interface incompatível.\n- Strategy troca uma política/algoritmo mantendo o cliente contra contrato comum.\n- Profiling antes de otimizar evita atacar código que não concentra o custo."
+    }
+  ],
+  "summary": "Programação avançada reúne técnicas para controlar tipos, execução, custo e dependências em programas maiores. Genéricos parametrizam classes e métodos, dão verificação estática e podem usar limites; em Java, curingas `extends` favorecem leitura e `super` favorece inserção, e apagamento limita operações que exigem informação de tipo em execução. Concorrência coordena tarefas sobrepostas; paralelismo executa simultaneamente. Em Python, Executor/ThreadPoolExecutor, ProcessPoolExecutor e Future modelam tarefas e resultados; threads são usuais para I/O, processos podem dividir cálculo CPU-bound e asyncio usa corrotinas e laço de eventos. A escolha depende do runtime, compartilhamento e custo de comunicação. Big O compara crescimento, não segundos: busca binária é logarítmica em sequência ordenada, percorrer dados é linear, dois laços aninhados podem ser quadráticos; estruturas alteram custos e devem ser avaliadas com hipóteses explícitas. No .NET, GC identifica objetos inalcançáveis a partir de raízes, mas referências retidas podem prolongar sua vida; arquivos e outros recursos externos exigem descarte determinístico. Strategy troca algoritmos, Factory Method delega criação, Observer notifica assinantes e Adapter compatibiliza interfaces. Medir hotspots antes de otimizar e preferir contratos claros evita complexidade sem benefício.",
+  "flashcards": [
+    {
+      "front": "Para que servem os parâmetros de tipo?",
+      "back": "Para escrever classes, interfaces ou métodos reutilizáveis com tipos verificados pelo compilador, como Lista<T> ou Mapa<K,V>."
+    },
+    {
+      "front": "Qual o escopo de T declarado por um método genérico?",
+      "back": "O método que declara o parâmetro, salvo se o tipo for declarado pela própria classe ou interface."
+    },
+    {
+      "front": "O que restringe um limite superior como T extends Number?",
+      "back": "Só permite tipos que sejam Number ou seus subtipos, habilitando operações do contrato Number."
+    },
+    {
+      "front": "Quando ? extends Number é útil em Java?",
+      "back": "Quando a estrutura será consumida como produtora de valores Number; inserir valores arbitrários não é seguro."
+    },
+    {
+      "front": "Quando ? super Integer é útil?",
+      "back": "Quando se quer inserir valores Integer em uma estrutura que pode ser de Integer ou de um supertipo."
+    },
+    {
+      "front": "O que é apagamento de tipos em Java?",
+      "back": "A tradução de tipos genéricos pelo compilador para uma representação sem parâmetros reificados em execução, com conversões quando necessário."
+    },
+    {
+      "front": "Concorrência e paralelismo são sinônimos?",
+      "back": "Não. Concorrência organiza tarefas com períodos sobrepostos; paralelismo executa trabalho simultaneamente."
+    },
+    {
+      "front": "Para qual perfil ThreadPoolExecutor costuma servir bem?",
+      "back": "Tarefas que passam bastante tempo aguardando I/O, podendo usar threads para sobrepor as esperas."
+    },
+    {
+      "front": "Quando ProcessPoolExecutor pode ser indicado?",
+      "back": "Para cálculos CPU-bound divisíveis, considerando o custo de comunicar dados entre processos."
+    },
+    {
+      "front": "O que representa um Future?",
+      "back": "Um resultado de trabalho submetido que pode ainda não estar pronto e pode conter resultado ou exceção."
+    },
+    {
+      "front": "O que faz as_completed?",
+      "back": "Permite iterar pelos Futures à medida que terminam, sem impor a ordem em que foram enviados."
+    },
+    {
+      "front": "O que caracteriza uma race condition?",
+      "back": "O resultado varia conforme a ordem de interleaving de acessos concorrentes a estado compartilhado."
+    },
+    {
+      "front": "Como um lock ajuda e qual custo traz?",
+      "back": "Protege uma seção crítica contra acesso simultâneo, mas pode causar espera e participar de deadlock."
+    },
+    {
+      "front": "O que expressa O(log n)?",
+      "back": "Crescimento logarítmico, comum quando cada etapa reduz o espaço de busca por uma fração fixa."
+    },
+    {
+      "front": "Por que busca binária exige ordenação?",
+      "back": "A decisão de descartar metade depende de a ordem dos elementos permitir comparar com o elemento central."
+    },
+    {
+      "front": "Dois laços sequenciais de O(n) totalizam quanto?",
+      "back": "O(n), porque a soma 2n mantém crescimento linear."
+    },
+    {
+      "front": "Qual hipótese costuma sustentar busca média O(1) em hash table?",
+      "back": "Distribuição de hashes suficientemente adequada e controle de colisões; pior caso pode ser maior."
+    },
+    {
+      "front": "O GC recupera qualquer objeto que o programa já não pretende usar?",
+      "back": "Não, ele identifica inalcançabilidade a partir das raízes; referências ainda guardadas podem manter o objeto vivo."
+    },
+    {
+      "front": "Como fechar arquivo de modo previsível em C#?",
+      "back": "Usar IDisposable com using ou mecanismo equivalente de try/finally, sem esperar a coleta de lixo."
+    },
+    {
+      "front": "Qual é a função central do padrão Strategy?",
+      "back": "Encapsular algoritmos intercambiáveis atrás de contrato comum para o cliente escolher ou receber uma estratégia."
+    },
+    {
+      "front": "Qual é a função central do Factory Method?",
+      "back": "Delegar a criação de produtos concretos a implementações, reduzindo a dependência do cliente em classes concretas."
+    },
+    {
+      "front": "Qual é o fluxo do Observer?",
+      "back": "Um publicador sinaliza mudança e notifica os assinantes registrados, que podem reagir ao evento."
+    },
+    {
+      "front": "Qual problema o Adapter resolve?",
+      "back": "Compatibiliza uma interface oferecida com a interface esperada pelo cliente por meio de conversão/delegação."
+    },
+    {
+      "front": "O que significa custo amortizado?",
+      "back": "O custo médio distribuído por uma sequência de operações, mesmo que uma operação isolada seja cara."
+    }
+  ],
+  "tips": [
+    "Para curingas Java, pergunte primeiro se o método lê, insere ou faz as duas coisas: isso orienta extends e super.",
+    "Diferencie concorrência (coordenação de tarefas sobrepostas) de paralelismo (execução simultânea).",
+    "Associe I/O intenso a sobreposição de espera e cálculo CPU-bound a paralelismo real com custo de comunicação avaliado.",
+    "Conte operações em função de n e elimine constantes: laços sequenciais lineares continuam lineares.",
+    "No GC, a pergunta decisiva é se o objeto continua alcançável a partir de uma raiz, não se o negócio ainda precisa dele.",
+    "Associe Strategy a algoritmo alternável, Factory Method a criação, Observer a notificação e Adapter a interface incompatível."
+  ],
+  "traps": [
+    "Confundir genérico estático com informação de tipo necessariamente presente em cada objeto em execução.",
+    "Supor que mais threads produzam automaticamente paralelismo CPU em qualquer linguagem e runtime.",
+    "Tratar Big O como previsão exata de segundos ou ignorar as hipóteses da estrutura usada.",
+    "Supor que o coletor feche arquivos e sockets no instante em que deixam de ser úteis.",
+    "Usar Observer para traduzir interfaces incompatíveis, quando essa função é do Adapter.",
+    "Aplicar padrão por nome mesmo quando uma função simples resolve o problema com menos acoplamento."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como você distinguiria List<? extends Number> de List<? super Integer> para uma função que apenas soma valores?",
+      "answer": "A primeira é adequada como produtora de Number; a segunda é voltada a aceitar Integer como consumidor e não oferece leitura específica além de Object."
+    },
+    {
+      "question": "Por que um método pode declarar seu próprio parâmetro de tipo sem a classe ser genérica?",
+      "answer": "O tipo é introduzido na assinatura do método e seu escopo se limita àquele método."
+    },
+    {
+      "question": "Dê um cenário concorrente sem paralelismo e explique a diferença.",
+      "answer": "Num núcleo, o escalonador alterna duas tarefas; seus períodos se sobrepõem, mas as instruções não rodam no mesmo instante em núcleos distintos."
+    },
+    {
+      "question": "Por que processos podem ser úteis para cálculo intensivo e ainda assim não serem sempre melhores?",
+      "answer": "Eles podem usar núcleos em paralelo, mas há custo de criar workers, serializar, copiar e combinar dados."
+    },
+    {
+      "question": "Como identificar uma race condition num contador compartilhado?",
+      "answer": "Duas tarefas podem ler o mesmo valor antes de gravar o incremento; a atualização de uma sobrescreve a outra se a operação não for coordenada."
+    },
+    {
+      "question": "Qual condição torna busca binária apropriada?",
+      "answer": "A sequência precisa estar ordenada segundo a comparação usada, permitindo eliminar metade a cada etapa."
+    },
+    {
+      "question": "Por que um objeto pode não ser coletado embora ninguém o use na interface?",
+      "answer": "Uma raiz ou estrutura ainda alcançável, como um cache ou lista de eventos, mantém uma referência ao objeto."
+    },
+    {
+      "question": "Diferencie Strategy e Adapter por seu propósito.",
+      "answer": "Strategy seleciona entre algoritmos com contrato comum; Adapter transforma interface incompatível para o contrato esperado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Variância de curingas invertida",
+      "summary": "extends atende principalmente leituras como produtor; super permite inserir valores do tipo declarado como consumidor."
+    },
+    {
+      "key": "e2",
+      "title": "Concorrência tratada como paralelismo",
+      "summary": "Tarefas podem se sobrepor por alternância num núcleo; simultaneidade real exige execução paralela."
+    },
+    {
+      "key": "e3",
+      "title": "Pool escolhido sem considerar o trabalho",
+      "summary": "I/O, CPU-bound, compartilhamento, runtime e comunicação têm perfis distintos e alteram a escolha de threads, processos ou corrotinas."
+    },
+    {
+      "key": "e4",
+      "title": "Big O interpretado como cronômetro",
+      "summary": "Notação compara crescimento assintótico sob hipóteses, não segundos exatos; estruturas e entradas mudam o custo."
+    },
+    {
+      "key": "e5",
+      "title": "Coletor confundido com gestor de recursos externos",
+      "summary": "GC recupera memória de objetos inalcançáveis, mas não garante fechamento previsível de arquivo, socket ou handle."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em Java, um parâmetro de tipo declarado por um método genérico tem escopo restrito àquele método, mesmo que a classe que o contém não seja genérica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O método pode introduzir seus próprios parâmetros de tipo, e o uso deles se limita à declaração do método. A classe não precisa declarar parâmetro genérico para isso.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, List<? extends Number> permite inserir com segurança qualquer objeto Number, porque todos os elementos da lista são subtipos de Number.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A lista pode representar List<Integer> ou List<Double>; inserir um Number arbitrário poderia violar o tipo concreto. O curinga é útil para ler os elementos como Number.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um limite superior T extends Number restringe os tipos admissíveis e permite usar operações garantidas pelo contrato Number.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O parâmetro fica limitado a Number e seus subtipos, portanto o corpo pode depender das operações disponíveis nessa superclasse.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O apagamento de tipos em Java significa que o compilador deixa de verificar se os argumentos correspondem aos parâmetros genéricos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A checagem genérica ocorre durante a compilação. Apagamento descreve como os tipos são traduzidos na representação de execução, não a ausência de verificação estática.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Concorrência exige que duas tarefas executem instruções no mesmo instante em dois núcleos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Concorrência trata de tarefas cujos períodos de execução se sobrepõem; num único núcleo elas podem progredir por alternância. Execução simultânea caracteriza paralelismo.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, ThreadPoolExecutor oferece um pool de threads e costuma ajudar a sobrepor operações que passam tempo aguardando I/O.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação apresenta o pool como execução assíncrona por threads; sobrepor esperas de rede ou arquivo é um uso frequente. Isso não promete paralelismo CPU em qualquer runtime.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A função as_completed devolve Futures na mesma ordem em que foram submetidos ao executor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O iterador produz os Futures conforme eles terminam; essa ordem pode diferir da ordem de submissão. Se uma tarefa enviada por último terminar primeiro, ela aparece antes das tarefas ainda em execução.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma seção crítica com lock impede acessos simultâneos protegidos, mas o uso de locks ainda pode causar deadlock ou contenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O lock coordena o acesso ao estado protegido, mas aquisição em ordem circular pode formar deadlock e a exclusão mútua pode aumentar a espera.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois laços sequenciais, cada um percorrendo n elementos, têm crescimento quadrático porque ambos visitam a entrada inteira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os trabalhos somam n+n=2n, que continua tendo crescimento linear O(n). Laços aninhados podem multiplicar os percursos e chegar a O(n²).",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A busca binária reduz o espaço de busca pela metade a cada etapa e tem crescimento logarítmico quando a sequência está ordenada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A ordenação permite comparar o alvo com o elemento central e descartar uma das metades; o número de divisões cresce como O(log n).",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela hash garante busca O(1) no pior caso, independentemente de colisões ou da distribuição das chaves.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O custo médio pode ser constante com boa distribuição e tratamento de colisões, mas colisões concentradas podem degradar o pior caso.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Big O fornece diretamente o tempo em segundos de uma execução, desde que se conheça o tamanho n da entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A notação descreve crescimento assintótico e não inclui, por si só, constante de máquina, implementação, dados e ambiente que determinam segundos observados.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No .NET, um objeto ainda alcançável a partir de uma raiz pode permanecer vivo para o coletor, mesmo que a aplicação já não o mostre ao usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A coleta usa alcançabilidade a partir de raízes; uma referência mantida num cache ou inscrição de evento pode conservar o objeto no heap.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O coletor de lixo é o mecanismo recomendado para fechar arquivos assim que o programa termina de usá-los, pois a coleta ocorre imediatamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O momento da coleta não é um mecanismo determinístico de fechamento. Arquivos e outros recursos externos devem ser liberados por descarte explícito, como using/IDisposable em C#.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão Adapter converte ou delega uma interface para que um cliente consiga usar um componente cuja interface é incompatível com a esperada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Adapter faz a compatibilização entre interfaces sem exigir que o cliente conheça diretamente a forma original do componente.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão Observer, o publicador costuma notificar assinantes registrados quando ocorre uma mudança observada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Observer organiza uma relação de publicação e inscrição para que observadores reajam a eventos ou mudanças do publicador.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Strategy exige que o algoritmo seja escolhido por uma longa cadeia de condicionais dentro do cliente e não pode ser substituído em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Strategy encapsula algoritmos intercambiáveis sob um contrato comum; o cliente pode receber ou selecionar uma implementação sem abrigar toda a lógica condicional.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Java que percorre uma coleção de valores e os lê como Number pode receber List<? extends Number> sem permitir inserção arbitrária na coleção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O curinga superior permite que a lista concreta tenha elementos de um subtipo de Number e que sejam lidos como Number; adicionar um Number genérico não seria seguro.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa esperar respostas de dezenas de serviços HTTP enquanto mantém outras solicitações em andamento. Que estratégia geral é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Forçar coleta de lixo após cada resposta para liberar conexões abertas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar cada chamada numa thread ilimitada para evitar qualquer fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ordenar a lista de respostas antes de fazer as requisições em série.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar um algoritmo quadrático para repartir o tempo de rede entre chamadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sobrepor as esperas com I/O assíncrono ou um pool de threads limitado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Para tarefas dominadas por espera de I/O, concorrência permite avançar outras tarefas enquanto uma resposta aguarda. Um pool limitado controla recursos; threads ilimitadas podem esgotar o sistema, execução serial não sobrepõe esperas, ordenação não as paraleliza e GC não fecha conexões.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual assinatura de método genérico Java expressa melhor uma operação que deve inserir objetos Integer numa lista fornecida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Receber List<? extends Integer>, pois extends sempre permite gravar qualquer subtipo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Receber List sem tipo, para que o compilador escolha Integer em execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Receber List<?> e converter a coleção para List<Integer> após uma verificação pontual, presumindo que a implementação concreta aceitará qualquer Integer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Receber List<Object> porque List<Integer> é automaticamente subtipo dela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Receber List<? super Integer>, pois o argumento pode ser Integer ou um supertipo capaz de armazená-lo.",
+          "correct": true
+        }
+      ],
+      "explanation": "O curinga inferior aceita uma lista de Integer ou de algum supertipo de Integer, permitindo inserir inteiros com segurança. O curinga superior serve a leitura de valores, List<?> não autoriza escrita tipada e os dois últimos usos descartam garantias de compatibilidade.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve com precisão concorrência e paralelismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concorrência é sempre simultaneidade física e paralelismo é apenas alternância de tarefas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concorrência e paralelismo têm significado idêntico em qualquer modelo de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concorrência coordena tarefas sobrepostas; paralelismo executa trabalho simultaneamente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Paralelismo só existe quando tarefas compartilham uma única variável global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concorrência só ocorre em sistemas distribuídos e não pode ocorrer num processo local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Concorrência trata da organização de tarefas cujo progresso se sobrepõe, ainda que por alternância num núcleo. Paralelismo é simultaneidade de execução; não exige variável compartilhada nem ambiente distribuído.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe chamadas independentes que executam cálculo numérico intenso em Python. Qual escolha pode permitir uso de múltiplos núcleos, considerando os custos envolvidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir os números por Futures, que dividem automaticamente qualquer algoritmo entre núcleos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar obrigatoriamente uma única coroutine asyncio, que executa cálculo em vários núcleos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar mais threads Python e assumir paralelismo de bytecode em todo runtime CPython.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proteger o cálculo inteiro com lock global para que várias cópias rodem simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Submeter os cálculos a ProcessPoolExecutor e considerar serialização e transferência dos dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "ProcessPoolExecutor executa tarefas em processos separados e é uma opção para trabalho CPU-bound que pode ser dividido. A comunicação tem custo. Coroutine não paraleliza automaticamente cálculo, threads no CPython tradicional enfrentam o GIL para bytecode e Future representa trabalho, sem particioná-lo por si só.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista com n elementos é percorrida uma vez para validar os itens e depois novamente para calcular um total. Qual é a ordem assintótica do trabalho combinado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(1), porque cada percurso termina ao chegar ao fim da lista.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O(log n), porque são executadas duas passagens separadas e cada uma elimina metade dos elementos que ainda faltam processar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O(n²), porque o mesmo conjunto de elementos aparece nos dois percursos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O(n), porque os custos lineares se somam e a constante não muda a ordem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O(2ⁿ), porque cada elemento é processado por duas operações distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada passagem faz trabalho proporcional a n, de modo que o total é 2n mais operações constantes. Desconsiderando fatores constantes, o crescimento é O(n), e não quadrático, pois os laços não estão aninhados.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sequência está ordenada e permite acesso direto ao elemento central. Qual busca reduz pela metade as posições candidatas a cada comparação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Busca binária, que elimina metade do intervalo e cresce como O(log n).",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Busca linear, que precisa inspecionar cada posição em qualquer caso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Busca em largura, que exige criar uma árvore de todos os elementos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Busca por hash, que ordena automaticamente qualquer sequência antes da consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Busca recursiva aleatória, que descarta posições sem usar a ordem existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A busca binária compara com o meio e, aproveitando a ordenação, descarta uma das metades. A busca linear não reduz sistematicamente o intervalo e hashing não ordena os dados.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto de longa duração permanece referenciado por um cache global sem limite. Qual explicação melhor descreve o risco para memória gerenciada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O coletor remove o objeto porque a tela que o criou deixou de estar ativa, mesmo que o cache global ainda mantenha sua referência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O coletor transforma a referência do cache em referência fraca assim que o objeto envelhece.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O objeto passa automaticamente para memória nativa e deixa de consumir o processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A geração do objeto é reiniciada toda vez que o cache é consultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A referência alcançável pelo campo global pode manter o objeto vivo e aumentar a memória retida.",
+          "correct": true
+        }
+      ],
+      "explanation": "O GC identifica alcançabilidade a partir das raízes. Um cache global forte continua sendo raiz indireta para seus objetos; sem política de expiração ou limite, eles não se tornam inalcançáveis apenas por não aparecerem na interface.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve exibir atualizações do pedido a vários painéis inscritos quando o pedido mudar. Qual padrão representa melhor essa notificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adapter, pois converte os dados do pedido para o formato de cada tela sem registrar observadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Strategy, pois seleciona qual algoritmo de ordenação os painéis executarão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Factory Method, pois instancia uma subclasse de painel a cada mudança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Singleton, pois impede que o pedido tenha mais de um assinante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Observer, pois o publicador pode notificar os assinantes registrados sobre mudanças.",
+          "correct": true
+        }
+      ],
+      "explanation": "Observer modela a relação de publicação e inscrição: a mudança no pedido dispara notificações para os painéis registrados. Adapter cuida de incompatibilidade de interfaces; os demais padrões têm outros propósitos.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca externa fornece calcularTotal(), enquanto a aplicação espera totalizar(). Qual solução encapsula a incompatibilidade sem alterar necessariamente a biblioteca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar Observer para que a biblioteca receba notificações de qualquer cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar Strategy para manter dois algoritmos de totalização simultâneos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um Adapter que exponha totalizar() e delegue a chamada à biblioteca.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar Factory Method para renomear todos os métodos existentes durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar coleta de lixo para transformar automaticamente o nome da operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Adapter implementa a interface que o cliente espera e traduz a operação para a interface existente, delegando à biblioteca. Observer notifica, Strategy varia algoritmos e Factory Method organiza criação.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função deve ordenar itens por critérios de preço ou data, escolhidos pelo chamador, preservando o mesmo fluxo de uso. Qual desenho favorece essa variação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar Factory Method para eliminar qualquer necessidade de especificar comparador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar a função de ordenação inteira para cada tela que tiver um critério.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar Adapter para converter uma data em preço sem alterar a comparação, mantendo os dois critérios disponíveis para escolha do chamador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar Observer para notificar o vetor sempre que dois elementos forem comparados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar cada critério numa estratégia comparadora com contrato comum e injetá-la na rotina.",
+          "correct": true
+        }
+      ],
+      "explanation": "Strategy encapsula algoritmos ou políticas intercambiáveis sob um contrato comum; a rotina de ordenação recebe a estratégia apropriada. Duplicar fluxos aumenta manutenção e os outros padrões não tratam dessa variação algorítmica.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre Futures da biblioteca concurrent.futures do Python está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "São coleções ordenadas que armazenam somente resultados já prontos, sem exceções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "São criados pelo garbage collector e não se relacionam com tarefas submetidas, armazenando somente o nome do processo que aguarda a chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Devem ser confundidos com asyncio.Future, pois são a mesma classe e têm o mesmo uso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encapsulam a execução assíncrona de uma chamada e permitem obter resultado ou exceção.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cancelam obrigatoriamente a tarefa mesmo depois que ela começou a executar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação define concurrent.futures.Future como objeto que encapsula execução assíncrona, criado por submit, com resultado, exceção e estado. Ele não é asyncio.Future, nem garante cancelamento de trabalho já em execução.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina contém dois laços aninhados, cada um podendo percorrer n registros. Qual crescimento descreve o número de pares examinados no pior caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(n²), porque cada registro externo pode ser combinado com n registros internos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O(n), porque cada registro externo é visitado uma vez e o percurso interno não volta a examinar os registros existentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O(log n), porque o segundo laço reinicia depois do primeiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O(1), porque as comparações não alteram o tamanho do vetor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O(n log n), porque toda comparação entre pares equivale a dividir a entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "No pior caso, cada uma das n iterações externas executa n iterações internas, totalizando proporcional a n² operações. Não ocorre redução pela metade que justificasse logaritmo.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem permite investigar de forma mais confiável qual trecho de uma aplicação consome mais tempo antes de otimizar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reescrever primeiro toda função longa com base apenas na quantidade de linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar paralelismo em todos os métodos, sem coletar medidas da execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar profiling em cargas representativas para identificar hotspots observados, sem confundir a medição com uma prova formal do custo assintótico.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Forçar coleta de lixo em cada chamada e atribuir toda demora ao heap, comparando a pausa com o total de bytes já alocados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar toda estrutura por hash table, mesmo quando não há buscas por chave nem dados que possam ser indexados dessa maneira.",
+          "correct": false
+        }
+      ],
+      "explanation": "Profiling mostra onde a execução real concentra tempo ou alocação; medir uma carga representativa direciona a otimização. Comprimento de código não mede custo, e mudanças sem evidência podem piorar outros caminhos.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método percorre uma árvore de busca balanceada cuja altura cresce logaritmicamente para localizar uma chave. Que custo de busca é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(1), porque a árvore guarda cada chave em um nó separado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O(log n), acompanhando um caminho cuja altura é logarítmica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O(n²), pois cada nível da árvore percorre todos os níveis anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O(2ⁿ), porque a árvore tem dois filhos potenciais por nó.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O(n log n), porque a busca precisa ordenar novamente os nós em cada nível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Numa árvore balanceada, a altura é proporcional a log n e a busca segue um caminho de raiz a folha, visitando no máximo essa quantidade de níveis. A afirmação depende do balanceamento, ausente em árvores degeneradas.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pilha dinâmica dobra sua capacidade ao atingir o limite e ocasionalmente copia todos os elementos. Qual descrição pode explicar inserção amortizada constante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada inserção individual executa exatamente uma operação, sem qualquer cópia eventual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A capacidade dobrada reduz o custo de busca por elemento para O(log n).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A operação de cópia nunca ocorre em uma estrutura com capacidade dinâmica, mesmo quando a quantidade de elementos supera o espaço reservado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As expansões caras são espaçadas e seu custo se distribui por muitas inserções baratas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A análise amortizada ignora todo custo de memória e só conta acessos à rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma expansão isolada custa O(n), mas duplicar capacidade faz com que expansões sucessivas ocorram em intervalos crescentes. Ao distribuir esses custos por uma sequência longa, o custo amortizado por inserção é constante.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C#, qual mecanismo é apropriado para liberar um arquivo de modo determinístico mesmo se ocorrer exceção durante a leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar que a próxima coleta de lixo ocorrerá antes de a função retornar, liberando o handle junto com a memória do objeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar o arquivo numa variável estática para o coletor encontrá-lo com rapidez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamar o coletor após cada leitura para que ele feche automaticamente o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter o arquivo alcançável até o fim do processo para evitar descarte prematuro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar using ou try/finally com IDisposable para executar o descarte no fluxo de saída.",
+          "correct": true
+        }
+      ],
+      "explanation": "O padrão using garante a chamada de Dispose ao sair do escopo, inclusive por exceção. A coleta administra memória de objetos e não substitui o fechamento previsível de recursos externos.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer criar objetos de uma família por implementações específicas, mantendo o cliente dependente de uma abstração. Qual padrão pode organizar essa decisão de criação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Observer, que percorre assinantes até que um deles construa o objeto solicitado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Factory Method, que delega a criação do produto concreto a uma implementação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Adapter, que notifica subclasses sempre que um produto muda de estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Strategy, que converte construtores com nomes incompatíveis em uma interface comum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Heap, que seleciona automaticamente a classe concreta conforme o tamanho do objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Factory Method permite que subclasses ou implementações decidam qual produto concreto criar, enquanto o cliente trabalha com abstrações. Observer trata notificações, Adapter interfaces e Strategy algoritmos intercambiáveis.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mede alto tempo de pausa associado à coleta e encontra muitos objetos temporários alocados por requisição. Qual investigação inicial é mais fundamentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar métricas e profiling para relacionar volume de alocação e sobrevivência de objetos às pausas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Forçar GC.Collect em cada requisição, garantindo pausas menores e previsíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar todo o coletor e esperar que o runtime libere referências por escopo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar indiscriminadamente a retenção em caches para reduzir objetos temporários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Migrar arquivos para o heap gerenciado, onde o coletor os fechará ao final da chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação .NET relaciona intrusividade de coleta ao volume de alocações e à memória sobrevivente. Medir esses fatores e localizar alocações desnecessárias permite avaliar a causa. Forçar coleta pode degradar desempenho e não fecha recursos externos.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma chamada a método genérico pode omitir os argumentos de tipo quando o compilador consegue inferi-los a partir dos parâmetros e do contexto.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não, pois todos os métodos genéricos exigem argumentos de tipo explícitos entre sinais angulares para o compilador validar qualquer chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, a inferência pode determinar os tipos; a chamada explícita continua possível quando útil.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Não, pois parâmetros genéricos só podem ser declarados em classes e interfaces.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, mas a inferência só acontece depois que a aplicação inicia a execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não, pois o compilador converte todos os parâmetros genéricos em Object antes de verificar a chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Java mostra que argumentos de método genérico podem ser inferidos pelos argumentos passados, embora possam ser escritos explicitamente. Inferência é trabalho do compilador e não ocorre somente em execução.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa descreve adequadamente uma tabela hash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mantém necessariamente as chaves ordenadas e percorre a árvore em altura logarítmica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Oferece acesso médio constante sob hipóteses adequadas, mas colisões influenciam o custo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Garante custo constante no pior caso sem depender da função de hash ou das entradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Só pode armazenar chaves numéricas e dispensa qualquer tratamento de colisões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Busca cada chave por divisão recursiva ordenada, mesmo sem conhecer a ordem dos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tabelas hash costumam oferecer custo médio constante quando hashes e colisões são bem tratados. Elas não garantem ordenação nem custo constante em todo pior caso, e aceitam diferentes tipos de chave conforme implementação.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa asyncio para coordenar corrotinas que aguardam rede. Qual afirmação descreve melhor o modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada coroutine sempre cria processo do sistema operacional com heap independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O laço de eventos executa todas as instruções CPU-bound simultaneamente em vários núcleos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As corrotinas podem ceder controle em pontos de await, permitindo ao laço avançar outras tarefas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "asyncio.Future e concurrent.futures.Future são a mesma abstração e intercambiáveis em toda API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma coroutine só pode continuar depois que todas as demais tarefas do programa terminarem.",
+          "correct": false
+        }
+      ],
+      "explanation": "asyncio organiza corrotinas por um laço de eventos; operações assíncronas cedem controle durante a espera para que outras tarefas progridam. Isso não cria processo por coroutine nem paraleliza automaticamente CPU, e os dois tipos de Future são distintos.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação descreve melhor starvation em execução concorrente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duas tarefas mantêm locks e formam uma dependência circular que nenhuma consegue liberar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tarefa repetidamente recebe o recurso primeiro enquanto outra espera indefinidamente por oportunidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma tarefa termina imediatamente após receber o resultado de uma operação assíncrona.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duas threads executam instruções simultâneas em núcleos diferentes sem compartilhar memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O executor cancela uma chamada pendente antes de ela começar a executar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Starvation é a falta prolongada de oportunidade de progresso para uma tarefa, por exemplo por política injusta de escalonamento ou disputa contínua. Dependência circular entre locks descreve deadlock.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma comparação de algoritmos mostra O(n log n) para um e O(n²) para outro em entradas grandes. Qual conclusão é mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O método quadrático sempre será mais rápido porque executa menos operações em entradas pequenas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As ordens assintóticas bastam para prever exatamente a latência em qualquer computador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O crescimento n log n tende a escalar melhor para n grande, mas medidas e constantes também importam.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os dois algoritmos têm custo idêntico porque ambos dependem do mesmo parâmetro n.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O método n log n usa necessariamente menos memória e é estável em qualquer implementação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para entradas grandes, n log n cresce mais lentamente que n², mas a notação não determina latência exata nem uso de memória, estabilidade ou desempenho em entradas pequenas. Benchmark representativo completa a análise.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de eventos mantém assinantes para notificação. Qual prática reduz o risco de reter objetos que já não deveriam participar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover a inscrição quando o assinante encerra seu ciclo de vida ou deixa de precisar dos eventos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter todas as inscrições para que o coletor reconheça automaticamente a intenção de removê-las.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Forçar a coleta do objeto assinante sem remover a referência mantida pelo publicador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir Observer por Factory Method, que libera os assinantes após cada chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar a lista numa variável global para que suas referências expirem ao final da requisição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma inscrição forte mantida pelo publicador pode manter o assinante alcançável. Remover o observador no momento adequado encerra a relação e permite que o objeto se torne elegível à coleta se não houver outras referências.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função é lenta por realizar pesquisa linear repetida dentro de um laço externo. Qual mudança pode reduzir o crescimento se os dados forem indexados por chave?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acrescentar uma terceira passagem linear para validar todas as chaves antes de cada pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar a pesquisa linear em mais threads sem alterar o trabalho total por elemento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter cada valor para String e manter o percurso sequencial pela coleção completa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Construir uma estrutura de consulta apropriada, como mapa hash, considerando criação e colisões.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Forçar coleta de lixo entre buscas para tornar a comparação de chaves constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a pesquisa linear O(n) ocorre para cada elemento de um laço O(n), o custo pode chegar a O(n²). Um índice por chave pode reduzir buscas médias, mas seu custo de construção e as propriedades da estrutura também devem ser considerados.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição relaciona corretamente Strategy e a dependência do cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente depende de um contrato de estratégia e pode receber algoritmos concretos diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A estratégia converte nomes de métodos externos, sem mudar o algoritmo escolhido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classe concreta registra assinantes e envia eventos para qualquer objeto global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente herda obrigatoriamente de todas as estratégias e chama cada uma em sequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A estratégia constrói a memória do processo e substitui o gerenciamento do runtime.",
+          "correct": false
+        }
+      ],
+      "explanation": "Strategy separa o algoritmo variável e deixa o cliente trabalhar contra uma interface ou contrato comum. Não é mecanismo de adaptação de interface, notificação ou gestão de memória.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação cria objetos gerenciados, mas conserva referências inúteis numa coleção estática. Qual conclusão sobre coleta é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O coletor remove os objetos por idade, mesmo que continuem alcançáveis pela coleção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A coleção estática pode ser raiz ou alcançável a partir de raiz, mantendo objetos vivos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Objetos estáticos ficam necessariamente fora do espaço de memória do processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Basta executar GC.Collect para apagar toda referência que não foi acessada recentemente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O coletor identifica intenção humana e descarta valores que não aparecem na tela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos estáticos são raízes relevantes para a análise de alcançabilidade; uma coleção estática pode manter objetos vivos. Idade ou ausência de acesso recente não sobrepõe uma referência forte existente.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe genérica Java precisa comparar instâncias de T usando compareTo. Que declaração expressa a capacidade exigida pelo algoritmo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar T sem limite e presumir que qualquer objeto possui compareTo em execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar T extends Comparable<T>, limitando T a tipos que oferecem comparação compatível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Declarar T super Comparable, para que toda instância receba automaticamente esse método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar List<?> e converter cada elemento em Comparable sem qualquer verificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o parâmetro T e ordenar por endereço de memória do objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um limite como T extends Comparable<T> declara o contrato que o algoritmo utiliza e permite ao compilador validar o acesso a compareTo. Sem o limite, T não garante essa operação.",
+      "section": "1. Tipos genéricos e contratos de tipo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar ThreadPoolExecutor e ProcessPoolExecutor, qual diferença é relevante para o desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Threads isolam totalmente o espaço de memória como processos, sem necessidade de sincronização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Processos sempre compartilham objetos mutáveis diretamente e não pagam custo de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A documentação Python não define interface comum para os executores de tarefas, que precisam ser criados com APIs sem relação entre si.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Threads executam em um pool de threads; processos usam workers de processo e comunicação tem custo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ProcessPoolExecutor é apenas outro nome para asyncio e não cria processos trabalhadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os dois executores implementam a abstração Executor, mas usam unidades de execução distintas. Compartilhamento e sincronização são preocupações comuns entre threads; processos isolam espaço e precisam comunicar argumentos e resultados com custo.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual relação entre coleta de lixo e memória no .NET é descrita corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O coletor administra alocação no heap gerenciado e recupera objetos que deixaram de ser alcançáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O coletor libera qualquer objeto após uma quantidade fixa de segundos, mesmo com referências ativas e sem observar as raízes do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O coletor administra diretamente todos os recursos externos e garante seu fechamento imediato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O coletor executa apenas quando cada método devolve o controle ao sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O coletor só funciona quando o programa chama GC.Collect depois de cada alocação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação .NET descreve o GC como gerenciador de alocação e liberação no heap gerenciado, determinando quando coletar e recuperando objetos sem uso alcançável. Recursos externos exigem descarte apropriado; coleta forçada não é requisito normal.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sequência cresce de tamanho n e uma rotina examina cada par distinto de elementos uma vez. Qual ordem de crescimento descreve esse trabalho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(n), pois cada elemento participa de apenas um par no total.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O(log n), pois os pares podem ser ordenados antes da comparação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O(n²), pois há uma quantidade proporcional ao quadrado de pares examinados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O(1), pois cada comparação individual tem custo constante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O(2ⁿ), pois cada par corresponde a um subconjunto de elementos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Há n(n-1)/2 pares distintos, função quadrática de n; embora cada comparação tenha custo constante, o número de comparações cresce como O(n²).",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada foi submetida com Executor.submit e seu Future ainda está pendente. Qual descrição do método result() é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retorna imediatamente uma nova tarefa sem consultar a chamada submetida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cancela a chamada e retorna o nome do worker que deveria executá-la.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Espera pelo resultado e devolve-o, ou propaga a exceção produzida pela chamada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converte automaticamente a thread numa coroutine e ignora qualquer erro da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faz cópia profunda do executor e executa a chamada novamente no processo principal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Future representa a execução submetida. A consulta de resultado aguarda quando necessário e disponibiliza o retorno ou apresenta a exceção ocorrida na tarefa; não há garantia de execução duplicada ou conversão de modelo.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa ordena n itens por um algoritmo cujo trabalho cresce como n log n. Qual interpretação da expressão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número exato de instruções é sempre n vezes o logaritmo decimal de n.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O algoritmo tem custo constante quando n ultrapassa o tamanho do cache.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória auxiliar necessariamente cresce como n log n em toda implementação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O custo assintótico combina crescimento linear com fator logarítmico, sem fixar segundos exatos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O algoritmo é quadrático porque a função logarítmica deve ser contada como n.",
+          "correct": false
+        }
+      ],
+      "explanation": "O(n log n) caracteriza a taxa assintótica de crescimento do trabalho, sem definir base do logaritmo para fins de ordem, constante exata, tempo em segundos ou espaço auxiliar de toda implementação.",
+      "section": "3. Custo algorítmico, estruturas e diagnóstico de desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre padrão e intenção está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Observer — converter a interface de uma biblioteca externa para a interface local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adapter — oferecer algoritmos de cálculo intercambiáveis pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Factory Method — notificar assinantes quando uma entidade muda de estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Strategy — delegar a subclasses a criação de todo produto concreto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adapter — compatibilizar a interface de um componente com a esperada pelo cliente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Adapter traduz uma interface para outra esperada pelo cliente. Observer trata notificações, Strategy varia algoritmos e Factory Method delega decisões de criação.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa atualiza saldo lendo o valor, somando e gravando, enquanto outra faz o mesmo sem coordenação. Qual risco está presente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagamento de tipos, pois a variável saldo pode deixar de ter seu parâmetro genérico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Busca binária, pois duas tarefas reduzem o saldo pela metade a cada leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Race condition, pois interleavings podem causar perda de uma das atualizações.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Coleta de lixo, que sempre restaura o valor anterior de uma variável compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inferência de tipos, que seleciona em execução qual tarefa grava por último.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sequência composta de leitura-modificação-escrita pode intercalar: ambas as tarefas leem o mesmo saldo e uma gravação sobrescreve a outra. É preciso tornar a operação atômica ou coordenada, ou reduzir o compartilhamento.",
+      "section": "2. Concorrência, paralelismo e tarefas assíncronas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time considera adicionar um padrão de projeto a cada classe nova para tornar o código avançado. Qual orientação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar padrões somente quando resolvem variação ou incompatibilidade concreta, avaliando o custo de abstração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar Observer em toda classe para que qualquer outro objeto possa consultá-la.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar Factory Method em toda função, pois funções não podem criar objetos diretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Combinar os quatro padrões em cada método para eliminar dependências por completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evitar interfaces, pois padrões funcionam melhor quando os clientes conhecem classes concretas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Padrões descrevem soluções recorrentes, mas cada abstração tem custo de compreensão e manutenção. Devem responder a variação ou incompatibilidade real; não eliminam toda dependência nem substituem soluções simples.",
+      "section": "4. Gestão de memória e desenho extensível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Java Tutorials — Generic Methods",
+      "publisher": "Oracle",
+      "reference": "Parâmetros de tipo em métodos genéricos e inferência de tipo",
+      "url": "https://docs.oracle.com/javase/tutorial/java/generics/methods.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Java Tutorials — Bounded Type Parameters",
+      "publisher": "Oracle",
+      "reference": "Limites superiores em parâmetros genéricos",
+      "url": "https://docs.oracle.com/javase/tutorial/java/generics/bounded.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Java Tutorials — Wildcards",
+      "publisher": "Oracle",
+      "reference": "Curingas, limites superiores e inferiores e relações de subtipagem",
+      "url": "https://docs.oracle.com/javase/tutorial/java/generics/wildcards.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "concurrent.futures — Launching parallel tasks",
+      "publisher": "Python Software Foundation",
+      "reference": "Executor, ThreadPoolExecutor, ProcessPoolExecutor, Future e as_completed",
+      "url": "https://docs.python.org/3/library/concurrent.futures.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "asyncio Futures",
+      "publisher": "Python Software Foundation",
+      "reference": "Future de asyncio e distinção em relação a concurrent.futures",
+      "url": "https://docs.python.org/3/library/asyncio-future.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Garbage collection fundamentals",
+      "publisher": "Microsoft Learn",
+      "reference": "Heap gerenciado, raízes, alcançabilidade, gerações e liberação de objetos",
+      "url": "https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/fundamentals",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Garbage collection",
+      "publisher": "Microsoft Learn",
+      "reference": "Gestão de alocação e liberação e recursos para diagnóstico",
+      "url": "https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Design Patterns",
+      "publisher": "Refactoring.Guru",
+      "reference": "Intenção geral e classificação dos padrões de projeto citados",
+      "url": "https://refactoring.guru/design-patterns",
+      "accessedAt": "2026-11-05"
+    }
+  ]
+}

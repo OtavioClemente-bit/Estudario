@@ -1,0 +1,2125 @@
+{
+  "id": "patologia-clinica.automacao-imunodiagnostico",
+  "subject": "Patologia Clínica",
+  "title": "Automação em imunodiagnóstico",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automação em imunodiagnóstico",
+    "Automação do imunodiagnóstico clínico",
+    "Analisadores automatizados de imunoensaios",
+    "Imunoensaios automatizados em laboratório",
+    "Sistemas automatizados de imunodiagnóstico",
+    "Processamento automatizado de imunoensaios",
+    "Plataformas de quimioluminescência clínica",
+    "Automação laboratorial de testes imunológicos"
+  ],
+  "scope": {
+    "covers": "Automação em imunodiagnóstico: etapas pré-analíticas, analíticas e pós-analíticas; componentes e fluxo de analisadores; acesso aleatório, contínuo, em lote, prioridade e repetição; princípios de imunoensaios automatizados (CLIA, CMIA, ECLIA e ELISA automatizado); identificação de amostras, reagentes, calibradores e controles; calibração e controle interno; interface com middleware e LIS; validação de resultados, alarmes, interferências, rastreabilidade, manutenção e segurança operacional.",
+    "excludes": "Interpretação clínica aprofundada de hormônios, marcadores tumorais e diabetes; imunologia diagnóstica não automatizada; protocolos específicos de um fabricante ou ensaio que não estejam descritos nas fontes citadas."
+  },
+  "theoryTitle": "Fluxo, medição e qualidade nos sistemas automatizados de imunodiagnóstico",
+  "chapters": [
+    {
+      "title": "1. O que a automação organiza no imunodiagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nUm analisador automatizado coordena identificação da amostra, aspiração de volumes pequenos, mistura com reagentes, incubação, separação ou lavagem, leitura do sinal e cálculo do resultado. A automação reduz tarefas manuais repetitivas e padroniza tempos e volumes, mas não elimina a responsabilidade do laboratório sobre a amostra, o método e a liberação. O desempenho depende da combinação validada entre instrumento, ensaio, reagentes, calibradores e tipo de espécime.\n\n> **Siglas e termos deste capítulo**\n> - **Imunoensaio**: método que usa ligação específica entre antígeno e anticorpo para detectar ou quantificar um alvo.\n> - **CLIA**: imunoensaio com detecção por quimioluminescência.\n> - **CMIA**: formato de quimioluminescência que emprega micropartículas.\n> - **ECLIA**: quimioluminescência desencadeada por reação eletroquímica.\n> - **LIS**: sistema de informação laboratorial que recebe pedidos e resultados.\n> - **Middleware**: camada que pode intermediar regras e comunicação entre analisador e LIS.\n\n### Do tubo ao resultado\n\nNo pré-analítico, a equipe confere pedido, identificação, recipiente, volume, integridade e condições da amostra. O código de barras associa o tubo ao cadastro; o software pode registrar tipo de tubo e posição, mas a leitura correta do código não prova que o material foi coletado da pessoa certa. Tubo sem identificação legível, volume insuficiente, coágulo em material que deveria estar adequado ou amostra incompatível com a instrução do ensaio exige tratamento conforme procedimento local, não uma liberação automática.\n\nNo analítico, o equipamento reconhece o ensaio solicitado, aspira amostra e reagentes, executa incubação e lavagens programadas, mede sinal e compara-o com a calibração. O sistema pode carregar amostras em acesso aleatório e contínuo, aceitar lotes, priorizar urgências e repetir automaticamente resultados segundo regras configuradas. Essas funções descrevem capacidades possíveis; não significam que todo equipamento ou todo ensaio ofereça os mesmos recursos.\n\nNo pós-analítico, resultados e flags são transferidos, verificados e liberados segundo regras autorizadas. O resultado pode ser bloqueado por controle fora dos critérios, curva inválida, volume insuficiente, erro de aspiração, sinal fora da faixa, resultado que requer diluição ou divergência de identificação. O operador deve investigar a mensagem e seguir o procedimento do ensaio, sem apagar flags para forçar liberação.\n\n### A arquitetura em um exemplo documentado\n\nO resumo regulatório da FDA para o sistema Alinity i descreve um módulo de controle com interface e comunicação com host/middleware, um gerenciador que movimenta tubos, calibradores, controles, reagentes e soluções, e um módulo de processamento onde amostras e reagentes são dispensados e misturados em cubetas. Também descreve armazenamento refrigerado de reagentes. A mesma documentação registra acesso aleatório e contínuo, prioridade e reteste automatizado. Isso ilustra a divisão funcional entre comando, transporte e reação; a configuração concreta varia entre plataformas.\n\n| Etapa | O que o sistema pode fazer | O que continua exigindo controle humano |\n| --- | --- | --- |\n| Recepção | Ler código, localizar rack e acompanhar processamento | Conferir identificação, recipiente e adequação da amostra |\n| Reação | Dosar, misturar, incubar, lavar e ler | Verificar método, lote, calibração, controle e alarmes |\n| Resultado | Calcular concentração ou índice e enviar dados | Avaliar flags, coerência, regra de liberação e comunicação clínica |\n\n### Como cai na prova\n\nAutomação não é sinônimo de validação clínica ou ausência de erro. Código de barras protege a associação tubo-cadastro a partir da leitura; não corrige troca ocorrida antes da identificação. Acesso contínuo descreve entrada de amostras durante a operação, enquanto operação em lote processa conjuntos segundo uma sequência. Reteste automático é uma regra programada, não uma autorização para ignorar a causa do primeiro resultado."
+    },
+    {
+      "title": "2. Reação imunológica e sinal nos analisadores",
+      "markdown": "### O problema que este assunto resolve\n\nO equipamento automatiza passos físicos e matemáticos, mas o sinal continua dependendo do desenho imunológico do ensaio. Para interpretar o sentido da leitura, é preciso saber qual molécula está marcada, como o alvo se liga e se o formato é do tipo sanduíche ou competitivo. A intensidade de luz não significa sempre que há mais analito: a relação pode ser direta ou inversa, conforme o método.\n\n> **Siglas e termos deste capítulo**\n> - **Fase sólida**: suporte que imobiliza um reagente de captura, como micropartículas.\n> - **Conjugado**: anticorpo ou antígeno ligado a marcador detectável.\n> - **RLU**: unidades relativas de luz medidas pelo detector.\n> - **Fotomultiplicador**: detector que converte fótons em sinal elétrico amplificado.\n> - **Efeito gancho**: interferência possível em certos ensaios tipo sanduíche quando concentração muito alta prejudica a formação do complexo esperado.\n\n### Sanduíche e competição\n\nEm um ensaio tipo sanduíche, o analito liga um reagente de captura e outro reagente marcado; após a separação do material não ligado, o marcador retido gera sinal. Dentro da faixa útil e nas condições do método, mais analito costuma produzir mais complexo marcado e sinal maior. Antígenos grandes ou analitos com mais de um epítopo são candidatos comuns a esse formato, embora a aplicação dependa do ensaio.\n\nEm formato competitivo, analito da amostra compete com reagente marcado ou com ligante por sítios limitados. Em alguns desenhos, maior concentração do analito reduz a quantidade de marcador que fica ligada à fase sólida, produzindo sinal menor. Não se deve inferir a direção da relação apenas pela palavra “quimioluminescência”; deve-se consultar o princípio específico e a curva de calibração.\n\nA documentação FDA do ensaio LIAISON Anti-HAV descreve um caso concreto: partículas magnéticas recobertas por anticorpo anti-HAV e conjugado anti-HAV marcado com isoluminol. O anti-HAV da amostra sequestra antígeno HAV durante a primeira incubação; depois, partículas e conjugado competem pelo antígeno. Após lavagem, os reagentes iniciadores provocam quimioluminescência. O fotomultiplicador mede RLU, que nesse ensaio é inversamente relacionado ao anti-HAV da amostra. Essa relação é própria daquele desenho e não deve ser estendida a todo CLIA.\n\n### Micropartículas, separação e detecção\n\nNo CMIA, micropartículas fornecem superfície de ligação e podem ser separadas magneticamente ou por outro mecanismo definido pelo instrumento. O fluxo automatizado dosa amostra e reagente, controla incubação, retira material não ligado por lavagem e conduz a reação de detecção. No exemplo Alinity i para beta-hCG, a FDA descreve micropartículas magnéticas revestidas com anticorpo monoclonal anti-hCG e conjugado anti-hCG com acridínio; o protocolo indicado é de duas etapas. Em seguida, reagentes pré-gatilho e gatilho participam da reação luminosa.\n\nA curva de calibração transforma sinal em concentração ou índice. Uma curva pode ter relação crescente ou decrescente e ser ajustada matematicamente; o sistema só calcula de maneira válida dentro do intervalo e das condições do método. Resultado fora da faixa pode exigir diluição validada, repetição ou reporte segundo instruções do fabricante, nunca extrapolação improvisada.\n\n### Como cai na prova\n\nA questão costuma trocar relação direta e inversa, atribuir toda quimioluminescência ao mesmo princípio ou afirmar que micropartícula é o detector. Micropartícula é fase sólida; o detector registra luz emitida. Em ensaio competitivo anti-HAV citado, o sinal cai quando aumenta o anticorpo da amostra. Em outro imunoensaio, a relação pode ser diferente."
+    },
+    {
+      "title": "3. Calibração, controles e garantia da qualidade",
+      "markdown": "### O problema que este assunto resolve\n\nUm analisador pode movimentar líquidos com precisão e ainda produzir resultado inadequado se a resposta analítica mudou, se a curva não representa o lote ou se o controle não atende aos critérios. Calibração e controle de qualidade respondem a perguntas diferentes: a calibração relaciona sinal a quantidade conhecida do analito; o controle verifica se o conjunto analítico está operando dentro dos limites definidos.\n\n> **Siglas e termos deste capítulo**\n> - **Calibrador**: material com valor atribuído usado para ajustar ou estabelecer a relação entre sinal e resultado.\n> - **Controle interno**: amostra de controle analisada para monitorar o desempenho de uma corrida ou sistema.\n> - **Avaliação externa da qualidade (AEQ/EQA)**: comparação de desempenho com amostras ou programas externos.\n> - **Lote**: conjunto de reagentes produzido sob características comuns e identificado para rastreabilidade.\n> - **Curva de calibração**: modelo que converte o sinal medido em resultado.\n\n### Calibrar não é controlar\n\nA calibração é específica do ensaio e pode ser necessária conforme troca de lote, manutenção, periodicidade ou critérios da instrução de uso. O documento FDA do Alinity i beta-hCG apresenta seis níveis de calibradores e uma curva de seis pontos naquele ensaio particular. O documento LIAISON XS registra que calibrações são específicas do ensaio e seguem as instruções do respectivo produto. Portanto, não se deve memorizar um número de calibradores de uma plataforma como regra universal.\n\nControles positivos e negativos, ou níveis de concentração distintos, avaliam a corrida e ajudam a detectar falhas como perda de sinal, desvio, contaminação ou erro de reagente. A OMS lista controles de kit e amostras de controle de qualidade entre os elementos para verificar que uma corrida é válida e os resultados são confiáveis. Se o controle falha, resultados de pacientes relacionados não devem ser liberados até investigação e resolução conforme procedimento. Repetir o controle sem identificar a causa pode apenas reproduzir a falha.\n\nA avaliação externa examina o processo em escala mais ampla. A OMS a descreve como avaliação da exatidão do processo desde o recebimento e teste da amostra até o relato do resultado. Assim, pode revelar problemas que um controle interno isolado não detecta, inclusive identificação, transcrição ou comunicação. Ela complementa, e não substitui, o controle diário do método.\n\n### Rastreabilidade e mudança de lote\n\nA equipe registra identificação do ensaio e lote, calibradores usados, resultados dos controles, manutenção, operador e eventuais ações corretivas conforme o sistema de qualidade local. Mudança de lote pode introduzir diferenças de resposta; quando as instruções determinam recalibração ou avaliação comparativa, o laboratório segue o protocolo e documenta a aceitação. Um resultado numérico não se torna válido só porque o equipamento o calculou: é necessário que a corrida esteja aceitável e que não haja alerta impeditivo.\n\nA instrução de uso define matriz permitida, estabilidade, conservação, intervalo mensurável, diluição, critérios de calibração e controle. Um ensaio aprovado para soro e determinados plasmas não deve ser usado automaticamente com outra matriz. Os requisitos do produto são concretos e ensaio-específicos.\n\n### Como cai na prova\n\nA calibração cria ou ajusta a relação sinal-resultado; o controle verifica estabilidade do processo. Controle fora da faixa bloqueia a liberação até tratamento da ocorrência. Avaliação externa observa o percurso total do exame. Itens que afirmam que o equipamento se autocontrola ou que controle equivale a calibrador confundem funções distintas."
+    },
+    {
+      "title": "4. Integração, interferências e segurança do fluxo automatizado",
+      "markdown": "### O problema que este assunto resolve\n\nA automação conecta analisador, cadastro, regras de validação e laudo. Uma falha de interface pode associar resultado ao pedido errado ou impedir que uma informação chegue ao prontuário. Um alerta analítico pode indicar que o número calculado não deve ser liberado. A revisão do fluxo precisa distinguir falha de comunicação, inadequação da amostra e comportamento do método.\n\n> **Siglas e termos deste capítulo**\n> - **Flag**: sinalização do software de que ocorreu condição relevante para revisão.\n> - **Carryover**: transferência residual de material entre amostras ou etapas.\n> - **Hook effect**: efeito gancho em concentrações muito altas em certos formatos.\n> - **LIS/middleware**: sistemas que transportam pedidos, regras e resultados entre plataformas.\n> - **Rastreabilidade**: possibilidade de reconstruir amostra, reagente, equipamento, corrida, operador e decisão.\n\n### Regras informatizadas e validação\n\nO analisador pode transmitir resultado, unidade, índice, flags e identificadores ao middleware ou LIS. Regras automáticas podem aceitar resultados em condições definidas, reter resultados com flags, pedir diluição ou encaminhar achados para revisão. Cada regra precisa ser configurada, testada e controlada: um limiar digitado incorretamente pode liberar o que deveria ser retido. A interface deve preservar vínculo entre paciente, pedido, amostra, ensaio e resultado. Mensagens de erro, resultado pendente e duplicidade precisam ter tratamento documentado.\n\nA revisão considera validade da corrida, controles, faixa analítica, resultado anterior quando pertinente, interferências conhecidas e instrução de uso. Anticorpos heterófilos, anticorpos contra reagentes, biotina em métodos suscetíveis, hemólise, lipemia ou icterícia podem alterar alguns ensaios, mas o impacto depende do método. O efeito gancho é uma possibilidade de certos ensaios sanduíche em concentrações muito altas; diluição validada pode ajudar a revelar o fenômeno quando há discrepância clínica. Nenhuma interferência deve ser presumida sem evidência ou instrução aplicável.\n\n### Manutenção e resposta a falhas\n\nInspeção diária, limpeza de sondas e áreas de lavagem, verificação de consumíveis, temperatura, resíduos e abastecimento fazem parte do plano do fabricante e do procedimento operacional. Alarmes de pipetagem, pressão, temperatura, lavagem, leitura ou comunicação orientam a investigação. Após manutenção que possa afetar desempenho, o laboratório aplica verificações e controles previstos antes de retomar liberação. Não se contorna uma falha desativando alarmes ou ignorando controle.\n\nA segurança inclui tratar amostras como potencialmente infectantes, usar equipamentos de proteção definidos, evitar contato com reagentes e descartar resíduos segundo regras do laboratório. O sistema automático reduz manipulação direta, mas não elimina exposição durante carregamento, manutenção, derramamento ou descarte. Documentação, procedimentos operacionais, controles e avaliação externa são componentes do sistema de qualidade descrito pela OMS.\n\n### Como cai na prova\n\nCódigo de barras, interface e regras automáticas reduzem erros de transcrição, mas não garantem a identidade original nem a validade analítica. Um resultado com flag deve ser interpretado antes da liberação. A regra de diluição deve ser compatível com o método. Manutenção ou troca de reagente pode exigir controle ou calibração segundo instruções específicas; não existe intervalo universal que substitua o procedimento validado."
+    }
+  ],
+  "summary": "A automação em imunodiagnóstico coordena identificação, transporte, pipetagem, incubação, lavagem, detecção, cálculo e transmissão de resultados. Plataformas podem oferecer acesso aleatório e contínuo, prioridade, carga em lote e reteste programado, mas as funções variam por instrumento. CLIA/CMIA/ECLIA medem sinais cuja relação com o analito depende do desenho: em sanduíche, o sinal tende a crescer com o analito dentro da faixa; em certos ensaios competitivos, pode cair. Calibradores estabelecem a curva; controles monitoram a corrida; avaliação externa examina o processo completo. O LIS e o middleware transportam dados e podem aplicar regras, cuja configuração e validação são responsabilidade do laboratório. Flags, controles inválidos, amostra inadequada, resultado fora da faixa ou interferência conhecida exigem investigação antes da liberação. Manutenção, rastreabilidade, biossegurança e instruções específicas de cada ensaio completam o fluxo.",
+  "flashcards": [
+    {
+      "front": "Quais etapas gerais compõem o fluxo automatizado de imunoensaio?",
+      "back": "Identificação e carregamento da amostra, dosagem e reação com reagentes, incubação, separação/lavagem, detecção, cálculo e transmissão ou revisão do resultado."
+    },
+    {
+      "front": "O que é acesso aleatório em um analisador?",
+      "back": "Capacidade de processar diferentes solicitações sem aguardar a formação de um lote completo, conforme a arquitetura do instrumento."
+    },
+    {
+      "front": "A leitura correta do código de barras garante que a coleta foi feita da pessoa certa?",
+      "back": "Não. Ela vincula o tubo ao cadastro lido, mas não corrige uma troca de identidade anterior à identificação."
+    },
+    {
+      "front": "O que representa a fase sólida em muitos imunoensaios?",
+      "back": "Um suporte, como micropartículas, onde um reagente de captura fica imobilizado para permitir ligação e separação."
+    },
+    {
+      "front": "Como costuma variar o sinal num ensaio sanduíche dentro da faixa útil?",
+      "back": "Em geral, cresce com a quantidade de complexo marcado formada, mas a relação deve ser confirmada para o método."
+    },
+    {
+      "front": "Qual cuidado é necessário em um ensaio competitivo?",
+      "back": "A direção do sinal pode ser inversa; deve-se conhecer o princípio e a curva específicos, sem presumir relação direta."
+    },
+    {
+      "front": "O que significa RLU?",
+      "back": "Unidades relativas de luz registradas pelo detector durante a reação quimioluminescente."
+    },
+    {
+      "front": "Qual detector é citado no ensaio LIAISON Anti-HAV documentado pela FDA?",
+      "back": "Um fotomultiplicador mede a luz emitida pelo conjugado marcado com isoluminol."
+    },
+    {
+      "front": "O que a calibração estabelece?",
+      "back": "A relação entre o sinal instrumental e o resultado atribuído ao analito, usando calibradores do ensaio."
+    },
+    {
+      "front": "Qual é a função do controle interno?",
+      "back": "Monitorar se o processo analítico permanece dentro dos critérios definidos para aceitar resultados da corrida."
+    },
+    {
+      "front": "O que a avaliação externa da qualidade pode avaliar?",
+      "back": "A exatidão do percurso desde o recebimento e teste da amostra até o relato do resultado."
+    },
+    {
+      "front": "Por que calibrador e controle não são sinônimos?",
+      "back": "Calibrador ajusta a curva; controle verifica se o sistema analítico está se comportando aceitavelmente."
+    },
+    {
+      "front": "O que fazer diante de controle fora dos critérios?",
+      "back": "Reter resultados afetados, investigar a causa e seguir ações corretivas e critérios de aceitação documentados."
+    },
+    {
+      "front": "O que é middleware laboratorial?",
+      "back": "Camada de software que pode intermediar comunicação e regras entre analisador e LIS."
+    },
+    {
+      "front": "Para que serve uma flag do analisador?",
+      "back": "Sinaliza condição que requer atenção, como erro, faixa excedida ou resultado que não deve ser liberado automaticamente."
+    },
+    {
+      "front": "O que é carryover?",
+      "back": "Transferência residual de material de uma amostra ou etapa para outra, capaz de afetar resultados subsequentes."
+    },
+    {
+      "front": "O que é efeito gancho?",
+      "back": "Possível interferência em certos ensaios sanduíche, quando concentração muito alta prejudica a formação do complexo esperado."
+    },
+    {
+      "front": "A biotina interfere em todo imunoensaio?",
+      "back": "Não. O efeito depende do desenho do método e da suscetibilidade dos reagentes; deve-se consultar a instrução aplicável."
+    },
+    {
+      "front": "Quais dados ajudam a reconstruir um resultado?",
+      "back": "Identificador da amostra, ensaio, lote, equipamento, corrida, controle, calibração, operador, flags e decisão de liberação."
+    },
+    {
+      "front": "Automação elimina a necessidade de biossegurança?",
+      "back": "Não. Carregamento, manutenção, derramamentos e descarte ainda podem expor a amostras e reagentes."
+    }
+  ],
+  "tips": [
+    "Separe sempre calibração (ajuste sinal-resultado) de controle (aceitação do desempenho da corrida).",
+    "Ao ver quimioluminescência, pergunte qual formato imunológico está sendo usado antes de concluir se sinal e analito crescem juntos.",
+    "Acesso contínuo descreve alimentação durante a operação; prioridade e reteste são recursos distintos e dependentes da plataforma.",
+    "Código de barras assegura rastreio após leitura, não corrige troca de tubo antes da identificação.",
+    "Resultado com flag, controle reprovado ou fora da faixa não deve ser liberado só porque apareceu numericamente na tela.",
+    "Matriz, estabilidade, calibração, controle e diluição devem seguir a instrução do ensaio específico."
+  ],
+  "traps": [
+    "Confundir o sinal luminoso com a concentração: ensaios competitivos podem apresentar relação inversa.",
+    "Achar que reteste automático equivale a uma revisão da causa do primeiro resultado.",
+    "Tratar calibrador e controle como o mesmo material e a mesma finalidade.",
+    "Generalizar número de níveis de calibração ou intervalo de controle de um fabricante para todas as plataformas.",
+    "Supor que integração LIS/analisador garante identidade e validade analítica sem conferência de flags e regras.",
+    "Afirmar que anticorpos heterófilos, biotina, hemólise ou efeito gancho afetam todos os ensaios da mesma forma."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de uma amostra desde o tubo até o resultado transmitido.",
+      "answer": "Conferência e identificação, carregamento, seleção do ensaio, aspiração e reação, incubação e lavagens, detecção, cálculo pela calibração, verificação de controles/flags e transmissão ou retenção para revisão."
+    },
+    {
+      "question": "Compare um imunoensaio sanduíche e um competitivo quanto à formação do sinal.",
+      "answer": "No sanduíche, analito liga captura e marcador, usualmente aumentando sinal na faixa útil; no competitivo, disputa por sítios limitados e alguns formatos geram sinal inverso. O princípio do ensaio determina a relação."
+    },
+    {
+      "question": "Explique por que uma leitura de código de barras não basta para validar a identidade da amostra.",
+      "answer": "O leitor reconhece o identificador presente no tubo e o associa ao cadastro. Se o tubo já foi trocado ou rotulado incorretamente, o sistema pode rastrear com precisão a amostra errada."
+    },
+    {
+      "question": "O que muda no fluxo quando um controle interno falha?",
+      "answer": "A corrida deixa de atender aos critérios de aceitação; resultados potencialmente afetados ficam retidos até investigação, ação corretiva e demonstração de desempenho aceitável."
+    },
+    {
+      "question": "Quais riscos podem surgir ao integrar analisador, middleware e LIS?",
+      "answer": "Associação incorreta de paciente/amostra, unidade ou ensaio, perda de flags, duplicidade, atraso ou regras mal configuradas; interfaces e regras devem ser testadas e rastreáveis."
+    },
+    {
+      "question": "Como diferenciar função de calibrador e de amostra de controle?",
+      "answer": "O calibrador estabelece ou ajusta a curva do ensaio; o controle é processado como verificação independente do desempenho analítico."
+    },
+    {
+      "question": "Como investigar discrepância entre quadro clínico e resultado imunológico automatizado?",
+      "answer": "Revisar identificação, amostra, controles, faixa, flags, método e interferências conhecidas; consultar instruções e considerar repetição/diluição validada ou método alternativo segundo procedimento."
+    },
+    {
+      "question": "Quais elementos tornam um resultado rastreável?",
+      "answer": "Registro do tubo e pedido, ensaio e lote, instrumento e corrida, calibração e controles, operador, flags, ações corretivas e autorização de liberação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Sinal e concentração confundidos",
+      "summary": "O sentido da relação depende do formato do ensaio e da curva. Um exemplo competitivo anti-HAV documentado mede RLU inversamente relacionada ao anticorpo; não generalize essa relação a todo ensaio quimioluminescente."
+    },
+    {
+      "key": "e2",
+      "title": "Calibração confundida com controle",
+      "summary": "Calibradores estabelecem a relação entre sinal e resultado; controles monitoram validade e estabilidade da corrida. Falha de controle exige retenção e investigação."
+    },
+    {
+      "key": "e3",
+      "title": "Automação tratada como garantia absoluta",
+      "summary": "Código, transporte, cálculo e interface reduzem passos manuais, mas não corrigem erro prévio de identificação, amostra inadequada, regra incorreta ou interferência analítica."
+    },
+    {
+      "key": "e4",
+      "title": "Capacidade do equipamento generalizada",
+      "summary": "Acesso aleatório, contínuo, prioridade, lote e reteste são capacidades descritas para certas plataformas. Confirmar configuração e instrução de cada sistema."
+    },
+    {
+      "key": "e5",
+      "title": "Flags e interferências ignoradas",
+      "summary": "Uma flag ou discrepância requer avaliação; efeito gancho, biotina e outras interferências dependem do método e devem ser investigados conforme instrução."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um laboratório, diferentes solicitações chegam durante o turno e a equipe não quer aguardar a formação de um lote completo. Qual capacidade atende diretamente a esse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Calibração de lote para reunir amostras antes da identificação individual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acesso aleatório para processar solicitações conforme entram no sistema.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Avaliação externa para converter pedidos urgentes em resultados prioritários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lavagem terminal para impedir a entrada de amostras durante a corrida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Curva competitiva para ordenar os tubos pela concentração estimada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Acesso aleatório permite processar diferentes solicitações sem esperar completar um lote, quando essa função existe na plataforma. Calibração, avaliação externa, lavagem e formato competitivo têm outras finalidades e não definem essa modalidade de entrada.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a leitura do código de barras em cada tubo faz no fluxo de um analisador automatizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirma que a coleta foi feita pela pessoa cadastrada, mesmo sem conferência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Associa o identificador lido ao pedido e permite rastrear o tubo no processamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substitui a verificação do tipo de amostra indicado para o ensaio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Valida a calibração vigente e libera automaticamente todos os resultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Corrige rótulo trocado antes da leitura, associando a coleta ao cadastro sem conferência manual.",
+          "correct": false
+        }
+      ],
+      "explanation": "O leitor vincula o identificador ao cadastro e acompanha o tubo. Não verifica quem foi puncionado nem corrige troca anterior, compatibilidade de matriz ou validade analítica; essas conferências continuam no processo laboratorial.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve melhor o percurso analítico típico em uma plataforma automatizada de imunoensaio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resultado, lavagem, coleta, incubação e identificação do paciente, antes da conferência do pedido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Calibração, descarte, leitura do código e transporte da amostra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificação, dosagem e reação, incubação/lavagem, detecção e cálculo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incubação, liberação, mistura de reagentes e registro de lote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transmissão ao LIS, coleta, validação clínica e depois pipetagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A amostra identificada é dosada e reage com os reagentes; as etapas programadas incluem incubação e, conforme o método, lavagem antes da detecção e do cálculo. A transmissão ocorre após a obtenção do resultado, sujeita às regras de revisão.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No resumo da FDA sobre o Alinity i, qual elemento movimenta tubos, calibradores, controles e reagentes entre posições do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O fotomultiplicador, responsável por transportar racks e tubos de paciente até as cubetas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O módulo de controle, que armazena as amostras em refrigeração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A curva de calibração, que desloca cartuchos conforme o sinal medido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gerenciador de reagentes e amostras, que transporta racks e cartuchos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O middleware, que aspira material e realiza as lavagens da reação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação divide o sistema em controle, gerenciador de reagentes e amostras e módulo de processamento. O gerenciador transporta racks e cartuchos; fotomultiplicador detecta luz, middleware comunica dados e curva converte sinal em resultado.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação distingue adequadamente acesso contínuo de processamento em lote?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso contínuo impede prioridade; lote garante reteste individual de qualquer amostra após encerrar o processamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acesso contínuo processa só calibradores; lote é reservado exclusivamente a controles.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acesso contínuo admite alimentação durante operação; lote reúne amostras para uma sequência conjunta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Acesso contínuo é a curva de leitura; lote é o intervalo analítico do ensaio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acesso contínuo significa operação sem reagentes; lote exige leitura manual de cada tubo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Acesso contínuo permite inserir materiais enquanto o sistema opera, conforme sua arquitetura. Processar em lote organiza várias amostras em conjunto. Prioridade e reteste são recursos diferentes, e nenhum dos conceitos elimina reagentes ou define a faixa analítica.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resultado foi repetido automaticamente após um sinal fora do critério inicial. O que essa função, por si só, permite concluir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que a causa do primeiro sinal foi identificada e corrigida pelo equipamento antes da repetição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o controle interno ficou válido sem precisar ser analisado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que toda repetição pode ser liberada sem verificar flags ou instruções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a segunda medição substitui a avaliação de amostra e de corrida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que uma regra programada solicitou nova medição, sujeita a revisão dos critérios.",
+          "correct": true
+        }
+      ],
+      "explanation": "O reteste automático executa uma regra configurada. Ele não diagnostica necessariamente a causa, não substitui controle ou revisão de flags e não autoriza liberação sem critérios do ensaio e procedimento local.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ensaio Alinity i beta-hCG descrito pela FDA, quais componentes de reação são citados como parte da detecção quimioluminescente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enzima de urease e fita de nitrocelulose sem fase líquida de reação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hemácias revestidas e fluoróforo que mede absorção ultravioleta direta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Antígeno HAV e conjugado de isoluminol usados em todo ensaio de hCG.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sondas de DNA e polimerase que amplificam o gene da gonadotrofina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Micropartículas anti-hCG e conjugado anti-hCG marcado com acridínio.",
+          "correct": true
+        }
+      ],
+      "explanation": "O resumo regulatório descreve micropartículas magnéticas com anticorpo monoclonal anti-hCG e anticorpo anti-hCG conjugado a acridínio. Antígeno HAV/isoluminol pertence a outro ensaio documentado, enquanto DNA, hemácias e urease não são os componentes descritos para esse CMIA.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ensaio tipo sanduíche, dentro da faixa analítica e sem interferências, qual tendência é usual quando aumenta o analito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lavagem gera sinal independente dos reagentes ligados à fase sólida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sinal sempre cai porque o analito consome todos os calibradores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A concentração passa a ser calculada pela cor do código de barras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A leitura deixa de depender da ligação entre antígeno e anticorpo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sinal costuma aumentar com a formação de mais complexo marcado.",
+          "correct": true
+        }
+      ],
+      "explanation": "No formato sanduíche, o analito pode ligar reagente de captura e marcador, formando mais complexo detectável à medida que aumenta, dentro da faixa útil. A curva e o princípio do ensaio ainda determinam o cálculo; código e lavagem não medem concentração sozinhos.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ensaio competitivo, por que não se deve concluir automaticamente que mais analito produz mais luz?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o detector mede apenas o volume aspirado e ignora o marcador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque a competição pode reduzir o marcador ligado e produzir relação inversa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque ensaios competitivos não usam reagente marcado nem fase sólida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque qualquer sinal é definido pelo lote sem participação da amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque o LIS transforma toda curva decrescente em curva crescente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em alguns formatos competitivos, o analito da amostra compete por sítios limitados e reduz a quantidade de marcador retida, diminuindo o sinal. A relação depende do desenho e da curva, não do sistema de informação nem apenas do lote.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel de um fotomultiplicador na reação quimioluminescente descrita para o LIAISON Anti-HAV?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Determinar a identidade do paciente pelo padrão do tubo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Refrigerar as micropartículas durante a incubação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a curva em unidades de concentração sem medir fótons.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir luz emitida e registrá-la como unidades relativas de luz.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Separar o soro do plasma por centrifugação dentro do analisador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A FDA descreve que a reação de isoluminol gera luz e o fotomultiplicador a mede como RLU. Identificação por código, refrigeração, cálculo de curva e separação de amostra são funções diferentes ou externas a esse detector.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ensaio competitivo anti-HAV específico documentado pela FDA, qual relação foi descrita entre RLU e anticorpo anti-HAV da amostra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As RLU são constantes depois que o código do tubo é reconhecido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As RLU aumentam sempre na mesma proporção de anti-HAV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As RLU são independentes do anticorpo e dependem só do volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As RLU correspondem à contagem de micropartículas magnéticas livres.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As RLU são inversamente relacionadas ao anti-HAV presente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Nesse desenho competitivo, anticorpo da amostra sequestra antígeno na primeira incubação; a quantidade de conjugado que forma o sanduíche subsequente cai, e a luz é inversamente relacionada ao anti-HAV. A relação não deve ser generalizada a todo método.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significa dizer que micropartículas funcionam como fase sólida em um CMIA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elas atuam como o software que ordena os pedidos por prioridade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elas são os calibradores usados para ajustar a interface com o LIS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elas fornecem suporte para imobilizar reagente de captura e formar complexos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Elas emitem por si só a mesma luz em qualquer concentração de analito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elas eliminam a etapa de separação de material não ligado em todo método.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fase sólida é o suporte de captura. No CMIA documentado, micropartículas podem ser revestidas por anticorpo; a separação e a leitura dependem do instrumento e do protocolo. Elas não são software, calibrador ou fonte universal de luz.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ensaio retorna concentração acima de sua faixa reportável. Qual conduta é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Extrapolar a reta visual da curva e liberar o número estimado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a unidade no LIS até que o valor entre na faixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar o sinal, pois o equipamento automatizado já validou a amostra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar diluição ou repetição prevista e validada para aquele ensaio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir o resultado por zero até a próxima calibração periódica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fora da faixa, a conversão sinal-resultado pode não ser válida. Deve-se seguir instrução e procedimento do ensaio para diluição, repetição ou reporte adequado. Extrapolação improvisada, ajuste de unidade ou valor substituto não demonstram concentração confiável.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ensaio tipo sanduíche apresenta resultado inesperadamente baixo apesar de forte suspeita de concentração muito alta. Que fenômeno pode ser investigado conforme o método?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso aleatório, que transforma resultados quantitativos em qualitativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Carryover, que sempre reduz todos os resultados depois de amostra negativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calibração externa, que converte amostra alta em controle negativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Efeito gancho, que pode prejudicar a formação do complexo em certos ensaios.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Efeito de matriz, que é corrigido pela leitura do código de barras.",
+          "correct": false
+        }
+      ],
+      "explanation": "O efeito gancho pode ocorrer em certos ensaios sanduíche quando excesso de analito interfere na formação do complexo esperado. A possibilidade requer investigação e procedimento de diluição validado; carryover e acesso aleatório não explicam especificamente esse padrão.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre ELISA automatizado, CLIA e CMIA é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos usam a mesma reação luminosa e a mesma direção de curva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "São formatos e detecções distintos, embora etapas possam ser automatizadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ELISA não pode usar fase sólida, e CMIA dispensa anticorpos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CLIA descreve exclusivamente o transporte de tubos por robô.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A automação torna equivalentes matrizes e instruções de todos os ensaios.",
+          "correct": false
+        }
+      ],
+      "explanation": "ELISA é associado a detecção enzimática; CLIA detecta quimioluminescência e CMIA designa um formato com micropartículas quimioluminescente. A automação pode organizar etapas, mas não elimina diferenças de princípio, curva, matriz ou instruções.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade central de uma calibração específica de ensaio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir a temperatura ambiente da área de recepção de amostras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comprovar que cada tubo pertence ao paciente cadastrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir os controles e validar todas as corridas futuras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir a exatidão do processo desde coleta até emissão externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estabelecer a relação entre o sinal medido e o resultado atribuído.",
+          "correct": true
+        }
+      ],
+      "explanation": "Calibradores ajustam ou estabelecem a curva que transforma sinal em concentração ou índice. Identificação é feita no fluxo de amostras; controles monitoram corridas; avaliação externa examina o processo; temperatura segue condições específicas.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente amostra de controle interno de calibrador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O controle ajusta a curva e o calibrador confirma a identidade do paciente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos têm sempre a mesma finalidade e podem ser trocados sem avaliação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controle monitora desempenho; o calibrador estabelece relação sinal-resultado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O calibrador avalia apenas a interface e o controle mede o código de barras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controle substitui a curva quando a amostra está fora da faixa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controle e calibrador têm finalidades diferentes: um verifica o desempenho analítico, enquanto o outro é usado para estabelecer ou ajustar a resposta do método. Nenhum deles identifica paciente ou substitui procedimento para resultados fora da faixa.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O controle interno de uma corrida fica fora dos limites de aceitação. Qual decisão protege a validade dos resultados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Liberar pacientes se os números tiverem aparência clinicamente plausível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reter resultados afetados e investigar antes de demonstrar aceitação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o controle reprovado do histórico para não alterar a média.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o controle por calibrador e liberar o lote sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a flag no software para concluir a transmissão ao LIS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controle fora dos critérios significa que o desempenho da corrida não foi aceito. Os resultados potencialmente afetados devem ser retidos enquanto se investiga e corrige a causa, com registro das ações; plausibilidade clínica não substitui controle válido.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OMS descreve a avaliação externa da qualidade como avaliação da exatidão de qual percurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a leitura óptica do detector, sem incluir relato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas a calibração inicial feita pelo fabricante do analisador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A manutenção mecânica, sem considerar a amostra analisada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Do recebimento e teste da amostra até o relato dos resultados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Exclusivamente a repetibilidade de controles dentro de uma corrida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A OMS apresenta a avaliação externa como exame da exatidão de todo o processo, do recebimento e análise da amostra ao relato. Por isso complementa controles internos, que observam o desempenho analítico segundo o esquema adotado.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A FDA descreve seis níveis de calibrador para um ensaio específico de beta-hCG no Alinity i. Como esse dado deve ser usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como regra universal de calibração para todos os imunoensaios automatizados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como exemplo particular; o número aplicável depende da instrução do ensaio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como evidência de que controles internos não são necessários nesse sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como substituto da avaliação externa em qualquer laboratório clínico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como número mínimo de tubos de paciente por corrida do equipamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os seis níveis pertencem ao kit e ensaio beta-hCG descritos naquele resumo regulatório. A calibração é específica do método; outras plataformas e analitos seguem instruções próprias, e continuam necessários controles e garantia da qualidade conforme o procedimento aplicável.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após a troca de lote de reagente, o que orienta a necessidade de recalibração e verificação adicional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cor externa do frasco, independentemente do lote e da estabilidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A preferência do operador, sem observar o método ou o registro de qualidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A instrução do ensaio e o procedimento validado de mudança de lote.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A regra do LIS que aceita todos os valores após uma troca de cartucho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A realização obrigatória de uma nova curva para todo ensaio do laboratório.",
+          "correct": false
+        }
+      ],
+      "explanation": "A necessidade de recalibrar ou comparar lotes depende dos requisitos do ensaio e do procedimento do laboratório. A equipe documenta a mudança e demonstra aceitação conforme critérios; aparência ou regra genérica de interface não substitui essa avaliação.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que tipo de falha pode ser revelado por avaliação externa mesmo quando controles internos do instrumento parecem estáveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ausência universal de fase sólida em plataformas de quimioluminescência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A impossibilidade física de aspirar qualquer reagente em todos os turnos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A composição molecular de anticorpos que não fazem parte do ensaio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma associação incorreta entre identificação, transcrição e relato do resultado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O tipo de paciente que o instrumento deve selecionar sem pedido clínico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como a avaliação externa pode cobrir o percurso de recebimento até relato, pode apontar falhas pré e pós-analíticas que um controle interno da reação não detecta. Isso a torna complementar, não substituta, do controle de cada corrida.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O resultado foi calculado, mas o controle correspondente da corrida falhou. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cálculo numérico prova que o resultado está válido independentemente do controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A falha só importa se o resultado for qualitativo e não quantitativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A validade analítica ainda não foi demonstrada; o resultado requer retenção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A corrida fica válida se o calibrador foi aceito em qualquer data anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Basta mudar o intervalo de referência para acomodar o controle reprovado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O software pode calcular mesmo quando os critérios da corrida não foram atendidos. A aceitação depende dos controles e demais condições definidas; alterar referência ou usar calibração passada não corrige falha atual.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método tem instrução que admite soro e determinados plasmas. A equipe pretende usar outra matriz sem estudo ou autorização. Qual é o problema principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O acesso aleatório impede que matrizes diferentes sejam carregadas na mesma sala.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A matriz não está demonstrada como compatível com o desempenho reivindicado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todo espécime não sérico é necessariamente inadequado para qualquer imunoensaio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A troca de matriz pode ser compensada com qualquer controle positivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A identificação por código de barras transforma plasma em matriz validada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tipos de espécime e anticoagulantes permitidos são específicos do produto e devem ter suporte. Usar matriz não autorizada pode alterar desempenho; código, controle genérico e acesso aleatório não comprovam equivalência.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema transmite automaticamente um resultado ao LIS. O que precisa permanecer garantido nessa integração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que a interface converta qualquer unidade para a faixa desejada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que todos os resultados sejam liberados mesmo com flags analíticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que a calibração nunca precise ser renovada após manutenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que o middleware substitua os controles executados no analisador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O vínculo entre paciente, pedido, amostra, ensaio e resultado.",
+          "correct": true
+        }
+      ],
+      "explanation": "A integração deve preservar associação correta entre cadastro, pedido e resultado, além de transportar flags e unidades. Regras e comunicação precisam ser verificadas; interface não substitui controle, calibração nem critério de liberação.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é uma flag em um sistema automatizado de imunodiagnóstico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma etapa que substitui a lavagem de micropartículas em todo método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um calibrador com concentração fixa para qualquer analito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um sinal do software que destaca condição relevante para revisão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma confirmação de que o paciente foi identificado pessoalmente pelo robô.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um tipo de fase sólida exclusivo de ensaios em lote.",
+          "correct": false
+        }
+      ],
+      "explanation": "Flags alertam para condições como sinal fora de faixa, falha de aspiração ou outra ocorrência definida pelo instrumento. Elas não são calibradores ou reagentes e não comprovam identidade; devem ser revisadas segundo procedimento de liberação.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra automática do middleware foi alterada e passa a liberar resultados acima de um limite incorreto. Qual controle deveria existir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deixar que o paciente confirme a unidade depois da emissão do laudo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confiar no cálculo do analisador porque a interface não altera resultados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir flags do equipamento para evitar conflito com o middleware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar, aprovar e documentar a regra antes de aplicá-la à rotina.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Repetir todos os controles uma vez por ano sem validar a regra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras informatizadas podem afetar retenção e liberação. Alterações devem ser testadas, aprovadas e rastreáveis, incluindo limites, unidades e tratamento de flags; confiar sem validação pode automatizar uma decisão errada.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um paciente tem quadro incompatível com resultado de imunoensaio, sem falha evidente no instrumento. Qual primeiro encaminhamento técnico é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar a calibração e repetir o teste até obter o valor esperado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Liberar o número porque ausência de alarme exclui qualquer interferência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar manualmente o resultado para aproximá-lo da suspeita clínica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a matriz sem consultar o método ou registrar a ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Investigar identificação, amostra, controles, flags e interferências possíveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "A revisão deve considerar identificação, integridade e matriz da amostra, validade da corrida, flags e interferências específicas do método. Ausência de alarme não exclui todas as causas; ajustes arbitrários e repetição sem critério comprometem rastreabilidade.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que anticorpos heterófilos ou anticorpos contra reagentes podem ser considerados na investigação de alguns resultados discrepantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "São a causa única possível para qualquer divergência entre resultado e clínica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eles alteram obrigatoriamente todos os resultados de qualquer plataforma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "São usados pelo LIS para corrigir a identidade do tubo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituem os anticorpos de captura e eliminam a necessidade de calibrar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Podem interferir em certas reações imunológicas, conforme o método utilizado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Anticorpos interferentes podem afetar alguns ensaios dependendo dos reagentes e do desenho, mas não se presume efeito universal nem causa única. A investigação combina dados clínicos, instruções, controles e estratégias adequadas ao método.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma amostra com suspeita de interferência por biotina é analisada por método potencialmente suscetível. Qual postura é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar o método e a instrução específica, sem presumir efeito universal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Corrigir todo resultado com o mesmo fator matemático para qualquer ensaio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a possibilidade porque sistemas automatizados removem biotina sempre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o controle interno por uma amostra sem biotina conhecida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Liberar o resultado após apagar a flag relacionada a interferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interferência depende do princípio e dos reagentes do ensaio. Deve-se seguir instruções e procedimentos aplicáveis, avaliar o contexto e documentar a conduta; não há fator universal nem correção automática que sirva a todos os métodos.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a rotina, o instrumento acusa falha de lavagem e emite uma flag. Qual atitude é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Liberar resultados porque a leitura luminosa já ocorreu antes do alarme.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar a mensagem e manter o fluxo até o fim do turno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Investigar a falha e seguir as ações do procedimento antes de liberar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o limite de controle para aceitar a corrida automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transmitir resultados e corrigir a lavagem na próxima manutenção anual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lavagem pode remover material não ligado e é parte do método. Uma falha pode comprometer sinal; a flag requer investigação e ação prevista antes de aceitar resultados. Apagar alerta ou alterar limites não demonstra que a corrida é válida.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro ajuda a reconstruir a causa de um resultado questionado semanas depois?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome comercial do analisador, sem identificar a corrida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas o valor final copiado para o laudo do paciente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A impressão do turno sem identificação do lote ou da amostra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A trilha com amostra, ensaio, lote, corrida, controles, flags e ações.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma anotação informal de que o aparelho parecia funcionar normalmente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rastreabilidade exige dados suficientes para reconstruir o processo, incluindo amostra, método, lote, equipamento, corrida, controles, ocorrência e decisão. Apenas o resultado ou uma impressão informal não explica o contexto analítico.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre biossegurança em analisadores automatizados é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Automação reduz algumas manipulações, mas não elimina exposição em carga e manutenção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tubo em rack fechado pode ser tratado sem proteção em qualquer tarefa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Resíduos líquidos deixam de ser potencialmente infectantes após leitura luminosa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Derramamentos podem ser limpos sem procedimento porque o sistema é fechado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A manutenção dispensa proteção pois não envolve contato com amostras.",
+          "correct": false
+        }
+      ],
+      "explanation": "Automação reduz certas manipulações, mas carregamento, manutenção, limpeza de derramamentos e descarte ainda podem expor o trabalhador. Devem ser seguidos procedimentos de proteção e resíduos do laboratório.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a investigação de resultado potencialmente afetado por carryover, qual é a preocupação técnica central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Material residual de uma amostra pode influenciar a amostra processada em seguida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O calibrador troca automaticamente a identidade de todos os tubos seguintes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A curva competitiva transforma controles em amostras de paciente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A transmissão ao LIS impede a ocorrência de contaminação residual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O carryover descreve apenas atraso de comunicação sem efeito analítico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Carryover é transferência residual de material entre amostras ou etapas e pode contaminar a medição subsequente. A investigação avalia sequência, lavagem e desempenho do sistema segundo método, não apenas comunicação ou calibração.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OMS enumera quais elementos entre componentes importantes de um sistema de qualidade laboratorial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Documentação, procedimentos operacionais, controles e avaliação externa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente aquisição de analisador, sem registros ou controles de corrida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas interface eletrônica e operação em acesso contínuo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Liberação automática de todo resultado com código de barras lido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exclusivamente manutenção preventiva definida pelo fabricante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A OMS aponta documentação, procedimentos operacionais, amostras de controle e esquema de avaliação externa entre elementos relevantes. A qualidade não se resume ao equipamento, à interface ou a um único procedimento de manutenção.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um equipamento passou por manutenção que pode afetar pipetagem e lavagem. O que deve preceder a retomada da liberação de pacientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificações e controles previstos para demonstrar desempenho aceitável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas reiniciar o computador e apagar o histórico de alarmes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Liberar resultados de rotina e observar se surgem reclamações clínicas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar controles para evitar que apontem variação após o reparo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o intervalo de referência para compensar a manutenção realizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manutenção capaz de alterar desempenho requer verificações e controles definidos pelo fabricante e pelo procedimento do laboratório antes de retomar a liberação. Limpar alarmes ou observar resultados de pacientes não demonstra que pipetagem e lavagem voltaram ao estado adequado.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma amostra não tem volume suficiente para o ensaio, mas o software consegue iniciar a aspiração. Qual decisão é prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prosseguir e liberar qualquer sinal, pois o sistema iniciou a rotina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar a adequação da amostra e seguir critérios do método e do laboratório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Diluir com água até o volume necessário sem registrar a alteração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar o resultado em qualitativo para ignorar o volume insuficiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o volume de controle como complemento da amostra do paciente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Início de aspiração não comprova volume adequado nem validade. O laboratório deve considerar o requisito do ensaio, possíveis erros de pipetagem e critérios de aceitação, registrando a conduta; completar amostra com água ou controle altera o material.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No resumo da FDA sobre o Alinity i, qual característica foi descrita para o armazenamento de reagentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento refrigerado integrado ao centro de suprimento de reagentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reagentes mantidos sempre à temperatura ambiente fora do equipamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calibradores armazenados em cubetas já misturados à amostra do paciente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reagentes congelados automaticamente em cada posição de amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ausência de qualquer controle de evaporação no sistema descrito.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação descreve área de suprimento de reagentes refrigerada; também menciona armazenamento a bordo e controle de evaporação por tampa septada no sistema. Condições específicas dependem da plataforma e da instrução dos reagentes.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma corrida automatizada, as amostras entram em posições aleatórias e uma urgência é priorizada. Qual inferência é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A prioridade pode alterar a ordem de processamento, mas não dispensa controles.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A urgência torna dispensável identificar o tubo e conferir o pedido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ordem aleatória invalida necessariamente a curva de calibração vigente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prioridade significa que a amostra será analisada sem reagente específico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A prioridade garante resultado correto independentemente de flags e amostra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prioridade altera a ordem ou o tratamento de uma solicitação em plataformas que oferecem esse recurso. Não elimina identificação, reagentes, controles ou revisão analítica; urgência não muda os critérios de validade.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista propõe aplicar a relação inversa do ensaio LIAISON Anti-HAV a outro exame quimioluminescente. Qual é o erro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Generalizar uma relação sinal-analito própria de um desenho para outro método.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar unidades relativas de luz para qualquer leitura instrumental.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Considerar a necessidade de uma fase sólida em alguns imunoensaios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distinguir uma reação competitiva de uma reação tipo sanduíche.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar curva e instruções específicas antes de interpretar a medição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação demonstra uma relação inversa para aquele ensaio competitivo anti-HAV. Outros métodos podem usar formatos e curvas diferentes; a interpretação correta vem do princípio, calibradores e instruções específicos.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A avaliação externa da qualidade substitui a análise de controles internos em cada corrida automatizada?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A avaliação externa examina desempenho em comparação ou proficiência e pode abranger o percurso amplo do exame; controles internos verificam a aceitabilidade da corrida. São ferramentas complementares com finalidades diferentes.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A calibração específica do ensaio pode ser realizada conforme a instrução de uso, e sua necessidade não é igual para todos os métodos. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação de sistemas automatizados remete à calibração específica e às instruções de cada ensaio. Lote, manutenção e critérios definidos podem influenciar o momento e a forma de calibrar.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um controle interno falha, um resultado numericamente plausível pode ser liberado sem investigação porque o software já concluiu o cálculo. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cálculo automático não demonstra que a corrida foi aceita. A falha exige retenção dos resultados afetados e investigação segundo critérios e ações corretivas documentadas antes de retomar a liberação.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No formato sanduíche, a ligação do analito a reagentes de captura e marcador pode gerar um complexo detectável na fase sólida. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O desenho tipo sanduíche reúne analito e reagentes de ligação, um dos quais pode carregar marcador, permitindo detectar complexo retido. A relação quantitativa ainda depende da faixa útil e do princípio específico.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Micropartículas são necessariamente o detector óptico que mede os fótons em qualquer CMIA. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Micropartículas podem atuar como fase sólida para imobilizar reagentes. A detecção da luz é feita por um sistema detector, como o fotomultiplicador descrito no LIAISON Anti-HAV.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma curva de calibração converte o sinal em resultado segundo o modelo definido para o ensaio. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A calibração relaciona sinais de materiais com valores atribuídos para permitir o cálculo da concentração ou índice. Valores fora da faixa ou condições inválidas não devem ser extrapolados sem previsão metodológica.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo ensaio quimioluminescente apresenta aumento de sinal sempre que aumenta o analito. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A relação depende do formato. Um ensaio competitivo anti-HAV documentado apresenta RLU inversamente relacionada ao anticorpo da amostra, enquanto outros desenhos podem ter resposta direta.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma amostra com flag deve ser avaliada à luz do significado da mensagem e dos critérios do ensaio antes da liberação. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Flags destacam condições que podem comprometer ou qualificar o resultado. O profissional deve consultar a mensagem, o procedimento e a instrução aplicável em vez de removê-la apenas para permitir transmissão.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O acesso contínuo e a prioridade automatizada são recursos descritos para algumas plataformas, mas não uma propriedade obrigatória de todo analisador. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação de sistemas específicos pode mencionar acesso contínuo, aleatório, prioridade ou reteste. Recursos e configuração devem ser verificados para cada instrumento; não são características universais de todo método.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura positiva do código de barras comprova que a amostra foi coletada da pessoa indicada no cadastro. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O código permite vincular e rastrear o tubo identificado, mas não verifica a identidade no momento da coleta nem corrige rótulo trocado anteriormente. A conferência de identificação continua essencial.",
+      "section": "1. O que a automação organiza no imunodiagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A avaliação externa de qualidade pode observar etapas desde a recepção da amostra até o relato do resultado. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A OMS descreve a finalidade da avaliação externa como análise da exatidão de todo o processo de recebimento, teste e relato, oferecendo uma visão mais ampla que o controle interno da reação.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra automática do middleware não precisa ser testada porque apenas transporta dados e nunca influencia a liberação. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Middleware pode aplicar regras de retenção e liberação, além de transportar resultados. Configuração errada de limite ou flag pode produzir decisão inadequada; regras precisam de teste, aprovação e rastreabilidade.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Biotina, anticorpos heterófilos e hemólise podem afetar alguns métodos, e a relevância deve ser avaliada conforme o ensaio. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Interferências dependem do princípio, reagentes e matriz. Devem ser consideradas quando houver indicação, seguindo instrução e procedimento específicos, sem presumir que ocorram em todos os analisadores.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O efeito gancho pode ser considerado em certos ensaios sanduíche diante de discrepância compatível com concentração muito alta. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Excesso de analito pode prejudicar a formação do complexo em determinados desenhos sanduíche. A investigação deve usar procedimento e diluição validados para o ensaio, sem presumir que todo resultado baixo seja gancho.",
+      "section": "2. Reação imunológica e sinal nos analisadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A automação impede completamente exposição ocupacional a amostras e reagentes durante carregamento, manutenção e descarte. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Mesmo sistemas automatizados exigem carregamento, manutenção, manejo de derramamentos e descarte. Essas tarefas mantêm possibilidade de exposição e requerem medidas de biossegurança previstas pelo laboratório.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após manutenção que pode afetar pipetagem, o laboratório deve fazer as verificações e controles definidos antes de retomar a liberação. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Verificações pós-manutenção demonstram que o desempenho voltou a atender aos critérios. Reiniciar o instrumento ou apagar alarmes não substitui a evidência de funcionamento aceitável.",
+      "section": "4. Integração, interferências e segurança do fluxo automatizado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mudar a matriz de soro para um plasma não previsto pode ser aceito automaticamente se o código de barras foi lido sem erro. Essa afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A leitura do código não demonstra compatibilidade analítica da matriz. Tipos de espécime e anticoagulantes permitidos precisam estar contemplados na instrução ou em validação apropriada.",
+      "section": "3. Calibração, controles e garantia da qualidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "FDA 510(k) K170317 — Alinity i Total β-hCG e sistema Alinity i",
+      "publisher": "U.S. Food and Drug Administration",
+      "reference": "Descrição dos módulos, acesso aleatório e contínuo, prioridade, reteste, CMIA, micropartículas, reagentes, calibradores e controles do ensaio beta-hCG.",
+      "url": "https://www.accessdata.fda.gov/cdrh_docs/reviews/K170317.pdf",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "FDA 510(k) K193532 — LIAISON Anti-HAV e analisador LIAISON XS",
+      "publisher": "U.S. Food and Drug Administration",
+      "reference": "Princípio competitivo de quimioluminescência, reação com isoluminol, leitura em RLU, identificação por código de barras, rastreio e calibração específica por instrução de uso.",
+      "url": "https://www.accessdata.fda.gov/cdrh_docs/reviews/K193532.pdf",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Quality assurance of in vitro diagnostics",
+      "publisher": "World Health Organization",
+      "reference": "Sistema de qualidade laboratorial, documentação, procedimentos operacionais, controles de kit e amostras de controle, avaliação externa da qualidade.",
+      "url": "https://www.who.int/teams/regulation-prequalification/quality-assurance-of-in-vitro-diagnostics",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PQDx_352 v2 — Requirements for WHO prequalification assessment of immunodiagnostic tests for COVID-19",
+      "publisher": "World Health Organization",
+      "reference": "Informações esperadas sobre finalidade, tipo de ensaio, analito, matriz, limitações, controles, instrumentação, software, capacidade de processamento e riscos de falso resultado e efeito gancho.",
+      "url": "https://extranet.who.int/prequal/sites/default/files/document_files/PQDx_352_V2_EUL%20_Immunoassay_requirements_nCoV.pdf",
+      "accessedAt": "2026-11-05"
+    }
+  ]
+}

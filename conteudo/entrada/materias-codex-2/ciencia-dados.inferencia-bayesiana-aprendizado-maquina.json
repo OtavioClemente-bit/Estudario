@@ -1,0 +1,1693 @@
+{
+  "id": "ciencia-dados.inferencia-bayesiana-aprendizado-maquina",
+  "subject": "Ciência de Dados",
+  "title": "Inferência bayesiana e modelos probabilísticos em aprendizado de máquina",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Inferência bayesiana em aprendizado de máquina",
+    "Inferência Bayesiana para aprendizado de máquina",
+    "Aprendizado de máquina bayesiano",
+    "Seleção bayesiana de modelos estatísticos",
+    "Média bayesiana de modelos preditivos",
+    "Redes neurais bayesianas e incerteza",
+    "Modelos hierárquicos bayesianos multinível",
+    "Inferência sequencial bayesiana recursiva",
+    "Métodos bayesianos para ciência de dados",
+    "Posterior preditiva em modelos de aprendizado",
+    "Bayesian machine learning e inferência"
+  ],
+  "scope": {
+    "covers": "Fundamentos de inferência bayesiana aplicados ao aprendizado de máquina: prior, verossimilhança, posterior, evidência, predição posterior, inferência exata e aproximada; seleção e comparação de modelos com evidência, fatores de Bayes, validação cruzada, LOO, WAIC e stacking; média bayesiana de modelos; redes neurais bayesianas, distribuições de pesos, inferência variacional, ELBO e incerteza epistêmica e aleatória; modelos hierárquicos, hiperprioris e pooling; inferência sequencial em modelos de estado, atualização recursiva, filtro de Kalman e filtro de partículas.",
+    "excludes": "Demonstrações matemáticas avançadas de convergência, implementação extensa em bibliotecas específicas, projeto de redes profundas sem componente probabilístico, causalidade, desenho experimental e detalhes de aplicações setoriais."
+  },
+  "theoryTitle": "Aprender, comparar e atualizar modelos com probabilidade",
+  "chapters": [
+    {
+      "title": "1. Da hipótese aos dados: inferência bayesiana",
+      "markdown": "### O problema que este assunto resolve\n\nUm modelo de aprendizado não precisa devolver só um número ou uma classe: pode representar a incerteza sobre os parâmetros e sobre previsões futuras. A regra de Bayes combina o que se admitia antes dos dados com a compatibilidade dos dados com cada hipótese. Para parâmetros θ e dados y, a posterior é p(θ|y) = p(y|θ)p(θ)/p(y). O prior p(θ) expressa a distribuição anterior aos dados; a verossimilhança p(y|θ) descreve como os dados seriam gerados para cada θ; a evidência p(y) normaliza a distribuição e integra a verossimilhança sobre o prior.\n\n> **Siglas e termos deste capítulo**\n> - **Prior**: distribuição de parâmetros antes de observar os dados analisados.\n> - **Verossimilhança**: função dos parâmetros que mede a compatibilidade dos dados observados com o modelo.\n> - **Posterior**: distribuição dos parâmetros condicionada aos dados.\n> - **Evidência (marginal likelihood)**: probabilidade dos dados sob um modelo, integrada sobre seus parâmetros.\n> - **MAP**: moda a posteriori, o valor de parâmetro que maximiza a posterior.\n> - **Posterior preditiva**: distribuição de uma nova observação, integrando a incerteza dos parâmetros.\n\n### Atualizar não é apenas achar um ponto\n\nA posterior retém uma distribuição, portanto permite calcular probabilidades de intervalos, quantis e associações entre parâmetros. Uma estimativa pontual como média ou MAP resume essa distribuição, mas pode esconder assimetria, múltiplas regiões plausíveis ou correlação. Para uma nova entrada x, a previsão bayesiana integra as previsões condicionais: p(y_novo|x,D) = ∫ p(y_novo|x,θ)p(θ|D)dθ. Assim, cada amostra posterior de θ produz uma previsão e a distribuição resultante combina a incerteza dos parâmetros com o ruído previsto pelo modelo.\n\nA inferência pode ser analítica em modelos conjugados simples, como uma proporção binomial com prior beta. Em modelos sem solução fechada, MCMC produz amostras da posterior; inferência variacional ajusta uma distribuição tratável q(θ) para aproximá-la; aproximação de Laplace usa uma distribuição local em torno de uma moda. São aproximações diferentes, com custos e erros distintos: variacional tende a ser mais rápida em problemas grandes, mas uma aproximação mal escolhida pode subestimar caudas ou modos.\n\n### Diagnóstico faz parte da inferência\n\nUma cadeia MCMC inicializada longe do equilíbrio ainda não representa a posterior alvo. Por isso se examinam cadeias com iniciais diferentes, convergência (por exemplo, R-hat), tamanho efetivo da amostra, divergências e autocorrelação. Muitos sorteios correlacionados podem conter menos informação do que a contagem bruta sugere. Verificações preditivas posteriores comparam dados simulados do modelo aos dados observados: discrepâncias sistemáticas mostram aspectos que o modelo não reproduz.\n\n### Como cai na prova\n\n- A posterior é proporcional a prior vezes verossimilhança; a evidência é o fator normalizador e também permite comparar modelos.\n- MAP é um ponto de máxima densidade posterior, não a distribuição inteira nem necessariamente a média posterior.\n- Uma previsão bayesiana integra parâmetros sobre a posterior, em vez de tratar uma estimativa pontual como conhecida sem incerteza.\n- Ter saída de um algoritmo não comprova convergência: diagnóstico de amostragem e checagem preditiva são etapas substantivas."
+    },
+    {
+      "title": "2. Seleção, comparação e média de modelos",
+      "markdown": "### O problema que este assunto resolve\n\nEm aprendizado de máquina, diferentes estruturas podem explicar os dados: regressão com um preditor, com vários preditores ou com efeitos não lineares. Selecionar escolhe uma estrutura; fazer média combina suas previsões e preserva parte da incerteza sobre qual estrutura funciona melhor. A comparação depende do objetivo: explicar os dados observados e prever novas observações não são exatamente a mesma tarefa.\n\n> **Siglas e termos deste capítulo**\n> - **M_k**: modelo candidato k, incluindo sua estrutura e seus pressupostos.\n> - **Fator de Bayes**: razão entre evidências de dois modelos, para dados e priors especificados.\n> - **LOO**: validação leave-one-out, que estima desempenho preditivo deixando uma observação fora por vez.\n> - **WAIC**: critério de informação amplamente aplicável, calculado a partir da densidade preditiva posterior.\n> - **Stacking**: método de escolha de pesos que otimiza a combinação das distribuições preditivas fora da amostra.\n> - **BMA**: Bayesian Model Averaging, média de modelos ponderada por probabilidades posteriores de modelos.\n\n### Evidência e comparação bayesiana\n\nPara cada modelo M_k, a evidência é p(y|M_k)=∫p(y|θ_k,M_k)p(θ_k|M_k)dθ_k. A probabilidade posterior do modelo depende dessa evidência e da probabilidade a priori do modelo: p(M_k|y) é proporcional a p(y|M_k)p(M_k). O fator de Bayes entre M_1 e M_2 é p(y|M_1)/p(y|M_2); com priors de modelos iguais, indica a razão entre as probabilidades posteriores. A integração penaliza modelos cuja massa de prior fica em regiões pouco compatíveis com os dados, efeito relacionado à navalha de Occam.\n\nEssa comparação é sensível aos priors dos parâmetros: ampliar muito um prior pode espalhar a massa por valores pouco preditivos e reduzir a evidência, mesmo se a posterior perto dos dados parecer semelhante. Não se deve tratar fator de Bayes como medida independente da especificação. LOO e WAIC focam desempenho preditivo esperado fora da amostra e são alternativas quando a evidência é difícil de calcular ou não é o critério pretendido. Em critérios nos quais menor valor é melhor, comparam-se diferenças e incertezas, não apenas a ordenação pontual.\n\n### Média bayesiana e stacking\n\nNa BMA, a distribuição preditiva é p(y_novo|y)=Σ_k p(y_novo|y,M_k)p(M_k|y). Primeiro se seleciona um modelo conforme sua probabilidade posterior e depois se sorteia da previsão desse modelo. O peso representa probabilidade posterior condicionada ao conjunto candidato e aos priors especificados; não é garantia universal de que um modelo seja verdadeiro.\n\nOutra opção é stacking: escolhe pesos não negativos que somam um e maximizam a qualidade conjunta das previsões leave-one-out. Pesos de stacking são pesos de combinação preditiva, não probabilidades posteriores de modelos. Pseudo-BMA também deriva pesos de critérios como LOO ou WAIC, mas não deve ser confundido com BMA por evidência. Pesos só podem ser pareados com as previsões do respectivo modelo; associar pesos na ordem errada muda o ensemble.\n\n### Como cai na prova\n\n- Evidência integra a verossimilhança sobre o prior; LOO e WAIC avaliam previsão fora da amostra.\n- BMA usa probabilidades posteriores dos modelos; stacking otimiza pesos para a distribuição preditiva.\n- A média preserva incerteza entre modelos, enquanto seleção rígida descarta os demais candidatos.\n- Comparações e pesos dependem dos candidatos, das hipóteses e, no caso da evidência, dos priors."
+    },
+    {
+      "title": "3. Redes neurais bayesianas e tipos de incerteza",
+      "markdown": "### O problema que este assunto resolve\n\nUma rede neural convencional ajusta pesos como valores pontuais. Uma rede neural bayesiana (BNN) trata pesos e vieses como variáveis aleatórias, define priors sobre eles e atualiza uma distribuição posterior após os dados. A distribuição de pesos permite gerar várias funções plausíveis e uma distribuição de previsões, em vez de uma única saída sem medida de confiança.\n\n> **Siglas e termos deste capítulo**\n> - **BNN**: Bayesian neural network, rede com distribuições posteriores sobre pesos.\n> - **Incerteza epistêmica**: incerteza por conhecimento limitado do modelo, que pode diminuir com dados informativos.\n> - **Incerteza aleatória (aleatória/aleatoric)**: variabilidade intrínseca das observações, como ruído de medição.\n> - **VI**: inferência variacional, aproxima posterior por uma família q parametrizada.\n> - **ELBO**: limite inferior da evidência, objetivo que equilibra ajuste aos dados e proximidade da posterior aproximada ao prior.\n> - **KL**: divergência de Kullback-Leibler, medida assimétrica de discrepância entre distribuições.\n\n### Pesos distribuídos e aproximação variacional\n\nA inferência exata sobre milhões de pesos costuma ser inviável. Na VI escolhe-se q_φ(W), uma família tratável, e aprende-se φ maximizando ELBO = E_q[log p(D|W)] − KL(q(W)||p(W)). O primeiro termo recompensa pesos que explicam os dados; o segundo regulariza a distribuição aproximada em relação ao prior. Amostrando W de q e propagando cada amostra pela rede, obtêm-se várias previsões. O objetivo é aproximar p(W|D), mas q não se torna a posterior exata só por otimizar ELBO.\n\nNa classificação, pode-se calcular probabilidade média por classe entre amostras de pesos. Na regressão, cada amostra pode produzir média e, se a camada de saída também prevê dispersão, uma distribuição condicional. A dispersão entre médias de previsões de diferentes pesos indica componente epistêmica; o ruído previsto dentro de cada saída probabilística representa componente aleatória. Uma rede com pesos incertos e saída determinística pode representar incerteza de parâmetros sem modelar explicitamente o ruído de observação.\n\nIncerteza não é sinônimo de calibração. Uma rede pode produzir probabilidades excessivamente confiantes ou aproximar mal a posterior. Avaliam-se calibração e desempenho em dados separados, incluindo entradas fora da região de treino. Mais dados tendem a reduzir incerteza epistêmica onde são informativos; não eliminam o ruído aleatório nem garantem bom comportamento sob mudança de distribuição.\n\n### Como cai na prova\n\n- Na BNN, os pesos são aleatórios com posterior; numa rede determinística padrão são ajustados como parâmetros pontuais.\n- ELBO combina expectativa da log-verossimilhança e penalidade KL; não é uma métrica de acurácia pura.\n- Variação entre previsões amostradas reflete incerteza epistêmica; ruído condicional é aleatório.\n- Uma aproximação variacional é uma aproximação, e precisa de avaliação preditiva e de calibração."
+    },
+    {
+      "title": "4. Modelos hierárquicos e compartilhamento parcial",
+      "markdown": "### O problema que este assunto resolve\n\nConsidere estimar a taxa de inadimplência em muitas agências. Ajustar cada agência isoladamente pode gerar taxas extremas em grupos pequenos; juntar tudo ignora diferenças locais. Um modelo hierárquico atribui parâmetros por grupo e os conecta por uma distribuição de nível superior. A informação pode ser parcialmente compartilhada: grupos com poucos dados são mais influenciados pelo conjunto, enquanto grupos com dados abundantes preservam mais informação própria.\n\n> **Siglas e termos deste capítulo**\n> - **Nível individual**: observações ou unidades dentro de cada grupo.\n> - **Nível de grupo**: parâmetros próprios de agência, escola, região, hospital ou período.\n> - **Hiperparâmetro**: parâmetro da distribuição que governa parâmetros de nível inferior.\n> - **Hiperprior**: prior colocado sobre um hiperparâmetro.\n> - **Pooling completo**: todos os grupos compartilham parâmetros comuns.\n> - **Sem pooling**: cada grupo é estimado isoladamente, sem compartilhar informação.\n\n### Pooling parcial por construção\n\nUm exemplo simples: y_ij ~ Normal(μ_j, σ), μ_j ~ Normal(μ_0, τ), com prior adicional em μ_0, τ e σ. As observações i do grupo j informam μ_j; todos os grupos informam μ_0 e τ. Se τ for pequeno, as médias de grupo ficam próximas de μ_0; se τ for grande, há mais heterogeneidade. A posterior aprende a intensidade do compartilhamento, em vez de fixá-la arbitrariamente. Essa contração em direção à média geral é chamada shrinkage.\n\nA estrutura hierárquica não significa que todos os grupos sejam iguais: a variância entre grupos é estimada. Nem significa que dados de níveis distintos sejam intercambiáveis sem justificativa; a hierarquia representa uma hipótese de geração de dados que deve corresponder ao problema. Priors sobre escalas e hiperparâmetros influenciam ajuste e computação. Distribuições posteriores com geometria difícil, como o funil de Neal quando a escala de grupo se aproxima de zero, podem dificultar HMC; reparametrização não centrada é uma estratégia possível quando a forma centrada mistura mal.\n\n### Como cai na prova\n\n- Pooling parcial combina informação do grupo e da população; não equivale a ajustar cada grupo por separado.\n- O hiperparâmetro τ controla a dispersão dos efeitos de grupo e, portanto, o grau de compartilhamento.\n- Priors de nível superior também precisam de justificativa e diagnóstico.\n- Problemas de geometria posterior podem prejudicar o amostrador sem que o modelo tenha sido calculado incorretamente."
+    },
+    {
+      "title": "5. Inferência sequencial bayesiana",
+      "markdown": "### O problema que este assunto resolve\n\nEm rastreamento, monitoramento industrial ou previsão de séries, chega uma observação por vez e o estado muda ao longo do tempo. A inferência sequencial atualiza a distribuição do estado sem precisar tratar toda a história como um lote novo em cada instante. Num modelo de espaço de estados, x_t é estado latente, y_t é observação, p(x_t|x_{t−1}) descreve a transição e p(y_t|x_t) descreve a medição.\n\n> **Siglas e termos deste capítulo**\n> - **Filtragem**: distribuição do estado atual condicionada às observações até o momento, p(x_t|y_1:t).\n> - **Predição**: avançar a distribuição anterior pelo modelo de transição antes de observar y_t.\n> - **Correção/atualização**: ponderar a previsão pela verossimilhança da nova observação.\n> - **Filtro de Kalman**: filtro exato para o modelo linear gaussiano padrão.\n> - **Filtro de partículas**: aproxima posterior do estado por partículas ponderadas.\n> - **Degeneração de pesos**: situação em que poucas partículas concentram quase todo o peso.\n\n### Ciclo recursivo\n\nA etapa de predição calcula p(x_t|y_1:t−1)=∫p(x_t|x_{t−1})p(x_{t−1}|y_1:t−1)dx_{t−1}. Quando chega y_t, a correção aplica Bayes: p(x_t|y_1:t) é proporcional a p(y_t|x_t)p(x_t|y_1:t−1). Portanto primeiro se propaga a incerteza pelo processo e depois se incorpora a medição. Se não há medição em um instante, ainda se pode prever; se há sensores múltiplos, suas verossimilhanças podem contribuir para a correção de acordo com o modelo.\n\nNo caso linear com ruídos gaussianos, o filtro de Kalman representa a distribuição por média e covariância e atualiza esses resumos analiticamente. Para dinâmicas não lineares ou ruídos não gaussianos, filtros de partículas representam a distribuição por amostras: cada partícula é hipótese de estado, recebe peso segundo a compatibilidade da observação e pode ser reamostrada. Reamostragem ajuda quando pesos se concentram, mas repetida em excesso reduz diversidade; poucas partículas podem perder regiões importantes da posterior.\n\nFiltragem estima o estado presente usando dados até t; suavização revisa estados passados usando também dados posteriores; previsão projeta estados futuros sem observações futuras. Confundir essas tarefas leva a vazamento temporal: uma estimativa de estado passado que usa observações futuras não é uma filtragem em tempo real.\n\n### Como cai na prova\n\n- A recursão tem predição pela dinâmica e correção pela verossimilhança da observação.\n- Kalman é exato sob hipóteses lineares e gaussianas; partícula admite modelos não lineares e ruídos não gaussianos por aproximação.\n- Cada partícula é hipótese de estado e seus pesos codificam compatibilidade com observações.\n- Filtragem, suavização e previsão condicionam em conjuntos temporais diferentes."
+    }
+  ],
+  "summary": "Inferência bayesiana atualiza uma distribuição prior com a verossimilhança para obter a posterior e prevê integrando a incerteza dos parâmetros. Modelos candidatos podem ser comparados pela evidência e fatores de Bayes, ou por desempenho preditivo LOO/WAIC. BMA combina previsões com probabilidades posteriores dos modelos; stacking aprende pesos preditivos. Redes neurais bayesianas colocam distribuições sobre pesos; VI aproxima a posterior maximizando ELBO, com termo de ajuste e penalidade KL. Separar incerteza epistêmica de aleatória ajuda a interpretar previsões. Modelos hierárquicos compartilham informação parcialmente entre grupos por parâmetros de nível superior e hiperprioris. Na inferência sequencial, cada ciclo prediz pelo modelo de transição e corrige com a nova observação; Kalman é exato no caso linear gaussiano e partículas aproximam casos mais gerais. Diagnósticos, checagens preditivas e avaliação de calibração são necessários para interpretar resultados.",
+  "flashcards": [
+    {
+      "front": "Qual é a relação de Bayes para parâmetros θ e dados y?",
+      "back": "p(θ|y)=p(y|θ)p(θ)/p(y): posterior é proporcional a verossimilhança vezes prior, com evidência como normalizador."
+    },
+    {
+      "front": "O que representa a evidência marginal p(y|M)?",
+      "back": "A verossimilhança integrada sobre os parâmetros do modelo segundo o prior; entra no cálculo da probabilidade posterior do modelo."
+    },
+    {
+      "front": "Posterior e estimativa MAP são a mesma coisa?",
+      "back": "Não. Posterior é uma distribuição; MAP é um ponto que maximiza sua densidade."
+    },
+    {
+      "front": "Como se forma uma previsão posterior?",
+      "back": "Integra-se a distribuição de saída condicionada aos parâmetros sobre a posterior desses parâmetros."
+    },
+    {
+      "front": "Para que serve MCMC em inferência bayesiana?",
+      "back": "Gera amostras correlacionadas que aproximam a posterior quando não há amostragem independente simples."
+    },
+    {
+      "front": "O que o LOO estima?",
+      "back": "Qualidade preditiva fora da amostra por validação leave-one-out, deixando cada observação de fora por vez ou aproximando esse cálculo."
+    },
+    {
+      "front": "O que compara o fator de Bayes?",
+      "back": "A razão das evidências de dois modelos para os dados e priors especificados."
+    },
+    {
+      "front": "Como a BMA combina modelos?",
+      "back": "Média distribuições preditivas de modelos usando suas probabilidades posteriores como pesos."
+    },
+    {
+      "front": "Peso de stacking é probabilidade posterior de modelo?",
+      "back": "Não; é um peso ajustado para combinar previsões fora da amostra."
+    },
+    {
+      "front": "Qual é a forma básica do objetivo ELBO?",
+      "back": "Expectativa sob q da log-verossimilhança menos KL entre q e o prior."
+    },
+    {
+      "front": "O que a penalidade KL faz na VI?",
+      "back": "Penaliza a discrepância entre a distribuição variacional e o prior, equilibrando ajuste e regularização."
+    },
+    {
+      "front": "O que distingue uma BNN de uma rede convencional?",
+      "back": "A BNN representa incerteza nos pesos por distribuições posteriores em vez de apenas valores pontuais."
+    },
+    {
+      "front": "Como se identifica incerteza epistêmica em amostras de rede?",
+      "back": "Pela variação das previsões entre diferentes amostras plausíveis dos parâmetros."
+    },
+    {
+      "front": "O que é pooling parcial?",
+      "back": "Compartilhar informação entre grupos por uma distribuição comum, mantendo efeitos específicos de cada grupo."
+    },
+    {
+      "front": "Qual é o papel de τ em μ_j ~ Normal(μ_0, τ)?",
+      "back": "Controla a dispersão dos efeitos de grupo em torno da média geral e o grau de shrinkage."
+    },
+    {
+      "front": "Quais são os dois passos da inferência sequencial?",
+      "back": "Predizer o estado pela transição e corrigir a distribuição com a verossimilhança da observação nova."
+    },
+    {
+      "front": "Quando o filtro de Kalman é exato?",
+      "back": "No modelo de estado linear gaussiano padrão, em que média e covariância descrevem a distribuição."
+    },
+    {
+      "front": "O que representa uma partícula num filtro de partículas?",
+      "back": "Uma hipótese amostrada para o estado, ponderada segundo sua compatibilidade com a observação."
+    },
+    {
+      "front": "O que é suavização temporal?",
+      "back": "Reestimar estados passados usando observações posteriores, além das disponíveis até aquele instante."
+    },
+    {
+      "front": "Por que avaliar calibração numa BNN?",
+      "back": "Porque representar distribuições não garante que probabilidades previstas correspondam às frequências observadas."
+    }
+  ],
+  "tips": [
+    "Ao ver p(θ|y), identifique primeiro prior, verossimilhança e fator normalizador antes de interpretar a fórmula.",
+    "Separe a pergunta de comparação: evidência responde a probabilidade relativa dos modelos sob priors; LOO e WAIC focam previsão.",
+    "Se o enunciado fala em pesos aleatórios da rede e amostragem de previsões, o tema é posterior de pesos e incerteza epistêmica.",
+    "Para dados agrupados, procure quem informa os parâmetros locais e quem informa os hiperparâmetros da população.",
+    "Em filtragem, escreva a ordem temporal: transição primeiro, likelihood da medição depois.",
+    "Não confunda quantidade de sorteios com informação efetiva: autocorrelação, convergência e calibração também importam."
+  ],
+  "traps": [
+    "A evidência não é somente a verossimilhança avaliada no MAP: ela integra a verossimilhança sobre os parâmetros segundo o prior.",
+    "Pesos de stacking não são probabilidades posteriores de modelos, mesmo que sejam não negativos e somem um.",
+    "ELBO não é só acurácia nem só log-verossimilhança; inclui termo de divergência KL.",
+    "Mais dados podem reduzir incerteza epistêmica, mas não eliminam automaticamente ruído aleatório ou mudança de distribuição.",
+    "Pooling parcial não presume igualdade entre todos os grupos; estima dispersão entre efeitos locais.",
+    "Reamostragem de partículas não cria nova informação e pode reduzir diversidade se for frequente demais."
+  ],
+  "activeRecall": [
+    {
+      "question": "Escreva a decomposição da posterior e explique qual termo permite comparar modelos.",
+      "answer": "p(θ|y,M) é proporcional a p(y|θ,M)p(θ|M); a evidência p(y|M), integral sobre θ, normaliza a posterior e compara modelos junto com seus priors."
+    },
+    {
+      "question": "Como a previsão bayesiana incorpora incerteza dos parâmetros?",
+      "answer": "Integra a previsão condicional p(y_novo|θ) sobre p(θ|D), ou aproxima a integral usando amostras da posterior."
+    },
+    {
+      "question": "Diferencie comparação por evidência de comparação preditiva por LOO/WAIC.",
+      "answer": "Evidência compara a probabilidade dos dados sob modelos integrando parâmetros e depende dos priors; LOO/WAIC estimam capacidade preditiva fora da amostra."
+    },
+    {
+      "question": "Em que BMA e stacking diferem?",
+      "answer": "BMA pesa modelos pelas probabilidades posteriores; stacking escolhe pesos para otimizar a combinação das previsões leave-one-out."
+    },
+    {
+      "question": "Quais componentes entram no ELBO e qual o papel de cada um?",
+      "answer": "A expectativa da log-verossimilhança recompensa ajuste aos dados; a divergência KL de q ao prior penaliza afastamento e regulariza."
+    },
+    {
+      "question": "Como distinguir as duas fontes de incerteza em uma BNN?",
+      "answer": "Dispersão entre previsões de pesos amostrados sugere incerteza epistêmica; dispersão prevista dentro da saída condicional reflete ruído aleatório."
+    },
+    {
+      "question": "Descreva o pooling parcial em um modelo por grupos.",
+      "answer": "Cada grupo tem efeito próprio, gerado por uma distribuição comum com hiperparâmetros; os dados locais e globais informam os efeitos, que podem sofrer shrinkage."
+    },
+    {
+      "question": "Descreva atualização sequencial e diferencie filtro de Kalman de filtro de partículas.",
+      "answer": "Prediz-se pelo modelo de transição e corrige-se pela medição; Kalman é exato no caso linear gaussiano, enquanto partículas aproximam a distribuição em modelos mais gerais."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca entre prior, verossimilhança e posterior",
+      "summary": "Prior antecede os dados; verossimilhança mede compatibilidade dos dados dado θ; posterior combina ambos e condiciona nos dados. Evidência integra os parâmetros."
+    },
+    {
+      "key": "e2",
+      "title": "Probabilidade de modelo confundida com peso preditivo",
+      "summary": "BMA usa probabilidade posterior de modelos baseada em evidência e prior; stacking aprende pesos para desempenho preditivo, sem interpretação como probabilidade posterior."
+    },
+    {
+      "key": "e3",
+      "title": "Incerteza da rede interpretada como ruído único",
+      "summary": "Incerteza epistemológica está ligada aos parâmetros/modelo; aleatória decorre da variabilidade condicional dos dados. A saída determinística pode não representar a segunda."
+    },
+    {
+      "key": "e4",
+      "title": "Pooling completo confundido com modelo hierárquico",
+      "summary": "Modelo hierárquico estima efeitos de grupo e sua distribuição, compartilhando parcialmente. Pooling completo impõe um efeito comum; ausência de pooling ajusta cada grupo isoladamente."
+    },
+    {
+      "key": "e5",
+      "title": "Ordem temporal da filtragem invertida",
+      "summary": "Predição usa a transição para obter estado antes da observação; correção atualiza pela verossimilhança. Suavização pode usar observações futuras para rever passado."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Na inferência bayesiana, a posterior de θ é proporcional à verossimilhança dos dados vezes o prior de θ.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A regra de Bayes multiplica p(y|θ) por p(θ) e normaliza pela evidência p(y), que integra a verossimilhança sobre os parâmetros. Assim a atualização preserva o prior como distribuição e não como um valor observado.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor MAP resume toda a distribuição posterior e sempre coincide com sua média.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. MAP é a moda da densidade posterior; distribuições assimétricas ou multimodais podem ter média diferente e não são representadas por um único ponto.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma posterior preditiva integra a distribuição de novas respostas condicionada aos parâmetros sobre a posterior desses parâmetros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa integração propaga incerteza dos parâmetros para a previsão, em lugar de substituir θ por uma estimativa pontual sem dispersão.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A inferência variacional produz por definição amostras exatas da posterior, pois otimiza uma distribuição q.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. q é uma aproximação escolhida numa família tratável; a otimização do ELBO não garante que ela coincida com a posterior verdadeira.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia MCMC que gerou muitas iterações dispensa avaliação de convergência e autocorrelação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Número bruto de sorteios não demonstra equilíbrio; cadeias podem não convergir e sorteios correlacionados reduzem o tamanho efetivo da amostra.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Checagens preditivas posteriores comparam apenas réplicas simuladas entre si e não usam os dados observados como referência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A checagem preditiva posterior compara dados observados com réplicas geradas pelo modelo a partir da posterior. Diferenças sistemáticas entre os dois podem apontar aspectos dos dados que a estrutura probabilística não reproduz.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A evidência de um modelo integra sua verossimilhança sobre os parâmetros segundo o prior especificado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. p(y|M)=∫p(y|θ,M)p(θ|M)dθ; por isso o valor da evidência depende do prior e não é simplesmente a verossimilhança no MAP.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fator de Bayes entre dois modelos é a razão entre suas evidências para os mesmos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A razão p(y|M1)/p(y|M2) compara o suporte marginal dos dados; a probabilidade posterior também incorpora as probabilidades a priori dos modelos.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "LOO e WAIC são formas de calcular diretamente a probabilidade posterior de cada modelo a partir de seus priors.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. São critérios ligados à previsão fora da amostra; seus pesos heurísticos ou preditivos não são probabilidades posteriores derivadas da evidência e dos priors de modelos.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na média bayesiana de modelos, a preditiva combina as distribuições de cada modelo ponderadas por probabilidades posteriores dos modelos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. BMA calcula uma mistura preditiva ponderada por p(M_k|y), condicionada ao conjunto de candidatos e às hipóteses adotadas.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pesos de stacking podem ser interpretados como probabilidades posteriores de que cada modelo seja verdadeiro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Stacking otimiza pesos para combinar distribuições preditivas, geralmente usando predições leave-one-out; esses pesos não têm interpretação de probabilidade posterior de modelo.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar a dispersão de um prior pode alterar a evidência, mesmo quando uma região posterior próxima aos dados parece semelhante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A evidência integra toda a região do prior e penaliza massa alocada em parâmetros pouco compatíveis com os dados, sendo sensível à escala do prior.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O critério LOO deixa cada observação fora do ajuste para avaliar sua capacidade preditiva, podendo usar uma aproximação computacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A ideia leave-one-out avalia previsões de cada observação usando as demais; PSIS-LOO aproxima os ajustes repetidos e requer diagnósticos próprios.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os pesos calculados para combinações preditivas podem ser associados a qualquer ordem de modelos sem alterar a previsão resultante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cada peso deve acompanhar a distribuição preditiva do modelo ao qual foi calculado; trocar a associação produz uma mistura diferente.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede neural bayesiana coloca distribuições sobre pesos e atualiza uma posterior desses pesos usando os dados de treino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A BNN substitui pesos tratados somente como pontos por variáveis com prior e posterior, permitindo propagar sua incerteza às saídas.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A dispersão entre previsões obtidas com pesos amostrados pode informar incerteza epistêmica do modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Diferentes pesos plausíveis produzem funções distintas; a variação entre suas previsões reflete conhecimento limitado sobre parâmetros e modelo.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O termo KL no ELBO favorece q distante do prior para que a rede tenha liberdade de ajustar cada observação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A divergência KL(q||prior) é subtraída no ELBO e penaliza afastamento, equilibrando ajuste aos dados e regularização probabilística.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída pontual determinística representa a variabilidade condicional dos alvos sem precisar especificar uma distribuição de resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um valor pontual de saída não expressa sozinho a variabilidade condicional. Uma distribuição de resposta pode modelar ruído aleatório, enquanto a distribuição sobre pesos representa incerteza epistêmica; os componentes podem coexistir.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar dados de treino garante que uma BNN fique calibrada, inclusive para entradas muito diferentes das observadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Dados informativos podem reduzir incerteza epistêmica na região coberta, mas não garantem calibração ou robustez sob mudança de distribuição.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo hierárquico, os efeitos de grupo podem ser gerados por uma distribuição cujos hiperparâmetros também são inferidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distribuição de nível superior conecta efeitos locais e permite que os dados dos vários grupos informem parâmetros populacionais.",
+      "section": "4. Modelos hierárquicos e compartilhamento parcial",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pooling parcial impõe que a estimativa de todo grupo seja idêntica à média geral, sem variação local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Essa descrição se aproxima do pooling completo; no parcial há efeitos próprios ligados por uma distribuição de grupo, com grau de shrinkage aprendido.",
+      "section": "4. Modelos hierárquicos e compartilhamento parcial",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo μ_j ~ Normal(μ_0, τ), τ controla a dispersão dos efeitos locais em torno do centro populacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Menor τ aproxima efeitos de grupo de μ_0; maior τ permite heterogeneidade mais ampla, sujeita à atualização posterior.",
+      "section": "4. Modelos hierárquicos e compartilhamento parcial",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na filtragem bayesiana, a distribuição do estado atual condiciona nas observações até o instante atual, sem usar medições futuras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Filtragem estima p(x_t|y_1:t) com os dados disponíveis até t. Quando observações posteriores são usadas para revisar x_t, a tarefa passa a ser suavização, que não corresponde à estimativa online em tempo real.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O filtro de Kalman é exato para qualquer dinâmica não linear e qualquer distribuição de ruído, desde que se conheça a transição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A recursão clássica é exata sob hipóteses lineares e gaussianas; outras dinâmicas exigem extensões ou métodos aproximados, como filtro de partículas.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em filtro de partículas, a verossimilhança da medição contribui para os pesos relativos das hipóteses de estado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A correção avalia a compatibilidade de cada partícula com a observação e ajusta seus pesos antes ou durante a política de reamostragem.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reamostrar partículas repetidamente aumenta sempre a diversidade efetiva do conjunto e elimina erro de aproximação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Reamostragem combate concentração de pesos, mas pode replicar poucas partículas e reduzir diversidade; número finito de partículas mantém erro de aproximação.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista quer prever um alvo integrando a incerteza dos coeficientes de regressão estimados por posterior. Qual operação corresponde à preditiva bayesiana?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir cada coeficiente pela mediana e ignorar sua dispersão posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Integrar a distribuição da resposta sobre os coeficientes da posterior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas a distribuição prior sem condicionar nos dados observados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher o coeficiente de maior verossimilhança e fixá-lo sem ruído.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular a média dos alvos observados e atribuí-la a toda entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A preditiva integra p(y_novo|θ) em relação a p(θ|D), propagando incerteza posterior. Fixar um resumo dos coeficientes perde essa variação; prior sozinho não atualiza com os dados e a média do alvo ignora os preditores.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente prior e verossimilhança em uma regressão probabilística?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prior descreve θ antes dos dados; verossimilhança descreve y condicionado a θ.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O prior é calculado só depois da previsão; a verossimilhança resume erro de otimização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O prior é a amostra observada; a verossimilhança é a distribuição de parâmetros posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O prior normaliza os dados; a verossimilhança representa apenas o custo computacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O prior e a verossimilhança são duas estimativas pontuais do mesmo coeficiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O prior distribui valores plausíveis dos parâmetros antes dos dados analisados, enquanto a verossimilhança avalia a compatibilidade dos dados para cada valor. A posterior combina as duas; as demais opções trocam conceitos ou atribuem papéis que não são probabilísticos.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa HMC e obtém chains com alta autocorrelação e R-hat distante de um. Qual conclusão é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior está validada porque qualquer valor de R-hat confirma mistura suficiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A média das iterações é imparcial mesmo sem equilíbrio e representa a posterior alvo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As amostras podem não representar a posterior; é preciso investigar convergência e mistura.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aumentar apenas o número de casas decimais corrige a dependência entre sorteios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A autocorrelação prova que o prior foi escolhido incorretamente e deve ser removido.",
+          "correct": false
+        }
+      ],
+      "explanation": "R-hat distante de um e autocorrelação alta sinalizam que cadeias podem ainda não explorar adequadamente a posterior. Devem-se investigar parametrização, geometria, tuning e tamanho efetivo; essas estatísticas não provam isoladamente que o prior é inválido.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um exemplo conjugado binomial-beta, qual papel tem a distribuição beta a priori para a probabilidade de sucesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela serve como conjunto de previsões e substitui os resultados observados na análise.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela especifica crenças prévias sobre a taxa, que os sucessos e fracassos atualizam.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela fixa a taxa exatamente na média, impedindo que os dados alterem a estimativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela descreve a distribuição dos erros de classificação após escolher o modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela normaliza exclusivamente as variáveis preditoras em escala unitária.",
+          "correct": false
+        }
+      ],
+      "explanation": "O prior beta distribui probabilidades plausíveis para a taxa de sucesso; observações binomiais atualizam seus parâmetros para formar posterior beta. O prior não substitui os dados nem fixa necessariamente a taxa num ponto.",
+      "section": "1. Da hipótese aos dados: inferência bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar um modelo pelo fator de Bayes, o que é comparado entre M1 e M2?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente os valores de MAP, sem integrar os parâmetros ou considerar priors.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As evidências marginais p(y|M1) e p(y|M2), cuja razão forma o fator.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A acurácia de treino de cada modelo, corrigida pelo número de épocas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As matrizes de confusão, sem considerar as distribuições probabilísticas previstas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A média dos resíduos absolutos, convertida diretamente em probabilidade do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fator de Bayes é a razão de evidências, cada qual integrando a verossimilhança sobre o prior dos parâmetros. Comparar somente MAP ignora a massa do espaço paramétrico e não calcula evidência.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto tem três regressões plausíveis e a equipe quer minimizar erro preditivo combinado em observações deixadas de fora. Qual método atende diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Baseline, atribuindo o mesmo coeficiente a todos os modelos candidatos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MAP, escolhendo os parâmetros com maior densidade dentro do modelo mais complexo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Stacking, ajustando pesos para combinar distribuições preditivas leave-one-out.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Hiperprior, transformando automaticamente cada candidato em uma única estrutura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MCMC, que compara por si só modelos sem função de pontuação ou evidência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stacking otimiza uma combinação preditiva com base em previsões fora da amostra, frequentemente LOO. MAP estima parâmetros de um modelo; MCMC amostra posterior e não escolhe automaticamente pesos de combinação.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise compara modelos por WAIC e produz pesos pseudo-BMA. Qual interpretação deve ser evitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os pesos resumem uma combinação baseada no critério e no conjunto candidato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os pesos são probabilidades exatas e universais de que cada modelo seja verdadeiro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Modelos com diferenças maiores no critério tendem a receber menor peso relativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A interpretação depende das hipóteses do critério e dos candidatos comparados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma previsão combinada deve manter cada peso junto à previsão correspondente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pseudo-BMA deriva pesos de critérios de informação como aproximação de combinação, não probabilidades exatas de verdade. Pesos mudam com os modelos incluídos e as suposições do critério; a associação aos candidatos precisa permanecer correta.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma BNN usa aproximação qφ(W) para representar a posterior dos pesos. O que maximizar o ELBO procura equilibrar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Número de camadas e largura da rede sem depender dos dados observados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acurácia de treino máxima e remoção de toda dispersão entre amostras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ajuste esperado à verossimilhança e proximidade probabilística de q ao prior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Erro de validação mínimo e divergência entre rótulos preditos e classes latentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Probabilidade posterior de cada arquitetura e entropia dos dados de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "ELBO soma expectativa de log-verossimilhança sob q e subtrai KL(q||prior). O primeiro favorece ajuste e o segundo regulariza a aproximação; não é simplesmente maximizar acurácia ou eliminar incerteza.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao passar entradas por amostras distintas da posterior de pesos, as probabilidades de classe variam bastante. Qual fonte de incerteza isso sugere principalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Numérica, causada pela escala de armazenamento dos tensores na placa gráfica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aleatória, causada somente pela variabilidade irredutível dos rótulos observados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Epistêmica, associada à incerteza sobre os parâmetros e a função aprendida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Temporal, causada por usar dados de validação depois dos dados de teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "De seleção, que representa exclusivamente a diferença entre duas funções de perda.",
+          "correct": false
+        }
+      ],
+      "explanation": "A dispersão entre funções obtidas de pesos plausíveis reflete incerteza epistêmica. Ruído condicional dentro de cada predição probabilística é componente aleatório; as outras fontes não descrevem a variação entre draws posteriores.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma camada variacional amostra pesos em cada passagem e retorna diferentes médias de regressão, mas não prevê dispersão condicional. O que ela ainda pode representar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Variação amostral entre observações futuras que o modelo não observou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ruído aleatório completo, mesmo sem qualquer modelo de dispersão de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Probabilidade posterior dos modelos de regressão incluídos no stacking.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incerteza epistêmica pela variação das previsões entre pesos amostrados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Calibração garantida, pois qualquer camada probabilística assegura frequência correta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A variação das médias entre pesos amostrados expressa incerteza sobre parâmetros. Para modelar aleatoriedade da resposta condicional, a saída deve especificar uma distribuição ou parâmetro de ruído; uma camada variacional por si só não garante calibração.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em dados de hospitais, alguns com poucas observações, qual estrutura permite estimativas locais com compartilhamento parcial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regressão que elimina o identificador de grupo antes do ajuste.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um efeito global fixo imposto como idêntico em cada hospital e paciente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modelos independentes ajustados em cada hospital sem prior ou informação comum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Parâmetros de hospital gerados por uma distribuição de nível superior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um classificador que usa somente o hospital de maior tamanho amostral.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um modelo hierárquico atribui efeitos por hospital e os relaciona por uma distribuição comum. Grupos pequenos são regularizados pela informação compartilhada; pooling completo ou estimativas independentes representam outros extremos.",
+      "section": "4. Modelos hierárquicos e compartilhamento parcial",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo com efeitos μ_j ~ Normal(μ_0, τ), a posterior de τ se concentra perto de zero. Qual consequência isso indica para os efeitos de grupo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior de cada efeito se transforma em distribuição uniforme irrestrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os grupos tornam-se independentes e não compartilham informação da população.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A variância observacional necessariamente zera em cada grupo após a atualização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os efeitos tendem a ficar mais próximos de μ_0, com maior shrinkage entre grupos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O modelo passa a usar apenas o maior grupo, descartando as demais observações.",
+          "correct": false
+        }
+      ],
+      "explanation": "τ é escala da dispersão dos efeitos em torno de μ_0. Escala pequena favorece efeitos próximos e pooling mais forte, sem implicar variância observacional zero ou descarte de grupos.",
+      "section": "4. Modelos hierárquicos e compartilhamento parcial",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que se inspecionam prioris de hiperparâmetros e geometria posterior em um modelo multinível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque aumentar a escala sempre melhora a mistura e torna a posterior normal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque modelos hierárquicos dispensam diagnósticos assim que há um prior próprio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque hiperprioris transformam efeitos locais em parâmetros determinísticos conhecidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque escolhas de escala afetam inferência e certas geometrias dificultam a mistura de HMC.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque a geometria identifica causalidade e substitui a validação preditiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Priors de escala podem influenciar resultados, e dependências de nível superior podem criar geometrias como funis que dificultam HMC. Diagnósticos e reparametrizações podem ser necessários; prior próprio não assegura boa computação ou validade do modelo.",
+      "section": "4. Modelos hierárquicos e compartilhamento parcial",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rastreador recebe uma medida de sensor no instante t. Qual é a ordem correta da atualização recursiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar a likelihood antes de definir qual estado latente será previsto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Corrigir pelo sensor futuro e depois estimar a transição do instante anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ajustar o estado pela média do histórico e ignorar a medição mais recente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reamostrar os dados brutos e depois remover o modelo probabilístico de estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Propagar estado anterior pela transição e depois corrigir pela likelihood da medida.",
+          "correct": true
+        }
+      ],
+      "explanation": "A filtragem prediz p(x_t|y_1:t−1) pela dinâmica e atualiza com p(y_t|x_t), obtendo p(x_t|y_1:t). Assim a medição corrente corrige a previsão, não uma previsão futura.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de posição com transição linear e ruídos gaussianos, qual filtro representa a distribuição por média e covariância com atualização analítica exata?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modelo hierárquico, usando hospitais ou grupos como níveis da transição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtro de partículas, com amostras ponderadas para qualquer dinâmica escolhida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Stacking, com pesos otimizados para previsões leave-one-out dos sensores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inferência variacional, aproximando pesos de uma rede profunda por q.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtro de Kalman, sob as hipóteses lineares e gaussianas do modelo.",
+          "correct": true
+        }
+      ],
+      "explanation": "O filtro de Kalman clássico realiza recursão analítica de média e covariância no modelo linear gaussiano. Filtro de partículas é uma aproximação por amostras e não é o método analítico descrito.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dinâmica é não linear e o ruído de medição tem distribuição não gaussiana. Qual abordagem representa a posterior do estado por hipóteses ponderadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pooling completo, que impõe que todos os estados latentes sejam iguais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtro de Kalman clássico, que mantém somente média e covariância gaussianas exatas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fator de Bayes, que compara evidências de redes sem estado dinâmico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "WAIC, que escolhe resíduos de medição e descarta a posterior temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtro de partículas, com partículas evoluídas e pesos atualizados pelas medidas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Filtro de partículas aproxima a distribuição de estado por partículas e pesos e admite transições não lineares e ruídos não gaussianos, conforme o modelo e recursos computacionais. Kalman clássico exige hipóteses lineares gaussianas para exatidão.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pesquisador estima a posição passada usando também sensores coletados depois daquele instante. Qual tarefa temporal ele executa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suavização, que revê estados anteriores condicionando em observações posteriores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Filtragem em tempo real, condicionada apenas às medições disponíveis até então.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Predição imediata, que projeta o próximo estado sem novas observações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Seleção de modelos, que ordena candidatos pela evidência integrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validação cruzada, que remove cada grupo de observações em sequência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Suavização usa observações posteriores para melhorar a inferência sobre um estado passado. Filtragem usa somente dados até o instante e predição projeta para frente sem condicionar em observações futuras.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro de partículas concentrou quase todo o peso em poucas amostras. Qual papel tem uma política de reamostragem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redistribuir partículas conforme pesos para representar melhor a distribuição atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar observações independentes para substituir as medições ausentes do sensor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a função de transição para garantir que a posterior seja gaussiana.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter cada peso em probabilidade posterior de que o modelo seja verdadeiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar a incerteza do estado e fornecer uma estimativa sem variabilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reamostragem redistribui a representação discreta de acordo com pesos, reduzindo a dominância de partículas de baixo peso. Ela não gera informação observada, não torna a posterior gaussiana e não elimina incerteza; pode reduzir diversidade se repetida excessivamente.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa incorporar dois sensores observados no mesmo instante. Como esses dados entram na atualização do estado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelas verossimilhanças dos sensores segundo o modelo, atualizando a previsão do estado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente pela observação com menor variância, descartando a outra por definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como prioris independentes para os parâmetros, sem condicionar no estado latente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pelo valor de WAIC de cada sensor, usado como estado posterior atualizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas por reamostragem uniforme de partículas, sem considerar likelihoods.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada medição contribui conforme a likelihood definida para o sensor e as hipóteses do modelo conjunto, corrigindo a previsão do estado. Descartar uma leitura ou ignorar as verossimilhanças perde informação; WAIC não é estado filtrado.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório de classificação deve resumir incerteza sobre classes depois de ajustar uma BNN. Qual procedimento preserva a incerteza dos pesos na previsão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Averiguar os logits de um único peso MAP e ignorar draws restantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Propagar várias amostras posteriores de pesos e combinar as probabilidades de classe.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar a frequência dos rótulos de treino como posterior de cada peso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher a classe mais frequente no treino e dispensar entradas futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o valor da função de perda em intervalo de confiança sem amostragem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Propagar draws de pesos da posterior gera previsões condicionais distintas; a mistura dessas probabilidades incorpora incerteza epistêmica. Um único MAP reduz a posterior a um ponto, e perda ou frequência de rótulos não substituem a distribuição de pesos.",
+      "section": "3. Redes neurais bayesianas e tipos de incerteza",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma preditiva ponderada por stacking inclui quatro modelos. Qual restrição básica caracteriza os pesos da mistura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada peso pode ser negativo se a soma final das previsões continuar positiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os pesos são fixados pelas probabilidades a priori dos modelos antes dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os pesos são não negativos e somam um, formando uma combinação convexa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um único modelo deve receber peso um, ainda que a equipe queira combinar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os pesos somam o número de observações deixadas fora na validação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stacking combina distribuições preditivas com pesos não negativos que somam um, escolhidos para otimizar desempenho preditivo no critério definido. Não são os priors de modelos nem uma escolha obrigatória de um único candidato.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise multinível estima interceptos de escolas e o prior comum usa hiperparâmetros aprendidos dos dados. Como se chama esse tipo de parâmetro comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma verossimilhança marginal, pois resume os resultados observados por escola.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um score de stacking, pois pondera as previsões de cada escola.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um valor MAP, pois é necessariamente a moda de cada intercepto local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hiperparâmetro, pois governa a distribuição dos parâmetros de nível inferior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma partícula, pois representa uma hipótese de estado temporal da escola.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hiperparâmetros caracterizam a distribuição de nível superior que gera interceptos locais. Eles não são os efeitos locais em si, uma medida de comparação preditiva ou uma hipótese de estado em filtro sequencial.",
+      "section": "4. Modelos hierárquicos e compartilhamento parcial",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um intervalo, o sensor deixa de fornecer leituras, mas o sistema de transição continua conhecido. O que pode fazer um filtro sequencial nesse passo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar uma likelihood inventada com a leitura média do histórico para manter a correção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar o estado com a posterior final, sem considerar a transição temporal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Parar toda inferência, pois uma etapa sem medição invalida o modelo de estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reamostrar uniformemente e declarar a distribuição do estado como observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar a predição pela transição e manter a distribuição prevista sem correção nova.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sem nova medição, ainda se propaga a distribuição anterior pelo modelo de transição. Não há likelihood nova que justifique correção; o resultado é a preditiva do estado antes da próxima observação.",
+      "section": "5. Inferência sequencial bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma comparação preditiva relata WAIC para candidatos e deseja pesos no estilo pseudo-BMA. Qual interpretação metodológica é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Derivar pesos relativos do mesmo critério e não misturar valores de escalas distintas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tratar cada peso como evidência marginal calculada pela integração exata do prior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somar WAIC com BIC sem padronização para obter posterior de cada arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar a incerteza dos critérios e chamar os pesos de verdade objetiva do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar os pesos entre candidatos porque a ordem das tabelas é irrelevante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pesos pseudo-BMA podem ser derivados de diferenças de um critério comum, como WAIC, e são heurísticos e condicionais aos candidatos. Não equivalem a evidências integradas; misturar escalas ou atribuir pesos ao modelo errado invalida a combinação.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe acrescenta outro modelo candidato à comparação e nota que os pesos relativos de stacking mudaram. Qual explicação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior do primeiro modelo foi automaticamente recalculada como evidência exata.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O critério passa a medir calibração sem depender das previsões dos candidatos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O novo candidato alterou a escala do prior de parâmetros em todos os modelos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ordem em que os nomes aparecem determina as probabilidades posteriores dos modelos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os pesos são relativos ao conjunto candidato e às previsões incluídas na otimização.",
+          "correct": true
+        }
+      ],
+      "explanation": "Pesos de stacking são ajustados para combinar as distribuições preditivas do conjunto comparado. Adicionar ou retirar um candidato muda o problema de otimização e pode mudar os pesos; isso não recalcula automaticamente a evidência bayesiana nem depende da ordem dos nomes.",
+      "section": "2. Seleção, comparação e média de modelos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Stan Reference Manual — Posterior Analysis",
+      "publisher": "Stan Development Team",
+      "reference": "MCMC, variational inference, amostragem, convergência, R-hat e tamanho efetivo",
+      "url": "https://mc-stan.org/docs/reference-manual/analysis.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Stan User’s Guide — Multivariate and Hierarchical Priors",
+      "publisher": "Stan Development Team",
+      "reference": "Regressão hierárquica, efeitos por grupo, pooling parcial e hiperprioris",
+      "url": "https://mc-stan.org/docs/stan-users-guide/multivariate-hierarchical-priors.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PyMC — Model Averaging",
+      "publisher": "PyMC",
+      "reference": "BMA, evidência, pesos WAIC/LOO, pseudo-BMA, stacking e predição ponderada",
+      "url": "https://www.pymc.io/projects/examples/en/2021.11.0/diagnostics_and_criticism/model_averaging.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Keras — Probabilistic Bayesian Neural Networks",
+      "publisher": "Keras / TensorFlow Probability",
+      "reference": "Priors e posteriores de pesos, DenseVariational, incerteza epistêmica e saída probabilística",
+      "url": "https://keras.io/examples/keras_recipes/bayesian_neural_networks/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MathWorks — Particle Filter Workflow",
+      "publisher": "MathWorks",
+      "reference": "Filtro de partículas recursivo, predição, correção, pesos e reamostragem",
+      "url": "https://www.mathworks.com/help/nav/ug/particle-filter-workflow.html",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

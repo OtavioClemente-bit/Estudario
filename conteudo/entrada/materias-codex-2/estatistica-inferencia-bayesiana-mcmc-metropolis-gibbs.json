@@ -1,0 +1,2101 @@
+{
+  "id": "estatistica.inferencia-bayesiana-mcmc-metropolis-gibbs",
+  "subject": "Estatística",
+  "title": "Inferência bayesiana: prior, posterior, credibilidade e MCMC",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Inferência bayesiana por MCMC",
+    "Distribuição a priori e posteriori",
+    "Distribuição prior e posterior bayesiana",
+    "Intervalos bayesianos de credibilidade",
+    "Algoritmo de Metropolis-Hastings",
+    "Amostrador de Gibbs bayesiano",
+    "Cadeias de Markov Monte Carlo",
+    "Inferência estatística por amostragem posterior",
+    "Metropolis Hastings e Gibbs sampling",
+    "Inferência bayesiana com cadeias de Markov",
+    "Distribuição posterior dos parâmetros"
+  ],
+  "scope": {
+    "covers": "Fundamentos da inferência bayesiana; distribuição a priori, verossimilhança, evidência e posterior; atualização conjugada em exemplos concretos; estimativas e intervalos de credibilidade; intervalo central e região de maior densidade posterior; amostragem de Monte Carlo via cadeias de Markov; algoritmo de Metropolis-Hastings, proposta e razão de aceitação; amostrador de Gibbs e condicionais completas; convergência, aquecimento, autocorrelação, tamanho efetivo da amostra e diagnóstico com cadeias múltiplas.",
+    "excludes": "Demonstrações avançadas de teoria ergódica, programação em Stan ou BUGS, Hamiltonian Monte Carlo, inferência variacional, seleção de modelos por fator de Bayes e aplicações especializadas fora dos exemplos didáticos."
+  },
+  "theoryTitle": "Da informação prévia à amostra posterior",
+  "chapters": [
+    {
+      "title": "1. Prior, verossimilhança e posterior",
+      "markdown": "### O problema que este assunto resolve\n\nA inferência bayesiana descreve a incerteza sobre parâmetros por meio de uma distribuição. Antes dos dados, o modelo atribui uma **distribuição a priori** ao parâmetro; depois de observar os dados, combina essa distribuição com a verossimilhança para obter a **distribuição a posteriori**. A atualização é expressa por p(θ|y) = p(y|θ)p(θ)/p(y). O denominador p(y), chamado evidência ou probabilidade marginal dos dados, normaliza a posterior para que sua integral seja 1.\n\n> **Siglas e termos deste capítulo**\n> - **θ**: parâmetro desconhecido, como a probabilidade de sucesso.\n> - **y**: dados observados.\n> - **Prior, p(θ)**: distribuição de θ antes de analisar y.\n> - **Verossimilhança, p(y|θ)**: distribuição dos dados como função de θ, mantendo y observado.\n> - **Posterior, p(θ|y)**: distribuição atualizada de θ depois de observar y.\n> - **Evidência, p(y)**: fator de normalização, obtido integrando p(y|θ)p(θ) sobre θ.\n\n### Exemplo concreto: moeda com prior beta\n\nSe θ é a chance de cara em cada lançamento e os lançamentos são Bernoulli independentes, a verossimilhança de x caras em n lançamentos é proporcional a θˣ(1−θ)ⁿ⁻ˣ. Uma prior Beta(α,β) tem densidade proporcional a θ^(α−1)(1−θ)^(β−1), para 0<θ<1. Multiplicando as duas expressões, a posterior é Beta(α+x, β+n−x). Com prior Beta(2,2), 8 caras e 12 lançamentos, a posterior é Beta(10,6). Os dados aumentaram o primeiro parâmetro com o número de caras e o segundo com o número de coroas.\n\nA prior não é necessariamente uma certeza subjetiva: pode representar conhecimento prévio, regularização ou uma escolha fraca, mas sua influência deve ser avaliada. Com poucos dados, escolhas diferentes podem alterar bastante a posterior; com dados informativos, a verossimilhança tende a exercer maior influência. Uma prior imprópria pode ser usada em certos procedimentos, mas é preciso verificar que a posterior resultante seja própria e normalizável.\n\n### O que a posterior permite afirmar\n\nA posterior não é apenas um estimador pontual. Ela permite calcular, por exemplo, P(θ>0,5|y), a média posterior, a mediana, a moda e probabilidades de intervalos. Essas respostas dependem do modelo, da prior e dos dados. A média, a mediana e a moda podem diferir quando a posterior é assimétrica ou multimodal.\n\n### Como cai na prova\n\n- A posterior é proporcional a prior vezes verossimilhança; a evidência normaliza o produto.\n- A verossimilhança não é, por si só, a probabilidade posterior do parâmetro.\n- No modelo binomial com prior Beta(α,β), x sucessos em n observações levam a Beta(α+x, β+n−x).\n- Toda conclusão posterior é condicional ao modelo e à prior especificados; não é uma afirmação sem pressupostos."
+    },
+    {
+      "title": "2. Intervalos e interpretações de credibilidade",
+      "markdown": "### O problema que este assunto resolve\n\nUma estimativa pontual não mostra a incerteza restante. Um **intervalo de credibilidade** delimita uma região do espaço paramétrico que contém determinada probabilidade posterior. Um intervalo de 95% [a,b] satisfaz P(a≤θ≤b|y)=0,95, no modelo e com a prior considerados. A interpretação é direta: dados observados, a posterior atribui 95% de probabilidade ao parâmetro estar nessa região.\n\n> **Siglas e termos deste capítulo**\n> - **Nível de credibilidade**: probabilidade posterior atribuída ao conjunto, como 0,95.\n> - **Intervalo central**: intervalo entre quantis iguais nas duas caudas; em 95%, quantis 2,5% e 97,5%.\n> - **HPD**: região de maior densidade posterior, que reúne pontos de maior densidade até alcançar a massa desejada.\n> - **Quantil posterior**: valor abaixo do qual está uma fração determinada da distribuição posterior.\n> - **MCMC**: Monte Carlo via cadeias de Markov, método para aproximar distribuições usando amostras dependentes.\n\n### Intervalo central e região de maior densidade\n\nO intervalo central é obtido pelos quantis da posterior. É simples de descrever, mas pode incluir regiões de baixa densidade ou cruzar uma região pouco plausível quando a posterior tem vários modos. Uma região HPD contém os valores de maior densidade até somarem a probabilidade escolhida. Em distribuições assimétricas, intervalos centrais e HPD podem ter limites diferentes. Em posterior multimodal, a região de maior densidade pode ser formada por partes desconectadas, não necessariamente por um único intervalo.\n\nSe temos amostras posteriores, os quantis empíricos aproximam os limites do intervalo central. Para um intervalo de 90%, estimamos o quantil 5% e o quantil 95%. A qualidade dessa aproximação depende da representatividade e da quantidade efetiva de amostras, e não apenas da quantidade bruta de iterações gravadas.\n\n### Não confundir credibilidade com confiança\n\nNa interpretação bayesiana, após observar os dados e fixar o modelo, a probabilidade posterior se refere ao parâmetro e ao intervalo. Na interpretação frequentista usual, um intervalo de confiança é produzido por um procedimento que, em repetições sob as condições do modelo, cobre o parâmetro na proporção nominal; não se atribui automaticamente 95% de probabilidade ao parâmetro fixo pertencer ao intervalo já calculado. Os dois procedimentos podem produzir limites numericamente parecidos, mas suas interpretações não são intercambiáveis.\n\n### Como cai na prova\n\n- Um intervalo posterior de 95% contém 95% da massa posterior definida pelo método de construção.\n- Intervalo central divide a probabilidade restante entre as duas caudas; HPD prioriza maior densidade.\n- A interpretação probabilística do intervalo de credibilidade não deve ser transferida sem ressalvas a um intervalo de confiança frequentista.\n- Quantis calculados de saídas MCMC são aproximações sujeitas a erro de Monte Carlo."
+    },
+    {
+      "title": "3. Cadeias de Markov e Metropolis-Hastings",
+      "markdown": "### O problema que este assunto resolve\n\nEm modelos complexos, a posterior pode não ter forma conhecida para sorteio direto e a integral de normalização pode ser intratável. MCMC constrói uma cadeia cuja distribuição de equilíbrio é a posterior alvo. Os estados sucessivos dependem do estado anterior, mas, sob condições adequadas de irreducibilidade, recorrência e aperiodicidade, a cadeia pode explorar a distribuição desejada. A dependência entre sorteios é esperada e precisa ser considerada.\n\n> **Siglas e termos deste capítulo**\n> - **Cadeia de Markov**: sequência em que a distribuição do próximo estado depende do estado atual, dadas as condições do modelo.\n> - **Alvo π(θ)**: distribuição que se deseja amostrar, aqui a posterior, conhecida muitas vezes apenas até uma constante.\n> - **Proposta q(θ'|θ)**: regra que sugere um estado candidato θ' dado o estado atual θ.\n> - **Aceitação**: decisão probabilística de mover a cadeia para a proposta.\n> - **Aquecimento (warmup/burn-in)**: iterações iniciais usadas para alcançar uma região representativa e ajustar o algoritmo; em geral não entram no resumo posterior.\n> - **Autocorrelação**: associação entre estados da cadeia separados por um número de iterações.\n\n### Passos do Metropolis-Hastings\n\nPartindo do estado θ, sorteia-se θ' de q(θ'|θ). Calcula-se a probabilidade de aceitação\n\nα(θ,θ') = min{1, [π(θ')q(θ|θ')]/[π(θ)q(θ'|θ)]}.\n\nGera-se U uniforme entre 0 e 1. Se U≤α, o próximo estado é θ'; caso contrário, mantém-se θ. A correção q(θ|θ')/q(θ'|θ) importa quando a proposta é assimétrica. Se q é simétrica, esses termos se cancelam e a razão reduz a min{1,π(θ')/π(θ)}. Se π só é conhecida até constante multiplicativa, a constante comum se cancela na razão. Rejeitar uma proposta não significa descartar a iteração: o estado atual aparece novamente na cadeia.\n\nUma proposta com passos muito pequenos costuma aceitar bastante, mas percorre lentamente o espaço. Uma proposta muito dispersa pode sugerir regiões distantes e ser rejeitada com frequência. Ajustar a proposta envolve equilíbrio entre aceitação e exploração; uma taxa de aceitação isolada não prova convergência nem qualidade.\n\n### Como cai na prova\n\n- Metropolis-Hastings propõe, calcula a razão corrigida e aceita ou repete o estado atual.\n- Em proposta simétrica, a razão de Hastings cancela; em proposta assimétrica, omiti-la em geral muda o alvo.\n- A constante desconhecida da densidade-alvo se cancela na razão de aceitação.\n- A cadeia pode repetir um estado após rejeição; essa repetição representa parte da distribuição amostrada."
+    },
+    {
+      "title": "4. Amostrador de Gibbs e condicionais completas",
+      "markdown": "### O problema que este assunto resolve\n\nQuando o parâmetro θ tem componentes (θ₁,…,θₖ), pode ser difícil propor um vetor inteiro. O amostrador de Gibbs percorre os componentes, sorteando cada um de sua distribuição condicional completa, condicionada aos valores mais recentes dos demais. Se cada sorteio é feito exatamente da condicional correta, a atualização não precisa de uma etapa de aceitação Metropolis: cada movimento condicional preserva a distribuição conjunta alvo.\n\n> **Siglas e termos deste capítulo**\n> - **Condicional completa**: distribuição de um componente dado todos os demais componentes e os dados.\n> - **Atualização sistemática**: visita aos componentes em uma ordem definida, usando os valores recém-atualizados.\n> - **Gibbs**: esquema de MCMC baseado em sorteios das condicionais completas.\n> - **Metropolis-within-Gibbs**: combinação em que uma ou mais condicionais difíceis são atualizadas por Metropolis-Hastings.\n> - **Mistura da cadeia**: rapidez com que a cadeia percorre regiões relevantes do alvo e perde dependência do estado inicial.\n\n### Exemplo de uma iteração\n\nPara dois parâmetros θ₁ e θ₂, uma iteração sistemática sorteia θ₁^(t+1) de p(θ₁|θ₂^(t),y), depois sorteia θ₂^(t+1) de p(θ₂|θ₁^(t+1),y). A segunda etapa usa o valor novo de θ₁, não o valor antigo. Após repetir o ciclo, as tuplas (θ₁,θ₂) formam a cadeia. Cada componente pode ser fácil de amostrar mesmo quando a distribuição conjunta não é.\n\nO requisito prático central é conhecer e conseguir amostrar as condicionais completas. Se uma condicional não é amostrada exatamente, pode-se usar um passo Metropolis-Hastings dentro da atualização daquele componente. Se componentes têm dependência posterior muito forte, as atualizações coordenadas podem avançar pouco e produzir autocorrelação alta.\n\n### Como cai na prova\n\n- Gibbs amostra cada componente condicionado aos demais; não maximiza a posterior.\n- A atualização subsequente usa os valores novos já gerados na iteração corrente.\n- O Gibbs puro não rejeita uma proposta por uma razão de aceitação: sorteia da condicional completa.\n- Metropolis-within-Gibbs é útil quando não há sorteio direto conveniente de uma ou mais condicionais."
+    },
+    {
+      "title": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "markdown": "### O problema que este assunto resolve\n\nUma lista longa de estados não garante que a cadeia tenha representado a posterior. Uma cadeia pode permanecer presa numa região, ainda sofrer influência do valor inicial ou atravessar lentamente regiões de alta probabilidade. A análise MCMC inclui diagnóstico de convergência e de precisão Monte Carlo antes de interpretar médias, quantis e intervalos.\n\n> **Siglas e termos deste capítulo**\n> - **R-hat (R̂)**: compara variação entre cadeias e dentro das cadeias; valores próximos de 1 são desejáveis, mas não provam sozinhos que tudo está correto.\n> - **ESS**: tamanho efetivo da amostra, aproxima o número de observações independentes com precisão semelhante.\n> - **MCSE**: erro padrão de Monte Carlo de uma estimativa calculada com amostras finitas.\n> - **Traço (trace plot)**: gráfico dos valores amostrados contra a iteração.\n> - **Estacionariedade**: propriedade de que a distribuição da cadeia não muda com o tempo quando está no equilíbrio.\n\n### Aquecimento, cadeias múltiplas e ESS\n\nAs iterações de aquecimento permitem que a cadeia se afaste do ponto inicial e, em algoritmos adaptativos, que se ajustem parâmetros de amostragem. O aquecimento não corrige uma parametrização inadequada nem garante que modos separados tenham sido visitados. É útil iniciar várias cadeias em pontos distintos: trajetórias e distribuições marginais semelhantes, junto a R̂ próximo de 1, apoiam a avaliação de convergência. Diferenças entre cadeias indicam que a amostra combinada pode não representar o alvo.\n\nAutocorrelação positiva reduz a informação de N iterações para menos que N sorteios independentes. ESS resume esse efeito; o MCSE tende a diminuir aproximadamente como 1/√ESS. Aumentar o número bruto de iterações pode ajudar, mas não resolve necessariamente uma cadeia que mistura mal. Inspecionar traços, marginais, R̂, ESS e avisos do algoritmo dá evidências complementares. Nenhum diagnóstico finito constitui prova matemática de convergência.\n\n### Como cai na prova\n\n- Dependência serial não invalida MCMC, mas reduz a informação equivalente da amostra.\n- R̂ compara cadeias e deve ser lido junto com ESS, MCSE, traços e conhecimento do modelo.\n- Muitas iterações sem mistura adequada não equivalem a muitas amostras independentes da posterior.\n- Quantis e intervalos posteriores estimados por MCMC carregam incerteza numérica de amostragem."
+    }
+  ],
+  "summary": "A inferência bayesiana combina a distribuição a priori com a verossimilhança e normaliza o produto para obter a posterior. Intervalos de credibilidade descrevem massa de probabilidade posterior, com construções centrais ou de maior densidade. Quando a posterior é difícil de amostrar diretamente, MCMC constrói cadeias com essa distribuição como alvo. Metropolis-Hastings propõe estados e os aceita com uma razão que corrige a assimetria da proposta; Gibbs atualiza componentes por suas condicionais completas. Rejeições repetem o estado na cadeia. A autocorrelação reduz a informação efetiva, por isso aquecimento, cadeias múltiplas, R-hat, ESS, MCSE e inspeção dos traços apoiam a avaliação da amostra, sem oferecer uma prova finita de convergência.",
+  "flashcards": [
+    {
+      "front": "O que representa a prior p(θ)?",
+      "back": "A distribuição atribuída ao parâmetro antes de condicionar nos dados analisados."
+    },
+    {
+      "front": "O que representa a verossimilhança p(y|θ)?",
+      "back": "A distribuição dos dados sob valores possíveis do parâmetro, tratada como função de θ após observar y."
+    },
+    {
+      "front": "Qual é a regra de atualização bayesiana?",
+      "back": "p(θ|y)=p(y|θ)p(θ)/p(y); a posterior é proporcional à verossimilhança vezes a prior."
+    },
+    {
+      "front": "Qual o papel da evidência p(y)?",
+      "back": "Normaliza o produto prior-verossimilhança para a posterior integrar 1."
+    },
+    {
+      "front": "Qual posterior resulta de prior Beta(α,β) e x sucessos em n ensaios binomiais?",
+      "back": "Beta(α+x, β+n−x)."
+    },
+    {
+      "front": "Como se interpreta um intervalo posterior de credibilidade de 95%?",
+      "back": "Condicionados aos dados, modelo e prior, a posterior atribui 95% de massa ao intervalo ou região."
+    },
+    {
+      "front": "Como se constrói um intervalo central de 90%?",
+      "back": "Entre os quantis posteriores 5% e 95%."
+    },
+    {
+      "front": "O que caracteriza uma região HPD?",
+      "back": "Reúne valores de maior densidade posterior até atingir a massa de probabilidade desejada."
+    },
+    {
+      "front": "Qual é a diferença de interpretação entre credibilidade e confiança?",
+      "back": "Credibilidade atribui probabilidade posterior ao parâmetro no intervalo; confiança descreve cobertura de longo prazo do procedimento frequentista."
+    },
+    {
+      "front": "Para que serve MCMC?",
+      "back": "Aproximar distribuições alvo complexas por estados de uma cadeia de Markov."
+    },
+    {
+      "front": "O que é a proposta q(θ'|θ) em Metropolis-Hastings?",
+      "back": "A distribuição usada para sugerir um candidato θ' a partir do estado atual θ."
+    },
+    {
+      "front": "Qual é a razão de aceitação de Metropolis-Hastings?",
+      "back": "min{1,[π(θ')q(θ|θ')]/[π(θ)q(θ'|θ)]}."
+    },
+    {
+      "front": "O que ocorre quando a proposta é rejeitada?",
+      "back": "O próximo estado repete o estado atual; essa repetição faz parte da cadeia."
+    },
+    {
+      "front": "Quando os termos da proposta se cancelam na razão de aceitação?",
+      "back": "Quando q é simétrica entre estado atual e candidato."
+    },
+    {
+      "front": "Por que uma constante de normalização desconhecida do alvo pode ser dispensada?",
+      "back": "A mesma constante aparece no numerador e denominador da razão e se cancela."
+    },
+    {
+      "front": "O que o Gibbs amostra em cada atualização?",
+      "back": "Uma componente a partir de sua condicional completa dado os valores atuais das demais e os dados."
+    },
+    {
+      "front": "A atualização sistemática de Gibbs usa qual versão dos componentes já visitados?",
+      "back": "Os valores recém-atualizados na iteração corrente."
+    },
+    {
+      "front": "O Gibbs puro precisa de teste de aceitação?",
+      "back": "Não, se cada componente é sorteado exatamente da condicional completa."
+    },
+    {
+      "front": "O que é Metropolis-within-Gibbs?",
+      "back": "Uso de uma etapa Metropolis-Hastings para atualizar componentes cujas condicionais não são diretamente amostráveis."
+    },
+    {
+      "front": "O que mede autocorrelação em MCMC?",
+      "back": "A dependência entre estados separados por determinada defasagem na cadeia."
+    },
+    {
+      "front": "O que expressa o ESS?",
+      "back": "O número aproximado de sorteios independentes com precisão semelhante à amostra correlacionada."
+    },
+    {
+      "front": "O que compara R-hat?",
+      "back": "A variação entre cadeias com a variação dentro delas para avaliar sinais de falta de convergência."
+    },
+    {
+      "front": "O aquecimento prova que a cadeia convergiu?",
+      "back": "Não. Ele reduz influência inicial e pode permitir adaptação, mas exige diagnóstico posterior."
+    },
+    {
+      "front": "O que é MCSE?",
+      "back": "Erro de Monte Carlo devido ao uso de uma amostra finita para estimar uma quantidade posterior."
+    }
+  ],
+  "tips": [
+    "Identifique primeiro prior, verossimilhança, evidência e posterior; não trate a verossimilhança como probabilidade posterior.",
+    "Some sucessos ao primeiro parâmetro Beta e fracassos ao segundo; preserve os parâmetros originais da prior.",
+    "Veja se pede quantis iguais nas caudas ou maior densidade, e mantenha a interpretação bayesiana do intervalo.",
+    "Confira a proposta reversa na razão de Hastings; ela só desaparece quando a proposta é simétrica.",
+    "Ao passar ao componente seguinte no Gibbs, use os valores que já foram atualizados nesta iteração.",
+    "Leia traços, R-hat, ESS e MCSE em conjunto; iterações correlacionadas não equivalem a sorteios independentes."
+  ],
+  "traps": [
+    "A prior antecede os dados analisados; a verossimilhança descreve os dados condicionados a cada parâmetro.",
+    "Credibilidade dá probabilidade posterior à região; cobertura frequentista é propriedade do procedimento.",
+    "Em proposta assimétrica, ignorar a proposta reversa geralmente altera a distribuição estacionária pretendida.",
+    "A rejeição mantém o estado anterior; removê-lo distorce a frequência de permanência da cadeia.",
+    "Gibbs sorteia condicionais completas; não escolhe necessariamente a moda nem maximiza a posterior.",
+    "Comprimento bruto não substitui mistura, comparação entre cadeias e avaliação de autocorrelação."
+  ],
+  "activeRecall": [
+    "Explique por que a evidência normaliza o produto entre prior e verossimilhança.",
+    "Derive verbalmente a posterior Beta após observar sucessos e fracassos binomiais.",
+    "Compare interpretação de intervalo central, HPD e intervalo de confiança.",
+    "Descreva em ordem uma iteração de Metropolis-Hastings e a situação de rejeição.",
+    "Explique por que a proposta reversa aparece na razão de Hastings.",
+    "Faça uma atualização Gibbs para dois parâmetros, indicando em que valores cada condicional é condicionada.",
+    "Relacione autocorrelação, ESS e erro Monte Carlo.",
+    "Explique por que várias cadeias e vários diagnósticos são evidências, mas não prova absoluta, de convergência."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Prior, verossimilhança e posterior",
+      "summary": "Trocar os papéis das distribuições e esquecer que a posterior depende dos dados, do modelo e da prior especificados."
+    },
+    {
+      "key": "e2",
+      "title": "Credibilidade e confiança",
+      "summary": "Atribuir ao parâmetro fixo a interpretação bayesiana de um intervalo de confiança frequentista já calculado."
+    },
+    {
+      "key": "e3",
+      "title": "Razão de aceitação",
+      "summary": "Omitir a correção da proposta reversa quando Metropolis-Hastings usa uma proposta assimétrica para sugerir candidatos."
+    },
+    {
+      "key": "e4",
+      "title": "Gibbs e condicionais completas",
+      "summary": "Tratar Gibbs como maximização ou usar valores antigos em vez dos valores atualizados durante o ciclo de amostragem."
+    },
+    {
+      "key": "e5",
+      "title": "Convergência e informação efetiva",
+      "summary": "Confundir número bruto de iterações com sorteios independentes e tomar um diagnóstico isolado como garantia."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um modelo bayesiano, qual relação expressa corretamente a distribuição posterior de θ após observar y?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior é a prior dividida pela verossimilhança, sem depender da probabilidade marginal dos dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posterior é proporcional ao produto da verossimilhança dos dados pela distribuição a priori do parâmetro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A posterior coincide com a verossimilhança sempre que o tamanho da amostra aumenta além de uma observação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A posterior é definida pela evidência dos dados, sem usar a distribuição atribuída ao parâmetro antes da análise.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posterior é a distribuição dos dados antes de observar qualquer resultado e permanece inalterada após a atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra de Bayes combina a verossimilhança com a prior e divide pela evidência para normalizar. A prior e os dados contribuem; a verossimilhança sozinha não é posterior.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo binomial com prior Beta(2,2), observam-se 8 sucessos em 12 ensaios. Qual é a posterior para a probabilidade de sucesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Beta(8,12), pois os parâmetros posteriores substituem integralmente os valores anteriores da prior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Beta(10,10), pois o total de ensaios deve ser adicionado aos dois parâmetros da distribuição inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Beta(4,6), pois fracassos são somados ao parâmetro que inicialmente representava sucessos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Beta(10,6), pois sucessos atualizam α e os quatro fracassos atualizam β.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Beta(2,2), pois uma prior beta não se altera quando os ensaios têm apenas dois resultados possíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conjugação beta-binomial dá Beta(α+x,β+n−x). Assim, α posterior é 2+8=10 e β posterior é 2+4=6. Os quatro resultados restantes são fracassos, por isso se somam ao segundo parâmetro beta.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel da evidência p(y) na expressão da posterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Normalizar o produto prior-verossimilhança, de modo que a distribuição posterior tenha massa total igual a um.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir os dados observados por dados futuros e eliminar a incerteza sobre os parâmetros do modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Representar a probabilidade posterior do parâmetro sem considerar a distribuição dos dados condicionada a ele.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir a taxa de aceitação de propostas durante uma cadeia de Metropolis-Hastings já convergida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir a distribuição a priori depois que os dados foram observados, para evitar influência inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A evidência é a constante de normalização obtida pela integração da prior vezes verossimilhança sobre os parâmetros. Ela faz a posterior integrar um.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que descreve a verossimilhança p(y|θ) depois de os dados y terem sido observados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distribuição dos valores possíveis de θ antes de qualquer observação, independente do mecanismo de geração dos dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A probabilidade de uma hipótese ser verdadeira, calculada sem prior ou comparação com outros valores do parâmetro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A distribuição condicional dos dados para valores possíveis de θ, vista como função do parâmetro com y fixado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A probabilidade de a cadeia aceitar a próxima proposta, mesmo que nenhum algoritmo de amostragem tenha sido definido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distribuição dos parâmetros depois da observação, já dividida pela evidência e interpretada como posterior normalizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A verossimilhança avalia a compatibilidade dos dados observados sob valores possíveis do parâmetro. Para obter a posterior, ainda é preciso combiná-la com a prior e normalizar.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que duas análises dos mesmos dados podem produzir posteriores diferentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque a posterior é sempre uma estimativa pontual e cada analista escolhe uma média diferente para os dados observados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque a verossimilhança não pode ser usada em problemas com parâmetros contínuos e precisa ser substituída por frequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a evidência muda livremente conforme a unidade de medida, embora os modelos e as prioris sejam idênticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque cada posterior precisa excluir os dados e usar somente uma opinião inicial sobre o parâmetro desconhecido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque modelos ou prioris distintos podem combinar os mesmos dados com pressupostos diferentes sobre os parâmetros.",
+          "correct": true
+        }
+      ],
+      "explanation": "A posterior é condicional aos dados, à verossimilhança definida pelo modelo e à prior. Pressupostos diferentes podem gerar distribuições posteriores distintas sem que a fórmula de Bayes tenha mudado.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma distribuição a priori representa a incerteza sobre o parâmetro antes de condicionar nos dados que serão analisados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A prior descreve a distribuição atribuída ao parâmetro antes da atualização pelos dados. Ela pode refletir conhecimento prévio ou escolhas de modelagem e regularização.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A posterior coincide necessariamente com a verossimilhança, pois a prior é descartada quando qualquer dado é observado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A posterior é proporcional à verossimilhança multiplicada pela prior. A influência relativa de cada uma depende do modelo e da informação disponível; não há descarte automático da prior.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prior Beta(2,2) atribui densidade constante à probabilidade θ no intervalo entre zero e um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Beta(2,2) concentra mais densidade perto de 0,5 e não é uniforme; Beta(1,1) é a distribuição uniforme contínua no intervalo. A forma da prior muda com seus parâmetros.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar uma prior imprópria, basta que a verossimilhança seja finita em algum ponto para garantir uma posterior própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A posterior precisa ser normalizável: a integral do produto prior-verossimilhança deve ser finita e positiva. A finitude em um ponto não garante essa condição global.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um intervalo posterior central de 90% para θ é delimitado pelos quantis posteriores de 10% e 90%.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Para um intervalo central de 90%, sobram 10% da massa, divididos em 5% em cada cauda; portanto os limites são os quantis 5% e 95%. Os quantis 10% e 90% delimitam 80% centrais.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de calcular um intervalo de credibilidade de 95%, a interpretação bayesiana atribui 95% de probabilidade posterior ao parâmetro estar na região, dadas as hipóteses usadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Essa é a leitura posterior condicionada aos dados, modelo e prior. O valor de 95% se refere à massa de probabilidade que a posterior atribui à região escolhida.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma região HPD é necessariamente simétrica em torno da média posterior, mesmo quando a distribuição é assimétrica ou multimodal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "HPD reúne valores de maior densidade até a massa desejada. Seus limites dependem da forma da distribuição e não precisam ser simétricos em torno da média; em casos multimodais a região pode ser desconectada.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um intervalo frequentista de confiança de 95% e um intervalo bayesiano de credibilidade de 95% têm obrigatoriamente a mesma interpretação probabilística para o parâmetro observado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A interpretação usual de confiança trata da cobertura de longo prazo do procedimento. A credibilidade atribui probabilidade posterior ao parâmetro dentro da região, dado o modelo, a prior e os dados observados.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a posterior é assimétrica, um intervalo central e uma região de maior densidade podem ter limites distintos embora tenham a mesma massa posterior nominal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O intervalo central é fixado por quantis de caudas iguais; o HPD prioriza os pontos de maior densidade. Em distribuições assimétricas os critérios geralmente produzem limites diferentes.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia de Markov possui a propriedade de que, dado o estado atual, a distribuição do próximo estado não depende adicionalmente de todo o passado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Essa é a propriedade de Markov: a distribuição da próxima transição é determinada pelo estado presente, segundo o mecanismo de transição definido.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Metropolis-Hastings, se uma proposta é rejeitada, a iteração seguinte deve ser removida do conjunto porque ela não produziu um novo valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A rejeição faz o estado da cadeia permanecer no valor atual, que é registrado novamente. Essas repetições são necessárias para representar corretamente a permanência da cadeia em regiões do alvo.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com uma proposta simétrica em Metropolis-Hastings, os termos da distribuição de proposta se cancelam na razão de aceitação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Se q(θ'|θ)=q(θ|θ'), a razão proposta reversa sobre proposta direta é um. A aceitação fica baseada na razão entre as densidades-alvo nos estados candidato e atual.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a proposta de Metropolis-Hastings é assimétrica, a probabilidade de aceitação deve considerar a razão entre a proposta reversa e a direta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A correção de Hastings inclui q(θ|θ')/q(θ'|θ). Ela compensa a assimetria da proposta para preservar a distribuição alvo como distribuição de equilíbrio sob condições adequadas.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Metropolis-Hastings, se a densidade-alvo é conhecida apenas até uma constante multiplicativa comum, essa constante pode cancelar na razão de aceitação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A constante comum multiplica a densidade tanto no candidato quanto no estado atual e se cancela. Essa propriedade permite amostrar mesmo quando a evidência não é calculada explicitamente.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na atualização sistemática de Gibbs, cada componente é sorteado da sua distribuição marginal, sem condicionar nos outros componentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Gibbs usa condicionais completas: cada parâmetro é sorteado dado os valores atuais dos outros componentes e os dados. Sorteios marginais independentes não descrevem esse algoritmo.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um amostrador de Gibbs puro não precisa de uma etapa de aceitação Metropolis quando cada componente é amostrado exatamente de sua condicional completa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A atualização condicional correta preserva a distribuição conjunta alvo. Não há proposta aproximada a corrigir por uma razão de aceitação no Gibbs puro.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na atualização Gibbs de θ₁ seguida de θ₂, a segunda condicional deve usar o valor novo de θ₁ sorteado na mesma iteração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Na atualização sistemática, o valor recém-gerado de θ₁ é usado ao amostrar θ₂. Cada etapa condiciona nos valores disponíveis mais recentes dos demais componentes.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Metropolis-within-Gibbs pode atualizar um componente por uma etapa Metropolis-Hastings quando sua condicional completa não é facilmente amostrada diretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A estratégia combina atualizações condicionais com um passo MH nos componentes difíceis. A correção de aceitação preserva o alvo condicional apropriado.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual expressão dá a probabilidade de aceitação de Metropolis-Hastings para alvo π e proposta q?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "min{1, π(θ)q(θ'|θ)/[π(θ')q(θ|θ')]}, invertendo candidato e estado atual em qualquer proposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "min{1, q(θ'|θ)/q(θ|θ')}, ignorando a densidade-alvo porque a proposta já define o equilíbrio desejado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "min{1, π(θ')/π(θ)}, fórmula que vale para toda proposta, inclusive propostas assimétricas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "min{1, [π(θ')q(θ|θ')]/[π(θ)q(θ'|θ)]}, incluindo o alvo e a correção da proposta reversa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "min{1, π(θ')q(θ'|θ)/[π(θ)q(θ|θ')]}, usando a proposta direta nos dois sentidos da transição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A razão correta compara alvo no candidato com alvo no estado atual e multiplica pela proposta de retorno sobre a proposta usada para avançar. O mínimo com 1 limita a probabilidade de aceitação.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma proposta simétrica gera θ' a partir de θ. Qual simplificação se aplica à razão de aceitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os termos da proposta se cancelam, restando min{1,π(θ')/π(θ)} para alvo π conhecido até constante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A densidade-alvo se cancela, restando apenas a probabilidade de propor θ' a partir de θ.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A aceitação passa a ser sempre um, pois a simetria garante que todo candidato tenha densidade posterior igual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A razão inclui duas vezes a densidade da proposta direta, pois não há proposta reversa em uma cadeia simétrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A proposta precisa ser multiplicada pela evidência marginal, que deixa de cancelar após observar os dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Simetria significa q(θ'|θ)=q(θ|θ'), então o quociente das propostas é um. A densidade-alvo continua determinando a aceitação; a constante comum também se cancela.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um candidato de Metropolis-Hastings é rejeitado. Qual estado deve ser registrado na iteração seguinte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um valor faltante, para indicar que nenhuma observação foi produzida pelo mecanismo de proposta naquela etapa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor modal da posterior, pois a rejeição substitui a simulação por uma maximização do alvo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O estado atual novamente, de modo que a cadeia registre sua permanência e mantenha as frequências apropriadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um novo estado independente da prior, já que a cadeia precisa avançar após toda rejeição de proposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O candidato rejeitado com peso zero, preservando o valor proposto como estado efetivo da cadeia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na rejeição, a cadeia não se move e registra o mesmo estado atual. Remover essa repetição alteraria as proporções de tempo passadas em cada região do espaço.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração caracteriza uma atualização sistemática de Gibbs para dois parâmetros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sortear θ₁ da prior e θ₂ da verossimilhança, mantendo os valores independentes da posterior conjunta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Maximizar a posterior em θ₁ e depois em θ₂, encerrando a iteração no ponto de máxima densidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sortear ambos simultaneamente da distribuição marginal conjunta e rejeitar se a densidade for menor que antes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sortear θ₂ condicionado ao valor antigo de θ₁ e atualizar θ₁ só depois de concluir toda a cadeia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sortear θ₁|θ₂ atual e depois θ₂|θ₁ recém-atualizado, repetindo o ciclo para formar a cadeia.",
+          "correct": true
+        }
+      ],
+      "explanation": "O Gibbs sistemático percorre os componentes e usa as condicionais completas. O segundo sorteio utiliza o valor novo gerado para o primeiro componente naquela iteração.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que situação uma atualização Metropolis-within-Gibbs é útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando a distribuição conjunta tem dimensão um e a posterior já é conhecida em forma fechada, dispensando qualquer amostragem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando algum componente não tem condicional completa fácil de amostrar diretamente e se emprega MH para atualizá-lo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quando se deseja converter todas as condicionais completas em estimativas pontuais da moda posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando o Gibbs puro rejeita a maioria dos sorteios, pois toda atualização Gibbs exige uma etapa de aceitação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando se pretende substituir a distribuição-alvo pela proposta e evitar qualquer correção baseada na posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metropolis-within-Gibbs usa MH em uma ou mais atualizações condicionais difíceis, mantendo a lógica de atualização por componentes e corrigindo as propostas para o alvo adequado.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia MCMC fornece sorteios independentes da posterior em todas as iterações porque a propriedade de Markov elimina a dependência temporal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A propriedade de Markov limita a dependência ao estado atual, mas estados sucessivos em geral permanecem correlacionados. Essa autocorrelação afeta a precisão das estimativas.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O aquecimento de uma cadeia pode reduzir a influência do valor inicial, mas sua remoção não demonstra por si só que a cadeia convergiu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Warmup é uma etapa prática para afastamento do inicial e, em alguns algoritmos, adaptação. Diagnósticos das amostras retidas continuam necessários e não há garantia absoluta baseada apenas no descarte inicial.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o número bruto de iterações dobra, o tamanho efetivo da amostra sempre dobra mesmo que a autocorrelação aumente muito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "ESS depende da autocorrelação além da quantidade bruta. Uma cadeia com forte dependência pode obter pouco ganho de informação ao adicionar iterações, e estimativas de ESS também são aproximadas.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O MCSE de uma estimativa tende a aumentar quando seu tamanho efetivo de amostra aumenta, mantidas condições comparáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O erro de Monte Carlo costuma variar aproximadamente como o desvio padrão posterior dividido pela raiz do ESS. Mais informação efetiva tende a reduzir, e não aumentar, a incerteza numérica da estimativa.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um R-hat próximo de um, isoladamente, garante que toda região relevante da posterior foi visitada e que o modelo está corretamente especificado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "R-hat próximo de um é um sinal favorável de consistência entre cadeias, não uma garantia de exploração de todas as regiões nem de especificação correta. Deve ser interpretado com outros diagnósticos e conhecimento substantivo.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação de R-hat é mais adequada ao comparar cadeias MCMC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compara variação entre cadeias e dentro delas; valor próximo de um é desejável, mas não certifica sozinho a convergência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conta quantos estados distintos foram propostos, e valor maior que um prova que o alvo posterior foi alcançado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mede diretamente a probabilidade de cada parâmetro ter sido incluído na prior antes de observar os dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É a taxa de aceitação de Metropolis-Hastings e deve ser igual a um para que se considere válida a cadeia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compara a média posterior com a média frequentista e mede o viés de especificação do modelo em uso.",
+          "correct": false
+        }
+      ],
+      "explanation": "R-hat compara variação entre cadeias com a variação dentro das cadeias. Valores próximos de um são esperados quando as cadeias concordam, mas outros diagnósticos e verificações continuam necessários.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que indica um ESS bem menor que o número bruto de iterações retidas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que a posterior necessariamente é imprópria e não pode ter massa total finita para qualquer valor dos parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que a cadeia amostrou dados independentes, mas o algoritmo contou várias vezes a mesma observação original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que a prior foi descartada completamente e os dados se tornaram a única fonte possível de incerteza posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que dependência serial reduziu a informação equivalente da cadeia em comparação com o mesmo número de sorteios independentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Que todas as iterações além do ESS devem ser removidas antes de calcular qualquer resumo da posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "ESS traduz o impacto da autocorrelação para um tamanho equivalente de sorteios independentes. Ele não determina que a posterior seja imprópria nem indica diretamente quais iterações remover.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia com alta taxa de aceitação tem necessariamente excelente mistura e convergência, independentemente do tamanho dos passos propostos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Uma proposta de passos minúsculos pode ser aceita quase sempre e ainda percorrer lentamente o espaço, gerando alta autocorrelação. Taxa de aceitação isolada não comprova mistura nem convergência.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia longa pode continuar inadequada se permanecer presa em uma região e não explorar partes relevantes da distribuição posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O total de iterações não assegura que a cadeia atravesse modos ou regiões relevantes. Traços, cadeias iniciadas em pontos diversos e diagnósticos de convergência ajudam a detectar limitações desse tipo.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento oferece evidência prática mais informativa de que cadeias MCMC estão explorando de modo consistente o alvo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher apenas a cadeia com maior média e descartar as outras, sem comparar trajetórias ou distribuições marginais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rodar uma única cadeia por muitas iterações e declarar sucesso pelo tamanho do arquivo de saída gravado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar cadeias de iniciais distintos, inspecionar traços e distribuições e avaliar R-hat, ESS e precisão Monte Carlo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover todas as repetições consecutivas e verificar se o número de estados restantes supera a dimensão do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o aquecimento até obter uma média posterior igual à moda, sem avaliar a autocorrelação residual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diagnóstico combina evidências: múltiplas cadeias, trajetórias, concordância de distribuições, R-hat, ESS e MCSE. Nenhuma dessas verificações isoladas substitui as demais nem prova convergência em amostra finita.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma proposta de Metropolis-Hastings com deslocamentos muito pequenos pode ter aceitação elevada e ainda percorrer lentamente a distribuição alvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Pequenos deslocamentos tendem a ser plausíveis sob o alvo, mas avançam pouco. Isso pode produzir alta autocorrelação e baixa exploração mesmo com aceitação frequente.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao estimar quantis posteriores por MCMC, o erro de Monte Carlo pode ser ignorado sempre que a cadeia já passou pelo aquecimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Amostras finitas continuam sujeitas a erro Monte Carlo após o warmup. ESS, MCSE e estabilidade dos quantis ajudam a avaliar a precisão dos resumos posteriores.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para estimar um intervalo posterior central, uma estratégia baseada em amostras consiste em calcular quantis empíricos apropriados das amostras retidas após avaliação da cadeia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Os limites centrais são quantis da posterior, que podem ser aproximados pelos quantis empíricos das amostras. A validade depende da representatividade e precisão da amostragem MCMC.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a posterior de θ é multimodal, o intervalo central necessariamente coincide com a união das regiões de maior densidade que contém a massa nominal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Intervalo central depende dos quantis de caudas iguais. Uma região HPD multimodal pode ser desconectada e reunir os modos de maior densidade; as construções não são necessariamente iguais.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a principal distinção entre amostrador de Gibbs puro e Metropolis-Hastings?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gibbs atualiza por condicionais completas sem teste de aceitação; Metropolis-Hastings usa proposta e correção probabilística.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gibbs estima apenas médias, enquanto Metropolis-Hastings estima exclusivamente quantis dos parâmetros posteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gibbs exige uma posterior normalizada conhecida, enquanto Metropolis-Hastings exige que a evidência seja calculada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gibbs gera observações independentes, enquanto Metropolis-Hastings proíbe que um estado apareça mais de uma vez.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gibbs é um método de otimização da moda, enquanto Metropolis-Hastings maximiza a verossimilhança dos dados observados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gibbs sorteia diretamente de condicionais completas e, no caso puro, não rejeita movimentos. Metropolis-Hastings propõe candidatos e usa uma razão de aceitação para preservar o alvo.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a evidência p(y) é intratável, isso impede necessariamente aplicar Metropolis-Hastings à posterior em forma não normalizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A constante de normalização comum do alvo se cancela na razão entre estados. Assim, Metropolis-Hastings pode usar uma densidade-alvo conhecida apenas até proporcionalidade, respeitadas as condições do algoritmo.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se duas cadeias têm traços e distribuições marginais muito diferentes, a amostra combinada deve ser interpretada com cautela mesmo que ambas tenham muitas iterações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Diferenças entre cadeias indicam possível falta de convergência ou exploração incompleta. O volume de amostras não compensa automaticamente essa discrepância.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Gibbs com dois parâmetros, cada condicional completa é sempre igual à distribuição marginal posterior do respectivo parâmetro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A condicional completa de θ₁ depende dos valores atuais de θ₂ e dos dados; não é em geral a marginal p(θ₁|y), que integra θ₂. A distinção é central na atualização de Gibbs.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão é apropriada ao obter R-hat favorável, ESS adequado e traços sem padrões evidentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo está necessariamente correto e as conclusões causais são válidas, sem depender de pressupostos substantivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Há evidências diagnósticas favoráveis para a amostra, mas especificação e interpretação do modelo ainda exigem avaliação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O parâmetro verdadeiro foi identificado com certeza e não há incerteza posterior que mereça ser comunicada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cadeia produziu sorteios independentes por construção, dispensando a consideração de autocorrelação nas estimativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A evidência marginal necessariamente é igual a um, pois os diagnósticos de convergência foram satisfatórios.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diagnósticos favoráveis apoiam a qualidade computacional da amostra dentro das verificações feitas. Eles não demonstram que o modelo seja correto, causalmente identificado ou livre de incerteza.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um intervalo de credibilidade pode ser obtido pelos quantis posteriores, ainda que a distribuição tenha sido aproximada por uma cadeia MCMC em vez de calculada em forma fechada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A amostra posterior fornece uma aproximação empírica da distribuição; quantis das amostras retidas aproximam os limites desejados. A autocorrelação e o ESS influenciam a precisão dessa aproximação.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A razão de aceitação Metropolis-Hastings compara apenas as probabilidades de propor cada estado, sem considerar o alvo posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A razão inclui tanto a densidade-alvo quanto a correção das propostas. Comparar só as propostas faria o mecanismo ignorar a distribuição posterior que se pretende amostrar.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um intervalo central de 95%, toda a probabilidade posterior que fica fora do intervalo está repartida em 2,5% em cada cauda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O intervalo central usa os quantis 2,5% e 97,5%, deixando a mesma massa posterior em cada cauda. Outras regiões com 95% de massa podem repartir as caudas de outra maneira.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma razão para executar várias cadeias MCMC com pontos iniciais diferentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garantir amostras independentes ao longo de cada cadeia e eliminar matematicamente toda autocorrelação posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a necessidade de uma distribuição-alvo, pois valores iniciais distintos definem a posterior observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar se cadeias distintas apresentam comportamento compatível, revelando possíveis diferenças entre regiões exploradas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Fazer a média das condições iniciais para obter diretamente a evidência marginal dos dados observados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que cada cadeia utilize uma posterior diferente, aumentando a dispersão combinada como estimativa de incerteza.",
+          "correct": false
+        }
+      ],
+      "explanation": "Múltiplas cadeias iniciadas em pontos diferentes permitem comparar trajetórias e distribuições e identificar sinais de dependência do inicial ou exploração desigual. Não eliminam autocorrelação nem substituem a definição do alvo.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma proposta é simétrica, todos os candidatos propostos têm a mesma probabilidade de aceitação, independentemente da densidade posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A simetria elimina os termos da proposta, mas a razão ainda compara π(θ') e π(θ). Candidatos em regiões de densidade posterior menor podem ser aceitos com probabilidade inferior a um.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prior é uma distribuição sobre os parâmetros, enquanto a verossimilhança descreve a distribuição dos dados condicionada aos parâmetros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A prior p(θ) expressa a distribuição inicial de θ. A verossimilhança p(y|θ) vem do modelo de geração de dados e avalia os resultados observados para valores do parâmetro.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor de ESS pode ser maior do que a contagem de iterações quando a cadeia apresenta autocorrelação negativa suficiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Autocorrelação negativa pode reduzir a variância do estimador em comparação com sorteios independentes, levando a ESS estimado superior ao número bruto de draws. Em muitas cadeias a autocorrelação é positiva, mas não é uma necessidade matemática universal.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na inferência bayesiana, média, mediana e moda posteriores são resumos distintos e podem divergir quando a posterior é assimétrica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Cada resumo descreve aspecto diferente da distribuição: centro esperado, ponto mediano e máximo de densidade. Em distribuições assimétricas ou multimodais, seus valores podem não coincidir.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa descreve corretamente a função de um intervalo de credibilidade posterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resume uma região com massa posterior determinada, mantendo explícita a dependência do modelo e da prior usados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Define um conjunto de valores observados que contém necessariamente a mesma proporção de novos dados em cada amostra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um intervalo de parâmetros escolhido antes dos dados, cuja probabilidade posterior não pode ser calculada depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui a distribuição posterior por um único estimador e elimina a necessidade de comunicar incerteza.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garante que o parâmetro esteja na região em qualquer modelo, independentemente da prior e das observações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O intervalo de credibilidade resume uma porção especificada da massa posterior. Sua interpretação depende da distribuição posterior, que por sua vez depende do modelo, da prior e dos dados.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A distribuição de equilíbrio buscada por uma cadeia MCMC é a prior, e os dados observados não participam da distribuição-alvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Para inferência posterior, o alvo usual é p(θ|y), que incorpora os dados pela verossimilhança e a prior pela regra de Bayes. A prior isolada não é a posterior dos dados observados.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Gibbs em que cada condicional completa é amostrada exatamente pode atualizar um parâmetro por vez sem calcular a densidade marginal conjunta normalizada a cada sorteio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O amostrador usa as condicionais completas, que podem ser conhecidas até sua constante própria e ser amostradas diretamente. Ele não exige a avaliação repetida da densidade marginal conjunta normalizada para cada movimento.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o número de iterações é sempre suficiente para corrigir uma proposta mal ajustada que quase nunca explora novas regiões da posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Mais iterações de uma cadeia que mistura mal podem repetir informação semelhante e deixar regiões importantes sem visita. Pode ser necessário rever proposta, parametrização ou estratégia e repetir diagnósticos.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo Poisson para uma contagem, com prior Gamma conjugada para a taxa, qual é a atualização qualitativa da posterior após observar a soma das contagens e o tempo total de exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior troca a prior por uma normal centrada na média amostral, independentemente da exposição acumulada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posterior torna-se uniforme porque a conjugação remove toda influência dos parâmetros da prior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A posterior é binomial, com número de ensaios igual ao tempo observado e sucessos dados pela soma das contagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A posterior é a verossimilhança Poisson sem normalização, pois a evidência não pode ser usada com prior Gamma.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posterior permanece Gamma, com forma acrescida pela soma das contagens e taxa acrescida pela exposição total.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sob a parametrização Gamma por forma e taxa, a conjugação mantém a família Gamma: a forma recebe a soma das contagens e a taxa recebe a exposição total. É preciso respeitar a parametrização usada para a distribuição.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a interpretação de uma probabilidade posterior P(θ>c|y)=0,8?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em repetições do experimento, exatamente oito em cada dez observações terão valor de parâmetro acima de c.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posterior atribui 80% de sua massa aos valores de θ maiores que c, sob o modelo e prior adotados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A verossimilhança dos dados é oito vezes maior em qualquer parâmetro acima de c do que abaixo desse limite.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A probabilidade a priori de θ exceder c era necessariamente igual a 80%, antes de observar os dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O valor desconhecido θ muda aleatoriamente entre 0,8 e c em cada repetição independente dos mesmos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A probabilidade posterior integra a densidade posterior sobre a região θ>c. A afirmação é condicional aos dados e à especificação do modelo, não uma taxa de repetição de novas observações.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estimativa baseada em 4.000 iterações MCMC retidas apresenta autocorrelação persistente e ESS de aproximadamente 300. Qual leitura é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O resumo deve ser tratado como se houvesse 4.000 observações independentes, porque o ESS não altera a interpretação bayesiana.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posterior tem somente 300 valores possíveis e os demais estados são erros que precisam ser apagados do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cadeia não pode ser usada para nenhum resumo, pois ESS precisa sempre ser igual ao número bruto de iterações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A contagem bruta é quatro mil, mas sua informação para estimativas correlacionadas é comparável a cerca de 300 draws independentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A prior deve ser reajustada até que o ESS passe a ser igual a quatro mil, mantendo os mesmos dados e a mesma cadeia.",
+          "correct": false
+        }
+      ],
+      "explanation": "ESS resume a perda ou ganho de informação associada à dependência serial. O valor não é uma contagem de estados únicos nem uma regra para apagar observações, mas informa a precisão aproximada dos resumos.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a razão de aceitação pode ser calculada usando uma posterior não normalizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque a proposta sempre normaliza a posterior depois de produzir qualquer candidato válido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque a evidência comum que normaliza o alvo aparece nos dois lados da razão e se cancela.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque a normalização é substituída pela taxa de aceitação observada em uma cadeia anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a posterior não precisa integrar um quando se usa uma distribuição de Markov como proposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque Metropolis-Hastings utiliza apenas as prioris e não calcula a verossimilhança dos dados observados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A densidade posterior normalizada tem um fator de evidência comum a todos os estados candidatos. Na razão entre candidato e estado atual esse fator se cancela, embora o alvo proporcional ainda deva ser calculável.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue adequadamente a posterior de uma estimativa MAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior é o valor de máxima densidade, enquanto MAP representa a distribuição completa dos parâmetros após os dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posterior descreve uma distribuição de incerteza; MAP é um ponto que maximiza sua densidade sob a parametrização adotada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MAP é a média ponderada dos dados e a posterior é sempre uma distribuição normal ao redor dessa média.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MAP é a evidência marginal e a posterior corresponde ao produto não normalizado da verossimilhança com os dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posterior e o MAP são equivalentes sempre que a amostra possui mais de uma observação independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A posterior contém a distribuição atualizada inteira; o estimador MAP seleciona seu ponto de maior densidade. Um único ponto não preserva toda a incerteza, assimetria ou multimodalidade da distribuição.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa Metropolis-Hastings com proposta assimétrica, mas programa a aceitação como min{1,π(θ')/π(θ)}. Qual é o problema conceitual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cálculo fica correto se houver aquecimento suficiente, pois as iterações iniciais compensam a assimetria da proposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A cadeia passa a ser independente, já que a proposta reversa deixa de depender do estado candidato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A posterior é normalizada automaticamente pelo número de rejeições e a densidade-alvo deixa de ser relevante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O algoritmo pode deixar de preservar o alvo pretendido porque omitiu o quociente entre as propostas reversa e direta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A única consequência é alterar a estimativa MAP, enquanto os quantis da cadeia permanecem invariantes por definição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A simplificação para razão apenas do alvo é válida com proposta simétrica. Em proposta assimétrica, o fator q(θ|θ')/q(θ'|θ) corrige o desbalanceamento de transição; omiti-lo em geral muda a distribuição estacionária.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação deve ser considerada ao escolher um intervalo HPD em uma posterior multimodal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A região precisa ser simétrica em torno da média e incluir obrigatoriamente os valores de menor densidade entre os modos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A região coincide por definição com o intervalo central porque ambos deixam a mesma massa em cada cauda posterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A região deve conter o valor MAP e todos os valores inferiores a ele, ainda que acumule mais massa que a solicitada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A região não pode ser calculada de uma amostra MCMC, pois exige que a evidência seja conhecida em forma fechada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A região pode conter trechos separados em torno de modos de maior densidade e não precisa ser um único intervalo conectado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma região HPD seleciona os pontos de maior densidade até reunir a massa especificada. Com modos separados, esses pontos podem formar componentes desconectados; o intervalo central segue outro critério.",
+      "section": "2. Intervalos e interpretações de credibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição prática permite aplicar um Gibbs puro a um vetor de parâmetros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada componente precisa ter estimador de máxima verossimilhança conhecido e independente de todos os demais parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posterior conjunta deve ser uniforme, para que todos os componentes possam ser sorteados com igual probabilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A evidência precisa ser calculada analiticamente e usada como probabilidade de aceitação em cada ciclo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada marginal posterior deve ser normal, pois Gibbs não admite parâmetros discretos ou distribuições assimétricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As condicionais completas de cada componente devem ser identificáveis e amostráveis segundo a atualização definida.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gibbs requer sorteios das condicionais completas apropriadas. Se uma condicional não é diretamente amostrável, é comum recorrer a uma atualização Metropolis-within-Gibbs, em vez de fingir que o sorteio exato está disponível.",
+      "section": "4. Amostrador de Gibbs e condicionais completas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após descartar aquecimento, várias cadeias mostram regiões marginais diferentes e R-hat elevado. Qual interpretação inicial é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior deve ser resumida pela cadeia mais longa, pois o tamanho total de draws supera qualquer diferença entre trajetórias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os resultados sugerem que as cadeias ainda não exploram de forma compatível o alvo, então os resumos combinados são questionáveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O R-hat elevado confirma que a posterior tem caudas pesadas e por isso garante a validade do modelo escolhido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As cadeias devem ser multiplicadas entre si, pois divergências visuais indicam que os parâmetros são independentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Basta remover mais iterações iniciais até que o R-hat caia, mesmo sem examinar a geometria ou os traços restantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "R-hat elevado e distribuições distintas apontam possível falta de convergência ou mistura. Aumentar o descarte sem investigar o comportamento restante não resolve necessariamente o problema; modelos e algoritmos também podem exigir revisão.",
+      "section": "5. Convergência, autocorrelação e qualidade das estimativas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cadeia cuja proposta é extremamente dispersa, observa-se rejeição muito frequente. Qual efeito pode surgir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cadeia passa a gerar sorteios independentes da posterior, porque saltos grandes eliminam a memória de Markov.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A evidência se torna igual a zero e todos os estados atuais passam a ter probabilidade posterior nula.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O amostrador se transforma em Gibbs, pois rejeições repetidas equivalem a sorteios das condicionais completas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O alvo muda automaticamente para a distribuição da proposta, que passa a ser utilizada sem correção de Hastings.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Há muitas repetições do estado atual, o que pode reduzir a exploração e elevar a dependência serial da amostra.",
+          "correct": true
+        }
+      ],
+      "explanation": "Propostas muito distantes podem cair em regiões de baixa densidade e ser rejeitadas. A cadeia repete o estado atual nessas etapas, aumentando permanência e potencialmente a autocorrelação.",
+      "section": "3. Cadeias de Markov e Metropolis-Hastings",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência expressa a atualização conjugada binomial-beta sem trocar sucessos e fracassos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Beta(α+x, β+n−x), adicionando sucessos a α e fracassos a β.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Beta(α+n, β+x), adicionando todos os ensaios a α e os sucessos também a β.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Beta(x, n−x), removendo completamente os parâmetros α e β definidos pela prior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Beta(α+n−x, β+x), somando fracassos ao primeiro parâmetro e sucessos ao segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Beta(αβ, x+n), multiplicando os parâmetros da prior pelo total e somando os resultados observados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A posterior conjugada preserva a família beta. O primeiro parâmetro recebe o número de sucessos e o segundo recebe os fracassos, sem eliminar a contribuição dos parâmetros a priori.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação relaciona corretamente a posterior e a previsão de uma nova observação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A previsão posterior é sempre a distribuição observada original, sem integração sobre parâmetros incertos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A previsão é obtida substituindo a posterior pela prior depois que os dados foram usados para ajustar o modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A distribuição preditiva posterior integra a distribuição de novas observações sobre valores de parâmetros ponderados pela posterior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A previsão posterior coincide necessariamente com o valor MAP inserido como parâmetro conhecido sem incerteza.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distribuição preditiva depende exclusivamente da evidência e não utiliza o mecanismo de geração de dados do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A preditiva posterior combina p(y_novo|θ) com p(θ|y), integrando a incerteza dos parâmetros. Usar somente um ponto como MAP ignora parte dessa incerteza e não é a definição geral.",
+      "section": "1. Prior, verossimilhança e posterior",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Stan Reference Manual — Posterior Analysis",
+      "publisher": "Stan Development Team",
+      "reference": "Cadeias de Markov, distribuição de equilíbrio, convergência, R-hat, ESS, MCSE e quantis de amostras posteriores",
+      "url": "https://mc-stan.org/docs/reference-manual/analysis.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "bayesplot — Plotting MCMC draws",
+      "publisher": "Stan Development Team",
+      "reference": "Intervalos posteriores por quantis, central intervals e visualização de amostras MCMC",
+      "url": "https://mc-stan.org/bayesplot/articles/plotting-mcmc-draws.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Stan Reference Manual — MCMC Sampling",
+      "publisher": "Stan Development Team",
+      "reference": "MCMC como amostragem da distribuição-alvo posterior e algoritmos de cadeia de Markov",
+      "url": "https://mc-stan.org/docs/reference-manual/mcmc.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

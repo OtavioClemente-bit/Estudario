@@ -1,0 +1,2086 @@
+{
+  "id": "informatica.ferramentas-desenvolvimento-integracao-gestao-projetos",
+  "subject": "Informática",
+  "title": "Ferramentas de desenvolvimento, integração e gestão de projetos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conhecimento das ferramentas Gitlab, Jenkins, Apache NiFi, Jira e Confluence.",
+    "GitLab, Jenkins, Apache NiFi, Jira e Confluence",
+    "Ferramentas GitLab para desenvolvimento colaborativo",
+    "Integração contínua com GitLab e Jenkins",
+    "Jenkins Pipeline e Jenkinsfile",
+    "Apache NiFi para fluxos de dados",
+    "Processadores e FlowFiles do Apache NiFi",
+    "Gestão ágil de projetos no Jira Software",
+    "Backlog, quadros e sprints do Jira",
+    "Documentação colaborativa no Confluence",
+    "Espaços e páginas do Confluence",
+    "Ferramentas de integração e gestão de projetos",
+    "GitLab CI/CD e merge requests",
+    "Jira e Confluence para equipes de software"
+  ],
+  "scope": {
+    "covers": "Uso e conceitos centrais de GitLab (repositórios Git, branches, merge requests, revisão e CI/CD); Jenkins (jobs, agentes, stages, steps, Jenkinsfile e pipeline como código); Apache NiFi (dataflows, processors, connections, FlowFiles, filas, roteamento e proveniência); Jira Software (itens de trabalho, backlog, quadros Scrum e Kanban, sprints e fluxos de trabalho); Confluence (espaços, páginas, hierarquia, publicação, histórico e colaboração); integração típica entre repositório, automação, fluxo de dados, acompanhamento do trabalho e documentação.",
+    "excludes": "Administração de instâncias, instalação e licenciamento, sintaxe completa de YAML ou Groovy, desenvolvimento de plugins, configuração detalhada de segurança, arquitetura interna avançada do NiFi e gestão de portfólio empresarial."
+  },
+  "theoryTitle": "Ferramentas que conectam código, automação, dados e equipes",
+  "chapters": [
+    {
+      "title": "1. GitLab: repositório, colaboração e CI/CD",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe precisa guardar o código com histórico, trabalhar em mudanças paralelas, revisar alterações antes de incorporá-las e executar verificações repetíveis. GitLab reúne hospedagem de repositórios Git e recursos de colaboração e entrega. Git é o sistema de controle de versão; GitLab é uma plataforma que oferece projetos, permissões, revisão e automação ao redor desses repositórios.\n\n> **Siglas e termos deste capítulo**\n> - **Repositório**: conjunto versionado de arquivos e histórico de commits.\n> - **Branch**: linha de desenvolvimento independente.\n> - **Merge request (MR)**: proposta para integrar uma branch de origem a uma branch de destino, com discussão e revisão.\n> - **CI/CD**: integração contínua e entrega ou implantação contínua.\n> - **Runner**: agente que executa um job de CI/CD.\n\n### Da mudança à revisão\n\nUma mudança costuma começar numa branch, ser registrada em commits e ser proposta por merge request. A MR permite comparar diferenças, discutir linhas, pedir revisão e acompanhar verificações. Aprovação não é a mesma coisa que execução: uma pipeline pode testar o código, enquanto regras de proteção e permissões determinam quem pode aprovar ou integrar. Um merge request pode receber novos commits antes de ser integrado, atualizando a revisão.\n\nPipelines GitLab são configuradas normalmente em `.gitlab-ci.yml`. Jobs descrevem comandos a executar; stages agrupam jobs. Stages ocorrem em sequência, mas jobs do mesmo stage podem executar em paralelo. Um runner fornece o ambiente de execução. Variáveis podem parametrizar tarefas; artifacts guardam saídas de jobs, como binários e relatórios, para consulta ou uso por outros jobs. Cache serve principalmente para reaproveitar dependências e acelerar execuções, não como registro durável de entrega.\n\n| Recurso | Uso típico | Não confundir com |\n| --- | --- | --- |\n| Artifact | Preservar saída produzida por um job | Cache de dependências reutilizável |\n| Runner | Executar jobs de pipeline | Repositório que guarda o código |\n| Merge request | Revisar e propor integração de mudanças | Commit, que registra uma mudança no Git |\n\n### Integração contínua em merge requests\n\nO GitLab pode executar pipelines associadas a merge requests. Para configurar especificamente esse tipo de pipeline, as regras de job ou workflow devem reconhecer `CI_PIPELINE_SOURCE == merge_request_event` no arquivo `.gitlab-ci.yml`. Uma pipeline de merge request executa sobre o conteúdo da branch de origem e não inclui por si só o resultado combinado com a branch de destino; para testar a combinação, existe o conceito de merged results pipeline. Em contribuições por fork, atenção especial a variáveis protegidas e runners: código externo pode ser malicioso e não deve receber segredos automaticamente.\n\n### Como cai na prova\n\nA prova costuma trocar papéis: runner executa, artifact guarda saída e cache acelera reaproveitando arquivos. Outra pegadinha é afirmar que toda MR testa o resultado já combinado com o destino. Também é incorreto tratar GitLab como sinônimo do Git: Git é a tecnologia de versionamento distribuído; GitLab hospeda projetos Git e adiciona recursos de equipe e ciclo de entrega."
+    },
+    {
+      "title": "2. Jenkins: automação e pipeline como código",
+      "markdown": "### O problema que este assunto resolve\n\nJenkins automatiza tarefas de construção, teste e entrega de software. O time define uma sequência de trabalho e o servidor a executa em resposta a eventos, agendas ou solicitações. Jenkins é extensível por plugins; por isso, os recursos disponíveis dependem da instalação e dos plugins configurados.\n\n> **Siglas e termos deste capítulo**\n> - **Job**: tarefa ou projeto configurado para execução no Jenkins.\n> - **Pipeline**: processo automatizado com etapas encadeadas.\n> - **Jenkinsfile**: arquivo de texto que define uma pipeline e pode ser versionado com o código.\n> - **Controller**: componente que coordena a configuração e o agendamento.\n> - **Agent / executor**: capacidade de execução que realiza etapas de trabalho.\n\n### Pipeline como código\n\nA prática recomendada é armazenar o `Jenkinsfile` no controle de versão, junto ao projeto. Isso permite revisar alterações da automação, manter histórico e usar uma fonte compartilhada da definição. No estilo Declarative, o bloco `pipeline` contém `agent`, `stages` e, em cada estágio, `steps`. Um stage representa uma fase legível como Build, Test ou Deploy; steps são as ações concretas. No Scripted Pipeline, a estrutura é mais livre e usa a DSL baseada em Groovy. Os estilos não são nomes para tipos diferentes de servidor.\n\nO controller coordena e agenda; um agent fornece ambiente e executor para executar tarefas. Um workspace é a área de arquivos associada ao trabalho. Separar execução em agents permite distribuir tarefas e escolher ambientes adequados. Ter mais stages não significa que todos rodam em paralelo: ordem, condições e recursos definem o fluxo.\n\n| Peça | Papel no pipeline | Exemplo\n| --- | --- | --- |\n| `agent` | Indica onde executar | Qualquer agent disponível ou um rótulo específico |\n| `stage` | Organiza uma fase | Teste automatizado |\n| `steps` | Lista ações da fase | Executar testes e publicar relatório |\n| `Jenkinsfile` | Define o fluxo como código | Arquivo versionado no repositório |\n\n### Resultados e diagnóstico\n\nUma pipeline pode compilar, testar, empacotar e implantar. Relatórios e artefatos podem ser tratados por steps e plugins. O log de execução auxilia a localizar a etapa que falhou; o status da pipeline informa o resultado global, que pode ser sucesso, falha ou instável conforme os steps. O Snippet Generator e a documentação de Pipeline Syntax existentes numa instalação ajudam a descobrir steps e diretivas fornecidas pelos plugins presentes nela.\n\nCredenciais devem ser geridas pelo mecanismo próprio do Jenkins e referenciadas de forma controlada na execução; inserir senhas diretamente no Jenkinsfile expõe segredos no repositório e em logs. A execução de código de branches não confiáveis também exige cuidado na escolha de agents e permissões.\n\n### Como cai na prova\n\n`Jenkinsfile` é a definição versionável da pipeline; não é o log nem o artefato construído. `stage` nomeia uma fase, enquanto `steps` executam ações. O Jenkins pode integrar etapas de CI/CD, mas não substitui automaticamente o repositório Git. Plugins ampliam capacidades, de modo que um step específico pode não existir em toda instalação."
+    },
+    {
+      "title": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "markdown": "### O problema que este assunto resolve\n\nApache NiFi automatiza o fluxo de dados entre sistemas. Sua interface permite desenhar, controlar e monitorar um grafo direcionado de componentes. Um caso comum recebe arquivos ou mensagens, transforma ou filtra o conteúdo, roteia resultados e os envia a destinos. NiFi enfatiza controle do fluxo, proveniência dos dados e configuração de qualidade de serviço.\n\n> **Siglas e termos deste capítulo**\n> - **Dataflow**: fluxo de dados representado por componentes conectados.\n> - **Processor**: componente que recebe, transforma, cria, consulta ou encaminha dados.\n> - **FlowFile**: registro de fluxo com conteúdo e atributos.\n> - **Connection**: ligação entre componentes que também pode manter uma fila.\n> - **Provenance**: histórico de eventos que descreve o caminho e as operações sobre FlowFiles.\n\n### Componentes e execução\n\nProcessors formam as etapas do fluxo. Suas relações de saída, como sucesso ou falha conforme o processor, conectam-se por connections a outros componentes. Uma connection pode acumular FlowFiles enquanto o componente seguinte não os processa; o tamanho da fila e configurações de back pressure ajudam a impedir que acúmulos cresçam sem controle. Processors podem ser iniciados, pausados, configurados e monitorados pela interface.\n\nO FlowFile tem duas partes conceituais: conteúdo (payload) e atributos em pares chave/valor, por exemplo nome de arquivo ou metadados de origem. Uma transformação pode alterar conteúdo, atributos, ou ambos. O FlowFile não é apenas o arquivo físico e não deve ser confundido com o processor que o manipula.\n\n| Elemento | Função | Exemplo de pergunta operacional |\n| --- | --- | --- |\n| Processor | Realiza uma operação | Qual componente lê ou transforma os dados? |\n| Connection | Encaminha e enfileira | Onde os itens aguardam o próximo passo? |\n| FlowFile | Representa dados e metadados | Que payload e atributos estão em trânsito? |\n| Provenance | Registra eventos do percurso | Onde o dado foi recebido, alterado ou enviado? |\n\n### Proveniência e segurança operacional\n\nA proveniência registra eventos como RECEIVE, SEND, ROUTE, CLONE, JOIN, modificação e DROP. A interface permite pesquisar eventos, abrir detalhes, visualizar linhagem e, conforme permissões e disponibilidade do evento, reproduzir dados a partir de um ponto. Replay não corrige automaticamente a causa original; é uma forma controlada de reenfileirar e processar novamente. Acesso a detalhes de conteúdo pode exigir política adicional, pois os dados podem ser sensíveis.\n\n### Como cai na prova\n\nÉ recorrente confundir NiFi com uma ferramenta de versionamento de código ou um mero agendador. Seu foco é desenhar e operar fluxos de dados. FlowFile combina conteúdo e atributos; connections ligam processors e podem manter filas; provenance permite investigar a linhagem. Um evento histórico não é o próprio conteúdo, embora possa manter referência que permita visualizar ou reproduzir dados dentro dos controles configurados."
+    },
+    {
+      "title": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "markdown": "### O problema que este assunto resolve\n\nJira organiza trabalho em projetos ou espaços de equipe, itens de trabalho, quadros e fluxos de trabalho. Em equipes de software, ajuda a registrar tarefas e defeitos, priorizar o que será feito e acompanhar o estado do trabalho. Os nomes e telas podem variar entre projetos gerenciados pela equipe e projetos gerenciados pela empresa, mas backlog, quadro e sprint descrevem funções distintas.\n\n> **Siglas e termos deste capítulo**\n> - **Item de trabalho (issue)**: unidade rastreável, como tarefa, história ou defeito.\n> - **Backlog**: lista priorizada de trabalho futuro ou ainda não iniciado.\n> - **Quadro (board)**: visualização do trabalho organizado por colunas e estados.\n> - **Sprint**: iteração planejada por uma equipe Scrum para entregar incremento de trabalho.\n> - **Workflow**: estados e transições pelos quais um item pode passar.\n\n### Scrum e Kanban em uso\n\nEm Scrum, a equipe planeja itens a partir do backlog e pode atribuí-los a sprints. A sprint é um período delimitado de trabalho; itens nela aparecem na visualização do quadro associada. Somente equipes que trabalham com Scrum usam sprints como conceito de planejamento. Em Kanban, o quadro ajuda a visualizar o fluxo contínuo, normalmente sem ciclos obrigatórios de sprint. Um backlog pode ainda ser usado para priorizar trabalho futuro.\n\nItens possuem campos como resumo, descrição, responsável, prioridade, tipo e status, conforme configuração. O workflow determina transições permitidas. Mover um cartão de coluna costuma refletir uma mudança de estado, mas colunas do quadro são mapeadas para status e não são necessariamente idênticas a tipos de item. O backlog organiza e prioriza; não é o registro de execução do pipeline de CI.\n\n| Conceito | Pergunta que responde |\n| --- | --- |\n| Item de trabalho | O que precisa ser feito ou acompanhado? |\n| Backlog | O que está previsto e em que ordem? |\n| Sprint | O que a equipe Scrum assumiu para esta iteração? |\n| Quadro | Em que etapa visual do fluxo está o trabalho? |\n| Workflow | Quais estados e transições são válidos? |\n\n### Acompanhamento e integração documental\n\nUm item pode conter comentários, anexos, relações com outros itens e links para commits ou builds por integrações configuradas. Isso aproxima planejamento e execução, mas não torna Jira o repositório Git nem o sistema que compila o software. A equipe deve manter critérios e estados compreensíveis: se uma coluna representa revisão, a transição precisa refletir uma mudança real do processo.\n\n### Como cai na prova\n\nBacklog é priorização e planejamento, não um arquivo de código. Sprint corresponde a planejamento por iteração de equipe Scrum; Kanban pode acompanhar fluxo sem sprints. Itens de trabalho são rastreados no Jira, enquanto pipelines executam tarefas técnicas em ferramentas como GitLab CI/CD ou Jenkins. Nem todo quadro exibe as mesmas colunas: a configuração do workflow e o mapeamento de status influenciam a visualização."
+    },
+    {
+      "title": "5. Confluence e integração do ciclo de trabalho",
+      "markdown": "### O problema que este assunto resolve\n\nConfluence é um espaço colaborativo para registrar e encontrar conhecimento de equipes. A organização começa por espaços, que funcionam como contêineres de conteúdo de equipe ou projeto. Dentro deles há páginas, documentos colaborativos, blog posts e arquivos. Páginas podem ser organizadas em hierarquia com páginas pai e filhas, permitindo reunir especificações, decisões e procedimentos relacionados.\n\n> **Siglas e termos deste capítulo**\n> - **Espaço**: área de conteúdo de uma equipe, projeto ou pessoa.\n> - **Página**: conteúdo estruturado que pode ser revisado e mantido ao longo do tempo.\n> - **Rascunho**: versão ainda não publicada para consulta geral como página final.\n> - **Histórico de versões**: registro de snapshots de alterações no conteúdo.\n> - **Macro / Smart Link**: elemento que incorpora conteúdo ou exibe ligação contextual a outros recursos.\n\n### Publicação, organização e colaboração\n\nPáginas começam como rascunhos e podem ser publicadas; sua versão e histórico permitem acompanhar mudanças. Live docs favorecem edição colaborativa em tempo real e não seguem o mesmo ciclo de rascunho e publicação de páginas. Blog posts servem a comunicados e notícias datadas. Conteúdos podem incluir tabelas, imagens, arquivos, macros e itens do Jira, conforme recursos e permissões. Espaços não são aninhados uns dentro dos outros; já as páginas dentro de um espaço podem ter hierarquia.\n\n| Necessidade | Recurso adequado |\n| --- | --- |\n| Procedimento mantido e revisado | Página com histórico de versões |\n| Notas colaborativas em tempo real | Live doc |\n| Atualização datada da equipe | Blog post |\n| Conteúdo de uma área ou projeto | Espaço |\n| Organização por subassunto | Hierarquia de páginas |\n\n### Uma cadeia coerente de ferramentas\n\nUma equipe pode planejar e priorizar tarefas no Jira; manter código e merge requests no GitLab; executar testes e implantação pelo Jenkins ou GitLab CI/CD; processar e encaminhar dados no NiFi; e registrar decisões e instruções no Confluence. Integrações podem associar itens a commits, builds e páginas, mas os produtos mantêm papéis próprios. Dados e segredos devem ser tratados segundo permissões e políticas da organização.\n\nA documentação deve registrar decisões e procedimentos que ajudem alguém a executar ou manter o sistema. Uma página com link para item do Jira pode dar contexto ao trabalho; ela não substitui o status e o responsável do item. Do mesmo modo, o sucesso de uma pipeline não publica automaticamente um documento do Confluence, a menos que haja integração configurada para isso.\n\n### Como cai na prova\n\nConfluence organiza conhecimento; Jira acompanha itens de trabalho; GitLab versiona e revisa código; Jenkins automatiza pipelines; NiFi conduz fluxos de dados. A prova pode apresentar uma necessidade e pedir a ferramenta adequada. Cuidado com dois detalhes: espaços Confluence não podem ser aninhados, e páginas podem formar árvore; live docs e páginas têm comportamentos de colaboração e publicação diferentes."
+    }
+  ],
+  "summary": "GitLab hospeda repositórios Git e apoia revisão e CI/CD; Jenkins automatiza construção, testes e entrega por jobs e pipelines definidas preferencialmente em Jenkinsfile; Apache NiFi desenha e monitora dataflows formados por processors, connections e FlowFiles, com proveniência; Jira acompanha itens de trabalho, backlog, quadros, sprints Scrum e workflows; Confluence organiza documentação em espaços, páginas hierárquicas e conteúdos colaborativos com histórico. Integradas, essas ferramentas conectam planejamento, código, automação, dados e conhecimento, sem que uma substitua automaticamente as funções das outras.",
+  "flashcards": [
+    {
+      "front": "O que é uma merge request no GitLab?",
+      "back": "Uma proposta para integrar mudanças de uma branch de origem em uma branch de destino, com comparação, discussão, revisão e verificações."
+    },
+    {
+      "front": "Qual arquivo normalmente define a CI/CD do GitLab?",
+      "back": "O arquivo `.gitlab-ci.yml`, escrito em YAML, define jobs, stages e regras de execução."
+    },
+    {
+      "front": "O que executa um job do GitLab CI/CD?",
+      "back": "Um runner fornece a capacidade de execução do job e registra seu log."
+    },
+    {
+      "front": "Qual diferença prática entre artifact e cache no GitLab?",
+      "back": "Artifact preserva saídas de um job, como binário ou relatório; cache reaproveita arquivos para acelerar trabalhos posteriores."
+    },
+    {
+      "front": "O que contém um Jenkinsfile?",
+      "back": "A definição versionável da pipeline Jenkins, com fases e steps de automação."
+    },
+    {
+      "front": "Qual a função de um stage Declarative no Jenkins?",
+      "back": "Organizar uma fase nomeada da pipeline, como build, teste ou deploy."
+    },
+    {
+      "front": "O que são steps no Jenkins?",
+      "back": "As ações executadas numa fase da pipeline, fornecidas pelo núcleo ou por plugins."
+    },
+    {
+      "front": "O que faz um agent Jenkins?",
+      "back": "Fornece ambiente e executor para realizar as etapas de trabalho agendadas pelo controller."
+    },
+    {
+      "front": "O que é um processor no Apache NiFi?",
+      "back": "Um componente que realiza operação de entrada, transformação, consulta, criação ou encaminhamento de dados."
+    },
+    {
+      "front": "Quais partes conceituais compõem um FlowFile?",
+      "back": "Um conteúdo (payload) e atributos em pares chave/valor associados ao fluxo."
+    },
+    {
+      "front": "Para que serve uma connection no NiFi?",
+      "back": "Conecta componentes e pode manter uma fila de FlowFiles aguardando processamento seguinte."
+    },
+    {
+      "front": "O que a proveniência do NiFi permite investigar?",
+      "back": "Eventos e linhagem de FlowFiles, incluindo recebimento, roteamento, modificação, envio e descarte."
+    },
+    {
+      "front": "Para que serve o backlog do Jira?",
+      "back": "Registrar e priorizar trabalho futuro ou ainda não iniciado, inclusive itens planejados para sprints."
+    },
+    {
+      "front": "O que caracteriza uma sprint no Jira?",
+      "back": "Uma iteração planejada por uma equipe Scrum para implementar um incremento de trabalho."
+    },
+    {
+      "front": "O que representa uma coluna do quadro Jira?",
+      "back": "Uma etapa visual associada a status do workflow, conforme o mapeamento configurado no quadro."
+    },
+    {
+      "front": "O que é workflow no Jira?",
+      "back": "O conjunto de estados e transições permitidas para um item de trabalho."
+    },
+    {
+      "front": "O que é um espaço no Confluence?",
+      "back": "Um contêiner de conteúdo relacionado a uma equipe, projeto ou pessoa, com páginas, documentos e arquivos."
+    },
+    {
+      "front": "Como páginas podem ser organizadas no Confluence?",
+      "back": "Em hierarquia de páginas pai e filhas dentro de um espaço."
+    },
+    {
+      "front": "Como live docs diferem de páginas Confluence?",
+      "back": "Live docs apoiam edição colaborativa em tempo real sem publicação; páginas passam por rascunho e publicação e mantêm versões."
+    },
+    {
+      "front": "Qual é o papel do histórico de versões Confluence?",
+      "back": "Preservar snapshots de alterações para acompanhar a evolução do conteúdo."
+    },
+    {
+      "front": "Qual ferramenta é apropriada para versionar e revisar código?",
+      "back": "GitLab, que hospeda repositórios Git e oferece merge requests e recursos colaborativos."
+    },
+    {
+      "front": "Qual ferramenta automatiza build e testes com pipeline como código?",
+      "back": "Jenkins, usando uma pipeline que pode ser definida em Jenkinsfile e executada em agents."
+    },
+    {
+      "front": "Qual ferramenta visualiza e conduz fluxos de dados?",
+      "back": "Apache NiFi, por meio de dataflows com processors e connections."
+    },
+    {
+      "front": "Qual ferramenta registra tarefas, prioridades e estado de execução?",
+      "back": "Jira, por meio de itens de trabalho, backlog, quadros e workflows."
+    },
+    {
+      "front": "Qual ferramenta concentra páginas de conhecimento de equipe?",
+      "back": "Confluence, organizando conteúdos colaborativos em espaços e páginas."
+    }
+  ],
+  "tips": [
+    "Associe runner à execução de job e artifact à saída preservada do job.",
+    "Leia o Jenkinsfile de cima para baixo: pipeline organiza stages, e stages contêm steps.",
+    "No NiFi, percorra o desenho: processor opera, connection encaminha e pode enfileirar FlowFiles.",
+    "No Jira, separe backlog de quadro: um prioriza trabalho futuro; o outro visualiza o fluxo atual.",
+    "No Confluence, espaço agrupa conteúdo e a hierarquia pertence às páginas dentro do espaço.",
+    "Quando a questão descreve uma necessidade, escolha a ferramenta pelo papel principal, não pelo nome da integração."
+  ],
+  "traps": [
+    "Pipeline de merge request não significa necessariamente que a combinação final com a branch de destino foi testada.",
+    "Jenkinsfile é definição de automação; log e binário são resultados da execução.",
+    "FlowFile não é sinônimo de processor: carrega conteúdo e atributos através do fluxo.",
+    "Sprints são próprias do planejamento Scrum; Kanban pode visualizar fluxo contínuo sem sprints.",
+    "Espaços Confluence não são aninhados, embora páginas possam ser aninhadas.",
+    "Integração entre produtos relaciona registros, mas não apaga os papéis distintos de cada ferramenta."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como uma mudança de código passa por revisão no GitLab?",
+      "answer": "É registrada em commits numa branch e proposta por merge request, onde diferenças são discutidas, revisadas e verificações podem ser acompanhadas antes da integração."
+    },
+    {
+      "question": "Como os stages e jobs se relacionam no GitLab CI/CD?",
+      "answer": "Jobs são agrupados em stages; os stages seguem sequência e jobs pertencentes ao mesmo stage podem executar em paralelo, conforme regras e recursos."
+    },
+    {
+      "question": "Qual é a diferença entre Declarative e Scripted Pipeline Jenkins?",
+      "answer": "Declarative organiza a definição por blocos padronizados como pipeline, stages e steps; Scripted é uma DSL mais livre baseada em Groovy. Ambos definem automação Jenkins."
+    },
+    {
+      "question": "Explique o percurso de um FlowFile no NiFi.",
+      "answer": "Um processor recebe ou altera conteúdo e atributos; a relação de saída encaminha o FlowFile por uma connection, que pode enfileirá-lo até outro processor processá-lo."
+    },
+    {
+      "question": "Como backlog, sprint e quadro se articulam no Jira Scrum?",
+      "answer": "A equipe ordena itens no backlog, seleciona trabalho para uma sprint e acompanha a execução no quadro, cujas colunas refletem status mapeados."
+    },
+    {
+      "question": "Como o Confluence mantém documentação organizada e rastreável?",
+      "answer": "O conteúdo fica em espaços; páginas podem formar hierarquias, ser editadas como rascunho, publicadas e acompanhadas por histórico de versões."
+    },
+    {
+      "question": "Descreva uma cadeia típica entre as cinco ferramentas.",
+      "answer": "Jira planeja trabalho, GitLab guarda e revisa código, Jenkins ou GitLab CI/CD automatiza testes, NiFi processa fluxos de dados e Confluence registra decisões e procedimentos."
+    },
+    {
+      "question": "Por que credenciais não devem ser inseridas diretamente num Jenkinsfile?",
+      "answer": "O arquivo pode estar versionado e ser lido por colaboradores ou aparecer em logs; referências ao armazenamento de credenciais do Jenkins reduzem a exposição de segredos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir GitLab CI e Jenkins",
+      "summary": "GitLab CI/CD é configurado no projeto GitLab, em geral no `.gitlab-ci.yml`, e executado por runners. Jenkins é um servidor de automação extensível, cuja pipeline pode ser definida em Jenkinsfile. Eles podem se integrar, mas não são o mesmo produto."
+    },
+    {
+      "key": "e2",
+      "title": "Trocar a função das peças da pipeline",
+      "summary": "Runner ou agent executa trabalho; job ou step descreve uma unidade de execução; artifact guarda saída; cache reaproveita arquivos; log registra o que ocorreu. Identificar a necessidade evita trocar os conceitos."
+    },
+    {
+      "key": "e3",
+      "title": "Tratar NiFi como um ETL sem rastreabilidade",
+      "summary": "NiFi modela fluxos como componentes conectados e associa FlowFiles a conteúdo, atributos e eventos de proveniência. Connections podem manter filas, e proveniência apoia investigação e linhagem."
+    },
+    {
+      "key": "e4",
+      "title": "Misturar planejamento e acompanhamento no Jira",
+      "summary": "Backlog prioriza trabalho futuro, sprint delimita planejamento Scrum e quadro visualiza estados do fluxo. O workflow define estados e transições, enquanto colunas dependem de mapeamento."
+    },
+    {
+      "key": "e5",
+      "title": "Confundir espaços e páginas no Confluence",
+      "summary": "Espaços são contêineres sem hierarquia entre espaços; páginas dentro do espaço podem ser pai e filha. Páginas publicáveis com versões e live docs colaborativos em tempo real têm ciclos diferentes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer testar alterações antes de integrá-las à branch principal e discutir linhas modificadas no mesmo fluxo. Qual recurso do GitLab atende diretamente a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma sprint no Jira e tratá-la como comparação de versões do repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar um artifact com o código e usá-lo como espaço de revisão por linha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Abrir um runner permanente e transferir para ele a aprovação do código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar os arquivos numa página Confluence e remover o histórico Git.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma merge request da branch de trabalho para revisão e integração.",
+          "correct": true
+        }
+      ],
+      "explanation": "A merge request compara mudanças entre branches e oferece discussão e revisão antes da integração. Artifacts armazenam saídas de jobs, runners executam tarefas, páginas documentam e sprints planejam trabalho.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No GitLab CI/CD, como se organizam normalmente os comandos automatizados e suas dependências temporais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um runner contém stages; cada stage é salvo como artifact no repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Caches definem a sequência obrigatória entre todas as tarefas da equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Merge requests executam todos os comandos sem configuração de pipeline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Jobs descrevem comandos, stages os agrupam e stages seguem sequência.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Artifacts substituem jobs e determinam quais comandos o runner executa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração define jobs e seus comandos; jobs são agrupados em stages, cuja ordem estabelece a progressão. Jobs no mesmo stage podem rodar em paralelo. Runner executa, enquanto cache e artifact atendem outros papéis.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o propósito de uma merge request no GitLab?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar um comando de compilação diretamente no servidor de produção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar os arquivos compilados para download após o pipeline terminar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Propor integração de uma branch com revisão e discussão das mudanças.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Definir a lista de etapas de um job Jenkins numa sintaxe YAML própria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modelar roteamento de FlowFiles entre processors de um dataflow.",
+          "correct": false
+        }
+      ],
+      "explanation": "A merge request formaliza a proposta de integração de código de uma branch em outra e permite revisão. Compilação é tarefa de job; artefatos são saídas; Jenkinsfile define pipelines e NiFi conduz dados.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe configura job para rodar apenas em pipelines de merge request. Qual condição do GitLab CI/CD identifica essa origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar a branch com o nome de um artifact produzido no job anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar se a pipeline foi iniciada por `CI_PIPELINE_SOURCE == \"merge_request_event\"`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar um campo `jenkins_stage` dentro do arquivo `.gitlab-ci.yml`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar se a issue do Jira contém a palavra merge request no resumo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ler a URL de proveniência do NiFi antes de iniciar cada execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "As regras de job ou workflow podem reconhecer a variável predefinida `CI_PIPELINE_SOURCE` com valor `merge_request_event`. O nome da branch, um artifact ou metadados de outra ferramenta não substituem essa condição.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve um artifact de job no GitLab, em um exemplo em que a etapa de build gera um pacote para teste posterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar os comandos de build no lugar de qualquer runner disponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter os arquivos de saída para download ou consumo por etapas seguintes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir a prioridade de itens futuros no backlog do Jira Software.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar somente credenciais protegidas para os jobs posteriores do projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir os commits e preservar o histórico de alterações na branch.",
+          "correct": false
+        }
+      ],
+      "explanation": "Artifacts são arquivos e diretórios gerados e anexados a jobs, como pacotes e relatórios; jobs posteriores podem buscá-los conforme a configuração. Runner executa comandos, enquanto commits registram alterações do código.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time pretende reutilizar dependências baixadas para reduzir o tempo de pipelines futuras. Qual recurso do GitLab corresponde melhor a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Merge request, que armazena localmente cada pacote compilado no projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Artifact, que é necessariamente uma cópia temporária do cache de dependências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache, que pode reaproveitar arquivos entre execuções para acelerar jobs.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Runner, que substitui o armazenamento de arquivos e registra o código-fonte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stage, que preserva toda saída da pipeline por tempo indeterminado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache permite reutilizar arquivos, como dependências, para acelerar jobs. Artifacts preservam saídas produzidas; runner executa; stage organiza jobs. O cache não é um registro durável de publicação do produto.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma merge request veio de fork externo e a pipeline será executada no projeto principal. Qual cuidado é diretamente relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder todas as variáveis protegidas ao fork para preservar os artifacts.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar o código e controlar o acesso a segredos e runners confiáveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar a revisão porque pipelines de fork já verificam a segurança do código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar o Jenkinsfile para o backlog antes de permitir qualquer execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar replay de provenance para impedir comandos maliciosos no runner.",
+          "correct": false
+        }
+      ],
+      "explanation": "Código de fork pode conter ações maliciosas que tentem expor segredos quando executado no contexto do projeto principal. A equipe deve revisar a mudança e controlar variáveis protegidas e runners; pipeline não garante segurança por si só.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente Git de GitLab?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Git é a plataforma de tickets; GitLab é o formato dos commits locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Git é um sistema de versão; GitLab hospeda projetos e agrega recursos colaborativos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Git é o agente de execução; GitLab é a linguagem das pipelines Jenkins.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Git e GitLab são apenas nomes alternativos do mesmo servidor central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "GitLab transforma automaticamente todo código em páginas Confluence publicadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Git é o sistema distribuído de controle de versão; GitLab oferece hospedagem de repositórios Git e funcionalidades de colaboração, revisão e CI/CD. Um projeto Git pode existir sem GitLab.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que alterações na definição da automação sejam revisadas e tenham histórico junto ao código. Qual prática do Jenkins atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar logs de execução no campo de descrição do item Jira.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar um processor NiFi para armazenar cada etapa de build.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir a pipeline num Jenkinsfile versionado no repositório.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter os comandos somente no computador pessoal do administrador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Salvar os steps como artifact que substitui o histórico de commits.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pipeline as code mantém a definição no Jenkinsfile dentro do controle de versão. Assim as mudanças podem ser revistas e auditadas como código. Logs e artifacts são resultados da execução, não a fonte da definição.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma pipeline Declarative do Jenkins, qual é a relação usual entre pipeline, stage e steps?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Steps organizam todo o servidor, enquanto stages guardam apenas credenciais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pipeline contém stages, e cada stage descreve uma fase com steps.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Stages são executores físicos, e steps são branches do repositório Git.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pipeline é o relatório final produzido após os testes automatizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Steps configuram usuários Jira, e stages ordenam páginas Confluence.",
+          "correct": false
+        }
+      ],
+      "explanation": "No estilo Declarative, o bloco pipeline define o fluxo; stages organizam fases, e steps descrevem ações executadas nessas fases. A estrutura organiza a automação, não credenciais ou elementos de outras ferramentas.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que componente do Jenkins coordena a configuração e agenda trabalho para ambientes que efetivamente executam as etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O controller coordena e agents executam trabalho em seus ambientes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O artifact coordena e o backlog Jira executa comandos no workspace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O processor coordena enquanto a connection executa código Groovy.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Confluence coordena pipelines e seus espaços servem como executores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O runner GitLab é sempre o controller interno de toda instalação Jenkins.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controller mantém e coordena a instalação Jenkins, inclusive agendando execuções; agents oferecem executores e ambientes de trabalho. Integrações podem acionar sistemas externos, mas não tornam seus runners parte do controller Jenkins.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline Jenkins falha durante a fase de teste. Onde o operador deve procurar primeiro as mensagens detalhadas que mostram o que ocorreu em cada ação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No backlog, que conserva o transcript de cada execução como prioridade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "No log da execução da pipeline e da etapa que falhou.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "No histórico de versões da página Confluence ligada ao projeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No provenance do NiFi, que registra automaticamente toda execução Jenkins.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na merge request, pois seu diff contém os logs dos agentes Jenkins.",
+          "correct": false
+        }
+      ],
+      "explanation": "O log da execução apresenta mensagens dos steps e auxilia no diagnóstico da falha. Jira, Confluence, NiFi e merge requests podem estar relacionados ao trabalho, mas não são o registro nativo detalhado da execução Jenkins.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja evitar exposição de senha no histórico de código ao chamar um serviço durante a pipeline Jenkins. Qual prática é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir a senha em texto aberto num step e apagar o commit depois.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar armazenamento de credenciais Jenkins e referenciá-las de modo controlado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar a senha no nome do stage para ocultá-la do log de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Anexar a senha como artifact e baixá-la de outro job sem permissão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar a senha numa página restrita do Confluence e copiá-la ao build.",
+          "correct": false
+        }
+      ],
+      "explanation": "O mecanismo de credenciais permite controlar o uso de segredos sem gravá-los literalmente no Jenkinsfile. Remover um commit não apaga cópias do histórico, e nomes de stages, artifacts ou páginas não são mecanismos apropriados de segredo.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação instalada do Jenkins oferece um gerador para descobrir steps disponíveis nos plugins presentes. Qual recurso descreve essa função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Snippet Generator da interface de sintaxe de Pipeline.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O backlog de sprints, que lista comandos instalados em cada agent.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O histórico Confluence, que compila plugins antes de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A provenance do NiFi, que converte eventos em steps Jenkins.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O artifact GitLab, que gera automaticamente directives no Jenkinsfile.",
+          "correct": false
+        }
+      ],
+      "explanation": "A instalação Jenkins fornece documentação de sintaxe e Snippet Generator, adaptados aos steps e plugins disponíveis no controller. Os demais recursos listados pertencem a outras ferramentas ou têm finalidades diferentes.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em termos de desenho de uma pipeline, qual alternativa caracteriza melhor um stage?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um segredo cifrado que fica disponível a todos os usuários do controller.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma branch Git que contém exclusivamente scripts de implantação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma saída binária preservada depois que o build termina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma fase nomeada que organiza um conjunto de ações da pipeline.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma fila de FlowFiles que determina a ordem das tarefas de CI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stages representam fases conceituais e visíveis do fluxo de entrega, como Build, Test e Deploy. O conteúdo executável é expresso por steps; branches, credenciais, artifacts e filas têm outros papéis.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual situação o Apache NiFi é a ferramenta mais diretamente relacionada à necessidade descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Planejar o trabalho futuro em backlog e sprints de uma equipe Scrum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar diferenças entre branches e aprovar integração de código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Automatizar recebimento, transformação e encaminhamento de dados entre sistemas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter páginas hierárquicas de procedimentos e decisões da equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar somente compilação Java em agente de integração contínua.",
+          "correct": false
+        }
+      ],
+      "explanation": "NiFi foi concebido para automatizar dataflows e lógica de roteamento, transformação e mediação entre sistemas. GitLab revisa código, Jenkins automatiza entrega, Jira planeja trabalho e Confluence organiza conhecimento.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que descrição representa adequadamente um FlowFile no Apache NiFi?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma etapa visual que transforma qualquer dado sem carregar metadados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um registro de fluxo com conteúdo e atributos associados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma connection que liga duas instâncias remotas do Jira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um relatório de job Jenkins sem relação com payload ou metadados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tabela Confluence que armazena o workflow de cada branch Git.",
+          "correct": false
+        }
+      ],
+      "explanation": "FlowFile representa um dado em trânsito com conteúdo e atributos chave/valor. Processor realiza operação, enquanto connection liga componentes e pode manter FlowFiles em fila.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel tem uma connection que liga dois processors NiFi em um dataflow?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazena versões de Jenkinsfile e concede permissões aos agents.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Define o resumo e a prioridade de um item de trabalho Jira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Encaminha FlowFiles entre componentes e pode formar uma fila.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Publica páginas Confluence quando uma branch é integrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executa os comandos de shell associados a cada stage.",
+          "correct": false
+        }
+      ],
+      "explanation": "Connections transportam FlowFiles entre processors e podem acumular itens como fila enquanto aguardam processamento. Elas não executam os comandos de um job nem substituem ferramentas de gestão ou documentação.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador precisa descobrir por quais etapas passou determinado FlowFile, quando foi roteado e em que ponto foi enviado. Qual recurso do NiFi é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A proveniência, que registra eventos e permite examinar a linhagem do fluxo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O cache de build, que lista alterações de atributos dos FlowFiles.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O workflow Jira, que reconstitui automaticamente as conexões do NiFi.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O histórico de página Confluence, que registra cada evento de roteamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Jenkinsfile, que contém o percurso completo de todos os payloads.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proveniência do NiFi registra eventos associados a FlowFiles e oferece busca, detalhes e visualização de linhagem. Ela apoia investigação do percurso, mas não é o log de build nem o histórico editorial de outros produtos.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila entre processors cresce porque o componente posterior não acompanha o ritmo de chegada. Que interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A connection pode acumular FlowFiles, e back pressure ajuda a limitar acúmulo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O backlog Jira executa os FlowFiles até eliminar a fila do NiFi.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O artifact GitLab remove os itens pendentes ao ser publicado pelo runner.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O stage Jenkins converte automaticamente a fila em um histórico de página.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A página Confluence é o buffer nativo utilizado entre processors.",
+          "correct": false
+        }
+      ],
+      "explanation": "A connection pode manter uma fila de FlowFiles. Limites de back pressure ajudam a evitar crescimento descontrolado quando a produção excede a capacidade de processamento seguinte. As outras ferramentas não operam essa fila.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No NiFi, um usuário quer reenfileirar um dado processado anteriormente para investigar o resultado com uma configuração ajustada. O que a proveniência pode oferecer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma aprovação de merge request que corrige automaticamente o processor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A edição do FlowFile histórico sem criar nova execução do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A reprodução de evento disponível, que pode recolocar o FlowFile no fluxo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A publicação imediata de novo artigo no espaço Confluence do projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conversão do FlowFile em artifact persistente de todos os pipelines Jenkins.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface de proveniência pode permitir replay de um evento, reenfileirando o FlowFile para processamento. Isso não altera retroativamente o evento antigo nem corrige a lógica: a causa deve ser investigada e a reprodução autorizada.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia processor e FlowFile no Apache NiFi?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Processor é o dado em trânsito; FlowFile é o componente que processa payloads.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Processor realiza uma operação; FlowFile representa conteúdo e atributos em trânsito.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Processor é a fila; FlowFile é o painel que apresenta proveniência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Processor é a página do projeto; FlowFile é a issue associada ao Jira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Processor e FlowFile são nomes intercambiáveis de arquivos de configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Processor é um componente do fluxo que opera sobre dados; FlowFile é a representação dos dados e metadados que circulam. Confundir agente que trabalha com objeto processado leva a interpretar incorretamente o desenho.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um quadro Jira, as colunas aparecem como etapas do fluxo, enquanto cada tarefa mantém um status. Qual explicação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colunas podem mapear status do workflow, mas não são tipos de item.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada coluna é obrigatoriamente um tipo de issue compartilhado entre projetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O status é definido pela posição alfabética do resumo do item no backlog.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colunas são as etapas de build executadas pelo runner GitLab do projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Toda coluna corresponde a um espaço Confluence com workflow próprio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Colunas do board são uma representação visual e podem mapear um ou mais status do workflow. Tipo do item, como tarefa ou defeito, é informação diferente. A configuração do quadro influencia o mapeamento.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe Scrum quer selecionar os itens de maior prioridade para a próxima iteração e acompanhar seu andamento em colunas. Que combinação Jira é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar páginas Confluence para cada commit e agrupá-las em artifacts.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar o backlog, planejar a sprint e acompanhar itens no quadro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar processors NiFi como tarefas e connections como colunas do board.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar um runner para priorizar issues e atribuir status automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma merge request que transforme todos os itens em workflow executável.",
+          "correct": false
+        }
+      ],
+      "explanation": "No Scrum, backlog priorizado alimenta o planejamento da sprint e o quadro acompanha o trabalho durante a iteração. Atribuições e transições dependem da configuração do Jira; as demais ferramentas têm finalidades distintas.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que característica distingue uma sprint de uma visualização Kanban usual no Jira Software?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sprint é um período planejado para equipe Scrum; Kanban pode acompanhar fluxo contínuo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sprint é uma branch de código; Kanban é uma estratégia de artifact versionado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sprint é a fila de proveniência NiFi; Kanban é o relatório de execução Jenkins.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sprint é o espaço documental; Kanban é uma página filha publicada no Confluence.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sprint e Kanban são termos equivalentes para qualquer status de item Jira.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sprints são utilizadas por equipes Scrum como iterações de trabalho planejado. Kanban enfatiza visualização do fluxo contínuo e não exige ciclos de sprint. Ambos podem ter quadros, mas o modelo de planejamento difere.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que descreve melhor o backlog no Jira Software?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista priorizada de itens que a equipe pretende considerar ou executar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um registro cronológico de eventos de proveniência de um FlowFile.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo YAML contendo todas as variáveis secretas do pipeline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um agente de execução que aloca workspace ao Jenkinsfile.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma árvore de páginas para guardar rascunhos e documentos publicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backlog organiza e prioriza trabalho futuro ou ainda não iniciado, e pode apoiar planejamento de sprints em Scrum. Não executa jobs, não armazena proveniência e não é uma árvore documental.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja restringir quais mudanças de estado são válidas para uma tarefa do Jira. Qual configuração conceitual atende a esse controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O workflow, que define estados e transições permitidas aos itens.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O cache do GitLab, que aprova transições quando os arquivos se repetem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A proveniência NiFi, que lista estados possíveis de qualquer issue Jira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Jenkinsfile, que armazena as colunas e prioridades de todas as tarefas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O espaço Confluence, que executa a transição ao publicar um documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Workflow do Jira modela estados e transições de itens. Quadro oferece uma visualização desses estados; a regra de processo deve ser configurada no fluxo de trabalho, não em cache, pipeline ou página documental.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe Kanban quer ordenar tarefas futuras, embora não trabalhe com ciclos fixos. Qual afirmação sobre Jira é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O backlog pode apoiar a priorização de trabalho futuro mesmo num fluxo Kanban.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para usar backlog, todos os itens precisam estar numa sprint Scrum ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Kanban exige que cada tarefa permaneça no backlog até a data final fixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backlog é habilitado exclusivamente pelo plugin de pipeline Jenkins.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Itens no backlog são convertidos em pages no espaço Confluence por padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Backlog pode ajudar a priorizar trabalho futuro também em práticas Kanban, ainda que seu uso tradicional difira do planejamento Scrum. Ter backlog não obriga a equipe a usar sprints nem altera automaticamente itens para outros produtos.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta é mais apropriada para publicar procedimento técnico com hierarquia de conteúdo e histórico de alterações acessível à equipe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Jira, usando a sprint como versão persistente de cada procedimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confluence, com páginas organizadas em espaço e versões registradas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "NiFi, convertendo connections em capítulos e FlowFiles em revisões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GitLab Runner, que publica documentação ao iniciar um executor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Jenkins, guardando cada instrução como step obrigatório de build.",
+          "correct": false
+        }
+      ],
+      "explanation": "Confluence organiza conteúdo em espaços e páginas que podem ser hierárquicas e manter histórico de versões. Jira acompanha itens de trabalho, NiFi conduz dados e os demais recursos citados não são o repositório documental principal.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a organização do conteúdo no Confluence?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Páginas podem ter relações pai e filha dentro de espaços distintos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Espaços são contêineres; páginas podem ser organizadas hierarquicamente neles.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cada página é necessariamente um workflow de item no Jira Software.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Espaços formam uma árvore obrigatória, e páginas ficam sem versões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um runner é criado automaticamente para executar cada página publicada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Espaços são áreas que agrupam conteúdo e não podem conter outros espaços. Dentro de cada espaço, páginas podem ser estruturadas como pai e filhas. Não se deve confundir hierarquia de páginas com estrutura de outros produtos.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma reunião precisa de notas editadas em tempo real por várias pessoas, sem exigir ciclo de publicar uma página final. Qual formato do Confluence se adequa melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um artifact, que permite edição simultânea de binários do pipeline.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um live doc, voltado à colaboração em tempo real sem publicação tradicional.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma sprint, que publica automaticamente texto colaborativo ao fim do ciclo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma merge request, que mantém comentários como páginas do espaço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um processor, que divide o documento em FlowFiles por participante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Live docs são adequados a colaboração em tempo real e não exigem publicação como páginas. Páginas são estruturadas para edição, rascunho, publicação e versões; os outros termos pertencem a ferramentas ou funções diferentes.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa publicar notícias datadas do projeto, mantendo procedimentos permanentes como páginas separadas. Qual conteúdo Confluence deve usar para os comunicados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Blog posts para atualizações e páginas para conteúdo estruturado duradouro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Artifacts para notícias e runners para armazenar procedimentos permanentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Issues para notícias e stages para publicar os procedimentos no quadro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FlowFiles para comunicados e connections como páginas de consulta pública.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Branches para notícias e merge requests para manter documentos publicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Blog posts são apropriados para comunicados e atualizações datadas; páginas servem a conteúdo estruturado que se mantém e evolui. A separação facilita encontrar orientações permanentes e notícias recentes.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe cria um espaço dentro de outro espaço no Confluence para separar um subprojeto. Qual é a alternativa correta sobre a estrutura do produto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Espaços podem ser aninhados, mas páginas não podem ser organizadas em níveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Espaços não são aninhados; páginas podem fornecer hierarquia de conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um espaço só pode conter blog posts e não admite páginas relacionadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Espaços são branches de código e dependem de aprovação numa merge request.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A hierarquia de espaços é definida pelo workflow Jira e pelo status da página.",
+          "correct": false
+        }
+      ],
+      "explanation": "No Confluence, espaços não podem ser aninhados uns dentro dos outros. Para organizar subassuntos, pode-se criar hierarquia de páginas dentro de um espaço e usar recursos de categorização e navegação.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa associa corretamente as ferramentas ao papel principal no ciclo de uma equipe de software?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Jira planeja trabalho; GitLab revisa código; Jenkins automatiza; NiFi conduz dados; Confluence documenta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Jira compila código; GitLab documenta; Jenkins prioriza sprints; NiFi aprova commits; Confluence testa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Jira conduz FlowFiles; GitLab executa pages; Jenkins hospeda issues; NiFi faz merge; Confluence versiona builds.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Jira publica artifacts; GitLab controla provenance; Jenkins mantém backlog; NiFi escreve páginas; Confluence executa jobs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Jira e Confluence são runners; GitLab e Jenkins são quadros; NiFi é o repositório de código.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada produto tem um papel característico: Jira acompanha trabalho, GitLab guarda e revisa código, Jenkins automatiza pipelines, NiFi integra fluxos de dados e Confluence mantém conhecimento. Integrações podem conectar registros sem tornar os produtos equivalentes.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página Confluence inclui link contextual a uma tarefa Jira. Que conclusão sobre a relação entre os produtos é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O link torna a página o registro oficial do status e responsável da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Jira passa a executar os comandos descritos na página sem integração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ligação oferece contexto, mas a página e o item mantêm seus papéis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O item Jira deixa de existir quando uma página o incorpora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O espaço Confluence substitui o workflow do Jira ao abrir o link.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um link ou incorporação conecta conhecimento e acompanhamento do trabalho, mas não transforma a página no registro operacional da issue. Status e responsável permanecem associados ao item Jira conforme permissões e configuração.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Associe a necessidade: manter o código e revisar uma mudança antes de integrá-la. Qual escolha é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Jira, usando o backlog como armazenamento de commits e branches.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confluence, usando páginas como cópias versionadas do repositório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apache NiFi, usando provenance como comparação linha a linha de código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GitLab, com repositório Git e merge request para revisar a mudança.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Jenkins, usando o log de build como histórico distribuído de commits.",
+          "correct": false
+        }
+      ],
+      "explanation": "GitLab hospeda repositórios Git e merge requests que apoiam revisão e integração de código. Jira rastreia trabalho, Confluence documenta, NiFi conduz dados e Jenkins automatiza execução de tarefas.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A proveniência do NiFi registra eventos de um FlowFile e pode auxiliar na visualização de sua linhagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Eventos de proveniência descrevem ocorrências no percurso do FlowFile, como recebimento, roteamento, modificação e envio. A linhagem permite investigar a sequência de processamento e, conforme permissões, consultar detalhes.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No GitLab, um runner é o elemento cuja função principal é armazenar commits e comparar diferenças de branches.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Runner executa jobs de CI/CD e fornece log da execução. Commits e diferenças entre branches pertencem ao controle de versão Git, e merge requests apoiam revisão e integração.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em GitLab CI/CD, jobs de um mesmo stage podem executar em paralelo, enquanto os stages são organizados em sequência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Stages definem a ordem geral da pipeline; dentro de um stage, jobs podem executar em paralelo quando há runners e dependências que permitam. Regras como needs podem ajustar o grafo de execução.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline de merge request do GitLab executa necessariamente sobre o resultado combinado da branch de origem com a branch de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A pipeline de merge request padrão executa sobre o conteúdo da branch de origem e ignora o conteúdo da branch de destino. Para testar o resultado combinado, há merged results pipelines, que precisam ser configuradas e suportadas.",
+      "section": "1. GitLab: repositório, colaboração e CI/CD",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo Jenkinsfile pode ser guardado no controle de versão para que mudanças na pipeline sejam revistas como mudanças de código.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Jenkins recomenda pipeline como código, definida num Jenkinsfile versionado com o projeto. Isso cria histórico, revisão e uma fonte compartilhada da automação, em vez de depender apenas de configuração manual na interface.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Jenkins Declarative, o bloco steps é usado para listar ações concretas executadas numa fase da pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O stage organiza uma fase nomeada; dentro dela, steps contém ações, por exemplo executar testes ou publicar relatórios. Os nomes indicam estrutura de automação, não elementos de Jira ou NiFi.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma definição Jenkins Pipeline usa agentes para oferecer capacidade de execução e workspace às tarefas agendadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um agent disponibiliza executor e ambiente de trabalho em que a pipeline realiza etapas. O controller coordena e agenda; ambientes distribuídos podem executar trabalhos em nodes diferentes.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Inserir uma senha literal num Jenkinsfile versionado é uma forma segura de evitar que o segredo apareça em histórico ou logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um segredo escrito no arquivo pode permanecer no histórico do repositório e ser exposto em logs ou interfaces. Deve-se usar o armazenamento de credenciais e limitar o contexto no qual a credencial é disponibilizada.",
+      "section": "2. Jenkins: automação e pipeline como código",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um FlowFile no NiFi é um componente executável que define como os dados serão transformados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. FlowFile representa dados em trânsito e seus atributos. Um processor é o componente que executa operações sobre o FlowFile, e connections ligam processors e podem manter filas.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As connections do NiFi podem encaminhar FlowFiles entre processors e manter uma fila enquanto aguardam processamento seguinte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Connections conectam componentes no dataflow e representam filas de FlowFiles. Back pressure pode limitar a quantidade acumulada quando a entrada excede a capacidade do processor seguinte.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A proveniência do NiFi altera retroativamente um evento histórico ao reproduzir o FlowFile a partir desse evento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Replay recoloca dados para processamento novamente, gerando novo percurso, mas não reescreve retroativamente o evento histórico original. O recurso auxilia investigação e reprocessamento controlado.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atributos de um FlowFile são pares chave e valor que podem representar metadados como o nome do arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Atributos são metadados associados ao FlowFile em pares chave/valor. O conteúdo é o payload; ambos podem ser consultados ou modificados por processors conforme o desenho do fluxo.",
+      "section": "3. Apache NiFi: desenho e observação de fluxos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda equipe que utiliza Jira precisa planejar o trabalho em sprints, inclusive quando adota Kanban.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Sprints são usadas por equipes Scrum. Kanban pode acompanhar um fluxo contínuo sem sprints, ainda que a equipe use backlog para priorizar trabalho futuro.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O backlog do Jira serve para priorizar trabalho planejado, enquanto o quadro pode mostrar itens por etapas de fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Backlog organiza itens futuros e sua prioridade; o quadro representa visualmente o trabalho e seus estados. Equipes Scrum também usam o backlog para planejar sprints.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Jira, uma coluna de quadro é necessariamente um tipo de item, como defeito ou história de usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Colunas representam etapas visuais e são mapeadas a status do workflow. Tipos de item classificam o trabalho, por exemplo tarefa, história ou defeito, e constituem outro campo.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um workflow Jira descreve estados de um item e transições que podem movê-lo entre esses estados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O workflow modela estados e transições do processo. O quadro apresenta uma visualização configurada desses estados, e a mudança de coluna pode corresponder a uma transição permitida.",
+      "section": "4. Jira: itens de trabalho, backlog e fluxo da equipe",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Confluence, um espaço pode ser criado dentro de outro espaço para formar uma árvore de contêineres aninhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Espaços não podem ser aninhados. A organização hierárquica pode ser feita com páginas pai e filhas dentro de um espaço; rótulos também ajudam a categorizar espaços relacionados.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Páginas Confluence podem ser organizadas como conteúdo pai e filho, enquanto espaços funcionam como contêineres de equipe ou projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O espaço reúne conteúdo relacionado e as páginas dentro dele podem formar uma hierarquia com diferentes níveis. Essa estrutura ajuda a representar relações entre visão geral, procedimentos e subtemas.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Live docs do Confluence exigem o mesmo processo de rascunho e publicação de páginas antes de cada alteração ficar visível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Live docs apoiam colaboração em tempo real e as mudanças ficam visíveis sem publicação tradicional. Páginas começam como rascunhos e são publicadas, mantendo histórico de versões.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página Confluence pode conter conteúdo estruturado, ser publicada e manter um histórico de versões para consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Páginas são adequadas a conteúdos estruturados que evoluem ao longo do tempo; o Confluence mantém versões e separa modos de edição e visualização. A publicação torna o rascunho acessível conforme permissões.",
+      "section": "5. Confluence e integração do ciclo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "GitLab Docs — Merge request pipelines",
+      "publisher": "GitLab",
+      "reference": "Execução em merge requests, regras de pipeline, forks e controle de variáveis e runners protegidos",
+      "url": "https://docs.gitlab.com/ci/pipelines/merge_request_pipelines/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GitLab Docs — CI/CD Jobs",
+      "publisher": "GitLab",
+      "reference": "Jobs, runners, stages, execução paralela e artifacts",
+      "url": "https://docs.gitlab.com/ci/jobs/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GitLab Docs — CI/CD YAML syntax reference",
+      "publisher": "GitLab",
+      "reference": "Configuração de stages, jobs, artifacts e dependências de pipeline",
+      "url": "https://docs.gitlab.com/ci/yaml/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jenkins User Handbook — Pipeline",
+      "publisher": "Jenkins",
+      "reference": "Pipeline como código, Jenkinsfile, agentes, stages, steps e sintaxes Declarative e Scripted",
+      "url": "https://www.jenkins.io/doc/book/pipeline/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache NiFi User Guide",
+      "publisher": "Apache NiFi",
+      "reference": "Processors, FlowFiles, data provenance, filas, monitoramento e replay",
+      "url": "https://nifi.apache.org/nifi-docs/user-guide.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jira Cloud Support — What is a sprint?",
+      "publisher": "Atlassian",
+      "reference": "Planejamento de sprints no backlog e relação de sprints com equipes Scrum",
+      "url": "https://support.atlassian.com/jira-software-cloud/docs/what-is-a-sprint/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jira Cloud Support — Enable the backlog",
+      "publisher": "Atlassian",
+      "reference": "Backlog para priorização e planejamento de trabalho futuro",
+      "url": "https://support.atlassian.com/jira-software-cloud/docs/enable-the-backlog/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Confluence Cloud Support — Navigate spaces",
+      "publisher": "Atlassian",
+      "reference": "Espaços, conteúdo de cada espaço e hierarquia de páginas",
+      "url": "https://support.atlassian.com/confluence-cloud/docs/navigate-spaces/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Confluence Cloud Support — Create, update, and manage written content",
+      "publisher": "Atlassian",
+      "reference": "Páginas, live docs, rascunhos, publicação e histórico de versões",
+      "url": "https://support.atlassian.com/confluence-cloud/docs/create-edit-and-publish-a-page/",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

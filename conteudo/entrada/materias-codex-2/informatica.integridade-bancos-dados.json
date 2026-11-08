@@ -1,0 +1,2183 @@
+{
+  "id": "informatica.integridade-bancos-dados",
+  "subject": "Informática",
+  "title": "Gerenciamento da integridade de bancos de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gerenciar a integridade do banco.",
+    "Gerenciamento da integridade do banco de dados",
+    "Integridade de bancos de dados relacionais",
+    "Restrições de integridade em bancos de dados",
+    "Integridade referencial em tabelas relacionais",
+    "Chaves primárias e estrangeiras no banco de dados",
+    "Consistência dos dados armazenados no banco",
+    "Restrições CHECK UNIQUE e NOT NULL em SQL",
+    "Controle de consistência em transações de banco",
+    "Integridade lógica das tabelas relacionais"
+  ],
+  "scope": {
+    "covers": "Gerenciamento da integridade lógica de bancos de dados relacionais: integridade de entidade e referencial; restrições PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK e NOT NULL; nulidade e semântica de CHECK; chaves compostas; ações referenciais ON DELETE e ON UPDATE; índices associados; constraints adiáveis no PostgreSQL; inclusão e validação de restrições em dados existentes; transações, concorrência, níveis de isolamento, validação na aplicação e diagnóstico de violações.",
+    "excludes": "Integridade física de arquivos e discos, backup e recuperação, segurança e controle de acesso, qualidade analítica de dados, replicação distribuída, administração específica de outros SGBDs e sintaxe completa de SQL além dos exemplos necessários às restrições."
+  },
+  "theoryTitle": "Restrições, relações e transações que preservam os dados",
+  "chapters": [
+    {
+      "title": "1. O que significa manter a integridade",
+      "markdown": "### O problema que este assunto resolve\n\nUm banco pode aceitar comandos SQL válidos e, ainda assim, guardar informação incoerente: um pedido ligado a um cliente inexistente, dois usuários com o mesmo identificador ou uma quantidade negativa. Gerenciar a integridade significa definir regras verificáveis sobre os dados e fazer com que cada inserção, alteração e exclusão preserve essas regras. A aplicação pode ajudar, mas regras centrais devem ser protegidas no próprio banco, onde todas as aplicações e sessões encontram a mesma barreira.\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: sistema gerenciador de banco de dados, que armazena dados e executa operações.\n> - **Integridade de entidade**: cada linha possui identidade única e identificável.\n> - **Integridade referencial**: referências entre tabelas apontam para linhas existentes ou admitem ausência conforme a regra.\n> - **Restrição (constraint)**: condição declarada no esquema que o SGBD verifica nas operações.\n> - **Transação**: conjunto de operações tratado como uma unidade lógica.\n> - **NULL**: marcador de ausência ou valor desconhecido; não equivale a zero nem a texto vazio.\n\n### Camadas complementares de proteção\n\nUma interface pode validar que a quantidade digitada é positiva e exibir uma mensagem amigável. Essa validação melhora a experiência, mas não protege contra uma importação, um script administrativo ou outra aplicação que escreva diretamente no banco. A restrição `CHECK (quantidade > 0)` faz o SGBD rejeitar a linha inválida em qualquer desses caminhos. A aplicação continua útil para antecipar o erro e explicar como corrigi-lo; a regra no banco é a garantia comum.\n\nIntegridade não é sinônimo de backup. Uma restrição impede estados proibidos durante a escrita; backup permite recuperar dados após perda ou corrupção. Nem uma chave estrangeira prova que o dado de origem é verdadeiro, nem uma transação corrige uma regra de negócio mal especificada. Cada controle protege uma propriedade definida e precisa ser combinado com os demais.\n\n| Propriedade | Exemplo de regra | Mecanismo típico |\n| --- | --- | --- |\n| Identidade | Cada cliente tem identificador único | `PRIMARY KEY` |\n| Referência | Pedido aponta para cliente existente | `FOREIGN KEY` |\n| Unicidade de negócio | E-mail não se repete | `UNIQUE` |\n| Domínio de valor | Preço não é negativo | `CHECK` |\n| Presença | Nome obrigatório | `NOT NULL` |\n| Unidade de trabalho | Débito e crédito completam juntos | Transação |\n\n### Como cai na prova\n\n- Validar só na interface deixa outras rotas de escrita sem proteção.\n- Integridade lógica, recuperação por backup e segurança de acesso são controles diferentes.\n- A regra precisa traduzir uma condição real do dado; restrição inadequada também rejeita dados válidos."
+    },
+    {
+      "title": "2. Restrições de linha, identidade e unicidade",
+      "markdown": "### O problema que este assunto resolve\n\nUma tabela precisa distinguir uma linha das outras e limitar os valores a combinações aceitas. Chaves e restrições descrevem essas regras diretamente no esquema, permitindo ao SGBD verificá-las em comandos concorrentes e em diferentes aplicações.\n\n> **Siglas e termos deste capítulo**\n> - **PRIMARY KEY (PK)**: identificador primário de uma linha; exige valores únicos e não nulos.\n> - **UNIQUE**: impede repetição da combinação de colunas especificada, segundo as regras do SGBD.\n> - **CHECK**: expressão booleana que restringe valores de uma linha.\n> - **NOT NULL**: proíbe que uma coluna receba NULL.\n> - **Chave composta**: chave formada por mais de uma coluna.\n> - **Índice**: estrutura auxiliar usada para localizar linhas e, em certos casos, verificar unicidade.\n\n### Escolha da restrição adequada\n\n`PRIMARY KEY` identifica cada linha. Pode usar uma coluna ou um conjunto delas; na chave composta, é a combinação que deve ser única, não necessariamente cada valor isolado. Cada tabela pode declarar uma única chave primária, embora essa chave tenha várias colunas. O SGBD cria estrutura de índice para impor a unicidade da chave primária.\n\n`UNIQUE` expressa outra regra de não duplicação e pode existir mais de uma vez na tabela. Uma restrição composta `UNIQUE (pais, codigo_local)` impede duplicar o par, sem proibir que o mesmo código local apareça em países diferentes. Tratamento de NULL em `UNIQUE` varia entre implementações e opções: não se deve inferir uma regra universal sem consultar o SGBD usado. Se ausência também for proibida, combine a unicidade com `NOT NULL`.\n\n`CHECK` limita o domínio de uma linha, como `CHECK (saldo >= 0)` ou `CHECK (inicio <= fim)`. Em PostgreSQL, uma expressão `CHECK` que resulte em verdadeiro ou em NULL é considerada satisfeita; por isso, `CHECK (preco > 0)` sozinho não proíbe `preco` nulo. Combine `NOT NULL` quando a presença for obrigatória. No PostgreSQL, `CHECK` deve avaliar a própria linha e não é mecanismo confiável para comparar linhas de outras tabelas; para isso, use restrições apropriadas como `UNIQUE` ou `FOREIGN KEY`.\n\nAo adicionar uma restrição a uma tabela que já contém dados, o PostgreSQL verifica os dados existentes; a operação falha se houver linhas incompatíveis. Um procedimento seguro é identificar e corrigir duplicidades, nulos ou valores fora do domínio, então instalar a regra e acompanhar o resultado. Desabilitar a checagem para fazer a operação passar deixa a inconsistência sem tratamento.\n\n### Como cai na prova\n\n- `PRIMARY KEY` reúne unicidade e não nulidade e identifica a linha.\n- Chave composta torna única a combinação, não cada componente isoladamente.\n- `CHECK` não substitui `NOT NULL` quando NULL deve ser vedado.\n- `UNIQUE` pode ter comportamento diferente para valores NULL entre SGBDs."
+    },
+    {
+      "title": "3. Integridade referencial entre tabelas",
+      "markdown": "### O problema que este assunto resolve\n\nDados relacionados vivem em tabelas distintas. Sem uma regra de referência, a tabela de pedidos poderia conter um identificador de cliente sem correspondente, ou a exclusão de um cliente poderia deixar pedidos órfãos. A chave estrangeira declara quais valores da tabela dependente precisam corresponder à chave ou a uma combinação única da tabela referenciada.\n\n> **Siglas e termos deste capítulo**\n> - **FOREIGN KEY (FK)**: restrição que verifica referências entre tabelas.\n> - **Tabela referenciada**: tabela que contém a chave alvo da referência.\n> - **Tabela referenciadora**: tabela que armazena a FK.\n> - **ON DELETE / ON UPDATE**: ação configurada para exclusão ou alteração da chave referenciada.\n> - **CASCADE**: propaga a operação para linhas relacionadas.\n> - **NO ACTION / RESTRICT**: impedem que a operação deixe referência inválida, com diferenças de momento de checagem conforme o SGBD.\n\n### Criar uma relação que continue válida\n\nA coluna de uma FK deve corresponder em quantidade e tipo à coluna ou conjunto de colunas referenciado. O alvo precisa ser uma chave primária, uma restrição única ou outro alvo único aceito pelo SGBD. Inserir um pedido com `cliente_id` inexistente é rejeitado; excluir o cliente enquanto pedidos ainda o referenciam também é bloqueado pela ação padrão de proteção, salvo se a regra configurada determinar outro tratamento.\n\nAs ações referenciais são escolhas de negócio. `CASCADE` pode ser apropriado quando os registros dependentes não têm sentido sem o registro principal, como itens de uma cesta que é eliminada. Para objetos independentes ou registros que devem permanecer auditáveis, pode ser melhor bloquear a exclusão ou marcar a referência como ausente, se a coluna permitir NULL. `SET DEFAULT` só funciona se o valor padrão continuar satisfazendo a própria FK. A cascata não é uma forma genérica de contornar erros: ela pode apagar ou alterar muitas linhas em cadeia.\n\nUma FK composta relaciona colunas em conjunto, por exemplo `(empresa_id, cliente_id)` apontando para a combinação única equivalente. Se as colunas permitem NULL, o significado de referência ausente deve ser intencional. No PostgreSQL, `MATCH FULL` faz com que uma FK composta escape da correspondência apenas quando todas as colunas são nulas; uma mistura de nulo e valor não nulo falha. `NOT NULL` impede usar ausência para escapar da referência.\n\nO SGBD cria índice para garantir a unicidade do alvo PK/UNIQUE, mas PostgreSQL não cria automaticamente índice nas colunas da tabela referenciadora. Esse índice pode acelerar consultas que localizam filhos e operações que verificam exclusão ou atualização do pai. A decisão depende do padrão de consulta e do custo de escrita e armazenamento.\n\n### Como cai na prova\n\n- A FK protege a referência; `CHECK` de uma linha não substitui a relação.\n- O alvo da FK precisa ser único e compatível com as colunas referenciadoras.\n- `CASCADE`, `SET NULL`, `SET DEFAULT` e bloqueio têm efeitos diferentes e precisam refletir a regra do domínio.\n- Índice no lado referenciador pode ajudar desempenho, mas não é criado automaticamente pelo PostgreSQL."
+    },
+    {
+      "title": "4. Transações, concorrência e manutenção das regras",
+      "markdown": "### O problema que este assunto resolve\n\nUma operação de negócio pode envolver várias escritas que só fazem sentido juntas. Transferir saldo, por exemplo, exige debitar uma conta e creditar outra; falhar depois do débito deixaria o total incorreto. Além disso, duas sessões simultâneas podem ler o mesmo estado e tentar alterações incompatíveis. Transações e restrições trabalham em conjunto para evitar estados parciais e resultados concorrentes inválidos.\n\n> **Siglas e termos deste capítulo**\n> - **COMMIT**: confirma as mudanças da transação.\n> - **ROLLBACK**: desfaz as mudanças ainda não confirmadas.\n> - **ACID**: atomicidade, consistência, isolamento e durabilidade, propriedades esperadas de transações.\n> - **Isolamento**: regra sobre a visibilidade de mudanças concorrentes.\n> - **Constraint adiável**: restrição cujo teste pode ser postergado até o fim da transação, se o SGBD e a declaração permitirem.\n> - **Deadlock**: espera circular entre operações que retêm recursos; o SGBD pode abortar uma delas.\n\n### Agrupar mudanças e tratar concorrência\n\nUma transação agrupa comandos entre início e `COMMIT`; `ROLLBACK` cancela o conjunto ainda não confirmado. Em PostgreSQL, fora de um bloco explícito, cada comando bem-sucedido é confirmado automaticamente. Para uma transferência, iniciar transação, atualizar as duas contas e confirmar só após ambas as operações permite desfazer o débito se o crédito falhar. Uma transação não substitui restrições: ela define a unidade atômica, enquanto PK, FK, CHECK e outras regras definem estados permitidos.\n\nO isolamento determina o que transações concorrentes podem observar e quais anomalias podem ocorrer. Em PostgreSQL, `READ COMMITTED` é o padrão: cada comando vê dados confirmados antes de começar aquele comando. `REPEATABLE READ` mantém uma visão consistente iniciada na primeira consulta ou alteração da transação. `SERIALIZABLE` busca um resultado equivalente a alguma execução sequencial; se detectar conflito que viole essa propriedade, pode abortar uma transação com falha de serialização. A aplicação deve estar preparada para repetir a unidade de trabalho abortada, com cuidado para que efeitos externos não sejam duplicados.\n\nNo PostgreSQL, restrições declaradas `DEFERRABLE` elegíveis podem ter a verificação postergada até o fim da transação com `SET CONSTRAINTS ... DEFERRED`. Isso é útil quando uma sequência intermediária viola temporariamente uma relação que estará correta no commit, como reorganizar referências. `NOT NULL` e `CHECK` não são adiáveis nesse SGBD; a FK e outras restrições elegíveis dependem de sua declaração. O adiamento muda o momento da verificação, não dispensa a regra: a transação ainda precisa terminar em estado válido.\n\n### Instalar, observar e diagnosticar\n\nAo introduzir uma regra, examine dados legados antes da mudança. Procure referências órfãs, grupos duplicados, campos nulos e valores que falham a condição. Corrija-os com decisão de negócio documentada; depois adicione a restrição e confirme que o SGBD a validou. Em sistemas ativos, considere bloqueios, duração da validação e plano de implantação próprios do SGBD.\n\nQuando uma escrita falha por integridade, trate a causa específica: localizar a linha conflitante, validar referência, conferir nulidade e limites do domínio. Não transforme todo erro em sucesso nem faça repetição cega. Registre contexto técnico suficiente para diagnóstico sem expor dados sensíveis. Consultas de auditoria podem encontrar incoerências antigas, mas não substituem restrições que previnam novas violações.\n\n### Como cai na prova\n\n- Atomicidade faz o conjunto confirmar ou voltar; restrições definem quais dados são aceitáveis.\n- O padrão `READ COMMITTED` do PostgreSQL dá visão por comando, não uma fotografia fixa de toda a transação.\n- Serialização pode abortar uma transação concorrente; o chamador precisa tratar a falha.\n- Adiar uma restrição elegível muda o momento de checagem, sem remover a obrigação de validade no commit."
+    }
+  ],
+  "summary": "A integridade do banco é mantida por regras declaradas no SGBD e operações atômicas. PRIMARY KEY identifica linhas com unicidade e não nulidade; UNIQUE limita duplicidades; CHECK restringe valores da linha; NOT NULL exige presença; FOREIGN KEY conserva relações entre tabelas. Ações referenciais precisam refletir o ciclo de vida dos dados. Transações agrupam mudanças, enquanto isolamento controla efeitos concorrentes. No PostgreSQL, CHECK não impede NULL por si só nem é adequado para validar outras linhas; FKs elegíveis podem ser adiadas quando declaradas DEFERRABLE. Ao instalar restrições em dados existentes, corrija previamente as violações e valide a regra no contexto do SGBD.",
+  "flashcards": [
+    {
+      "front": "Que duas condições a PRIMARY KEY impõe às suas colunas?",
+      "back": "Os valores da chave são únicos e não nulos; ela identifica cada linha."
+    },
+    {
+      "front": "Uma tabela pode ter mais de uma PRIMARY KEY?",
+      "back": "Não. Pode ter uma chave primária, formada por uma ou várias colunas, e diversas restrições UNIQUE."
+    },
+    {
+      "front": "O que garante uma UNIQUE composta por (pais, codigo)?",
+      "back": "Que o par pais-codigo não se repita; cada coluna isoladamente ainda pode repetir."
+    },
+    {
+      "front": "Por que UNIQUE e NOT NULL podem ser combinadas?",
+      "back": "UNIQUE controla repetição, mas o tratamento de NULL depende do SGBD; NOT NULL proíbe a ausência quando ela não é permitida."
+    },
+    {
+      "front": "O que verifica uma FOREIGN KEY?",
+      "back": "Que os valores não nulos apontem para chave ou combinação única correspondente na tabela referenciada, conforme a regra declarada."
+    },
+    {
+      "front": "O que impede um pedido órfão?",
+      "back": "Uma FOREIGN KEY de pedido para cliente, referenciando chave única do cliente."
+    },
+    {
+      "front": "Para que serve CHECK?",
+      "back": "Para impor uma condição sobre os valores da própria linha, como quantidade maior que zero."
+    },
+    {
+      "front": "CHECK (preco > 0) rejeita necessariamente preco NULL no PostgreSQL?",
+      "back": "Não. Uma expressão CHECK que resulta NULL é aceita; use NOT NULL junto se ausência for vedada."
+    },
+    {
+      "front": "CHECK em PostgreSQL deve comparar registros de outra tabela?",
+      "back": "Não. Use FOREIGN KEY ou outra restrição apropriada para invariantes entre linhas e tabelas."
+    },
+    {
+      "front": "O que faz NOT NULL?",
+      "back": "Proíbe que a coluna receba NULL; não equivale a proibir zero ou texto vazio."
+    },
+    {
+      "front": "O que caracteriza uma chave composta?",
+      "back": "A identidade ou unicidade depende da combinação de colunas, não necessariamente de cada componente sozinho."
+    },
+    {
+      "front": "O que significa ON DELETE CASCADE?",
+      "back": "Apagar automaticamente linhas dependentes quando a linha referenciada é apagada; use só se esse efeito for correto para o domínio."
+    },
+    {
+      "front": "O que faz ON DELETE SET NULL?",
+      "back": "Define como nulas as colunas FK dependentes; falha se outra regra, como NOT NULL, proibir esse resultado."
+    },
+    {
+      "front": "Quando SET DEFAULT pode falhar?",
+      "back": "Quando o valor padrão resultante não corresponde a uma chave válida na tabela referenciada ou viola outra restrição."
+    },
+    {
+      "front": "O PostgreSQL cria índice automaticamente no lado da FK?",
+      "back": "Não. Cria índice para a chave única referenciada, mas não automaticamente nas colunas que apontam para ela."
+    },
+    {
+      "front": "O que pode ocorrer ao adicionar CHECK a tabela com dados inválidos?",
+      "back": "A validação dos dados existentes faz a operação falhar até que os registros incompatíveis sejam corrigidos."
+    },
+    {
+      "front": "O que COMMIT faz?",
+      "back": "Confirma as mudanças da transação para que deixem de ser alterações pendentes."
+    },
+    {
+      "front": "O que ROLLBACK faz?",
+      "back": "Desfaz as alterações ainda não confirmadas da transação."
+    },
+    {
+      "front": "O que a atomicidade oferece numa transferência?",
+      "back": "Débito e crédito são tratados como unidade: ambos confirmam ou as alterações pendentes são desfeitas."
+    },
+    {
+      "front": "Qual é o isolamento padrão do PostgreSQL?",
+      "back": "READ COMMITTED: cada comando vê dados confirmados antes do início daquele comando."
+    },
+    {
+      "front": "O que pode fazer SERIALIZABLE diante de conflito?",
+      "back": "Abortar uma transação quando o resultado concorrente não puder ser equivalente a uma execução serial."
+    },
+    {
+      "front": "O que significa DEFERRABLE para uma restrição elegível no PostgreSQL?",
+      "back": "Permite postergar sua verificação dentro da transação; não elimina a exigência de estado válido no commit."
+    },
+    {
+      "front": "CHECK é adiável com SET CONSTRAINTS no PostgreSQL?",
+      "back": "Não. CHECK e NOT NULL são verificados imediatamente; somente tipos elegíveis podem ser adiados."
+    },
+    {
+      "front": "Qual inspeção precede a instalação de nova FK?",
+      "back": "Localizar referências órfãs e confirmar que os valores referenciados têm chave única válida."
+    }
+  ],
+  "tips": [
+    "Associe cada regra à ferramenta: identidade é PRIMARY KEY; relação é FOREIGN KEY; domínio de linha é CHECK.",
+    "Se a ausência não é permitida, escreva NOT NULL explicitamente; não espere que CHECK a rejeite.",
+    "Em chave composta, pergunte se a regra vale para cada coluna ou para o conjunto completo.",
+    "Leia a ação referencial como consequência concreta: CASCADE pode remover ou alterar várias linhas dependentes.",
+    "Separe atomicidade de integridade: transação agrupa mudanças; constraints definem estados aceitos.",
+    "Ao comparar isolamento, lembre que READ COMMITTED no PostgreSQL oferece visão por comando."
+  ],
+  "traps": [
+    "A prova diz que PRIMARY KEY aceita NULL porque o campo é numérico. Errado: PK exige não nulidade e unicidade.",
+    "A prova usa CHECK (x > 0) como sinônimo de x obrigatório. No PostgreSQL, CHECK aceita resultado NULL.",
+    "A prova afirma que FOREIGN KEY cria necessariamente índice no lado que referencia. O PostgreSQL não o faz automaticamente.",
+    "A prova chama CASCADE de bloqueio de exclusão. CASCADE propaga a operação aos dependentes.",
+    "A prova diz que ROLLBACK desfaz uma transação já confirmada. Ele desfaz mudanças pendentes da unidade atual.",
+    "A prova afirma que DEFERRABLE permite terminar com FK inválida. Só adia a checagem; o estado deve ser válido no momento exigido."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como PK e UNIQUE se relacionam e diferem.",
+      "answer": "Ambas impõem unicidade. A PK é o identificador primário da tabela e também exige que seus valores não sejam nulos; uma tabela pode ter várias regras UNIQUE, inclusive compostas."
+    },
+    {
+      "question": "Uma coluna de preço precisa ser positiva e obrigatória. Quais restrições expressam as duas partes?",
+      "answer": "CHECK (preco > 0) limita o valor e NOT NULL exige presença. No PostgreSQL, CHECK sozinho aceita expressão que resulte NULL."
+    },
+    {
+      "question": "O que uma FK requer do lado referenciado e que falha evita?",
+      "answer": "Requer alvo único compatível e impede referências a valores inexistentes, prevenindo linhas dependentes órfãs."
+    },
+    {
+      "question": "Compare CASCADE, SET NULL e NO ACTION em uma exclusão do pai.",
+      "answer": "CASCADE propaga exclusão; SET NULL remove a referência nas linhas dependentes se NULL for permitido; NO ACTION impede concluir a operação enquanto a referência violaria a regra, conforme o momento de checagem."
+    },
+    {
+      "question": "Por que uma FK composta pode incluir colunas que individualmente se repetem?",
+      "answer": "A referência e a unicidade podem ser definidas pela combinação completa, como empresa e número local, sem tornar cada parte globalmente única."
+    },
+    {
+      "question": "O que fazer antes de tornar obrigatória uma coluna que já tem dados?",
+      "answer": "Identificar e tratar nulos com uma regra de negócio válida, depois adicionar NOT NULL e permitir a validação dos registros existentes."
+    },
+    {
+      "question": "Como uma transação protege uma transferência bancária lógica?",
+      "answer": "Agrupa débito e crédito; confirma ambas as alterações juntas ou desfaz as alterações pendentes se uma etapa falhar."
+    },
+    {
+      "question": "Qual diferença prática existe entre READ COMMITTED e SERIALIZABLE no PostgreSQL?",
+      "answer": "READ COMMITTED fornece visibilidade por comando dos dados já confirmados. SERIALIZABLE busca equivalência a execução sequencial e pode abortar uma transação concorrente conflitante."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Identidade, unicidade e nulidade confundidas",
+      "summary": "PRIMARY KEY identifica linha e combina unicidade com não nulidade. UNIQUE pode ser múltipla e composta; o tratamento de NULL deve ser entendido conforme o SGBD."
+    },
+    {
+      "key": "e2",
+      "title": "CHECK tratado como regra entre tabelas ou de presença",
+      "summary": "Em PostgreSQL CHECK deve validar a linha e aceita resultado NULL; use NOT NULL para presença e FOREIGN KEY/UNIQUE para relações e unicidade."
+    },
+    {
+      "key": "e3",
+      "title": "Ação referencial escolhida sem considerar efeito",
+      "summary": "CASCADE propaga; SET NULL/DEFAULT altera a referência e ainda deve obedecer às constraints; NO ACTION/RESTRICT protegem contra referência inválida."
+    },
+    {
+      "key": "e4",
+      "title": "Transação confundida com constraint",
+      "summary": "Transação define confirmação conjunta e isolamento; constraints definem valores e relações permitidas. Atomicidade não corrige regra de domínio ausente."
+    },
+    {
+      "key": "e5",
+      "title": "Concorrência e adiamento ignorados",
+      "summary": "O isolamento altera a visibilidade concorrente. No PostgreSQL SERIALIZABLE pode abortar; DEFERRABLE só posterga a verificação de restrição elegível."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em PostgreSQL, uma PRIMARY KEY pode conter NULL se a aplicação garantir que nunca haverá duplicidade. Esse desenho satisfaz a restrição?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A própria PRIMARY KEY exige unicidade e não nulidade, e essa garantia pertence ao banco, não apenas à validação feita por uma aplicação. Se ausência for permitida, a coluna não deve ser parte da chave primária.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave primária pode ser composta por duas colunas cuja combinação identifica cada linha, ainda que cada coluna isolada tenha valores repetidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A restrição é aplicada à combinação das colunas; cada componente pode aparecer em linhas diferentes desde que o par completo não se repita e nenhum componente da PK seja nulo.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, CHECK (preco > 0) rejeita por si só tanto preços nulos como preços iguais a zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O valor zero falha a condição, mas para NULL a expressão resulta desconhecida e a restrição CHECK é satisfeita. Para exigir preço informado, acrescente NOT NULL.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma restrição UNIQUE sobre (empresa_id, codigo) impede repetir o par, mesmo que empresa_id ou codigo apareçam em outras combinações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A unicidade composta compara a combinação completa das colunas. Ela permite, por exemplo, repetir um codigo em empresas diferentes, contanto que o par empresa-codigo seja distinto.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, uma expressão CHECK pode ser usada como garantia geral de que o total de pedidos de um cliente não excede um limite armazenado em outra tabela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. CHECK no PostgreSQL é destinada a condições da linha sendo inserida ou alterada e não mantém invariantes dependentes de outras linhas. Essa regra exige outro desenho, como lógica transacional apropriada e mecanismos de integridade compatíveis.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma nova CHECK é adicionada no PostgreSQL, as linhas que já existiam precisam satisfazer a condição para a operação ser aceita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A inclusão da restrição exige validação dos dados existentes; se alguma linha falhar, a mudança não deve ser considerada concluída até a inconsistência ser tratada.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma FOREIGN KEY pode apontar para uma coluna comum sem qualquer garantia de unicidade, porque a tabela referenciada sempre contém valores correspondentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O alvo precisa identificar unicamente os valores referenciados, como uma PK ou restrição UNIQUE aceita pelo SGBD; uma coluna não única não define um alvo inequívoco para a relação.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma FK composta pode validar um par de colunas em conjunto, desde que o lado referenciado ofereça combinação única compatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A referência composta compara os componentes em conjunto; quantidade e tipos devem corresponder e o par referenciado deve ser único para servir como alvo.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ON DELETE CASCADE preserva as linhas filhas e apenas bloqueia a exclusão do pai quando há referências existentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. CASCADE propaga a exclusão às linhas dependentes. O bloqueio da operação enquanto há filhos corresponde a uma política como NO ACTION ou RESTRICT, conforme a declaração e o SGBD.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ON DELETE SET NULL pode falhar se a coluna referenciadora também estiver declarada NOT NULL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A ação tenta gravar NULL nas colunas dependentes. Se outra restrição proíbe esse valor, a operação não consegue produzir um estado válido e falha.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O PostgreSQL cria automaticamente índice nas colunas da tabela que contém a FOREIGN KEY para acelerar a busca de linhas dependentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O índice que sustenta a unicidade do alvo é criado para PK ou UNIQUE, mas o PostgreSQL não cria automaticamente índice no lado que referencia. A equipe avalia esse índice conforme consultas e operações referenciais.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação de transferência que falha antes do COMMIT pode usar ROLLBACK para desfazer alterações ainda pendentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. ROLLBACK desfaz as mudanças pendentes da transação. Por isso débito e crédito podem ser tratados juntos, desde que ambos estejam na mesma unidade transacional e o erro seja tratado antes de confirmar.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, READ COMMITTED garante que todas as instruções de uma transação vejam exatamente o mesmo retrato de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. READ COMMITTED dá a cada comando visibilidade de linhas confirmadas antes do começo daquele comando; comandos diferentes na mesma transação podem observar confirmações ocorridas entre eles.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, uma transação SERIALIZABLE pode ser abortada se o padrão de concorrência não equivaler a alguma execução sequencial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O nível busca o resultado equivalente a uma ordem serial e sinaliza falha de serialização quando detecta conflito incompatível. A aplicação deve tratar o aborto e, quando seguro, repetir a unidade de trabalho.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Declarar uma FOREIGN KEY DEFERRABLE e adiá-la permite confirmar a transação mesmo que a referência continue inválida no commit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Adiamento altera o momento da verificação, permitindo estados intermediários temporários; a condição ainda precisa ser satisfeita quando a verificação ocorrer, normalmente antes da confirmação.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, NOT NULL e CHECK não podem ser adiadas com SET CONSTRAINTS quando a transação começa com BEGIN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No PostgreSQL, NOT NULL e CHECK são verificadas imediatamente e não são adiáveis por SET CONSTRAINTS. Somente tipos elegíveis declarados para adiamento aceitam essa mudança de momento.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma aplicação aceita preço positivo, mas uma rotina de importação escreve diretamente no banco. Qual solução faz a regra valer também para a importação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar CHECK (preco > 0) no esquema e validar também a entrada para orientar o usuário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter a validação apenas na tela e confiar que a importação use a mesma tela, já que a regra visual compartilhada garante que qualquer rotina de escrita receba os mesmos controles.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um índice comum no preço e considerar inválida toda linha fora da ordenação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar uma consulta de auditoria no fim do mês e apagar os valores negativos encontrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar os preços como texto para evitar que o SGBD interprete limites numéricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A restrição CHECK é executada pelo SGBD em qualquer caminho de escrita, ao passo que a validação de interface só alcança clientes que a utilizam. Manter a validação na aplicação ainda é útil para mensagem antecipada, mas não substitui a regra central no banco.",
+      "section": "1. O que significa manter a integridade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer impedir códigos repetidos, mas permitir que o nome do cliente permaneça opcional. Qual definição atende diretamente às duas regras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Marcar ambas as colunas NOT NULL e deixar a aplicação conferir o código antes de gravar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar uma chave primária composta por código e nome, incluindo o nome opcional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar CHECK para exigir que nome e código tenham exatamente o mesmo conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar FOREIGN KEY do código para a coluna nome da própria tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar código UNIQUE e manter nome nullable, sem converter NULL em texto vazio.",
+          "correct": true
+        }
+      ],
+      "explanation": "UNIQUE expressa a não duplicação do código, enquanto a ausência de NOT NULL deixa o nome opcional. A semântica de valores NULL na própria UNIQUE deve ser confirmada para o SGBD e requisito adotados; nada exige tornar o nome obrigatório.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tabela de inscrições, a combinação (turma_id, aluno_id) não pode se repetir, embora um aluno participe de várias turmas. Qual constraint descreve isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CHECK (turma_id <> aluno_id), comparando os identificadores sem restringir combinações repetidas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NOT NULL em aluno_id, deixando que a duplicidade seja tratada na camada de apresentação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "UNIQUE (turma_id, aluno_id), impondo unicidade ao par sem exigir exclusividade isolada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "UNIQUE (aluno_id), impedindo que o aluno apareça em mais de uma turma.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FOREIGN KEY (turma_id, aluno_id) sem declarar um alvo composto válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra incide sobre o par da inscrição, logo uma UNIQUE composta impede somente a repetição da mesma turma e do mesmo aluno. UNIQUE apenas em aluno_id seria mais restritiva e proibiria o aluno de cursar outra turma.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo saldo pode ser negativo em situações de crédito contratado, mas precisa ser informado. Qual regra evita apenas a ausência sem proibir saldos negativos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CHECK (saldo >= 0), pois toda condição numérica aceita crédito contratado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "UNIQUE (saldo), para tornar obrigatório o valor e permitir repeti-lo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PRIMARY KEY (saldo), já que a coluna precisa ter um valor informado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NOT NULL, que proíbe NULL sem impor sinal ou unicidade ao saldo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "FOREIGN KEY (saldo), para permitir que o valor seja informado livremente.",
+          "correct": false
+        }
+      ],
+      "explanation": "NOT NULL trata somente a presença. Uma CHECK de não negatividade rejeitaria estados que o domínio permite; PK ou UNIQUE imporiam regras de identidade ou duplicidade que não foram solicitadas.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de produtos permite preço zero para amostras gratuitas, mas rejeita preço negativo e preço ausente. Qual combinação é mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "UNIQUE (preco), porque cada produto precisa ter preço diferente de todos os demais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PRIMARY KEY (preco), porque preços são sempre identificadores únicos de produtos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CHECK (preco > 0), que aceita amostras gratuitas sem qualquer outra constraint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FOREIGN KEY (preco), apontando para qualquer preço disponível no catálogo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CHECK (preco >= 0) com NOT NULL, permitindo zero e proibindo negativos e ausência.",
+          "correct": true
+        }
+      ],
+      "explanation": "A expressão maior ou igual a zero aceita amostras gratuitas e rejeita negativos; NOT NULL impede que a expressão retorne NULL para um preço ausente. UNIQUE e PK acrescentariam unicidade não pedida e a FK não expressa limite numérico.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante implantação, pretende-se tornar uma coluna obrigatória, mas uma consulta encontrou registros antigos sem valor. Qual roteiro preserva a regra e trata o legado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar NOT NULL e configurar o banco para ignorar apenas as linhas antigas durante consultas futuras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir os nulos por uma cadeia vazia sem confirmar que ela represente um dado válido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover temporariamente todos os registros antigos para a alteração de esquema concluir sem validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar a regra sem validar dados e confiar que novas gravações não repitam a situação antiga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir um tratamento de negócio para os nulos, corrigir os registros e então validar NOT NULL.",
+          "correct": true
+        }
+      ],
+      "explanation": "A restrição precisa ser válida para os dados já armazenados, não só para linhas futuras. A equipe deve decidir um valor correto ou outra correção justificável, limpar o legado e confirmar a instalação da regra; preencher com um sentinela arbitrário pode criar informação falsa.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas sessões podem inserir ao mesmo tempo o mesmo número de matrícula. Qual proteção impede duplicidade mesmo se ambas lerem antes que a outra confirme?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um índice UNIQUE ou constraint UNIQUE no banco, que coordena a verificação entre gravações concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma consulta SELECT anterior feita por cada aplicação, sem constraint nem bloqueio coordenado entre as sessões concorrentes que tentam inserir o mesmo identificador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um teste na interface que desabilita o botão enquanto uma sessão local estiver trabalhando.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um relatório noturno que elimina matrículas duplicadas depois que as duas transações terminam.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma coluna NOT NULL, pois valores obrigatórios não podem se repetir entre registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A constraint UNIQUE é imposta pelo SGBD e arbitra tentativas concorrentes, evitando a corrida entre consulta e inserção. Uma checagem prévia na aplicação não é atômica com a escrita; NOT NULL proíbe ausência, não duplicidade.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um CHECK de intervalo deve garantir que uma data final não anteceda a data inicial na mesma linha. Qual definição expressa a condição sem cruzar linhas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FOREIGN KEY (inicio, fim), ainda que nenhuma tabela contenha a combinação de datas como chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "UNIQUE (inicio, fim), que apenas impede pares iguais e não estabelece ordem cronológica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CHECK (fim >= inicio), com NOT NULL se ambas as datas forem obrigatórias.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar trigger de exclusão em outra tabela sem declarar relação com a linha avaliada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar fim como PRIMARY KEY para garantir que as datas tenham ordem crescente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição compara campos da própria linha e é adequada a CHECK no PostgreSQL. Se datas ausentes também forem inválidas, NOT NULL expressa separadamente essa exigência, pois CHECK sozinho aceita resultado desconhecido.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa código local que só é único dentro de cada filial. Como deve ser identificada essa combinação na tabela de filiais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar UNIQUE (codigo_local), pois o mesmo código nunca pode aparecer em filial diferente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar CHECK (filial_id = codigo_local), fazendo os identificadores terem o mesmo número.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar NOT NULL em codigo_local e deixar a duplicidade sob responsabilidade dos relatórios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar UNIQUE (filial_id, codigo_local), pois é a combinação que identifica cada registro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Criar FOREIGN KEY (filial_id) para a própria coluna codigo_local, sem tabela de referência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra de negócio diz que o código só é único dentro da filial, portanto a combinação é a chave natural. Tornar o código globalmente único rejeitaria valores legítimos usados em filiais distintas.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de pedido guarda cliente_id e a equipe quer impedir clientes inexistentes. Qual desenho protege essa relação no banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar FOREIGN KEY de pedido.cliente_id para chave primária ou UNIQUE compatível de cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar CHECK (cliente_id > 0), que prova que o cliente existe na tabela principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar índice comum em pedido.cliente_id e considerar cada valor indexado como válido, pois a estrutura localiza rapidamente a referência e assegura sua existência no cadastro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar o identificador apenas ao renderizar o pedido, sem regra para importações diretas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar cliente_id UNIQUE em pedidos para impedir referências a cadastros ausentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A FK exige correspondência com uma chave única da tabela cliente e rejeita referência órfã. Um CHECK numérico só verifica o valor da coluna, não consulta a existência de cadastro; índice comum também não cria integridade referencial.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar uma chave estrangeira composta, qual condição do lado referenciado é necessária para que o par tenha alvo inequívoco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada coluna do par deve ser PRIMARY KEY separada, mesmo que isso impeça qualquer repetição isolada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A combinação referenciada deve ser chave primária ou UNIQUE compatível, com tipos e cardinalidade correspondentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Basta que uma das colunas seja indexada, mesmo que haja várias linhas com o mesmo par.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As colunas precisam pertencer à mesma tabela dependente, mas não precisam existir no alvo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O lado referenciado deve permitir valores duplicados para que a FK escolha qualquer correspondência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A FK composta compara o conjunto correspondente e precisa encontrar uma identidade única no alvo. Índice não único não define a linha referenciada; número e tipos de colunas também devem ser compatíveis.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de detalhe não pode existir sem a fatura correspondente, e detalhes devem ser removidos junto com a fatura. Qual ação representa esse ciclo de vida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SET NULL, preservando o detalhe órfão e apagando somente a referência à fatura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NO ACTION, que elimina automaticamente os detalhes antes da fatura ser removida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SET DEFAULT, que sempre localiza outra fatura adequada sem regra adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RESTRICT, que apaga em cascata os detalhes e impede a operação quando não há detalhes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CASCADE, que propaga a exclusão da fatura aos detalhes dependentes conforme o domínio.",
+          "correct": true
+        }
+      ],
+      "explanation": "Se o detalhe não tem existência independente, CASCADE pode expressar o ciclo de vida pretendido. É uma decisão de domínio, pois a operação elimina linhas filhas; caso precisem ser preservadas para auditoria, outra política seria necessária.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A exclusão de um usuário deve ser impedida enquanto existirem documentos que o referenciam. Qual comportamento referencial é o mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CASCADE em documentos, apagando-os automaticamente sem considerar retenção ou auditoria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SET NULL em todos os documentos, mesmo quando o autor precisa continuar identificável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma ação de bloqueio como NO ACTION ou RESTRICT enquanto houver referências dependentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SET DEFAULT para qualquer identificador, sem garantir que exista usuário correspondente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a FK durante a exclusão e recriá-la sem verificar documentos existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma política de bloqueio conserva a relação e força a equipe a tratar os documentos antes de apagar o usuário. A diferença precisa entre NO ACTION e RESTRICT varia no momento de checagem, especialmente com restrições adiáveis.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma FK permite SET DEFAULT, mas o valor padrão não corresponde a nenhuma linha da tabela pai. O que se deve esperar ao excluir o pai?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A exclusão conclui e a constraint passa a aceitar temporariamente qualquer valor padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A operação falha porque o valor padrão resultante ainda precisa satisfazer a FK.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O SGBD converte o padrão em NULL mesmo que a coluna esteja marcada como obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ação ignora constraints adicionais porque foi declarada diretamente na chave estrangeira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O banco cria automaticamente uma linha pai com a chave padrão e prossegue sem registro explícito.",
+          "correct": false
+        }
+      ],
+      "explanation": "SET DEFAULT não suspende as regras de integridade. O valor produzido precisa referenciar uma linha válida e obedecer às demais constraints; se não há alvo correspondente, a operação não pode deixar o estado relacional consistente.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de movimentações aponta para contas por FK; buscas de movimentações por conta são frequentes. Qual avaliação de índice faz sentido no PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar um índice nas colunas referenciadoras, pois o PostgreSQL não o cria automaticamente e consultas ou ações referenciais podem se beneficiar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover o índice da chave da conta, pois a FK cria uma cópia de índice em ambas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar índice somente nas descrições textuais, já que o identificador da FK é verificado sem busca.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a FK para que o índice possa ser criado sem qualquer validação relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar índice UNIQUE obrigatório na FK, impedindo que uma conta possua várias movimentações.",
+          "correct": false
+        }
+      ],
+      "explanation": "PostgreSQL não cria automaticamente índice na coluna referenciadora; ele pode ajudar a encontrar movimentos de uma conta e verificar efeitos de alterações no pai. O índice não precisa ser UNIQUE se várias movimentações forem legítimas.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma FK de duas colunas aceita ausência somente quando ambas são NULL, não permitindo mistura de uma coluna nula com outra preenchida. Qual conceito do PostgreSQL atende a essa regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma UNIQUE composta, que automaticamente exige nulidade simultânea em todas as linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NOT NULL em apenas uma coluna, deixando a outra livre para formar qualquer combinação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ON DELETE CASCADE, que controla combinações nulas na inserção de uma referência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MATCH FULL na FK composta, que aceita ausência completa ou exige correspondência para o conjunto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CHECK no lado referenciador que consulta a tabela pai e escolhe o registro mais próximo.",
+          "correct": false
+        }
+      ],
+      "explanation": "MATCH FULL define o tratamento de nulidade para a referência composta: todos os componentes podem ser nulos em conjunto, mas uma mistura de nulo e não nulo falha; caso preenchidos, devem corresponder ao alvo.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação atualiza duas tabelas relacionadas e ambas as mudanças precisam ser confirmadas ou descartadas juntas. Qual mecanismo fornece essa unidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um índice composto que ordena alterações em tabelas distintas antes de cada gravação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma constraint CHECK, que faz commit automático de comandos em tabelas diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma transação, com COMMIT no sucesso e ROLLBACK quando a unidade deve ser desfeita.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma chave estrangeira, que substitui o controle de confirmação de múltiplas instruções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um relatório posterior, que tenta reconstruir o estado anterior após qualquer falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transação agrupa as duas alterações e permite confirmação ou reversão como unidade lógica. Constraints continuam necessárias para definir estados válidos, mas não substituem o controle transacional de várias instruções.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um erro ocorre depois do débito e antes do crédito, mas antes do COMMIT da transferência. Qual tratamento preserva atomicidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar o débito sozinho e criar uma anotação para o setor financeiro investigar depois.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar ROLLBACK da transação para desfazer a alteração pendente e não deixar débito isolado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar uma consulta SELECT e considerar a leitura equivalente ao crédito ainda não realizado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar todas as constraints da tabela para que o crédito possa ser ignorado sem falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um índice no saldo e confirmar a transação sem executar o segundo lançamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Antes da confirmação, ROLLBACK desfaz o débito pendente e mantém as duas partes da transferência como uma única unidade. Confirmar parcialmente deixaria estado financeiro incoerente e exigiria compensação posterior.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao nível READ COMMITTED padrão do PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada comando enxerga linhas confirmadas antes de começar aquele comando, ainda que outro comando da transação veja confirmações posteriores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os comandos da transação enxergam o estado exato existente no início da sessão, sem exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda transação executa sem qualquer concorrência, como se tivesse bloqueado o banco inteiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente dados ainda não confirmados por outras sessões ficam visíveis ao comando atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As consultas ignoram linhas confirmadas e leem exclusivamente registros inseridos pela transação local.",
+          "correct": false
+        }
+      ],
+      "explanation": "No PostgreSQL, READ COMMITTED estabelece uma visão por comando baseada em dados confirmados antes do início daquele comando. Não oferece necessariamente um retrato único para todas as instruções da transação.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de agenda exige que o par de referências seja válido apenas quando o lote inteiro terminar; durante a reorganização, uma instrução intermediária pode quebrar temporariamente o vínculo. Qual recurso pode ser apropriado no PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover a FK permanentemente e confiar que todas as aplicações atualizem a agenda na mesma ordem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter a FK em CHECK, que consulta as outras tabelas no momento do commit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar READ UNCOMMITTED para permitir referência inválida sem que a transação seja detectada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar a restrição elegível DEFERRABLE e postergar a checagem dentro da transação, garantindo validade ao final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar ON DELETE CASCADE para adiar automaticamente toda verificação até depois da confirmação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma restrição elegível declarada DEFERRABLE pode ter a verificação adiada com SET CONSTRAINTS, permitindo estados intermediários transitórios. Isso não remove a regra: o vínculo precisa ser válido quando a checagem for realizada, antes de confirmar.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe usa SERIALIZABLE para proteger uma regra de negócio sob concorrência. Uma transação recebe falha de serialização. Qual resposta do sistema é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar a falha e informar sucesso ao usuário, pois SERIALIZABLE já confirma os comandos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar todas as constraints antes da repetição, evitando que o banco detecte conflito semelhante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar a transação como abortada e, quando seguro, repetir a unidade completa com política controlada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Repetir somente o último UPDATE sem reler dados, mesmo quando decisões anteriores dependiam da leitura concorrente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a mensagem de erro em COMMIT para preservar quaisquer alterações parciais da transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "SERIALIZABLE pode abortar uma transação para impedir resultado que não corresponda a uma execução sequencial. A aplicação deve tratar a falha e repetir a unidade lógica completa quando isso for seguro, evitando repetir efeitos externos ou comandos isolados com premissas antigas.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa aceitar temporariamente uma referência ausente durante a atualização de duas tabelas, mas o resultado final deve apontar para linha existente. Qual afirmação sobre DEFERRABLE é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A opção converte a FK em aviso e deixa qualquer referência ausente persistir depois do commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela pode postergar a checagem de FK elegível, mas a transação ainda precisa terminar em estado válido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela faz com que NOT NULL passe a aceitar nulos até que uma consulta posterior corrija o campo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela desliga a transação e aplica as alterações individualmente em autocommit automático.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela cria índice no lado referenciador e, por isso, elimina verificações de existência no alvo.",
+          "correct": false
+        }
+      ],
+      "explanation": "DEFERRABLE modifica o momento de verificação da restrição elegível, permitindo uma ordem de comandos que gere estado intermediário temporário. No instante exigido, normalmente no commit, a FK precisa estar satisfeita.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma FK impede exclusão do pai porque há dependentes, mas o negócio quer reter os documentos e retirar apenas a atribuição do responsável. Que ação pode atender ao requisito se a coluna admitir ausência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CASCADE, para apagar os documentos associados junto com a pessoa responsável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SET DEFAULT com identificador inexistente, para manter a FK e deixar a linha sem responsável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RESTRICT, para bloquear a exclusão e conservar a atribuição sem qualquer alteração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NO ACTION, que sempre substitui a FK por NULL independentemente da coluna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SET NULL, desde que nulidade e demais regras permitam retirar a referência sem apagar o documento.",
+          "correct": true
+        }
+      ],
+      "explanation": "SET NULL conserva a linha dependente e remove a referência ao responsável, se isso representar o domínio e a coluna aceitar nulos. CASCADE apagaria documentos; bloquear manteria a relação existente e não atenderia ao desligamento solicitado.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer garantir que a data de encerramento não venha antes da abertura e ambas as datas precisam estar presentes. Como descrever a regra no PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar CHECK (encerramento >= abertura) e NOT NULL nas duas colunas para cobrir ordem e presença.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar somente CHECK (encerramento >= abertura), pois o SGBD trata operandos NULL como zero e rejeita a comparação que não resulta em data válida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar UNIQUE (abertura, encerramento), que impede datas fora de ordem e ausência de valores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar FOREIGN KEY entre as duas datas, mesmo sem uma relação com outra tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar PRIMARY KEY nas datas, que ordena automaticamente os períodos em cada linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "CHECK compara as datas da mesma linha e NOT NULL exige que ambas existam. Sem NOT NULL, a condição pode resultar NULL e ser considerada satisfeita; UNIQUE e PK resolvem problemas diferentes.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um procedimento de auditoria encontra hoje uma FK órfã em dados legados após a regra ter ficado desabilitada no passado. Que ação trata melhor o problema sem perpetuá-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a regra desabilitada e agendar a mesma consulta para que detecte novas ocorrências em intervalos regulares.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir sempre o registro filho, sem verificar se a linha contém informação que precisa ser preservada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a FK por uma CHECK que teste se o identificador do pai é maior que zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Investigar e corrigir órfãos conforme regra de negócio, então reinstalar e validar a FK no banco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Adicionar índice comum e tratar a existência do valor como comprovada pela estrutura de busca.",
+          "correct": false
+        }
+      ],
+      "explanation": "A auditoria encontra o legado, mas não impede novas violações. É preciso decidir como corrigir ou reconciliar cada referência, validar os dados e reativar a FK para que as rotas de escrita voltem a ter a garantia declarada.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela permite vários endereços por pessoa e toda alteração de endereço precisa referenciar pessoa cadastrada. Qual combinação respeita essas cardinalidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "UNIQUE em pessoa_id na tabela de endereços, proibindo que uma pessoa tenha mais de um endereço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FOREIGN KEY endereço.pessoa_id para a chave da pessoa, sem UNIQUE em pessoa_id no lado dos endereços.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PRIMARY KEY somente em pessoa_id na tabela de endereços, permitindo várias linhas iguais sem restrição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CHECK em pessoa_id maior que zero, que verifica cadastro existente e cardinalidade um-para-muitos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FOREIGN KEY da pessoa para o endereço, invertendo a referência para cada cadastro possuir um endereço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A FK no endereço garante que cada endereço aponte a uma pessoa existente. Não marcar pessoa_id como UNIQUE no lado dos endereços permite várias linhas dependentes por pessoa, como exige a relação um-para-muitos.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de pagamentos deve registrar valores diferentes para cada linha, mas dois pagamentos podem ter o mesmo valor monetário. Qual escolha evita impor identidade baseada no valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar UNIQUE no valor, pois pagamentos iguais devem ser tratados como duplicatas de lançamento, ainda que sejam operações independentes feitas por clientes diferentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar CHECK (valor > 0) e considerar que a condição também identifica a linha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma coluna identificadora como PRIMARY KEY e manter valor sem unicidade indevida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar valor como FOREIGN KEY para outra tabela que não contém montantes de referência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar NOT NULL em valor e assumir que todo valor obrigatório será único.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identidade da linha deve ser representada por chave adequada, não por um atributo que pode legitimamente se repetir. NOT NULL exige presença e CHECK limita domínio, mas nenhuma dessas regras torna valores distintos.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação composta falha após gravar alterações em duas tabelas dentro da mesma transação ainda aberta. Qual é o efeito de ROLLBACK?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove somente a constraint que causou o erro e confirma automaticamente todas as outras escritas feitas nas tabelas relacionadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confirma a primeira tabela e desfaz a segunda para preservar ao menos parte da operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mantém as alterações pendentes e grava uma marca de auditoria para a próxima sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desfaz mudanças pendentes da transação, respeitando a unidade de trabalho não confirmada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apaga a tabela de histórico do banco e reinicia o isolamento das sessões conectadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ROLLBACK cancela as alterações ainda não confirmadas que pertencem à transação. Ele não escolhe uma tabela para confirmar parcialmente nem remove a constraint; após a correção, a operação pode ser tentada novamente sob controle da aplicação.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação precisa inserir duas linhas com referências circulares, válidas apenas depois que ambas existirem. No PostgreSQL, o que deve ser avaliado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar restrições FK elegíveis como DEFERRABLE e postergar sua checagem até o ponto em que as duas referências estejam válidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar CHECK em cada tabela para consultar a outra tabela no commit sem declarar relações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar permanentemente ambas as FKs, pois nenhuma relação circular pode ser garantida por banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar NOT NULL adiável, que retém referências nulas e cria os registros correspondentes por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar cada INSERT em autocommit, garantindo que referências incompletas sejam aceitas como estado final.",
+          "correct": false
+        }
+      ],
+      "explanation": "FKs elegíveis podem ser declaradas DEFERRABLE para permitir uma sequência intermediária temporariamente inconsistente e verificar depois, dentro da transação. As linhas precisam satisfazer todas as referências quando a checagem ocorrer; CHECK não é mecanismo para consultar outras tabelas.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe planeja apagar uma categoria referenciada por produtos, mas produtos precisam continuar consultáveis e a categoria antiga deve permanecer identificada. Qual política é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CASCADE, pois a rastreabilidade do produto aumenta quando seus registros também desaparecem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SET NULL, mesmo que a categoria antiga precise continuar registrada como parte da identidade do produto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NO ACTION ou RESTRICT até transferir ou preservar adequadamente as referências, sem apagar produtos em cascata.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SET DEFAULT para categoria inexistente, removendo a relação sem alterar o histórico de produto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a FK antes da exclusão e não conferir as linhas que ficarão sem correspondência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o produto precisa continuar relacionado a uma categoria identificável, a exclusão do alvo deve ser bloqueada até que a política de retenção ou transferência seja aplicada. CASCADE apagaria produtos e SET NULL perderia o vínculo histórico desejado.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas aplicações independentes escrevem na mesma tabela e ambas precisam manter a regra de e-mail único. Onde deve ficar a garantia definitiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em cada tela, com validações visuais idênticas e sem regra compartilhada no banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em um relatório comum, que mostra duplicidades sem impedir novas gravações concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em um comentário no esquema, para que desenvolvedores leiam a regra antes de gravar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na rotina de manutenção mensal, que exclui um dos usuários quando a duplicidade for encontrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em uma constraint UNIQUE no banco, podendo cada aplicação também validar para orientar o usuário.",
+          "correct": true
+        }
+      ],
+      "explanation": "A constraint no banco é comum a todas as rotas e coordena também tentativas concorrentes. A validação de aplicação melhora a experiência, mas uma consulta prévia sem garantia atômica pode sofrer corrida entre a checagem e a inserção.",
+      "section": "1. O que significa manter a integridade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão pede um índice para acelerar exclusões da tabela pai que precisam verificar muitas linhas filhas. Qual observação técnica é correta no PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A FK já garante índice no lado dependente, logo a equipe deve removê-lo para reduzir o custo de escrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um índice nas colunas da FK pode ajudar a localizar dependentes; sua necessidade depende de consultas e carga.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente índice UNIQUE nas colunas dependentes é permitido, mesmo quando vários filhos compartilham o pai.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O índice precisa ser criado na descrição textual do pai, pois a FK compara rótulos e não identificadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A exclusão do pai não verifica dependentes quando há FK, então nenhum índice pode influir no custo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A integridade referencial exige localizar referências; índice no lado referenciador pode tornar essa busca mais eficiente. PostgreSQL não cria esse índice automaticamente e o índice não precisa ser único quando muitos filhos podem apontar para o mesmo pai.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema precisa armazenar códigos de situação entre valores permitidos numa linha. Qual instrumento oferece uma regra declarativa de domínio local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CHECK com condição sobre o código, ou tipo/domínio apropriado disponível no SGBD.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma FK para tabela sem chave única, para selecionar qualquer código semelhante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma transação serializable, que converte qualquer código recebido para uma categoria válida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um índice comum, que rejeita valores não listados sem condição ou unicidade declarada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra de backup, que restaura automaticamente códigos fora da lista permitida.",
+          "correct": false
+        }
+      ],
+      "explanation": "CHECK pode limitar valores da própria linha, por exemplo por uma lista de códigos, e tipo ou domínio específico também pode expressar o conjunto permitido. Índice comum não define domínio e transação não transforma entrada inválida em valor válido.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao converter saldo para NOT NULL, que interpretação está correta para o valor zero?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Zero será rejeitado porque NOT NULL proíbe todo valor numericamente menor que um.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Zero será tratado como ausência e convertido pelo banco em NULL antes da validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NOT NULL proíbe ausência; zero permanece permitido se nenhuma outra regra o vetar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "NOT NULL garante que cada saldo seja único entre os clientes cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NOT NULL cria uma referência automática a uma linha com saldo zero em outra tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "NOT NULL se refere exclusivamente ao marcador de ausência NULL. Não impõe positividade, valor mínimo, unicidade nem referência; essas propriedades exigiriam outras regras expressas no esquema.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma constraint UNIQUE no PostgreSQL tem uma coluna nullable e duas linhas com NULL nesse campo. Qual ressalva deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda implementação SQL considera NULL igual a NULL em UNIQUE, portanto sempre rejeita a segunda linha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "UNIQUE implica NOT NULL automaticamente em qualquer coluna e em qualquer SGBD compatível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A constraint converte todos os NULL existentes em valores distintos antes de verificar duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tratamento padrão de NULL em UNIQUE varia entre SGBDs; confirme o comportamento ou imponha NOT NULL se preciso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "NULL em UNIQUE é comparado como zero numérico, então apenas um valor nulo pode existir.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tratamento de nulos por UNIQUE é definido de modo variável entre implementações; no PostgreSQL, por padrão, nulos distintos não são considerados iguais na comparação única. Se o requisito é obrigatoriedade, declare NOT NULL em vez de depender dessa particularidade.",
+      "section": "2. Restrições de linha, identidade e unicidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação reordena referências com FK declarada como NOT DEFERRABLE e uma instrução intermediária viola a relação, embora uma etapa futura a corrigisse. Qual resultado esperar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A checagem é adiada automaticamente porque toda transação espera até o commit para validar chaves estrangeiras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O banco aceita a etapa intermediária e a FK fica temporariamente suspensa até o encerramento da conexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O SGBD remove a restrição e cria outra equivalente depois que a instrução seguinte for executada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação pode tratar a constraint como comentário sem alterar a declaração original do esquema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A verificação ocorre no momento imediato aplicável; a ordem de comandos precisa respeitar a restrição declarada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma restrição não adiável não pode ser postergada por SET CONSTRAINTS. A operação que gera referência inválida falha antes da etapa posterior; para aceitar estado intermediário, a constraint precisa permitir adiamento e a transação deve terminar válida.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe verifica previamente se o e-mail existe e depois insere um usuário, mas duas solicitações simultâneas podem executar a verificação. Qual falha de desenho permanece sem UNIQUE?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A verificação prévia não é atômica com a inserção, permitindo que ambas observem ausência e tentem gravar o mesmo e-mail.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A consulta SELECT transforma automaticamente o valor em nulo antes que a sessão concorrente o leia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave estrangeira do usuário passa a verificar unicidade de e-mail sem índice ou constraint adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A transação serializable de uma aplicação é herdada por outra aplicação e coordena ambas sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SGBD compara somente o comprimento do endereço, de modo que endereços iguais nunca se repetem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Há uma janela entre a leitura e a gravação. Duas sessões podem observar que o endereço ainda não existe e competir para inserir. UNIQUE no banco fecha essa lacuna e deixa que uma das gravações seja recusada conforme a constraint.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço recebe violação de FK ao salvar uma ordem. Qual diagnóstico inicial é diretamente relacionado à regra declarada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar somente se há espaço livre no backup, pois toda FK depende da capacidade de restauração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confirmar se a linha pai existe e se os valores e colunas da referência correspondem ao alvo esperado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover todas as FKs do banco para descobrir se o sistema consegue aceitar a ordem sem interrupção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o nível de isolamento até SERIALIZABLE, que cria automaticamente a linha pai ausente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o identificador para zero, valor que qualquer constraint reconhece como referência universal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Violação de FK indica que a referência não encontrou alvo válido ou que alguma regra referencial foi contrariada. Investigue a existência e os valores das chaves; isolamento não cria registros e remover constraints apenas ocultaria a inconsistência.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que distingue uma restrição de integridade de um backup ao proteger o estado de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backup impede inserções fora do domínio; a constraint recupera dados apagados por erro operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos fazem exatamente o mesmo trabalho e são intercambiáveis em qualquer implantação relacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A constraint mantém cópias históricas, enquanto backup compara referências entre tabelas em toda escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Constraint rejeita operações que violam regra declarada; backup auxilia a recuperar informação perdida ou danificada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A constraint protege somente arquivos físicos e o backup limita valores aceitos em colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Constraints atuam durante operações para preservar propriedades lógicas, enquanto backup é uma cópia usada em recuperação. Um não substitui o outro: dados válidos podem ser perdidos e dados incorretos podem ser copiados em backup.",
+      "section": "1. O que significa manter a integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma inscrição deve apontar para estudante existente, mas estudante_id pode ser nulo para inscrições ainda não atribuídas. Qual interpretação combina as regras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A FK torna a coluna obrigatória por definição e substitui qualquer decisão sobre nulidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CHECK positivo permite a ausência e também garante que o estudante está cadastrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A FK valida referências não nulas; mantenha a coluna nullable se a ausência fizer parte do domínio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "UNIQUE estudante_id cria automaticamente o registro de estudante quando recebe identificador conhecido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PRIMARY KEY estudante_id permite várias inscrições sem referência e aceita NULL em cada uma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nulidade e referência são requisitos distintos. A FK verifica que um valor informado corresponda a um estudante existente; se NULL representa intencionalmente uma inscrição sem atribuição, não imponha NOT NULL, mas defina claramente essa semântica.",
+      "section": "3. Integridade referencial entre tabelas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sequência de mudanças em linhas viola temporariamente uma constraint e depois a corrige na mesma transação. Qual detalhe determina se o fluxo pode funcionar no PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se a aplicação está em linguagem compilada, as constraints são verificadas somente depois que o programa termina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se a conexão usa índice B-tree, qualquer constraint pode ser ignorada até o próximo backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se a transação tem ROLLBACK disponível, todas as verificações de constraints são automaticamente adiáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o usuário tem privilégio de escrita, o SGBD aceita a violação intermediária como regra de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a constraint é do tipo elegível, foi declarada DEFERRABLE e sua checagem foi postergada na transação.",
+          "correct": true
+        }
+      ],
+      "explanation": "A possibilidade depende da constraint aceitar adiamento e da transação alterar seu modo de checagem quando apropriado. Constraints imediatas falham no ponto de verificação; a existência de rollback ou privilégio não muda esse contrato.",
+      "section": "4. Transações, concorrência e manutenção das regras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Constraints",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK, NOT NULL, ações referenciais, índices e semântica de CHECK",
+      "url": "https://www.postgresql.org/docs/18/ddl-constraints.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Modifying Tables",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Adicionar restrições e validar compatibilidade com os dados existentes",
+      "url": "https://www.postgresql.org/docs/18/ddl-alter.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — CREATE TABLE",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Definição e adiamento de constraints elegíveis, restrições DEFERRABLE e índices referenciadores",
+      "url": "https://www.postgresql.org/docs/18/sql-createtable.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — BEGIN",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Blocos de transação, autocommit e consistência de alterações relacionadas",
+      "url": "https://www.postgresql.org/docs/18/sql-begin.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 17 — SET TRANSACTION",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Visibilidade de dados e isolamento READ COMMITTED, REPEATABLE READ e SERIALIZABLE",
+      "url": "https://www.postgresql.org/docs/17/sql-set-transaction.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 15 — SET CONSTRAINTS",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Alteração do momento de checagem de constraints adiáveis na transação",
+      "url": "https://www.postgresql.org/docs/15/sql-set-constraints.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

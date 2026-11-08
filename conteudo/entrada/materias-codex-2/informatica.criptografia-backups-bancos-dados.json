@@ -1,0 +1,1024 @@
+{
+  "id": "informatica.criptografia-backups-bancos-dados",
+  "subject": "Informática",
+  "title": "Criptografia de backups de bancos de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Implementar criptografia em backups.",
+    "Criptografia de backups de bancos de dados",
+    "Backup criptografado de banco de dados",
+    "Proteção criptográfica de cópias de banco",
+    "Criptografar cópias de segurança de bancos",
+    "Chaves de criptografia para backups de banco",
+    "Certificados usados em backup criptografado",
+    "Criptografia em repouso para backups",
+    "Restauração de backup criptografado",
+    "Gerenciamento de chaves para cópias de segurança"
+  ],
+  "scope": {
+    "covers": "Fundamentos e implementação da criptografia de backups de bancos de dados: diferença entre criptografar dados ativos e o artefato de backup; proteção em repouso e em trânsito; cifragem simétrica e proteção de chaves; certificados e chaves gerenciadas; separação, permissões, rotação e custódia; cópias locais, remotas e em nuvem; diferenças de implementação por mecanismo; exemplo concreto de backup nativo criptografado e restauração em outro servidor no SQL Server; validação de cópias, recuperação e erros operacionais.",
+    "excludes": "Administração geral de SGBD, desenho de rotinas de backup e retenção, recuperação ponto no tempo, criptografia de tabelas em uso, protocolos de rede em profundidade, auditoria jurídica e configuração detalhada de todos os provedores e versões de banco de dados."
+  },
+  "theoryTitle": "Proteger e recuperar backups criptografados",
+  "chapters": [
+    {
+      "title": "1. O que exatamente precisa ser criptografado",
+      "markdown": "### O problema que este assunto resolve\n\nUm backup pode sair do perímetro confiável: é copiado para outro data center, enviado a um cofre de nuvem, transportado em mídia removível ou acessado por uma conta de armazenamento. Se alguém obtiver o arquivo, a criptografia deve impedir que leia os dados sem a chave adequada. O objetivo é proteger a confidencialidade da cópia mesmo quando os controles de acesso ao arquivo falham.\n\nCriptografar o banco em produção não prova, por si só, que seu backup também esteja cifrado. **TDE** (Transparent Data Encryption), por exemplo, protege arquivos de dados e logs em repouso em mecanismos que oferecem esse recurso. O backup pode herdar essa proteção, depender da chave de TDE para ser lido ou ainda ter uma opção específica de criptografia do backup. O comportamento exato depende do produto. Em SQL Server, há uma opção para cifrar o backup durante sua criação usando algoritmo e certificado ou chave assimétrica; o certificado de TDE e o certificado escolhido para o backup podem exercer papéis distintos.\n\n> **Siglas e termos deste capítulo**\n> - **Backup**: conjunto de dados produzido para permitir recuperação de um banco.\n> - **TDE**: Transparent Data Encryption; cifra arquivos de dados e log em repouso no mecanismo que a implementa.\n> - **Dado em repouso**: dado armazenado em arquivo, mídia, objeto ou volume.\n> - **Dado em trânsito**: dado que percorre uma rede entre componentes.\n> - **Cifragem do backup**: proteção aplicada à cópia, pelo banco ou pela camada de armazenamento.\n\n### Camadas e fronteiras de proteção\n\n| Camada | O que protege | O que não resolve sozinha |\n| --- | --- | --- |\n| Criptografia nativa do backup | Conteúdo do conjunto de backup produzido pelo SGBD | Acesso indevido à chave ou vazamento de credenciais |\n| Criptografia de volume ou disco | Arquivos enquanto o volume está cifrado e protegido pelo sistema | Cópia exportada para outro volume sem criptografia própria |\n| Criptografia do serviço de armazenamento | Objetos ou snapshots guardados naquele serviço | Cópia baixada, exportada ou acessível por outro caminho sem a mesma proteção |\n| TLS na transferência | Dados enquanto atravessam a conexão protegida | Arquivo já gravado em destino sem criptografia em repouso |\n\nA proteção em trânsito e em repouso é complementar. Uma transferência TLS não continua protegendo o arquivo depois que ele chega ao destino; a criptografia do objeto guardado não protege uma transferência feita por canal inseguro. A documentação da AWS recomenda as duas camadas e descreve KMS/CloudHSM para repouso e TLS para tráfego até o serviço.\n\n### Escolha conforme o risco e o fluxo\n\nMapeie as cópias: arquivo temporário de exportação, área de staging, destino final, réplicas, cópias entre regiões e cópias que operadores baixam para testes. Se houver um intervalo em que o backup fica sem criptografia, a etapa final não cobre esse trecho. Prefira que a cifragem ocorra antes de o arquivo sair do ambiente confiável, ou que o destino aplique a proteção no momento em que grava, conforme o mecanismo e o risco. Controle também quem pode ler o arquivo e quem pode usar a chave: são autorizações diferentes, que podem reduzir o impacto de uma permissão de armazenamento excessiva.\n\nCriptografia não substitui integridade, imutabilidade, controle de acesso nem teste de restauração. Um arquivo cifrado pode estar incompleto, corrompido, ter sido apagado ou estar protegido por uma chave perdida. A operação precisa confirmar que a rotina terminou, que a cópia corresponde ao banco esperado e que a equipe consegue recuperar tanto os dados quanto as chaves.\n\n### Como cai na prova\n\n- TDE no banco de origem e cifra do artefato de backup são controles relacionados, mas não automaticamente idênticos.\n- TLS protege o caminho da transferência; armazenamento cifrado protege o arquivo no destino.\n- Volume cifrado não acompanha necessariamente um arquivo copiado para fora dele.\n- A meta é proteger a cópia sem inviabilizar a restauração autorizada."
+    },
+    {
+      "title": "2. Algoritmos, chaves e custódia",
+      "markdown": "### O problema que este assunto resolve\n\nUm algoritmo de cifra transforma o conteúdo legível em texto cifrado. Para recuperar os dados, o processo precisa ter acesso ao material criptográfico correspondente. Portanto, guardar o backup e perder a chave equivale, operacionalmente, a perder os dados. A gestão da chave faz parte do plano de recuperação, não é uma tarefa acessória.\n\nNa cifragem **simétrica**, uma mesma chave secreta cifra e decifra os dados. É eficiente para grandes volumes, como arquivos de backup. Em um arranjo **assimétrico**, um par de chaves pública e privada pode proteger uma chave de dados simétrica; a chave privada ou o serviço que a controla torna-se essencial na abertura. Certificados associam uma identidade a uma chave pública e podem carregar ou proteger a chave privada conforme o sistema. O certificado público, sozinho, não substitui a chave privada necessária para decifrar.\n\n> **Siglas e termos deste capítulo**\n> - **Chave de dados (DEK)**: chave usada para cifrar diretamente o conteúdo.\n> - **Chave de criptografia de chaves (KEK)**: chave que protege outra chave, como uma DEK.\n> - **KMS**: serviço de gerenciamento de chaves criptográficas.\n> - **HSM**: módulo de segurança de hardware para operações e custódia de material criptográfico.\n> - **Certificado**: objeto que contém chave pública e informações de identidade; pode ter chave privada associada.\n> - **Impressão digital (thumbprint)**: identificador derivado do certificado, usado por alguns produtos para localizar o certificado exato.\n\n### Separação de funções e cópias de chave\n\nUma arquitetura comum gera ou usa uma DEK para o backup e a protege com uma KEK controlada por KMS/HSM. O arquivo contém dados cifrados e metadados suficientes para localizar ou desembrulhar a DEK; não deve carregar uma cópia utilizável da KEK em claro. A separação de funções permite que o operador do repositório não tenha automaticamente autorização para decifrar. Restrinja as operações de gerar chave, cifrar, decifrar, administrar política e auditar a quem precisa delas.\n\nMantenha a chave recuperável por uma equipe autorizada mesmo quando o servidor original, a conta administrativa ou a região principal estiver indisponível. Em SQL Server, a documentação orienta exportar o certificado e a chave privada usados para cifrar o backup, guardá-los em local diferente do arquivo de backup e disponibilizar o certificado original no servidor de restauração. O backup criptografado requer a chave/certificado correspondente; alterar ou renovar o certificado pode mudar sua impressão digital e impedir a abertura daquela cópia.\n\nSeparar os locais reduz a chance de um único incidente apagar ou expor backup e chave ao mesmo tempo. Essa separação não significa espalhar a chave sem controle: a cópia deve ficar cifrada, com acesso restrito, inventariada e sujeita a recuperação testada. Uma chave guardada exclusivamente dentro do servidor que se perdeu não é uma cópia de contingência.\n\n### Ciclo de vida e rotação\n\nA política de chaves deve definir criação, responsáveis, autorização de uso, cópias de recuperação, rotação, revogação e descarte. Rotacionar não significa apagar a chave antiga de imediato: backups retidos podem continuar cifrados com ela. Preserve as chaves antigas pelo tempo em que qualquer cópia dependente delas precise ser restaurável, ou recripte as cópias por procedimento controlado antes de aposentar a chave. Ao investigar suspeita de comprometimento, limite o uso da chave afetada e planeje a substituição considerando cópias históricas e restaurações.\n\nNão confunda rotação da KEK com recifrar automaticamente todo o backup: alguns KMS permitem reembrulhar uma DEK sem recifrar o grande volume; outros produtos exigem cópia ou recriptografia. A capacidade é específica do sistema. Registre o identificador da chave e sua versão com o conjunto de backup, mas nunca registre o segredo ou a chave privada em logs.\n\n### Como cai na prova\n\n- Backup cifrado sem sua chave de recuperação não é restaurável.\n- A documentação de SQL Server recomenda guardar o certificado/chave em local diferente e manter o certificado usado originalmente.\n- A rotação precisa preservar a leitura dos backups históricos ainda retidos.\n- Administrar o repositório e autorizar o uso da chave são privilégios separáveis."
+    },
+    {
+      "title": "3. Implementação em SGBD e armazenamento gerenciado",
+      "markdown": "### O problema que este assunto resolve\n\nA implementação depende de onde a cifra acontece: no comando de backup do SGBD, no serviço de cópia, no volume ou no cofre de armazenamento. O rótulo “criptografado” pode descrever uma camada específica, não todas as etapas. Leia o comportamento do tipo de recurso, em vez de presumir que uma regra do banco de origem vale para toda cópia.\n\nNo SQL Server, o fluxo documentado para cifrar durante o backup é selecionar um algoritmo e um certificado ou chave assimétrica como cifrador. A documentação lista AES de 128, 192 e 256 bits e Triple DES como opções nessa funcionalidade. O comando de backup pode indicar, por exemplo, `ALGORITHM = AES_256` e `SERVER CERTIFICATE = BackupEncryptCert`. A instância precisa ter uma chave mestra do banco `master` para proteger chaves privadas de certificados e, depois, o certificado ou chave que servirá ao backup. A capacidade varia por edição: a documentação informa que Express e Web não criam backup cifrado por essa opção, embora possam restaurar backup cifrado.\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: sistema gerenciador de banco de dados.\n> - **AWS KMS**: serviço AWS para criar e controlar chaves usadas em operações criptográficas.\n> - **Cofre de backup (backup vault)**: destino lógico que guarda pontos de recuperação no AWS Backup e associa configuração de chave.\n> - **Snapshot**: cópia pontual de um recurso, cujo modelo de proteção depende do serviço.\n> - **Criptografia independente**: no AWS Backup, capacidade de certos tipos de recurso terem proteção do backup determinada pelo cofre, distinta da origem.\n\n### Nuvem: comportamento por tipo de recurso\n\nA documentação do AWS Backup mostra por que é necessário verificar o tipo de recurso. Backups de S3 geridos pelo serviço são cifrados com a chave KMS associada ao cofre, inclusive se o bucket de origem não estiver cifrado. Já snapshots de RDS herdam a chave da instância de origem; se a origem não está cifrada, a cópia também pode ficar sem cifra. Para EBS, o padrão do backup pode herdar a chave do volume ou manter-se sem cifra, e há escolha de chave ao restaurar. Para cópia entre regiões, a cópia usa a chave do cofre de destino nos casos descritos. Há diferenças entre recursos plenamente geridos pelo AWS Backup e os demais, inclusive para cópia entre contas.\n\nA conta ou papel de serviço que grava e restaura precisa ser autorizado tanto pela política de identidade quanto pela política da chave. Na AWS, a documentação lista como permissões mínimas na política da chave, para operações de backup, `kms:CreateGrant`, `kms:GenerateDataKey` e `kms:Decrypt`; uma negação explícita ou concessão revogada pode impedir a operação. Os nomes são próprios desse provedor e não devem ser transportados como se fossem requisito universal de outros SGBDs.\n\n### Procedimento operacional para ativar\n\n1. Inventarie o banco, os tipos de backup e todos os destinos intermediários e finais.\n2. Defina algoritmo/cifra compatível com produto, requisito de segurança e leitura futura. Evite depender de uma configuração que não seja aceita pelo formato ou pela versão de destino.\n3. Crie ou selecione a chave em um serviço/certificado de confiança; restrinja quem a administra e quem pode usá-la para decifrar.\n4. Ative a cifra no ponto correto: opção nativa do SGBD, configuração do cofre ou política do serviço de armazenamento.\n5. Confirme a proteção também em cópias exportadas, réplicas e cópias entre contas ou regiões. Configure TLS para as transferências quando houver tráfego de rede.\n6. Faça uma restauração de ensaio em ambiente isolado com as permissões e chaves previstas para contingência.\n7. Monitore resultados, falhas de chave, alterações de política e evidência de que os backups estão cifrados.\n\nO status de uma tarefa de backup, sozinho, pode não provar que o objeto é legível nem que está protegido como esperado. Combine inventário/configuração, verificação do serviço, auditoria e exercício de restauração.\n\n### Como cai na prova\n\n- A criptografia nativa do SQL Server usa algoritmo e certificado ou chave assimétrica no momento do backup.\n- Na AWS, nem todo tipo herda nem todo tipo separa a chave: a regra é específica do recurso e da operação.\n- Uma cópia entre regiões pode usar a chave do cofre de destino; permissões são necessárias para copiar e restaurar.\n- Ativar uma opção exige verificar compatibilidade da edição, formato, destino e procedimento de recuperação."
+    },
+    {
+      "title": "4. Restauração, teste e resposta a falhas",
+      "markdown": "### O problema que este assunto resolve\n\nA finalidade do backup aparece quando é preciso restaurar. Um arquivo pode estar íntegro, mas inacessível porque falta a chave, o certificado, uma permissão, uma versão compatível ou o caminho de recuperação. Projete a restauração ao mesmo tempo que a criação da cópia.\n\nEm SQL Server, ao restaurar um backup cifrado não é necessário repetir os parâmetros de cifra do comando de backup, mas a instância de destino precisa ter disponível o certificado ou a chave assimétrica que cifrou o arquivo. A conta que executa a restauração necessita permissão `VIEW DEFINITION` sobre esse certificado/chave. Para mover a cópia a outra instância, a sequência documentada inclui exportar o certificado antigo, criar a chave mestra em `master` na instância nova, importar/criar ali o certificado e então restaurar. Não basta criar um certificado novo com o mesmo nome: precisa ser o certificado original com o material correspondente.\n\n> **Siglas e termos deste capítulo**\n> - **Restauração**: reconstrução do banco a partir de uma cópia de backup.\n> - **RTO**: objetivo de tempo para retomar o serviço após interrupção.\n> - **RPO**: objetivo de ponto de recuperação, relacionado à quantidade de dados que se admite perder.\n> - **Restore drill**: exercício controlado de restauração para comprovar o procedimento.\n> - **Hash/checksum de integridade**: verificação que detecta alterações acidentais no arquivo, sem substituir a criptografia.\n\n### Ensaio verificável\n\nUm teste útil escolhe uma cópia representativa e a restaura em ambiente isolado. A equipe recupera as chaves pelo caminho de contingência, concede apenas os acessos previstos, restaura e verifica se o banco abre e se os dados e objetos esperados estão presentes. Registra duração, falhas, dependências e resultado. O exercício deve cobrir restauração em outra máquina, conta ou região quando esse cenário fizer parte do plano.\n\nVerifique separadamente: conclusão da geração do backup; integridade da cópia; estado de criptografia e identificação da chave; acesso controlado ao repositório; disponibilidade do certificado/chave de dados; autorização do processo de restauração; compatibilidade do formato; recuperação bem-sucedida. Um checksum pode indicar corrupção ou alteração, mas não prova confidencialidade nem autenticidade por si só. Criptografia também não impede que uma conta autorizada apague o arquivo; retenção, imutabilidade e controles administrativos tratam de riscos diferentes.\n\n### Diagnóstico de falhas\n\n| Sintoma | Verificações concretas |\n| --- | --- |\n| Backup não inicia ou falha ao cifrar | Algoritmo aceito, certificado/chave presente, chave mestra e permissões da conta de backup |\n| Arquivo existe, mas não restaura em outra instância | Certificado original e chave privada importados; impressão digital correta; permissão de uso; compatibilidade da versão |\n| Cópia em nuvem aparece sem cifra | Regra do serviço para aquele tipo de recurso e estado da origem; configuração de cofre/destino e resultado da cópia |\n| Job de nuvem conclui sem dados legíveis | Acesso do papel de serviço à chave, política IAM e política KMS coerentes, grants e regras de negação |\n| Backup histórico deixa de abrir após rotação | Chave antiga preservada ou cópia recriptografada e validada antes de aposentá-la |\n\nSe houver suspeita de exposição da chave, restrinja o acesso e investigue quais cópias podem ter sido decifradas. Se uma chave foi perdida, a criptografia correta não possui uma “senha mestre” universal: restaure acesso ao material por procedimento de recuperação autorizado ou trate a cópia como irrecuperável. Não enfraqueça a chave nem a exponha em texto claro para contornar a falha.\n\n### Como cai na prova\n\n- O servidor de restauração precisa do certificado/chave original, não de outro com o mesmo nome.\n- Verificação de checksum não prova cifra; cifra não prova integridade nem disponibilidade.\n- Um teste real de restauração verifica dados, chaves, permissões e tempo do procedimento.\n- Retenção/imutabilidade, cifra, integridade e controle de acesso mitigam riscos distintos."
+    },
+    {
+      "title": "5. Erros de projeto e controles duradouros",
+      "markdown": "### O problema que este assunto resolve\n\nImplementar criptografia corretamente exige evitar dois extremos: deixar cópias legíveis fora do ambiente de produção e criar um sistema tão dependente de uma chave inacessível que ninguém consegue restaurar. O projeto deve reduzir exposição sem sacrificar recuperabilidade.\n\nUma estratégia duradoura registra, para cada família de cópias, quem produz, onde a cifra ocorre, algoritmo e formato, identificador da chave, quem pode cifrar/decifrar, onde está a cópia recuperável da chave e como restaurar em ambiente alternativo. Documente as dependências sem colocar segredos no próprio runbook. Proteja também logs, arquivos temporários, exportações de teste e cópias enviadas a terceiros: são saídas de dados e podem conter a mesma informação sensível.\n\n> **Siglas e termos deste capítulo**\n> - **Menor privilégio**: conceder somente as ações e recursos necessários a cada identidade.\n> - **Segregação de funções**: separar tarefas críticas, como administrar armazenamento e liberar uso de chave.\n> - **Cópia fora do local (off-site)**: cópia mantida fora da instalação principal para sobreviver a incidente local.\n> - **Cópia imutável**: cópia cuja exclusão ou alteração é restringida por controles próprios de retenção.\n\n### Controles práticos\n\n| Controle | Aplicação ao backup cifrado |\n| --- | --- |\n| Menor privilégio | Papéis de backup, restauração e administração de chaves têm permissões distintas |\n| Separação de chave e arquivo | Certificado/chave de recuperação não fica apenas ao lado do único backup |\n| Auditoria | Registrar criação, cópia, restauração e uso administrativo das chaves, sem registrar segredos |\n| Continuidade | Manter alternativa de acesso à chave quando servidor, conta ou local principal estiver indisponível |\n| Compatibilidade | Registrar o produto/formato e manter caminho de restauração testado em destino suportado |\n| Monitoramento | Detectar job falho, destino inesperado, backup sem cifra e alteração de política/chave |\n| Imutabilidade | Restringir exclusão/alteração de cópias por um controle separado da criptografia |\n\nA separação precisa ser planejada para ameaças reais. Se a chave e todos os backups estiverem na mesma conta administrativa, um invasor que obtenha essa conta pode excluir ou decifrar ambos. Se a chave existir só em uma conta que não participa do plano de desastre, a recuperação pode parar na autorização. Políticas independentes, cópias em domínio de falha diferente e exercícios periódicos ajudam a identificar essas dependências.\n\nNão presuma que “criptografia ativada” seja uma propriedade universal do ambiente. Verifique cada tipo de recurso, operação de exportação, cópia e restauração, pois serviços podem tratar snapshots de modo diferente da cópia de arquivo do banco. Registre exceções, identifique cópias em claro e corrija-as ou restrinja sua existência com controles compensatórios aprovados.\n\n### Como cai na prova\n\n- Criptografia não substitui segregação de funções, auditoria, integridade ou retenção imutável.\n- A chave de recuperação deve sobreviver ao mesmo desastre que torna necessário o backup.\n- A configuração precisa ser confirmada em cada destino e tipo de recurso.\n- O procedimento só está demonstrado quando uma equipe autorizada consegue restaurar uma cópia de ensaio."
+    }
+  ],
+  "summary": "Criptografar backups protege a confidencialidade das cópias quando arquivos, mídias ou cofres são acessados indevidamente. Cifra do backup, TDE, criptografia do volume, cifra do armazenamento e TLS cobrem camadas diferentes; verifique cada etapa. Chaves e certificados são dependências de recuperação: guarde material de recuperação em local separado, controle seu uso, preserve chaves antigas enquanto houver cópias que dependem delas e teste a restauração em ambiente alternativo. No SQL Server, o backup pode ser cifrado com algoritmo e certificado/chave assimétrica; a instância que restaura precisa do certificado original e da permissão apropriada. Em nuvem, a regra depende do tipo de recurso: no AWS Backup, S3 pode usar a chave do cofre, snapshots RDS herdam a chave da origem e políticas IAM/KMS precisam autorizar backup e restauração. Combine monitoramento, integridade, segregação de funções, retenção e ensaio de recuperação.",
+  "flashcards": [
+    { "front": "Qual risco a criptografia do backup reduz?", "back": "Leitura não autorizada do conteúdo da cópia caso o arquivo ou repositório seja exposto." },
+    { "front": "TDE sempre significa que o arquivo de backup tem uma cifra própria?", "back": "Não. O comportamento depende do SGBD e do fluxo; confira se a cópia herda TDE ou precisa de cifra nativa ou do armazenamento." },
+    { "front": "O que TLS protege numa transferência de backup?", "back": "Os dados enquanto trafegam pelo canal protegido; não protege sozinho o arquivo gravado no destino." },
+    { "front": "O que acontece se a chave necessária for perdida?", "back": "O backup cifrado pode ficar irrecuperável, mesmo que o arquivo esteja íntegro." },
+    { "front": "Que material o SQL Server exige para restaurar backup cifrado?", "back": "O certificado original ou a chave assimétrica usada para cifrar, disponível na instância de restauração." },
+    { "front": "Como proteger o certificado SQL Server usado no backup?", "back": "Exportá-lo com o material privado necessário e guardá-lo em local diferente do arquivo de backup, com acesso restrito." },
+    { "front": "O que é uma DEK?", "back": "Chave de dados que cifra diretamente o conteúdo do backup." },
+    { "front": "O que é uma KEK?", "back": "Chave que protege outra chave, como uma DEK." },
+    { "front": "Qual cuidado a rotação de chave exige para backups retidos?", "back": "Manter a chave antiga enquanto cópias dependerem dela ou recriptografar e validar essas cópias antes de aposentá-la." },
+    { "front": "A criptografia de volume acompanha o arquivo quando ele é copiado para outro destino?", "back": "Não necessariamente; o destino precisa de proteção própria ou o backup deve ser cifrado antes da cópia." },
+    { "front": "Qual camada protege dados armazenados num cofre AWS Backup?", "back": "A configuração de chave KMS associada ao cofre, para os tipos de recurso cujo modelo usa essa criptografia independente." },
+    { "front": "Todo snapshot RDS sem cifra na origem fica cifrado pelo AWS Backup?", "back": "Não. A documentação informa que snapshots RDS herdam a chave da origem; snapshots de origem não cifrada também podem não estar cifrados." },
+    { "front": "O que significa menor privilégio para chaves de backup?", "back": "Conceder a cada conta apenas as operações de chave necessárias para seu papel, como cifrar ou restaurar." },
+    { "front": "Qual permissão do SQL Server é exigida na restauração cifrada?", "back": "VIEW DEFINITION sobre o certificado ou chave usados para cifrar o backup." },
+    { "front": "Uma impressão digital de certificado diferente é irrelevante se o nome for igual?", "back": "Não. O SQL Server precisa do certificado correspondente ao usado no backup; nome igual não substitui o material original." },
+    { "front": "Para que serve um ensaio de restauração?", "back": "Comprovar que arquivo, chave, permissões, compatibilidade e procedimento permitem recuperar o banco." },
+    { "front": "Checksum é a mesma coisa que criptografia?", "back": "Não. Checksum ajuda a detectar corrupção/alteração; cifra busca impedir leitura sem chave." },
+    { "front": "Criptografia impede apagar o backup?", "back": "Não. Exclusão e retenção exigem controles como autorização restrita e armazenamento imutável." },
+    { "front": "Como a AWS protege cópias entre regiões, segundo a documentação do AWS Backup?", "back": "A cópia usa a chave KMS do cofre de destino nos casos descritos." },
+    { "front": "Por que monitorar permissões KMS além de IAM?", "back": "As políticas de identidade e da chave precisam ser coerentes; uma negação ou grant revogado pode impedir backup/restauração." }
+  ],
+  "tips": [
+    "Pergunte sempre onde a cifra ocorre: no SGBD, no volume, no cofre ou em mais de uma camada.",
+    "Considere a chave como parte do próprio conjunto de recuperação: inventarie, proteja e teste seu acesso.",
+    "Diferencie canal de transferência seguro de arquivo cifrado em repouso.",
+    "Ao copiar para outra conta, região ou instância, valide a chave de destino e as permissões efetivas.",
+    "Teste restauração usando uma cópia representativa, a chave recuperada e uma identidade com privilégios previstos.",
+    "Registre qual versão de chave protege cada cópia e preserve a chave pelo período de retenção correspondente."
+  ],
+  "traps": [
+    "Achar que banco com TDE garante automaticamente toda exportação, cópia ou snapshot cifrado.",
+    "Guardar a única cópia da chave no mesmo servidor ou conta do backup.",
+    "Renovar ou substituir um certificado sem verificar se backups históricos ainda dependem do certificado original.",
+    "Concluir que um job concluído prova que o conteúdo está cifrado e será restaurável.",
+    "Confundir TLS com cifragem persistente do objeto no repositório.",
+    "Tratar checksum, criptografia e imutabilidade como controles intercambiáveis."
+  ],
+  "activeRecall": [
+    "Explique por que TDE e criptografia do artefato de backup precisam ser verificadas separadamente.",
+    "Descreva o caminho de uma cópia de banco desde o arquivo temporário até o cofre remoto e localize onde cada camada de proteção atua.",
+    "Explique por que a chave deve sobreviver ao servidor principal e ao mesmo incidente que pode destruir o backup local.",
+    "Quais itens você verificaria ao restaurar um backup cifrado do SQL Server em outra instância?",
+    "Compare o tratamento de backups S3 e snapshots RDS no AWS Backup descrito pela documentação oficial.",
+    "O que pode falhar quando a política IAM permite a tarefa, mas a política KMS nega o uso da chave?",
+    "Como preservar a capacidade de restaurar backups históricos depois de rotacionar a chave?",
+    "Que evidências um ensaio de restauração deve registrar além do status de conclusão do job?"
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Confundir criptografia do banco com criptografia da cópia", "summary": "TDE, cifra do backup e cifra do armazenamento são camadas com comportamentos distintos.", "description": "TDE, cifra do backup e cifra do armazenamento são camadas com comportamentos distintos; a proteção deve ser verificada em cada fluxo de cópia." },
+    { "key": "e2", "title": "Perder ou desalinhar a chave de recuperação", "summary": "Sem a chave ou permissão correspondente, o backup cifrado não pode ser restaurado.", "description": "Sem certificado, chave privada, acesso ao KMS ou permissão correspondente, um backup cifrado não pode ser restaurado." },
+    { "key": "e3", "title": "Presumir proteção uniforme em nuvem", "summary": "A regra varia conforme recurso, origem, cofre e operação de cópia.", "description": "Serviços aplicam regras diferentes conforme tipo de recurso, configuração de origem, cofre e operação de cópia." },
+    { "key": "e4", "title": "Tratar cifra como controle completo de resiliência", "summary": "Cifra não substitui integridade, retenção e teste real de restauração.", "description": "Cifrar não detecta por si só toda corrupção, não impede exclusão e não comprova restauração; integridade, retenção e testes são controles separados." },
+    { "key": "e5", "title": "Rotacionar sem considerar o histórico retido", "summary": "A chave antiga segue necessária enquanto houver cópias dependentes dela.", "description": "Aposentar a chave antiga enquanto cópias ainda dependem dela interrompe a recuperação desses backups." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe ativa TDE no banco de produção e conclui, sem examinar o fluxo de exportação, que toda cópia em arquivo está cifrada do mesmo modo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TDE protege arquivos de dados e logs conforme o SGBD; o backup pode ter mecanismo próprio ou depender de comportamento específico. É necessário verificar o artefato, o armazenamento e as cópias exportadas.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "TLS na conexão de envio protege o backup também depois que o arquivo é gravado no repositório remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TLS protege o tráfego durante a conexão. O arquivo em repouso precisa de proteção própria, como cifra nativa do backup ou do armazenamento, conforme a arquitetura.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em cifragem simétrica, a mesma chave secreta é usada para cifrar e decifrar os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O mesmo segredo criptográfico participa da transformação de ida e da recuperação do conteúdo, o que torna sua proteção e disponibilidade fundamentais para backups volumosos.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo documentado de backup cifrado do SQL Server, a instância de destino precisa do certificado ou da chave correspondente que cifrou o arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do SQL Server exige que o certificado ou a chave original esteja disponível na instância que fará a restauração. Um objeto novo com o mesmo nome não contém necessariamente o material necessário.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um checksum de arquivo comprova que seu conteúdo está cifrado e não pode ser lido por quem o copiar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Checksum auxilia a detectar alteração ou corrupção, enquanto confidencialidade depende da cifra e do controle das chaves. Um checksum não impede leitura do arquivo.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A rotação da chave de cifragem autoriza apagar imediatamente qualquer chave antiga, mesmo com backups retidos que foram produzidos antes da rotação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cópias históricas podem continuar dependendo da chave anterior. É preciso mantê-la protegida até o fim da retenção correspondente ou recriptografar e validar as cópias antes de aposentá-la.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação do AWS Backup, backups de S3 são cifrados com uma chave KMS associada ao cofre, mesmo se o bucket de origem não estiver cifrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do AWS Backup descreve criptografia pelo KMS associado ao cofre para backups S3, inclusive quando o bucket de origem não tem criptografia. Essa regra é específica desse recurso e serviço.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação do AWS Backup, snapshots de RDS herdam a chave de criptografia do banco de origem; snapshots de origem não cifrada também podem não ter cifra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A tabela de comportamento por recurso informa que snapshots de RDS usam a mesma chave da instância de origem e que snapshots de bancos de origem não cifrada também permanecem sem cifra.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma restauração testada apenas no servidor original comprova também que a organização consegue restaurar em outra instância após perder esse servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O teste no servidor original pode ocultar dependência de certificados, chaves locais, permissões ou configuração que não estarão disponíveis no desastre. O cenário alternativo precisa ser exercitado quando faz parte do plano.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Políticas IAM e de chave KMS podem ambas influenciar se o papel de serviço consegue executar uma operação de backup ou restauração na AWS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação exige que a autorização IAM e a política da chave sejam coerentes; uma negação na política KMS ou grant revogado também pode causar falha.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server, Express e Web não criam backup cifrado usando a opção descrita, mas podem restaurar uma cópia cifrada compatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação de criptografia de backup do SQL Server distingue a limitação para criar backup cifrado nessas edições da capacidade de restaurar backup cifrado nelas.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Cifrar o backup impede que uma conta com permissão de exclusão apague as cópias do repositório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A cifra protege confidencialidade, mas não bloqueia exclusão. Retenção, imutabilidade, segregação administrativa e recuperação de cópias tratam desse risco.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do SQL Server recomenda manter o certificado ou a chave de cifragem do backup em local diferente do arquivo de backup.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A Microsoft recomenda guardar uma cópia do certificado/chave fora da máquina local e considerar local externo para cenários de desastre. Sem esse material, não se restaura a cópia cifrada.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se um arquivo cifrado abre no servidor de origem, isso basta para afirmar que o certificado foi armazenado com independência do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O servidor de origem pode ter o certificado instalado localmente. A independência só é demonstrada se o material de recuperação puder ser obtido e usado em ambiente alternativo, conforme o plano.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um backup cifrado e íntegro pode continuar indisponível para recuperação se a identidade restauradora não tiver autorização para usar a chave gerenciada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A integridade do arquivo não concede autorização de decifragem. O papel que restaura precisa ter acesso efetivo à chave e às políticas necessárias no serviço de gerenciamento.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do AWS Backup informa que cópia de backup para outra região usa a chave KMS do cofre de destino nos casos descritos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Para cópias entre regiões, a documentação afirma que o backup copiado é cifrado usando a chave do cofre de destino, observadas as regras específicas do tipo de recurso.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Substituir o certificado de backup por outro com o mesmo nome mantém necessariamente a possibilidade de ler cópias antigas no SQL Server.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A cópia depende do material correspondente ao certificado usado originalmente; a documentação alerta para manter certificado com a impressão digital correspondente. Nome igual não garante a mesma chave privada.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Guardar a chave apenas dentro da máquina que também contém o backup local mantém a recuperação disponível se ambos forem destruídos no mesmo incidente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A falha comum elimina o arquivo e o meio de recuperar a chave. A cópia de chave deve estar protegida e recuperável em domínio de falha distinto, de acordo com o plano de continuidade.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A cifra do backup substitui o controle de acesso ao repositório porque o arquivo permanece cifrado quando usuários autorizados o baixam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Criptografia acrescenta uma barreira, mas acesso ao repositório continua relevante para cópia, exclusão, análise de metadados e tentativa de obter o material de chave. Use controles independentes.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um ensaio de restauração pode revelar dependências de chave e permissão que não aparecem no simples relatório de execução do backup.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Restaurar em ambiente isolado exercita a obtenção da chave, a autorização da identidade, a compatibilidade do formato e a leitura real dos dados, indo além do status do job de backup.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Quando um backup usa chave gerenciada, basta autorizar a identidade no IAM; a política da própria chave não participa da autorização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Na AWS, a documentação exige políticas de identidade e de chave consistentes e alerta para negações e grants revogados. A autorização efetiva precisa cobrir o uso da chave pelo papel de backup/restauração.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A criptografia de volume do diretório de backup assegura que um arquivo copiado para um computador sem esse volume permaneça cifrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A proteção do volume não necessariamente acompanha uma cópia exportada ou feita depois de o volume estar montado. A cópia externa precisa de proteção apropriada própria.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na restauração SQL Server de um backup cifrado, a documentação não exige repetir os parâmetros de cifra do comando de backup, mas exige disponibilidade do certificado/chave usado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O mecanismo identifica as informações de cifragem do conjunto, mas a instância de restauração ainda precisa do certificado ou chave original, além da permissão correspondente para acessá-lo.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um backup pode estar cifrado e, ainda assim, uma alteração ou corrupção do arquivo exigir controles de integridade e verificação separados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Confidencialidade e integridade são propriedades diferentes. Verificações de integridade e restauração de ensaio ajudam a detectar cópias corrompidas que a mera ativação da cifra não resolve.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A chave de um backup retido pode ser descartada com segurança assim que uma chave mais nova começa a cifrar as cópias diárias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Backups anteriores podem depender da chave antiga até expirarem ou serem recriptografados. A política de retenção das cópias e a de ciclo de vida da chave precisam permanecer alinhadas.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Auditoria do uso da chave deve registrar o segredo criptográfico em texto claro para que a restauração futura seja mais simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Audite identidades, operações e eventos sem registrar segredos. Expor a chave em log cria uma nova cópia descontrolada e compromete a confidencialidade que o backup cifrado busca preservar.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um job de cópia entre contas pode falhar mesmo que o backup de origem exista e esteja cifrado, se a chave ou as permissões do destino não aceitarem a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A cópia envolve autorização no serviço e acesso à chave do cofre de destino. A documentação da AWS diferencia tipos de recurso e condições para cópia entre contas; a existência da origem não garante autorização de destino.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O operador que consegue apagar objetos no repositório deve, por definição, receber também permissão para decifrar os backups.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Repositório e chave são domínios de autorização separáveis. Segregar operações reduz o impacto de credenciais comprometidas e evita ampliar privilégios além do necessário.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deve verificar a cifra em cópias exportadas, réplicas e destinos intermediários, mesmo quando o repositório final já está configurado para cifrar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A proteção do destino final não cobre automaticamente arquivos temporários nem etapas anteriores. Inventariar todo o fluxo revela trechos em claro ou cópias sujeitas a regras diferentes.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida protege a confidencialidade de um arquivo de backup caso o objeto armazenado seja copiado por alguém sem autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Cifrar o conteúdo do backup e restringir o uso da chave de decifragem.", "correct": true },
+        { "key": "B", "text": "Calcular o checksum do arquivo e publicar o resultado para os operadores.", "correct": false },
+        { "key": "C", "text": "Compactar o conjunto de backup e ocultar sua extensão no repositório.", "correct": false },
+        { "key": "D", "text": "Usar TLS no envio e deixar o arquivo final sem proteção adicional.", "correct": false },
+        { "key": "E", "text": "Renomear o banco de origem e restringir a conexão SQL de produção.", "correct": false }
+      ],
+      "explanation": "A cifra do conteúdo, associada ao controle de uso da chave, impede que uma cópia isolada seja lida sem autorização. Checksum ajuda a detectar alteração, compressão não cifra e TLS termina com a conexão; renomear o banco não protege o arquivo exportado.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina transmite o backup por rede com TLS, mas grava o arquivo em um bucket acessível a uma conta ampla. Qual lacuna deve ser corrigida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Substituir a senha do banco por certificado de cliente no aplicativo.", "correct": false },
+        { "key": "B", "text": "Cifrar o objeto em repouso e limitar o uso da chave.", "correct": true },
+        { "key": "C", "text": "Aumentar a compressão do backup e guardar o hash em outro diretório.", "correct": false },
+        { "key": "D", "text": "Desativar a verificação do certificado TLS para evitar erros de envio.", "correct": false },
+        { "key": "E", "text": "Executar o backup dentro do banco e eliminar a conexão remota.", "correct": false }
+      ],
+      "explanation": "TLS protege o tráfego, mas não necessariamente o arquivo depois de gravado. A lacuna é a proteção em repouso e a amplitude de acesso ao repositório; checksum e compressão não substituem a cifra.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No desenho de uma rotina que gera um arquivo temporário antes de enviá-lo a um cofre, onde a equipe deve verificar se há risco de exposição em claro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Só no cofre final, pois o estágio temporário desaparece após o envio.", "correct": false },
+        { "key": "B", "text": "Apenas no banco de produção, que é a fonte dos dados originais.", "correct": false },
+        { "key": "C", "text": "Em cada etapa, incluindo staging, transporte e destino final.", "correct": true },
+        { "key": "D", "text": "Somente no certificado TLS usado pela conexão de transferência.", "correct": false },
+        { "key": "E", "text": "No catálogo de tabelas, sem verificar arquivos ou permissões de armazenamento.", "correct": false }
+      ],
+      "explanation": "Cada etapa que contém dados precisa ser considerada: staging temporário, cópia de rede, armazenamento final, exportações e permissões. A proteção exclusiva do cofre não cobre necessariamente o caminho anterior.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente criptografia de volume e criptografia do arquivo de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A criptografia de volume sempre acompanha o arquivo para qualquer destino externo.", "correct": false },
+        { "key": "B", "text": "A cifra do arquivo protege apenas a sessão de rede entre o banco e o cofre.", "correct": false },
+        { "key": "C", "text": "As duas expressões descrevem necessariamente a mesma operação criptográfica.", "correct": false },
+        { "key": "D", "text": "A cifra do arquivo impede sua exclusão por uma conta de armazenamento autorizada.", "correct": false },
+        { "key": "E", "text": "Volume cifrado pode não proteger cópias exportadas.", "correct": true }
+      ],
+      "explanation": "A proteção do volume cobre os dados armazenados ali conforme sua configuração; uma cópia retirada desse volume pode precisar de cifra própria ou do destino. A cifra do arquivo não equivale a TLS nem bloqueia exclusão autorizada.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa cifrar o arquivo de backup nativamente no SQL Server. Qual configuração corresponde ao fluxo documentado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Definir algoritmo de backup e certificado ou chave assimétrica como cifrador.", "correct": true },
+        { "key": "B", "text": "Ativar TLS na porta SQL e confiar que ele cifra o arquivo resultante.", "correct": false },
+        { "key": "C", "text": "Habilitar compactação e indicar uma senha para cada tabela copiada.", "correct": false },
+        { "key": "D", "text": "Ativar TDE depois de concluir o backup já criado em disco.", "correct": false },
+        { "key": "E", "text": "Criar um checksum e armazenar seu valor na tabela de sistema.", "correct": false }
+      ],
+      "explanation": "O SQL Server permite especificar algoritmo e certificado ou chave assimétrica ao criar o backup. TLS cifra a conexão, compressão reduz tamanho e checksum não cifra; ativar TDE posteriormente não modifica um arquivo já produzido.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na AWS, um analista vê snapshots de uma instância RDS cuja origem não tem criptografia e quer afirmar que o AWS Backup sempre os cifra independentemente. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A afirmação vale para todo snapshot porque todos usam uma chave do cofre.", "correct": false },
+        { "key": "B", "text": "Snapshots RDS podem herdar a ausência de cifra da origem.", "correct": true },
+        { "key": "C", "text": "A afirmação é correta desde que a instância use compressão nativa.", "correct": false },
+        { "key": "D", "text": "A afirmação depende apenas de TLS entre RDS e o console administrativo.", "correct": false },
+        { "key": "E", "text": "A afirmação se confirma quando o snapshot recebe um nome com sufixo criptografado.", "correct": false }
+      ],
+      "explanation": "A documentação do AWS Backup diz que snapshots RDS usam a chave da origem; snapshots de bancos não cifrados também podem não ser cifrados. O comportamento não é uniforme com o de backups S3 associados ao cofre.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao desenhar uma cópia de backup S3 pelo AWS Backup, qual elemento determina a chave usada no modelo de criptografia independente descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O certificado TLS instalado no cliente que iniciou a solicitação.", "correct": false },
+        { "key": "B", "text": "O nome do banco de dados que originou os objetos do bucket.", "correct": false },
+        { "key": "C", "text": "O hash calculado pelo cliente antes de enviar o ponto de recuperação.", "correct": false },
+        { "key": "D", "text": "A chave KMS configurada para o cofre.", "correct": true },
+        { "key": "E", "text": "A senha usada pelo operador para iniciar a tarefa agendada.", "correct": false }
+      ],
+      "explanation": "Para backups S3 nesse modelo, a documentação associa a criptografia à chave KMS do cofre, gerenciada pela AWS ou pelo cliente. Nome, TLS, hash e senha de início não escolhem essa chave.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância SQL Server precisa criar a chave usada para proteger chaves privadas de certificados guardados em `master`. Qual objeto é pertinente ao fluxo documentado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A tabela de histórico de backup, criada no banco de usuário.", "correct": false },
+        { "key": "B", "text": "Um certificado TLS de cliente, instalado em cada estação de trabalho.", "correct": false },
+        { "key": "C", "text": "A chave mestra de `master` protege as chaves privadas.", "correct": true },
+        { "key": "D", "text": "Uma cópia do checksum, armazenada junto ao arquivo cifrado.", "correct": false },
+        { "key": "E", "text": "Um alias KMS com permissão apenas para listar os objetos armazenados.", "correct": false }
+      ],
+      "explanation": "A documentação lista a criação de uma database master key em `master`, que protege chaves privadas de certificados e chaves assimétricas presentes no banco. Certificado de cliente e checksum não cumprem essa função.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que abordagem reduz a dependência do servidor original quando backups SQL Server cifrados precisam ser restaurados em contingência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Guardar certificado e chave privada em local separado e testar importação no destino.", "correct": true },
+        { "key": "B", "text": "Renomear o arquivo de backup com o nome da instância de contingência.", "correct": false },
+        { "key": "C", "text": "Ativar TDE somente no destino e remover o certificado antigo da origem.", "correct": false },
+        { "key": "D", "text": "Copiar apenas a chave pública e reconstruir a privada usando o thumbprint.", "correct": false },
+        { "key": "E", "text": "Conceder a todos os administradores permissão para ler o diretório do backup.", "correct": false }
+      ],
+      "explanation": "A recuperação requer o material criptográfico correspondente. Exportá-lo com segurança, guardá-lo fora do servidor e exercitar a importação evita depender da instalação original; thumbprint e chave pública não reconstituem a chave privada.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe trocou a chave atual, mas ainda mantém backups antigos. Qual regra deve orientar o descarte da chave anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Descartar a chave antiga quando o próximo backup terminar com sucesso.", "correct": false },
+        { "key": "B", "text": "Apagá-la após registrar seu identificador no inventário de backups.", "correct": false },
+        { "key": "C", "text": "Manter só a chave pública antiga e remover qualquer material privado.", "correct": false },
+        { "key": "D", "text": "Reutilizar a chave antiga para novas cópias e invalidar a atual.", "correct": false },
+        { "key": "E", "text": "Preservá-la até expirarem as cópias dependentes ou recriptografá-las e validá-las.", "correct": true }
+      ],
+      "explanation": "A rotação precisa considerar a retenção. Se backups existentes ainda dependem da chave antiga, removê-la elimina a possibilidade de decifrá-los. Recriptografia só permite aposentadoria após validação das novas cópias.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num ambiente AWS, um job de restauração falha embora o arquivo esteja presente e cifrado. Qual investigação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Confirmar se o nome do arquivo contém a região no formato exigido.", "correct": false },
+        { "key": "B", "text": "Verificar acesso do papel à chave, política KMS, grants e negações aplicáveis.", "correct": true },
+        { "key": "C", "text": "Aumentar a compactação e recalcular o identificador do banco de origem.", "correct": false },
+        { "key": "D", "text": "Desativar todas as políticas de chave para simplificar a decifragem.", "correct": false },
+        { "key": "E", "text": "Recriar o snapshot sem validar se a identidade de restauração foi autorizada.", "correct": false }
+      ],
+      "explanation": "O serviço e a identidade de restauração precisam ter acesso à chave KMS; políticas IAM e da chave, grants e negações podem bloquear o uso. Nome e compressão não corrigem uma falha de autorização.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento demonstra melhor que uma estratégia de backups cifrados funciona após perda do servidor principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Conferir no painel se a tarefa mais recente está marcada como concluída.", "correct": false },
+        { "key": "B", "text": "Comparar o tamanho do arquivo com o do backup da semana anterior.", "correct": false },
+        { "key": "C", "text": "Abrir o arquivo no servidor de origem e confirmar seu nome esperado.", "correct": false },
+        { "key": "D", "text": "Restaurar em ambiente isolado com chaves e permissões de contingência.", "correct": true },
+        { "key": "E", "text": "Revisar a senha do banco de produção sem executar uma recuperação.", "correct": false }
+      ],
+      "explanation": "O ensaio isolado exercita arquivo, chave, permissão, compatibilidade e procedimento fora do servidor primário. Um status de job ou tamanho de arquivo não comprova que os dados podem ser recuperados.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual arranjo reduz a chance de que uma única conta comprometida permita tanto obter o backup quanto decifrá-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter objeto e chave na mesma conta com uma única credencial administrativa.", "correct": false },
+        { "key": "B", "text": "Usar o mesmo papel para excluir, restaurar e administrar chaves em todos os ambientes.", "correct": false },
+        { "key": "C", "text": "Separar permissões do repositório e do KMS, com papéis e auditoria distintos.", "correct": true },
+        { "key": "D", "text": "Registrar a chave de decifragem em texto claro no catálogo do backup.", "correct": false },
+        { "key": "E", "text": "Desativar trilhas de auditoria para reduzir informação administrativa exposta.", "correct": false }
+      ],
+      "explanation": "Separar autorização do armazenamento e da chave cria barreiras independentes e reduz o alcance de uma credencial comprometida. Compartilhar um papel amplo ou registrar segredo em catálogo desfaz essa separação.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização copia backups entre regiões e pretende usar uma chave independente no destino. O que deve verificar antes de considerar a replicação pronta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Apenas se o canal de origem usa TLS e o arquivo recebe um nome novo.", "correct": false },
+        { "key": "B", "text": "Se todo recurso da nuvem aceita automaticamente qualquer chave de cofre.", "correct": false },
+        { "key": "C", "text": "Se o checksum da origem é visível para o mesmo usuário que inicia a cópia.", "correct": false },
+        { "key": "D", "text": "Se a instância de produção está cifrada com a mesma chave do destino.", "correct": false },
+        { "key": "E", "text": "A regra do tipo de recurso, chave do cofre alvo e permissões de cópia/restauração.", "correct": true }
+      ],
+      "explanation": "O comportamento de cópia varia conforme recurso e serviço; em cópias AWS entre regiões a chave do cofre de destino é relevante, mas tipos geridos e não geridos têm condições distintas. Valide autorização e faça ensaio de restauração no destino.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa restaurar backup cifrado de SQL Server em uma instância nova. Qual sequência corresponde ao princípio de recuperação documentado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Exportar o certificado antigo, importá-lo em `master` e restaurar.", "correct": true },
+        { "key": "B", "text": "Criar outro certificado com o mesmo nome e tentar o restore sem chave privada.", "correct": false },
+        { "key": "C", "text": "Restaurar primeiro o backup e depois gerar a chave para abrir os dados.", "correct": false },
+        { "key": "D", "text": "Ativar TLS, copiar apenas a chave pública e reconstruir o certificado original.", "correct": false },
+        { "key": "E", "text": "Alterar o thumbprint registrado no backup para corresponder ao certificado novo.", "correct": false }
+      ],
+      "explanation": "A sequência da Microsoft inclui exportar o certificado na instância antiga, criar chave mestra em `master` no novo local, criar/importar o certificado e depois restaurar. Um novo certificado com mesmo nome não decifra conteúdo protegido pelo material antigo.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um backup parece íntegro e cifrado, mas falha ao restaurar após a substituição do certificado original. Qual causa é plausível e que ação preventiva teria evitado o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O checksum não foi armazenado no mesmo disco; deveria ser embutido na chave privada.", "correct": false },
+        { "key": "B", "text": "A cifra impede todo restore após rotação; backups antigos nunca podem ser usados.", "correct": false },
+        { "key": "C", "text": "TLS expirou; renovar o certificado de transporte restaura o conteúdo arquivado.", "correct": false },
+        { "key": "D", "text": "O certificado original foi substituído; preserve-o para cópias retidas.", "correct": true },
+        { "key": "E", "text": "O arquivo perdeu seu nome lógico; deveria manter sempre o nome da instância.", "correct": false }
+      ],
+      "explanation": "O SQL Server precisa do certificado/chave original, inclusive do thumbprint correspondente, para abrir o backup. Preservar material histórico e testar recuperação antes de substituir ou aposentar certificados evita bloquear cópias ainda retidas.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa recebe o status de sucesso do job de backup e precisa decidir se pode declarar a recuperação comprovada. Qual evidência adicional é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O número de bytes transferidos coincide com o relatório da execução anterior.", "correct": false },
+        { "key": "B", "text": "Restaurar isoladamente e validar os dados recuperados.", "correct": true },
+        { "key": "C", "text": "O usuário administrador ainda consegue consultar o banco de origem.", "correct": false },
+        { "key": "D", "text": "A extensão do arquivo corresponde à definida pelo fornecedor do SGBD.", "correct": false },
+        { "key": "E", "text": "O certificado está listado no inventário, sem checar se pode ser usado.", "correct": false }
+      ],
+      "explanation": "A restauração ensaiada confirma que o arquivo pode ser decifrado e interpretado e permite validar conteúdo recuperado. Tamanho, extensão, origem acessível ou presença nominal de certificado não demonstram essa capacidade.",
+      "section": "4. Restauração, teste e resposta a falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer proteger backups de RDS com uma chave separada da chave da instância usando o modelo de AWS Backup. Qual conclusão deve guiar o projeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Snapshots RDS sempre aceitam criptografia independente no cofre, sem exceções.", "correct": false },
+        { "key": "B", "text": "Ativar TLS do cliente redefine a chave persistente dos snapshots existentes.", "correct": false },
+        { "key": "C", "text": "Snapshots RDS herdam a chave da origem; confirme o mecanismo específico.", "correct": true },
+        { "key": "D", "text": "Criar uma CMK torna todos os snapshots antigos automaticamente cifrados.", "correct": false },
+        { "key": "E", "text": "Configurar um cofre após a criação altera retroativamente os arquivos anteriores.", "correct": false }
+      ],
+      "explanation": "A documentação AWS distingue recursos: snapshots RDS são descritos como usando a chave da instância e não como backups independentes do cofre. Não se deve presumir que uma nova CMK reescreva retroativamente cópias antigas.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente como separar acesso ao backup e uso da chave?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Dar a todo operador de armazenamento acesso irrestrito ao KMS para evitar chamados.", "correct": false },
+        { "key": "B", "text": "Guardar a chave privada em um arquivo de configuração do job de cópia.", "correct": false },
+        { "key": "C", "text": "Usar uma senha compartilhada para acesso ao objeto e decifragem em todos os ambientes.", "correct": false },
+        { "key": "D", "text": "Manter o objeto público e confiar que a chave não será encontrada no catálogo.", "correct": false },
+        { "key": "E", "text": "Conceder permissões distintas ao repositório e à chave conforme cada papel operacional.", "correct": true }
+      ],
+      "explanation": "Separar permissões permite que quem administra o objeto não possa automaticamente decifrá-lo e que o uso de chave seja auditável. Senha compartilhada, segredo em configuração ou objeto público ampliam a exposição.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria identifica cópias temporárias em claro, apesar de o cofre final cifrar objetos. Qual ação corrige diretamente a lacuna observada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aplicar cifra antes ou durante a etapa temporária e controlar esse local intermediário.", "correct": true },
+        { "key": "B", "text": "Aumentar a retenção do cofre final e manter os temporários sem controle.", "correct": false },
+        { "key": "C", "text": "Habilitar TLS apenas no trecho entre staging e destino definitivo.", "correct": false },
+        { "key": "D", "text": "Guardar o checksum do objeto final e remover a auditoria do staging.", "correct": false },
+        { "key": "E", "text": "Renomear os arquivos temporários e restringir a busca por extensão.", "correct": false }
+      ],
+      "explanation": "A cifra do cofre só atua no destino. O staging já contém dados e precisa de proteção própria ou de uma geração que o mantenha cifrado desde sua criação, além de acesso limitado e ciclo de vida controlado.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe percebe que um backup cifrado restaura, mas demora muito além do tempo previsto porque depende de uma equipe externa para liberar a chave. Qual melhoria deve ser priorizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Remover a criptografia para que qualquer operador inicie o restore imediatamente.", "correct": false },
+        { "key": "B", "text": "Planejar acesso de contingência auditado à chave e exercitar o fluxo de autorização.", "correct": true },
+        { "key": "C", "text": "Armazenar a chave em texto claro junto ao arquivo para remover dependências.", "correct": false },
+        { "key": "D", "text": "Aumentar a compressão do arquivo para reduzir chamadas ao serviço de chaves.", "correct": false },
+        { "key": "E", "text": "Substituir o processo por checksum e considerar o banco recuperável.", "correct": false }
+      ],
+      "explanation": "A proteção deve ser compatível com os objetivos de recuperação. Um caminho de contingência previamente autorizado e auditado reduz atrasos sem expor a chave; remover cifra ou colocá-la em claro destruiria controles importantes.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um plano manda conservar cópias por longo período e trocar certificado periodicamente. Que mudança torna as duas instruções compatíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Excluir cópias antigas a cada renovação, mesmo antes do prazo de retenção.", "correct": false },
+        { "key": "B", "text": "Reusar o certificado novo para decifrar arquivos antigos sem conversão.", "correct": false },
+        { "key": "C", "text": "Guardar apenas os nomes dos certificados anteriores e descartar seu material.", "correct": false },
+        { "key": "D", "text": "Mapear dependências por cópia e preservar chaves antigas ou recriptografar com validação.", "correct": true },
+        { "key": "E", "text": "Desativar a auditoria durante a renovação para não registrar certificados expirados.", "correct": false }
+      ],
+      "explanation": "A política de chave precisa acompanhar o ciclo de vida das cópias. Preserve material antigo com acesso protegido até que as cópias expirem ou recriptografe cada conjunto e valide a nova recuperação antes do descarte.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de evidências oferece melhor cobertura para uma revisão periódica de backup cifrado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Somente lista de arquivos, extensões conhecidas e tamanhos aproximados.", "correct": false },
+        { "key": "B", "text": "Apenas política de senha do banco e certificado TLS do aplicativo.", "correct": false },
+        { "key": "C", "text": "Configuração por destino, estado de cifra, identidade/chave, auditoria e teste de restore.", "correct": true },
+        { "key": "D", "text": "Captura de tela do job mais recente sem dados sobre a chave usada.", "correct": false },
+        { "key": "E", "text": "Relatório de compactação e checksum, dispensando teste de restauração.", "correct": false }
+      ],
+      "explanation": "A revisão deve mostrar onde a cifra é aplicada, quais identidades e chaves operam, se o acesso é auditado e se uma restauração foi concluída. Metadados de arquivo e checksums não demonstram sozinhos confidencialidade ou recuperabilidade.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em AWS Backup, um papel de serviço tem `kms:Decrypt`, mas uma política da chave contém uma negação aplicável à operação. Qual resultado é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A negação é ignorada porque qualquer permissão IAM prevalece sobre a política KMS.", "correct": false },
+        { "key": "B", "text": "A tarefa conclui e restaura os dados sem chamar o serviço de chaves.", "correct": false },
+        { "key": "C", "text": "A chave fica automaticamente substituída pela chave do banco de origem.", "correct": false },
+        { "key": "D", "text": "A negação só afeta TLS e não pode interferir em backup ou restauração.", "correct": false },
+        { "key": "E", "text": "O uso da chave pode falhar apesar da permissão indicada na política de identidade.", "correct": true }
+      ],
+      "explanation": "Permissões efetivas precisam ser coerentes entre a política de identidade e a política KMS; uma negação explícita ou grant revogado pode bloquear operação. O arquivo existente não contorna autorização de decifragem.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha descreve a função da chave pública e da chave privada num esquema assimétrico que ajuda a proteger uma chave de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A pública é o segredo de decifragem e a privada pode ser publicada sem controle.", "correct": false },
+        { "key": "B", "text": "A pública pode proteger uma chave; a privada correspondente é controlada para recuperá-la.", "correct": true },
+        { "key": "C", "text": "As duas chaves são hashes idênticos e nenhuma delas participa da recuperação.", "correct": false },
+        { "key": "D", "text": "A privada serve somente para compactar dados e a pública valida o tamanho do arquivo.", "correct": false },
+        { "key": "E", "text": "O certificado substitui sempre o par de chaves e elimina a custódia do segredo.", "correct": false }
+      ],
+      "explanation": "Em criptografia assimétrica, a chave pública pode ser usada para proteger dados/chaves, enquanto a chave privada correspondente é guardada para a operação inversa autorizada. O certificado não elimina a necessidade de preservar o material privado exigido pelo sistema.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer reduzir o impacto de credenciais do repositório comprometidas sem inviabilizar recuperação legítima. Qual desenho melhor atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Separar acesso ao objeto e à chave, com auditoria e contingência testada.", "correct": true },
+        { "key": "B", "text": "Usar a mesma credencial para ler objetos e administrar todas as chaves do cofre.", "correct": false },
+        { "key": "C", "text": "Permitir decifragem automática para qualquer identidade que consiga listar o bucket.", "correct": false },
+        { "key": "D", "text": "Remover cópias de chave e confiar que o serviço de produção nunca será perdido.", "correct": false },
+        { "key": "E", "text": "Desativar auditoria de chave para impedir que invasores descubram as operações.", "correct": false }
+      ],
+      "explanation": "A separação reduz o poder de uma credencial isolada, enquanto auditoria e um caminho de contingência exercitado preservam recuperação autorizada. Centralizar tudo ou eliminar acesso à chave cria exposição ou indisponibilidade.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia cifrada está em região remota e a chave existe apenas no serviço da região principal. Qual risco deve ser tratado antes de depender dela no desastre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A região remota pode alterar o checksum para que a origem aprove a cópia.", "correct": false },
+        { "key": "B", "text": "O certificado TLS local poderá mudar o algoritmo usado pelo backup histórico.", "correct": false },
+        { "key": "C", "text": "Uma chave em região distinta deixa automaticamente os dados sem criptografia.", "correct": false },
+        { "key": "D", "text": "A indisponibilidade da chave ou de sua autorização pode impedir o restore remoto.", "correct": true },
+        { "key": "E", "text": "A cópia não poderá ser listada porque chaves não armazenam metadados do objeto.", "correct": false }
+      ],
+      "explanation": "A cópia remota só é útil se a chave e as permissões também estiverem acessíveis no cenário de desastre. Projete replicação ou recuperação autorizada de chaves e teste o fluxo sem depender da infraestrutura primária.",
+      "section": "5. Erros de projeto e controles duradouros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma auditoria, o time encontra uma cópia legível em uma estação usada para validar dados. Qual medida trata diretamente esse ponto do fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Cifrar ou eliminar a cópia de teste e restringir o processo de validação.", "correct": true },
+        { "key": "B", "text": "Aumentar a rotação da chave do backup de produção sem tocar na estação.", "correct": false },
+        { "key": "C", "text": "Ativar TLS na estação para proteger o arquivo enquanto permanece em disco.", "correct": false },
+        { "key": "D", "text": "Gerar checksum do arquivo e conceder acesso de leitura a toda a equipe.", "correct": false },
+        { "key": "E", "text": "Renomear a cópia local e remover sua referência do inventário oficial.", "correct": false }
+      ],
+      "explanation": "Cópias de teste também contêm dados do banco. Proteja o arquivo no destino ou elimine-o segundo procedimento controlado, limite acesso e evite que validações criem saídas em claro fora do fluxo governado.",
+      "section": "1. O que exatamente precisa ser criptografado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do SQL Server recomenda certificados diferentes para TDE e para criptografia do backup quando o banco usa TDE. Qual razão melhor representa essa recomendação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Porque o certificado de backup precisa ser público e o de TDE deve ficar sem chave.", "correct": false },
+        { "key": "B", "text": "Porque o backup não pode ser cifrado se o banco já tiver TDE habilitado.", "correct": false },
+        { "key": "C", "text": "Separar as chaves que protegem o banco e a cópia.", "correct": true },
+        { "key": "D", "text": "Para que a instância ignore qualquer certificado ao restaurar dados de produção.", "correct": false },
+        { "key": "E", "text": "Para dispensar a conservação de certificados usados em backups históricos.", "correct": false }
+      ],
+      "explanation": "A Microsoft recomenda certificados ou chaves diferentes para elevar a segurança quando TDE está habilitado. A separação reduz reutilização de uma mesma credencial criptográfica entre camadas, sem dispensar a conservação do material usado em cada backup.",
+      "section": "2. Algoritmos, chaves e custódia",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de chave permite ao serviço `kms:GenerateDataKey`, mas não contempla a identidade ou operação de decifragem necessária na restauração. O que deve ser concluído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A permissão de geração torna qualquer futura restauração automaticamente autorizada.", "correct": false },
+        { "key": "B", "text": "A cifra deve ser removida dos backups existentes para facilitar a leitura.", "correct": false },
+        { "key": "C", "text": "O serviço pode restaurar sem autorização se o objeto estiver no cofre certo.", "correct": false },
+        { "key": "D", "text": "Apenas a identidade humana que criou a política pode usar a chave.", "correct": false },
+        { "key": "E", "text": "Autorize também as operações de chave necessárias na restauração.", "correct": true }
+      ],
+      "explanation": "Gerar chave de dados para cifrar é uma operação diferente de decifrar durante o restore. A política deve autorizar as ações necessárias ao fluxo de recuperação e estar alinhada com a identidade que inicia a operação.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre a escolha de algoritmo no SQL Server é sustentada pela documentação consultada para criptografia de backups?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A funcionalidade não recebe algoritmo; usa sempre o cifrador TLS da conexão.", "correct": false },
+        { "key": "B", "text": "A documentação lista opções AES e Triple DES para essa funcionalidade.", "correct": true },
+        { "key": "C", "text": "O algoritmo é escolhido automaticamente pelo nome do arquivo `.bak`.", "correct": false },
+        { "key": "D", "text": "A escolha fica gravada apenas no certificado, sem parâmetro de backup.", "correct": false },
+        { "key": "E", "text": "A funcionalidade aceita apenas algoritmo assimétrico sem cifra simétrica de dados.", "correct": false }
+      ],
+      "explanation": "A documentação lista AES 128, AES 192, AES 256 e Triple DES como opções de algoritmo, além de exigir um cifrador como certificado ou chave assimétrica. A escolha não decorre da extensão do arquivo.",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar chave assimétrica para cifrar backups no SQL Server, a documentação limita o suporte a chaves assimétricas residentes em um provedor EKM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do SQL Server especifica que, para cifrar backups com chave assimétrica, somente são aceitas chaves assimétricas que residem em um provedor Extensible Key Management (EKM).",
+      "section": "3. Implementação em SGBD e armazenamento gerenciado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Backup encryption",
+      "publisher": "Microsoft Learn",
+      "reference": "Criptografia nativa do backup no SQL Server; algoritmos; certificado/chave; permissões; restauração em outra instância e recomendações de custódia.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/backup-encryption?view=sql-server-ver16",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Encryption for backups in AWS Backup",
+      "publisher": "Amazon Web Services",
+      "reference": "Criptografia por tipo de recurso, chaves de cofre, cópias entre regiões/contas e permissões KMS para backup/restauração.",
+      "url": "https://docs.aws.amazon.com/aws-backup/latest/devguide/encryption.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Step 5. Encrypt backup data and vault",
+      "publisher": "AWS Prescriptive Guidance",
+      "reference": "Proteção em trânsito e em repouso, separação entre acesso aos dados e às chaves, KMS/CloudHSM e auditoria de criptografia.",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/security-best-practices/encrypt.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guide to Storage Encryption Technologies for End User Devices (NIST SP 800-111)",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Conceitos de criptografia de armazenamento e seleção de solução conforme tipo de armazenamento, quantidade, ambiente e ameaças.",
+      "url": "https://csrc.nist.gov/pubs/sp/800/111/final",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

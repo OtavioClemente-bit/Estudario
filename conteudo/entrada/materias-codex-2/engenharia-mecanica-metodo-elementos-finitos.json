@@ -1,0 +1,1713 @@
+{
+  "id": "engenharia-mecanica.metodo-elementos-finitos",
+  "subject": "Engenharia Mecânica",
+  "title": "Método dos Elementos Finitos: noções básicas",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Método dos Elementos Finitos noções básicas.",
+    "Método dos Elementos Finitos",
+    "Método de elementos finitos",
+    "Análise por elementos finitos",
+    "Fundamentos de elementos finitos",
+    "Elementos finitos em engenharia mecânica",
+    "Discretização por elementos finitos",
+    "Malha de elementos finitos",
+    "Formulação fraca em elementos finitos",
+    "Funções de forma de elementos finitos",
+    "Graus de liberdade em elementos finitos",
+    "Rigidez global por elementos finitos",
+    "Condições de contorno no MEF"
+  ],
+  "scope": {
+    "covers": "Noções básicas do Método dos Elementos Finitos: idealização do problema e domínio; malha, elementos, nós e graus de liberdade; interpolação por funções de forma; formulação fraca e método de Galerkin; montagem de matrizes e vetores locais no sistema global; condições de contorno essenciais e naturais; solução do sistema e interpretação de resultados; refinamento, convergência e limitações; exemplo introdutório de elasticidade linear.",
+    "excludes": "Derivações avançadas, escolha detalhada de famílias de elementos, contato não linear, plasticidade, flambagem, dinâmica computacional, algoritmos de solução específicos e instruções de uso de programas comerciais."
+  },
+  "theoryTitle": "Como o domínio contínuo vira um problema numérico",
+  "chapters": [
+    {
+      "title": "1. Do problema físico ao domínio discretizado",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma peça real, deslocamento, temperatura ou pressão podem variar ponto a ponto. As equações que descrevem esses campos são diferenciais e, em geometrias e carregamentos reais, raramente admitem solução analítica simples. O Método dos Elementos Finitos (MEF) troca o domínio contínuo por uma coleção finita de regiões menores e aproxima o campo desconhecido dentro delas. O resultado é um sistema algébrico que pode ser resolvido numericamente.\n\nA primeira decisão é definir o **domínio** (a peça ou região analisada), as propriedades dos materiais, as ações aplicadas e as condições na fronteira. Em seguida, esse domínio é dividido em elementos conectados por nós: triângulos e quadriláteros em problemas planos, tetraedros e hexaedros em problemas tridimensionais, por exemplo. Essa divisão é a **malha**.\n\n> **Siglas e termos deste capítulo**\n> - **MEF**: Método dos Elementos Finitos.\n> - **Domínio**: região física representada no modelo.\n> - **Malha**: partição do domínio em elementos.\n> - **Nó**: ponto de conexão e de definição de graus de liberdade.\n> - **Grau de liberdade (GL)**: incógnita nodal, como uma componente de deslocamento.\n>\n| Modelo físico | Campo incógnito típico | Exemplo de condição imposta |\n|---|---|---|\n| Elasticidade estática | Deslocamento | Apoio fixo ou força de superfície |\n| Condução de calor | Temperatura | Temperatura prescrita ou fluxo térmico |\n| Vibração | Deslocamento dependente do tempo | Apoios e condições iniciais |\n\nO tipo de elemento deve ser compatível com a geometria e com a variável física. Em elasticidade bidimensional, por exemplo, cada nó pode ter deslocamentos nas direções horizontal e vertical. Mais nós ou maior ordem de interpolação aumentam a capacidade de representar variações, mas também aumentam o número de incógnitas.\n\n### Como cai na prova\n\nA malha não é a solução: ela define a partição e as conexões usadas para aproximar a solução. O número de elementos, sozinho, não garante precisão; importam também geometria, qualidade dos elementos, aproximação escolhida, condições de contorno e convergência. Um apoio não é uma força aplicada: ele restringe deslocamentos."
+    },
+    {
+      "title": "2. Funções de forma e aproximação do campo",
+      "markdown": "### O problema que este assunto resolve\n\nDentro de cada elemento, o MEF representa o campo desconhecido por uma combinação de **funções de forma** (ou interpolação) multiplicadas por valores nodais desconhecidos. Para um escalar, escreve-se localmente, de modo esquemático, u_h(x) = Σ N_i(x) u_i. N_i é a função associada ao nó i e u_i é o valor nodal. Para deslocamento vetorial, a mesma ideia vale para cada componente.\n\nAs funções de forma são escolhidas para representar campos polinomiais e conectar os valores dos nós às posições internas do elemento. Em elementos lineares unidimensionais, a interpolação entre dois nós é linear. Em elementos de ordem superior, há nós adicionais ou modos internos que permitem representar curvatura com maior riqueza. Funções nodais usuais valem um no nó associado e zero nos demais nós do elemento.\n\n> **Siglas e termos deste capítulo**\n> - **N_i**: função de forma associada a um grau de liberdade local.\n> - **u_h**: aproximação discreta do campo u.\n> - **Ordem do elemento**: grau polinomial predominante da interpolação.\n> - **Suporte local**: região pequena onde a função de forma é não nula.\n>\n| Escolha | Efeito geral | Custo e cuidado |\n|---|---|---|\n| Refinar a malha (h) | Reduz o tamanho dos elementos | Aumenta nós e incógnitas |\n| Aumentar a ordem (p) | Enriquece o polinômio por elemento | Pode elevar custo e exige integração adequada |\n| Melhorar a forma dos elementos | Evita distorções geométricas severas | Requer controle da geração da malha |\n\nAs funções de forma de um elemento se sobrepõem às de elementos vizinhos nos nós compartilhados. Essa conectividade é o que permite construir uma aproximação global coerente. Há formulações, como Galerkin descontínuo, que não impõem continuidade nodal entre elementos e tratam os fluxos nas interfaces; portanto, continuidade não é regra universal de toda variante do MEF.\n\n### Como cai na prova\n\nNão confunda valor nodal com valor em qualquer ponto: o valor interno é interpolado pelas funções de forma. Uma malha mais fina e uma ordem polinomial maior são estratégias distintas de enriquecimento. Funções de forma locais tornam a matriz esparsa porque cada incógnita interage diretamente com poucas outras."
+    },
+    {
+      "title": "3. Forma fraca, elemento e montagem global",
+      "markdown": "### O problema que este assunto resolve\n\nMuitas equações de equilíbrio aparecem primeiro em forma forte, isto é, como equação diferencial válida ponto a ponto. A formulação fraca multiplica a equação por uma função de teste e integra no domínio. A integração por partes pode reduzir a ordem das derivadas exigidas e explicitar termos de fronteira. Essa forma é adequada à aproximação por funções polinomiais por partes, cujas derivadas podem não ser contínuas entre elementos.\n\nNo método de Galerkin, as funções de teste são tomadas do mesmo espaço aproximador usado para representar a solução. Substituindo a aproximação discreta na forma fraca e escolhendo sucessivamente funções de teste da base, obtêm-se equações para os coeficientes nodais. A contribuição de cada elemento gera matrizes e vetores **locais**; a conectividade da malha os acumula nas posições correspondentes do sistema **global**, usualmente escrito K u = f em um problema linear estático.\n\n> **Siglas e termos deste capítulo**\n> - **Forma forte**: equação diferencial original, ponto a ponto.\n> - **Forma fraca/variacional**: identidade integral testada por funções admissíveis.\n> - **Galerkin**: escolha das funções de teste no mesmo espaço da aproximação.\n> - **K**: matriz global de rigidez em elasticidade linear estática.\n> - **f**: vetor global de carregamentos e contribuições conhecidas.\n\nPara elasticidade linear, o equilíbrio relaciona divergência de tensões e forças de corpo. A lei constitutiva liga tensão e deformação; em material isotrópico linear, os parâmetros elásticos entram nessa relação. A forma fraca integra deformações virtuais contra tensões e inclui trações prescritas na fronteira natural. A montagem soma contribuições compartilhadas pelos elementos e produz um sistema esparso.\n\n### Como cai na prova\n\nA matriz local não é a matriz global: a montagem usa a conectividade para acumular cada termo nos graus de liberdade globais certos. Na formulação fraca, a função de teste não é uma carga; ela pondera a equação. A condição de tração aparece como termo de fronteira, enquanto o deslocamento prescrito restringe os valores admissíveis da solução."
+    },
+    {
+      "title": "4. Contorno, solução e avaliação do resultado",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema de equilíbrio sem restrições suficientes pode admitir movimento de corpo rígido e não ter solução única. Por isso, o modelo precisa representar apoios e ações corretamente. Condições essenciais (Dirichlet) prescrevem a variável primária, como deslocamento em um apoio fixo ou temperatura conhecida. Condições naturais (Neumann) prescrevem uma grandeza conjugada que surge no termo de fronteira, como tração ou fluxo de calor.\n\nApós incorporar as condições, resolve-se o sistema algébrico para os graus de liberdade desconhecidos. Em seguida, calculam-se grandezas derivadas: em elasticidade, gradientes de deslocamento dão deformações e a lei constitutiva dá tensões. Tensões podem variar abruptamente entre elementos e concentrações perto de cantos, cargas pontuais ou mudanças geométricas exigem interpretação cuidadosa.\n\n> **Siglas e termos deste capítulo**\n> - **Dirichlet**: valor da variável primária prescrito.\n> - **Neumann**: fluxo, força ou derivada normal prescrita, conforme o problema.\n> - **Convergência**: estabilização da grandeza de interesse ao refinar/enriquecer a aproximação.\n> - **Verificação**: conferir se o modelo e a solução numérica foram implementados corretamente.\n>\n| Etapa de análise | Pergunta prática |\n|---|---|\n| Verificação do modelo | Geometria, material, unidade e apoio representam o caso? |\n| Verificação numérica | Refinamento muda pouco a grandeza de interesse? |\n| Validação | O resultado concorda com ensaio, solução conhecida ou referência física? |\n\nRefinar localmente onde os gradientes são intensos pode ser mais eficiente que refinar toda a peça. A convergência deve ser examinada em uma quantidade pertinente à decisão de engenharia, não apenas pela aparência suave do mapa de cores. Uma solução de computador não corrige carregamento omitido, unidade incoerente, material inadequado ou condição de contorno mal definida.\n\n### Como cai na prova\n\nApoio fixo em elasticidade é condição essencial de deslocamento. Força distribuída sobre uma face é condição natural de tração; força de corpo atua no volume. Refinar a malha pode melhorar a aproximação, mas não prova que o modelo físico esteja correto. Resultados derivados, especialmente tensões locais, dependem da malha e devem ser examinados com estudo de convergência."
+    }
+  ],
+  "summary": "O Método dos Elementos Finitos aproxima campos contínuos por funções de forma definidas em uma malha de elementos conectados. A formulação fraca transforma o problema diferencial em integrais; a escolha de Galerkin leva a equações para os graus de liberdade. Contribuições locais são montadas em um sistema global, condições essenciais e naturais representam apoios e ações, e o sistema resultante é resolvido para obter deslocamentos ou outras variáveis. Resultados confiáveis exigem modelo físico coerente, malha adequada e avaliação de convergência.",
+  "flashcards": [
+    {
+      "front": "O que é discretizar o domínio no MEF?",
+      "back": "Dividir a região contínua em elementos conectados por nós para aproximar o campo por um número finito de incógnitas."
+    },
+    {
+      "front": "O que é uma malha?",
+      "back": "A partição do domínio em elementos, junto com a conectividade entre seus nós."
+    },
+    {
+      "front": "O que é um grau de liberdade em elasticidade?",
+      "back": "Uma incógnita nodal, como uma componente de deslocamento."
+    },
+    {
+      "front": "Qual a função das funções de forma?",
+      "back": "Interpolar o campo dentro do elemento a partir dos valores ou coeficientes associados aos graus de liberdade locais."
+    },
+    {
+      "front": "O que representa u_h?",
+      "back": "A aproximação discreta do campo desconhecido u no espaço gerado pelas funções de forma."
+    },
+    {
+      "front": "O que distingue refinamento h de aumento p?",
+      "back": "h reduz o tamanho dos elementos; p aumenta a ordem polinomial da aproximação."
+    },
+    {
+      "front": "O que caracteriza a forma forte?",
+      "back": "A equação diferencial exigida ponto a ponto no domínio."
+    },
+    {
+      "front": "O que caracteriza a forma fraca?",
+      "back": "Uma identidade integral obtida ao testar a equação, frequentemente com integração por partes."
+    },
+    {
+      "front": "Como Galerkin escolhe as funções de teste?",
+      "back": "Usa o mesmo espaço funcional escolhido para aproximar a solução."
+    },
+    {
+      "front": "O que significa matriz local?",
+      "back": "A contribuição algébrica calculada para um elemento isolado e seus graus de liberdade locais."
+    },
+    {
+      "front": "O que ocorre na montagem global?",
+      "back": "Contribuições dos elementos são acumuladas nas posições globais indicadas pela conectividade da malha."
+    },
+    {
+      "front": "O que expressa K u = f em estática linear?",
+      "back": "O equilíbrio discreto: rigidez global vezes incógnitas igual ao vetor de ações e termos conhecidos."
+    },
+    {
+      "front": "O que é condição essencial?",
+      "back": "Prescrição da variável primária, como deslocamento ou temperatura."
+    },
+    {
+      "front": "O que é condição natural em elasticidade?",
+      "back": "Prescrição de tração na fronteira, aparecendo na forma fraca como termo de contorno."
+    },
+    {
+      "front": "Onde atua uma força de corpo?",
+      "back": "No volume do domínio, ao contrário de uma tração aplicada numa superfície."
+    },
+    {
+      "front": "Por que restringir movimentos de corpo rígido?",
+      "back": "Sem apoios suficientes, a solução de equilíbrio pode não ser única ou o sistema pode ficar singular."
+    },
+    {
+      "front": "O que se calcula a partir do deslocamento em elasticidade?",
+      "back": "Deformações a partir do gradiente de deslocamento e tensões pela lei constitutiva."
+    },
+    {
+      "front": "O que indica um estudo de convergência?",
+      "back": "Como a grandeza de interesse muda quando a malha é refinada ou a aproximação é enriquecida."
+    },
+    {
+      "front": "Por que elementos pequenos podem aumentar o custo?",
+      "back": "Em geral elevam o número de graus de liberdade e o tamanho do sistema algébrico."
+    },
+    {
+      "front": "Por que funções de forma locais geram matrizes esparsas?",
+      "back": "Cada função atua em poucos elementos e interage diretamente com poucas incógnitas."
+    },
+    {
+      "front": "Uma malha visualmente fina garante um modelo correto?",
+      "back": "Não; geometria, material, carregamentos, apoios, unidades e convergência também precisam ser adequados."
+    },
+    {
+      "front": "O que é verificação numérica?",
+      "back": "Checar se a solução calculada está suficientemente estável e se o procedimento numérico foi implementado corretamente."
+    },
+    {
+      "front": "O que é validação física?",
+      "back": "Comparar o modelo com evidências, ensaios ou referências que avaliem se ele representa o fenômeno real."
+    },
+    {
+      "front": "Como interpretar concentração de tensão perto de um canto?",
+      "back": "Com cuidado: pode refletir concentração física, singularidade idealizada ou sensibilidade à malha."
+    },
+    {
+      "front": "Por que a conectividade é necessária?",
+      "back": "Ela relaciona os graus de liberdade locais dos elementos aos índices globais usados na montagem."
+    }
+  ],
+  "tips": [
+    "Separe variável primária de grandeza derivada: em elasticidade, o MEF resolve deslocamentos e depois calcula deformações e tensões.",
+    "Associe Dirichlet ao valor imposto da variável; associe Neumann ao fluxo ou à tração que aparece na fronteira.",
+    "Pense em duas escalas: integrar e calcular no elemento, depois acumular as contribuições na matriz global.",
+    "Quando comparar malhas, acompanhe uma grandeza de interesse definida, como deslocamento máximo ou reação, e não só o desenho da malha.",
+    "Confira unidades e equilíbrio: reações e cargas aplicadas devem ser coerentes com a idealização do problema.",
+    "A formulação fraca não é uma aproximação arbitrária: é a forma integral que permite construir equações discretas com funções de base."
+  ],
+  "traps": [
+    "Confundir número de elementos com precisão garantida; uma malha inadequada pode continuar imprecisa.",
+    "Trocar condição essencial por natural: deslocamento prescrito e tração prescrita entram de formas diferentes.",
+    "Afirmar que todo elemento finito exige continuidade entre elementos; métodos descontínuos tratam interfaces de outra maneira.",
+    "Achar que a matriz de cada elemento já é o sistema completo; é preciso montar as contribuições globalmente.",
+    "Tratar tensão calculada como incógnita nodal primária em qualquer formulação de elasticidade; frequentemente ela é derivada do deslocamento.",
+    "Considerar convergência numérica como prova de validade física; uma solução estável ainda pode partir de um modelo errado."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a sequência entre domínio físico, malha e sistema algébrico.",
+      "answer": "Define-se domínio, material, ações e fronteiras; discretiza-se em elementos e nós; escolhem-se graus de liberdade e funções de forma; formula-se e monta-se o sistema; aplicam-se condições e resolve-se."
+    },
+    {
+      "question": "Explique como a função de forma constrói o campo dentro de um elemento.",
+      "answer": "Ela pondera os coeficientes ou valores nodais associados, e a soma das contribuições locais fornece o campo aproximado em cada ponto."
+    },
+    {
+      "question": "Por que a forma fraca é útil para o MEF?",
+      "answer": "Ela transforma a equação diferencial em integrais testadas, pode reduzir a ordem das derivadas por integração por partes e se adapta a funções polinomiais por partes."
+    },
+    {
+      "question": "Diferencie uma contribuição local da montagem global.",
+      "answer": "A contribuição local é calculada no elemento; a montagem usa a conectividade para somá-la às posições dos graus de liberdade globais correspondentes."
+    },
+    {
+      "question": "Dê um exemplo mecânico de condição essencial e outro de natural.",
+      "answer": "Deslocamento nulo num engaste é essencial; tração prescrita numa face é natural."
+    },
+    {
+      "question": "Qual o papel das condições de contorno na unicidade do equilíbrio?",
+      "answer": "Elas representam apoios e ações; restrições insuficientes podem deixar movimentos rígidos livres e impedir uma solução única."
+    },
+    {
+      "question": "O que comparar num estudo de refinamento?",
+      "answer": "A variação de grandezas de interesse entre malhas, junto com a qualidade do elemento e a adequação do modelo físico."
+    },
+    {
+      "question": "Por que uma tensão local pode depender mais da malha que um deslocamento global?",
+      "answer": "Tensões dependem de derivadas do deslocamento e podem ter gradientes fortes ou singularidades em descontinuidades geométricas e de carga."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Discretização não é sinônimo de precisão",
+      "summary": "A malha define a divisão do domínio, mas precisão também depende da interpolação, da geometria dos elementos, da física e da convergência."
+    },
+    {
+      "key": "e2",
+      "title": "Dirichlet e Neumann trocadas",
+      "summary": "Dirichlet prescreve a variável primária; Neumann prescreve fluxo, força ou grandeza normal conjugada, conforme o problema."
+    },
+    {
+      "key": "e3",
+      "title": "Matriz local confundida com sistema global",
+      "summary": "As matrizes e vetores elementares são acumulados segundo a conectividade para compor o sistema global."
+    },
+    {
+      "key": "e4",
+      "title": "Campo e grandeza derivada confundidos",
+      "summary": "Em elasticidade baseada em deslocamentos, deformações e tensões são normalmente obtidas a partir dos deslocamentos aproximados."
+    },
+    {
+      "key": "e5",
+      "title": "Convergência confundida com validação",
+      "summary": "Estabilidade sob refinamento avalia o erro numérico; comparação física avalia se as hipóteses e dados representam o caso real."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual descrição apresenta o objetivo central do Método dos Elementos Finitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Representar um campo contínuo por aproximações locais e resolver um sistema finito de incógnitas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir toda equação de equilíbrio por ensaio físico em escala reduzida, que dispensa propriedades do material e qualquer formulação matemática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar as propriedades do material e obter respostas apenas pela geometria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Calcular uma solução analítica exata para qualquer domínio e carregamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter forças distribuídas em valores de tensão conhecidos sem resolver incógnitas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O MEF aproxima campos desconhecidos em uma malha e transforma a formulação do problema em equações para um conjunto finito de graus de liberdade. A precisão depende do modelo, da discretização e da solução; não elimina ensaios ou propriedades materiais.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo por elementos finitos, o que é a malha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conjunto de resultados de tensão e deformação já calculados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A partição do domínio em elementos, com sua conectividade nodal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A relação constitutiva que transforma deformação em tensão e define sozinha toda a geometria discretizada, sem elementos ou nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista de cargas externas aplicadas aos pontos de apoio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O algoritmo usado exclusivamente para fatorar a matriz do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Malha é a discretização geométrica do domínio e inclui elementos e relações entre nós. Propriedades, condições de contorno e algoritmos de solução são componentes distintos do modelo numérico.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um elemento triangular plano de elasticidade com dois deslocamentos por nó, qual interpretação dos graus de liberdade nodais é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada nó possui uma incógnita de temperatura e outra de pressão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada nó representa somente uma tensão principal já conhecida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada nó tem uma componente de deslocamento horizontal e uma vertical.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Cada nó indica o número de elementos que compartilham a aresta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada nó contém uma rotação livre, sem deslocamentos translacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na elasticidade bidimensional baseada em deslocamentos, as incógnitas nodais usuais são as duas componentes do deslocamento no plano. Temperatura e pressão correspondem a outros campos, enquanto tensões são normalmente derivadas da solução de deslocamentos.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma malha com mais elementos garante, por si só, que o resultado esteja correto?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma malha mais fina pode reduzir erro de discretização, mas não corrige material, geometria, carregamento ou apoio inadequados; a qualidade e a convergência precisam ser avaliadas.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual par contém exemplos comuns de elementos para domínios bidimensionais e tridimensionais, respectivamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Triângulo e tetraedro.", "correct": true },
+        { "key": "B", "text": "Tetraedro e triângulo, ambos com essa dimensionalidade invertida por serem elementos típicos de malhas planas e volumétricas.", "correct": false },
+        { "key": "C", "text": "Esfera e linha de corrente.", "correct": false },
+        {
+          "key": "D",
+          "text": "Viga e condição de contorno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Matriz e vetor de carregamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Triângulos são elementos usados em malhas planas e tetraedros em malhas volumétricas tridimensionais. Os demais pares misturam objetos ou conceitos que não são tipos de elemento nessas dimensões.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação relaciona corretamente apoio e força aplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são sempre cargas volumétricas distribuídas no interior da peça.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O apoio restringe movimentos admissíveis; a força representa uma ação sobre o modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O apoio define o módulo de elasticidade, enquanto a força define a geometria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A força elimina graus de liberdade e o apoio fornece energia ao sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos são resultados calculados depois que as tensões são conhecidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição de apoio restringe valores ou movimentos da variável, enquanto uma carga representa ação externa. Confundir os dois pode produzir um modelo fisicamente incorreto ou sem restrições suficientes.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que se usam elementos de tamanho menor em regiões com gradientes intensos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para tornar desnecessárias as propriedades constitutivas do material.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para impor automaticamente deslocamento nulo em toda a região refinada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para permitir que a aproximação represente variações espaciais mais localizadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Para converter condições naturais em condições essenciais sem alterar o modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para assegurar que tensões locais sejam independentes da geometria e da carga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Elementos menores podem representar melhor mudanças rápidas do campo, desde que a formulação e a malha sejam adequadas. Refinamento não define apoios, não remove dados materiais nem garante independência física do resultado.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma idealização bidimensional de uma peça tridimensional deve ser escolhida considerando a geometria, o carregamento e as hipóteses físicas do caso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Modelos planos representam apenas situações em que hipóteses compatíveis com a geometria e o estado de carregamento são justificáveis. A redução dimensional não é automaticamente válida para toda peça tridimensional.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que representa a ordem polinomial de um elemento finito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quantidade de carregamentos que pode ser aplicada ao domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A sequência cronológica em que os elementos são montados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A posição global do elemento na matriz de rigidez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de condições de contorno naturais da fronteira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O grau predominante do polinômio usado na interpolação do campo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A ordem descreve o grau polinomial da aproximação dentro do elemento. Não é a ordem de montagem nem uma contagem de forças ou condições de contorno.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma interpolação nodal padrão, qual propriedade é comum às funções de forma associadas aos nós?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função associada a um nó vale um nele e zero nos outros nós do elemento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada função vale zero em todos os nós e um no centro do elemento, ainda que se trate de uma interpolação nodal padrão de qualquer ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todas as funções possuem derivada constante em qualquer ordem de elemento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função de um nó permanece não nula em todo o domínio global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As funções nodais definem diretamente as cargas sem interpolar a variável.",
+          "correct": false
+        }
+      ],
+      "explanation": "A propriedade nodal cardinal permite recuperar o valor associado ao nó quando se avalia a interpolação nele. Funções locais geralmente têm suporte restrito e sua forma depende da ordem e do tipo de elemento.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significa escrever u_h como soma de funções de forma multiplicadas por coeficientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que cada coeficiente representa obrigatoriamente uma força de superfície.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o campo exato passa a ser conhecido antes da solução do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o campo aproximado é construído a partir de funções conhecidas e incógnitas discretas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Que a geometria deixa de ser dividida em elementos conectados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que as derivadas da solução são nulas em todo ponto da malha.",
+          "correct": false
+        }
+      ],
+      "explanation": "As funções de forma fornecem a base conhecida e seus coeficientes são os graus de liberdade a determinar. A expansão é uma aproximação, não uma solução exata previamente conhecida nem uma declaração de derivadas nulas.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em geral, o que distingue enriquecer a malha por h de elevar a ordem por p?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "h modifica propriedades do material e p modifica exclusivamente os apoios; ambas as mudanças dispensam a montagem e a solução do sistema global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "h troca elementos finitos por volumes finitos; p troca a equação física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "h aplica cargas novas; p remove as cargas que já estão no modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "h reduz o tamanho dos elementos; p aumenta a ordem da aproximação polinomial.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "h muda a variável resolvida; p substitui a montagem global por cálculo local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Refinamento h aumenta a resolução espacial com elementos menores; enriquecimento p eleva a riqueza polinomial dentro dos elementos. As estratégias podem afetar custo de modos diferentes, mas não alteram por si só a física ou os contornos.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As funções de forma locais contribuem para a esparsidade porque cada uma atua em uma região limitada da malha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Funções associadas a nós ou modos locais são não nulas em um conjunto limitado de elementos. Por isso, muitos pares de graus de liberdade não interagem diretamente e a matriz resultante é esparsa.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia tende a representar melhor uma curvatura suave dentro de um elemento, sem necessariamente subdividi-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar força de corpo uniforme para obrigar a interpolação a ser quadrática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Zerar as funções de forma dos nós de extremidade e manter os dados materiais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retirar os graus de liberdade do sistema antes de impor os apoios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir todas as incógnitas por valores de tensão estimados visualmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a ordem da aproximação e verificar se a integração e a malha são adequadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Elementos de ordem maior podem representar campos curvos com maior riqueza dentro de cada elemento. A adequação deve ser verificada, e nenhuma das demais ações cria legitimamente uma interpolação polinomial mais rica.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma formulação descontínua, valores aproximados de elementos vizinhos podem não coincidir na interface, e os termos de interface fazem parte do método.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Métodos de Galerkin descontínuo não impõem continuidade nodal convencional entre todos os elementos; fluxos e penalizações na interface são tratados pela formulação. Isso não significa que o salto possa ser ignorado.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mudança descreve corretamente a passagem da forma forte à forma fraca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminar o domínio e determinar a solução somente na fronteira externa, sem integrar nem testar a equação diferencial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a equação diferencial por uma identidade integral testada por funções admissíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir as propriedades constitutivas por condições iniciais arbitrárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todos os termos de contorno em forças de corpo uniformes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir que a aproximação satisfaça exatamente a equação original em cada ponto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma fraca testa a equação e integra sobre o domínio, permitindo uma igualdade em sentido integral. A integração por partes pode transferir derivadas e produzir termos de fronteira; não elimina domínio nem exige satisfação pontual exata.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na escolha de Galerkin, de onde vêm as funções de teste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Da matriz global já fatorada após resolver o sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "De um conjunto independente de cargas medido em laboratório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Do mesmo espaço funcional adotado para aproximar a solução.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "De funções que devem ser sempre constantes no domínio inteiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "De valores de tensão impostos nos nós da malha.",
+          "correct": false
+        }
+      ],
+      "explanation": "O método de Galerkin usa para as funções de teste o mesmo espaço aproximador, embora solução e função de teste tenham papéis distintos na formulação. Elas não são cargas nem resultados pós-processados.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é a matriz de rigidez local em uma análise de elasticidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O mapa de cores da tensão máxima na peça após o pós-processamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A matriz completa de todos os elementos antes de considerar a conectividade, independente das propriedades do material e dos graus de liberdade locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O conjunto de deslocamentos finais já restringidos pelos apoios globais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A contribuição algébrica de um elemento que relaciona seus graus de liberdade e forças nodais equivalentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A lista de propriedades de material sem relação com a interpolação escolhida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rigidez local decorre da forma fraca, das funções de forma e das propriedades do elemento. Ela relaciona as variáveis locais e depois é inserida na matriz global por meio da conectividade.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a conectividade da malha participa da montagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolhe o método iterativo sem depender do problema ou da matriz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Determina qual tensão experimental deve ser copiada para cada elemento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui as funções de forma por coordenadas de força aplicadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impõe que elementos vizinhos tenham propriedades materiais idênticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Indica em que posições globais acumular cada contribuição dos graus de liberdade locais.",
+          "correct": true
+        }
+      ],
+      "explanation": "A conectividade mapeia os índices locais dos elementos aos índices globais. Assim, contribuições de elementos que compartilham um nó afetam os graus de liberdade globais correspondentes.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A montagem global soma contribuições de elementos diferentes quando elas correspondem aos mesmos graus de liberdade globais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Elementos adjacentes compartilham nós ou graus de liberdade, e a matriz global acumula as contribuições locais nesses índices comuns. Esse processo codifica a interação entre regiões conectadas.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No sistema linear estático K u = f, o que representa u?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista de elementos ainda não conectados à malha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O vetor global de graus de liberdade desconhecidos, como os deslocamentos nodais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O vetor de propriedades elásticas independente do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O campo de tensões conhecido antes da aplicação das cargas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O conjunto de funções de teste integradas sobre a fronteira.",
+          "correct": false
+        }
+      ],
+      "explanation": "u reúne as incógnitas discretas do problema; em elasticidade baseada em deslocamentos, são componentes de deslocamento nodal. K representa a rigidez montada e f reúne ações e termos conhecidos.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que funções de teste são introduzidas na formulação fraca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para fornecer diretamente a solução exata em cada ponto do domínio, sem incógnitas, aproximações ou cálculo variacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para substituir a necessidade de definir material e geometria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para ponderar a equação diferencial e obter relações integrais para os coeficientes discretos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Para transformar qualquer condição de apoio em uma força nodal conhecida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para eliminar as incógnitas antes da montagem das matrizes locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função de teste pondera o resíduo da equação e conduz às equações variacionais. Com uma base finita, a escolha de testes produz as equações discretas para os coeficientes desconhecidos.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em elasticidade linear, a forma fraca relaciona deformações virtuais a tensões e inclui as trações prescritas na fronteira natural.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A integração por partes da equação de equilíbrio conduz a uma expressão integral interna envolvendo tensão e gradiente da função de teste, além do termo de contorno de tração. A lei constitutiva fecha a relação entre tensão e deformação.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência prática decorre da localidade das funções de forma em uma malha convencional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os coeficientes nodais passam a ser conhecidos antes da solução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A matriz global é necessariamente diagonal, mesmo em elementos conectados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada elemento pode ser resolvido sem condições de interface ou montagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A matriz global tende a ser esparsa, pois cada grau de liberdade acopla apenas uma vizinhança limitada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A matriz deixa de depender da geometria e das propriedades constitutivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como as funções locais interagem somente nos elementos em que têm suporte, a maioria dos pares de graus de liberdade não se acopla diretamente, resultando em esparsidade. Isso não torna a matriz diagonal nem dispensa a montagem.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um termo de força de corpo e uma tração de superfície entram em regiões diferentes da formulação mecânica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Força de corpo atua no volume e é integrada sobre o domínio; tração atua na fronteira e é integrada sobre a superfície correspondente. Sua localização física distingue as contribuições.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de elasticidade baseado em deslocamentos, qual é normalmente a variável primária resolvida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo de deslocamentos, cujas derivadas permitem obter deformações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O campo de tensões, sem relação com a deformação do material; nessa formulação elas são variáveis primárias independentes dos deslocamentos e do equilíbrio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A densidade do material em cada nó como resposta de equilíbrio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A força de reação em todos os nós antes de impor os apoios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A geometria da malha como incógnita do sistema estático.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na formulação convencional de deslocamentos, os deslocamentos são incógnitas primárias. Deformações são obtidas a partir dos gradientes desses deslocamentos e tensões pela relação constitutiva.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma face livre sem tração aplicada, a condição natural mecânica corresponde a tração nula nessa face.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma face livre idealizada sem ação superficial tem tração prescrita nula. Isso não significa que o deslocamento seja nulo: a condição de deslocamento é essencial e tem natureza distinta.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição de contorno é essencial em um problema de elasticidade baseado em deslocamentos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deslocamento prescrito em uma região de apoio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tração prescrita numa face carregada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Força de corpo distribuída no interior do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Módulo de elasticidade escolhido para o material.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Refinamento local de elementos perto de um entalhe.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição essencial prescreve a variável primária, que neste caso é o deslocamento. Tração é condição natural; força de corpo é uma ação de volume; propriedades e refinamento são outros dados do modelo.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma condição natural em elasticidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prescrever a tração exercida sobre uma parte da fronteira.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fixar os deslocamentos em todos os nós do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir o módulo de Young em cada elemento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher a ordem polinomial das funções de forma.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar a conectividade entre os elementos vizinhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tração prescrita é condição natural e aparece como trabalho de contorno na forma fraca. Deslocamento prescrito é condição essencial; material, ordem e conectividade definem outras partes do modelo.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fixar uma face de um sólido impedindo os três deslocamentos translacionais locais é uma condição essencial de deslocamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Prescrever as componentes de deslocamento na região restringe a variável primária e caracteriza condição essencial. O modelo deve ainda verificar se as restrições representam o apoio real e eliminam movimentos rígidos indevidos.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual pode ser um sintoma de restrições insuficientes em uma análise estática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Movimentos de corpo rígido permanecem livres e o sistema pode ficar singular.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O material passa automaticamente a apresentar comportamento plástico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A matriz global se converte em um vetor de forças de superfície.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A malha deixa de exigir funções de forma em seus elementos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As condições naturais desaparecem da fronteira do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem restrições suficientes, o corpo pode transladar ou girar sem deformar, deixando modos de corpo rígido e podendo tornar o sistema singular. Isso é distinto de plasticidade ou de mudanças na malha.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após resolver os deslocamentos em elasticidade linear, como se obtêm usualmente as tensões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A partir das deformações calculadas e da relação constitutiva do material.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somando diretamente as coordenadas globais dos nós da malha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impondo tensão nula em todos os elementos, inclusive carregados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lendo a tensão como condição essencial em cada ponto interno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Convertendo cada grau de liberdade em uma força de corpo conhecida.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gradiente do deslocamento fornece deformações; a lei constitutiva relaciona deformação e tensão. A forma precisa de recuperar e apresentar a tensão depende da formulação e do pós-processamento.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A convergência numérica de uma grandeza, isoladamente, demonstra que o modelo representa corretamente a peça real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Convergência indica estabilidade da aproximação numérica sob refinamento ou enriquecimento. A validade física ainda depende de hipóteses, propriedades, carregamentos, apoios e comparação com evidência apropriada.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que tensões perto de um canto agudo ou de uma carga concentrada exigem cautela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque qualquer pico local prova que o material tem módulo negativo, mesmo quando os dados constitutivos são coerentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque as condições de contorno deixam de existir em qualquer região angular, tornando impossível impor apoios ou ações em toda a fronteira da peça.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a tensão é sempre uma variável prescrita e não uma resposta calculada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a malha impede que a geometria seja representada perto de uma fronteira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque podem apresentar concentrações ou singularidades e sensibilidade ao refinamento da malha.",
+          "correct": true
+        }
+      ],
+      "explanation": "Geometrias com cantos ideais e cargas pontuais podem gerar campos com gradientes muito intensos ou singularidades, fazendo o pico calculado depender da malha. É preciso interpretar a idealização e avaliar grandezas adequadas, sem concluir automaticamente falha material.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação é mais útil em um estudo de convergência de malha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quantidade de cores escolhida para o mapa de resultados, pois ela mede a precisão local sem cálculos adicionais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A variação de uma grandeza de interesse entre malhas sucessivamente refinadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O nome do solver sem observar os dados ou a solução obtida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O total de arquivos de saída gerados em cada execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A igualdade visual entre malhas sem comparar valores calculados, pois mapas iguais provam exatidão local e dispensam qualquer medida numérica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um estudo de convergência acompanha uma medida definida da solução à medida que a discretização é refinada ou enriquecida. Aparência gráfica e metadados não substituem comparação quantitativa da resposta relevante.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução numérica estável pode ainda representar mal a realidade se o carregamento ou o apoio tiver sido idealizado incorretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Estabilidade numérica diz respeito à discretização e ao procedimento de solução. A qualidade física exige revisar dados, hipóteses e condições do problema, além de validar resultados com referências adequadas.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar um modelo de uma viga engastada e tracionada na extremidade livre, qual mapeamento de condições é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Engaste define a malha; tração aplicada define as funções de forma e substitui a lei constitutiva do material.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Engaste prescreve tensão; tração aplicada prescreve deslocamento nulo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Engaste prescreve deslocamentos; tração aplicada é condição natural de fronteira.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Engaste e tração são ambos propriedades constitutivas do material.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Engaste é força de corpo; tração é restrição de movimento rígido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O engaste é representado por deslocamentos prescritos, enquanto a tração superficial é uma ação natural na fronteira. Essa distinção é central para montar corretamente a formulação e o vetor de carregamentos.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A força de corpo é aplicada sobre uma superfície de contorno, enquanto a tração é integrada sobre o volume.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A força de corpo é distribuída no domínio volumétrico; a tração é uma força por unidade de área prescrita na fronteira. A integração na formulação respeita essa localização física.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve corretamente uma análise estática linear básica por elementos finitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Calcular reações sem incógnitas, interpolar o campo e dispensar a forma fraca, mesmo que nenhum sistema tenha sido montado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Resolver tensões exatas, escolher a malha depois e omitir as propriedades do material.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Montar o vetor global, remover os apoios e então definir a geometria da peça.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar refinamento, declarar a solução validada e só depois especificar as cargas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir modelo e contornos, discretizar, formular e montar, resolver e avaliar a resposta.",
+          "correct": true
+        }
+      ],
+      "explanation": "A análise começa com a definição física, seguida pela discretização e construção das equações variacionais e do sistema global. Depois das condições de contorno, resolve-se o sistema e verifica-se a qualidade numérica e física do resultado.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um problema de condução de calor, temperatura prescrita e fluxo térmico prescrito ilustram, respectivamente, condições essenciais e naturais na formulação usual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A temperatura é a variável primária e seu valor prescrito é condição essencial. O fluxo térmico normal aparece como condição natural de fronteira, de modo análogo à distinção entre deslocamento e tração em elasticidade.",
+      "section": "1. Do problema físico ao domínio discretizado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática é adequada ao interpretar o resultado de uma simulação por elementos finitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar a solução validada sempre que o sistema algébrico foi resolvido, ainda que as unidades e os apoios não tenham sido examinados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aceitar o maior pico de tensão como exato sem olhar geometria ou discretização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas o mapa de cores, pois ele verifica automaticamente o material.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar as reações calculadas, mesmo quando há apoios e cargas externas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir unidades, equilíbrio, condições de contorno e sensibilidade da grandeza à malha.",
+          "correct": true
+        }
+      ],
+      "explanation": "A interpretação deve revisar consistência física e numérica: unidades, equilíbrio, representação dos apoios e ações, e sensibilidade à discretização. Resolver o sistema ou gerar uma visualização não valida automaticamente o modelo.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma formulação estática linear, cargas e rigidez são montadas antes de resolver os graus de liberdade desconhecidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A formulação e a montagem produzem o sistema algébrico global; após representar as condições essenciais, resolve-se pelas incógnitas livres. A solução não precede a construção do sistema.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em elasticidade baseada em deslocamentos, as trações prescritas são incógnitas primárias nos mesmos nós em que se resolvem os deslocamentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os deslocamentos são as incógnitas primárias nessa formulação. Trações prescritas são dados de fronteira natural; tensões podem ser calculadas a partir dos deslocamentos e da relação constitutiva.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe dobra a quantidade de elementos, mas não revisa apoios nem propriedades. Qual conclusão é tecnicamente defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo físico fica validado, pois a malha passou a representar melhor o domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resposta pode mudar por discretização, mas os dados físicos ainda precisam ser conferidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema deixa de depender das condições de contorno por ter mais incógnitas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "As propriedades materiais podem ser omitidas quando o tamanho dos elementos diminui.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As tensões passam a ser exatas em cada ponto, ainda que as hipóteses estejam erradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Refinar a malha pode alterar o erro numérico, mas não corrige apoios, propriedades, ações ou hipóteses físicas. A avaliação deve separar convergência numérica de validação do modelo.",
+      "section": "4. Contorno, solução e avaliação do resultado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma face sujeita a tração uniforme é integrada como contribuição de fronteira, enquanto uma força de corpo distribuída contribui no domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A tração atua sobre a superfície da fronteira e a força de corpo atua no volume. A forma fraca integra cada ação sobre a região em que ela fisicamente está definida.",
+      "section": "3. Forma fraca, elemento e montagem global",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher entre refinar a malha e elevar a ordem do elemento, qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As duas estratégias são idênticas e sempre geram exatamente as mesmas incógnitas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Refinamento aumenta resolução espacial e ordem maior amplia o espaço polinomial aproximador.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Refinamento reduz o tamanho dos elementos; elevar a ordem enriquece a interpolação local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Refinar altera a lei constitutiva, enquanto elevar a ordem altera a carga aplicada; os apoios também deixam de ser necessários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem do elemento define os apoios e o refinamento determina as trações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Refinamento h adiciona resolução dividindo o domínio em elementos menores; enriquecimento p usa polinômios de ordem maior. As estratégias não alteram por si mesmas cargas, apoios ou lei constitutiva.",
+      "section": "2. Funções de forma e aproximação do campo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MFEM — Weak Formulations",
+      "publisher": "MFEM Project",
+      "reference": "Aproximação por funções de base, teste e forma fraca; derivadas fracas",
+      "url": "https://mfem.org/fem_weak_form/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MFEM — Annotated Example 2: Linear Elasticity",
+      "publisher": "MFEM Project",
+      "reference": "Deslocamentos, tensões, forma fraca, tração e sistema linear em elasticidade",
+      "url": "https://mfem.org/annotated/ex2/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MFEM — Examples",
+      "publisher": "MFEM Project",
+      "reference": "Exemplos de Poisson, elasticidade linear, refinamento e condições de contorno",
+      "url": "https://mfem.org/examples/",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

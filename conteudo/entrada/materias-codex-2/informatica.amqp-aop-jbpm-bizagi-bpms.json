@@ -1,0 +1,1867 @@
+{
+  "id": "informatica.amqp-aop-jbpm-bizagi-bpms",
+  "subject": "Informática",
+  "title": "AMQP, AOP, jBPM e Bizagi BPMS",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Padrões AMQP e programação orientada a aspectos",
+    "AMQP Advanced Message Queuing Protocol",
+    "Protocolo AMQP versão 1.0",
+    "Mensageria e protocolo AMQP",
+    "Conexões sessões e links AMQP",
+    "Entrega de mensagens e AMQP",
+    "Programação orientada a aspectos AOP",
+    "Aspect Oriented Programming AOP",
+    "Aspectos pointcuts e advice AOP",
+    "Spring AOP com proxies dinâmicos",
+    "Toolkit jBPM de processos de negócio",
+    "jBPM e gerenciamento de processos BPMN",
+    "Motor de processos jBPM e tarefas humanas",
+    "Bizagi BPMS e automação de processos BPMN",
+    "Bizagi Modeler Studio e Automation Services",
+    "Conhecimento do toolkit jBPM e Bizagi BPMS"
+  ],
+  "scope": {
+    "covers": "Fundamentos concretos de AMQP 1.0 (mensagens, nós, conexões, sessões, links, fluxo, confirmações e estados de entrega); programação orientada a aspectos (aspecto, join point, pointcut, advice, weaving e limitações de proxy em Spring AOP); toolkit jBPM/KIE (modelos BPMN 2, implantação e execução de processos, instâncias, tarefas humanas, serviços e persistência); Bizagi BPMS (Modeler, Studio, BPMN, modelo de dados, regras, formulários, atribuição de trabalho e execução/deployment).",
+    "excludes": "Administração e configuração de brokers específicos; sintaxe integral das especificações AMQP; programação avançada de AspectJ; instalação de versões específicas de jBPM ou Bizagi; licenciamento, preços e serviços de nuvem específicos."
+  },
+  "theoryTitle": "Mensageria, aspectos e automação de processos",
+  "chapters": [
+    {
+      "title": "1. AMQP: protocolo de mensagens interoperável",
+      "markdown": "### O problema que este assunto resolve\n\nSistemas independentes precisam trocar mensagens sem depender da implementação interna de cada aplicação. AMQP (*Advanced Message Queuing Protocol*) define um protocolo de comunicação para mensageria: clientes e intermediários podem concordar sobre quadros, transferência e estado das entregas. AMQP 1.0 é uma especificação de protocolo aberta, não o nome de um broker específico nem uma API de linguagem. Um produto pode implementar o protocolo e oferecer recursos adicionais próprios.\n\n> **Siglas e termos deste capítulo**\n> - **AMQP**: protocolo aberto para troca de mensagens.\n> - **Broker**: intermediário que recebe, armazena ou encaminha mensagens.\n> - **Container**: participante AMQP, como uma aplicação cliente ou um broker.\n> - **Nó (node)**: entidade nomeada que origina, recebe ou retransmite mensagens; exemplos incluem produtor, consumidor e fila.\n> - **Link**: caminho lógico entre extremos de envio e recebimento dentro de uma sessão.\n> - **Settlement**: acordo de estado da entrega entre os pares.\n\n### O modelo em camadas\n\nNo modelo de transporte AMQP, uma **connection** estabelece a relação entre dois containers. Dentro dela podem existir **sessions**, que multiplexam diálogos lógicos. Em uma sessão são estabelecidos **links**. Um link tem um papel de remetente (*sender*) em uma extremidade e de receptor (*receiver*) na outra; ele associa uma origem (*source*) e um destino (*target*) e transporta transferências. Uma sessão pode carregar vários links ao mesmo tempo.\n\nA aplicação pensa em produtores, consumidores, endereços e mensagens; o protocolo define como negociar conexões, abrir sessões, anexar links, controlar fluxo e comunicar resultados de entrega. Uma fila é um exemplo de nó de broker, mas AMQP 1.0 não determina que todo produto deva usar internamente a mesma topologia, algoritmo de roteamento ou nome de exchange.\n\n| Elemento | Papel prático |\n| --- | --- |\n| Connection | Associação de transporte entre dois containers |\n| Session | Contexto lógico que pode agrupar vários links |\n| Link | Relação de transferência entre sender e receiver |\n| Source e target | Termini que identificam de onde mensagens saem e aonde chegam |\n| Message | Unidade transferida, com cabeçalho, propriedades e corpo |\n\n### Transferência, fluxo e resultado\n\nAMQP separa o ato de transferir uma mensagem do resultado de sua entrega. O sender envia transferências; o receiver pode informar um estado de resultado, por exemplo **accepted**, **rejected**, **released** ou **modified**. A política de settlement controla quando cada lado considera encerrada sua responsabilidade. Portanto, “enviou bytes” não equivale necessariamente a “a aplicação consumidora processou e confirmou”. O significado operacional concreto depende também da política negociada e do broker.\n\nO controle de fluxo do link usa crédito (*link credit*): o receiver pode conceder capacidade para o sender enviar certa quantidade de mensagens sem esperar uma resposta individual para cada uma. Isso evita sobrecarregar o consumidor e permite transferência eficiente. O controle de fluxo não é a mesma coisa que o resultado de settlement.\n\n### Como cai na prova\n\n- Connection, session e link formam níveis distintos; não são sinônimos.\n- O link liga papéis sender/receiver e terminos source/target; a sessão pode conter vários links.\n- Crédito de link limita ou autoriza transferências pendentes; não é confirmação de processamento.\n- AMQP padroniza o protocolo, mas não obriga todos os brokers a expor a mesma topologia interna ou extensão proprietária."
+    },
+    {
+      "title": "2. AOP e o modelo de proxies do Spring",
+      "markdown": "### O problema que este assunto resolve\n\nTransações, auditoria, autorização, métricas e registro de chamadas podem atravessar muitas classes. Repetir a mesma lógica em cada método espalha o código e dificulta mudanças. A programação orientada a aspectos (AOP, *Aspect-Oriented Programming*) modulariza essas preocupações transversais em unidades chamadas **aspectos**, aplicadas a pontos selecionados do programa. AOP complementa a orientação a objetos; não elimina classes, serviços ou regras de negócio.\n\n> **Siglas e termos deste capítulo**\n> - **Aspecto (aspect)**: módulo que reúne pointcut e advice para uma preocupação transversal.\n> - **Join point**: ponto de execução em que uma preocupação pode ser aplicada.\n> - **Pointcut**: predicado que seleciona join points.\n> - **Advice**: ação executada antes, depois ou ao redor do ponto selecionado.\n> - **Weaving**: associação do aspecto ao código/objeto alvo.\n> - **Proxy**: objeto intermediário que intercepta chamadas para um alvo.\n\n### Vocabulário que não se deve misturar\n\nEm Spring AOP, um **join point** típico é a execução de um método. O **pointcut** seleciona quais execuções interessam, por exemplo métodos de uma camada de serviço. O **advice** implementa o comportamento transversal. O **aspecto** agrupa a seleção e o comportamento. Um advisor no modelo de baixo nível do Spring associa uma peça de advice a um pointcut.\n\n| Tipo de advice | Quando atua |\n| --- | --- |\n| Before | Antes do método selecionado |\n| After returning | Depois de retorno normal |\n| After throwing | Quando a execução termina com exceção |\n| After (finally) | Na saída, normal ou excepcional |\n| Around | Envolve a chamada e decide se prossegue, retorna ou lança exceção |\n\nEm *around advice*, a lógica deve chamar `proceed()` para deixar a execução original continuar. Se não chamar, pode interromper o método e devolver resultado próprio ou lançar exceção. Quando só é necessário observar o retorno normal, é mais simples preferir after-returning.\n\n### Proxies e limites importantes\n\nO Spring AOP usa weaving em tempo de execução por **proxies**. Dependendo do tipo configurado, o proxy pode usar interface dinâmica do JDK ou uma subclasse gerada por CGLIB. Com proxy JDK, o cliente acessa interfaces proxyadas. Com CGLIB, há restrições de herança: classe final não pode ser subclassificada, método final não pode ser sobrescrito e método privado não pode ser interceptado por override.\n\nA chamada precisa passar pelo proxy. Se um método do próprio objeto chama outro método com `this.metodo()`, essa autoinvocação vai diretamente ao alvo e não atravessa o proxy; assim, o advice do segundo método pode não rodar. Esse comportamento explica muitos casos em que uma anotação transacional ou outro advice parece ignorado. AspectJ com weaving em bytecode tem semântica diferente e não deve ser confundido com o proxy do Spring.\n\n### Como cai na prova\n\n- Pointcut seleciona; advice executa; aspecto organiza ambos.\n- Around é o advice que envolve a execução e controla a continuação por `proceed()`.\n- Em Spring AOP baseado em proxy, autoinvocação via `this` contorna o proxy.\n- Final e private não podem ser interceptados por subclassificação CGLIB; a aplicação de AOP não torna qualquer ponto do programa automaticamente interceptável."
+    },
+    {
+      "title": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "markdown": "### O problema que este assunto resolve\n\njBPM é um toolkit de gerenciamento de processos de negócio da comunidade KIE/JBoss. Ele permite representar processos executáveis, normalmente com BPMN 2, integrar tarefas humanas e serviços e acompanhar instâncias em execução. Não é apenas uma ferramenta de desenho: o motor interpreta definições implantadas, cria instâncias e movimenta o fluxo conforme eventos, tarefas e condições.\n\n> **Siglas e termos deste capítulo**\n> - **BPMN**: notação para modelagem de processos de negócio.\n> - **KIE**: conjunto de componentes de conhecimento e execução que inclui a infraestrutura usada por jBPM.\n> - **Process definition**: modelo versionado que descreve o fluxo e seus nós.\n> - **Process instance**: execução concreta de uma definição, com dados e estado próprios.\n> - **Human task**: atividade que aguarda ação de uma pessoa ou grupo atribuído.\n> - **Task service**: serviço que consulta e administra tarefas humanas, como reivindicar e concluir.\n\n### Da definição à instância\n\nO processo é modelado com eventos, tarefas, gateways e fluxos. A definição empacotada em um artefato KIE pode ser implantada em um ambiente de execução. A implantação disponibiliza a definição ao runtime; depois, um cliente ou serviço inicia uma instância identificando a definição e fornecendo variáveis iniciais. Cada instância percorre seu próprio caminho e conserva seu estado, inclusive quando chega a uma espera por tarefa humana, temporizador ou evento externo.\n\nUma tarefa humana é parte do fluxo, mas o trabalho é realizado por um usuário através do serviço de tarefas e de uma interface cliente. O ciclo usual inclui tarefa criada/ready, eventualmente reservada ou reivindicada por um ator, iniciada e completada; a conclusão pode fornecer resultados que alimentam variáveis do processo e liberam o próximo nó. Papéis e grupos restringem quem pode atuar, de acordo com a configuração do processo.\n\nTarefas de serviço executam integração ou lógica automatizada; gateways escolhem caminhos com base em condições; eventos de espera pausam o avanço até que a condição correspondente ocorra. Variáveis da instância transportam dados entre nós. Isso permite separar o fluxo de controle dos detalhes de integração e da interação humana.\n\n### Runtime, persistência e operação\n\nA API de runtime inicia e controla instâncias; a API de tarefas trabalha com o ciclo das tarefas humanas. Em uma implantação persistente, estado e dados das instâncias são armazenados para que o processo sobreviva ao encerramento da aplicação e possa ser retomado. Persistência não significa que qualquer chamada externa seja automaticamente transacional com o processo: integrações precisam tratar falhas, repetição e consistência.\n\nA versão do modelo é uma definição; cada instância já iniciada conserva sua própria identidade e estado. Publicar uma nova definição não equivale a substituir retroativamente todas as instâncias em andamento. A estratégia de migração ou atualização de instâncias depende da capacidade e da configuração do ambiente.\n\n### Como cai na prova\n\n- Implantar torna uma definição disponível; iniciar cria uma instância concreta.\n- A API de runtime lida com instâncias; o serviço de tarefas lida com o trabalho humano.\n- Uma tarefa humana cria espera e exige ciclo de atribuição/execução; tarefa de serviço automatiza uma ação.\n- Persistência guarda estado entre reinícios, mas não resolve sozinha consistência de sistemas integrados."
+    },
+    {
+      "title": "4. Bizagi BPMS: modelagem, automação e execução",
+      "markdown": "### O problema que este assunto resolve\n\nBizagi oferece um conjunto BPMS para modelar e automatizar processos. **Bizagi Modeler** documenta graficamente o processo; **Bizagi Studio** acrescenta os elementos necessários à automação, como modelo de dados, regras, formulários e integração; os serviços de execução disponibilizam o fluxo aos usuários e acompanham casos. O modelo visual é uma base para o trabalho, mas diagramar sozinho não configura todos os dados, regras, participantes ou interfaces de execução.\n\n> **Siglas e termos deste capítulo**\n> - **BPMS**: suíte de gerenciamento de processos de negócio.\n> - **Caso (case)**: execução concreta de um processo Bizagi.\n> - **Entidade**: estrutura de dados com atributos, usada pelo processo.\n> - **Performer**: pessoa, grupo ou critério associado à execução de uma tarefa.\n> - **Work Portal**: interface de trabalho para usuários acompanharem casos e tarefas.\n> - **Deployment**: publicação de metadados/configuração para outro ambiente.\n\n### Caminho de automação no Studio\n\nO fluxo começa com o desenho BPMN. No assistente de processo, o desenvolvedor define o modelo de dados que o caso usará; entidades e atributos são relacionados ao contexto do processo e podem ser reutilizados em processos do mesmo projeto. Em seguida, configura atividades, formulários e regras. Uma User Task representa trabalho humano assistido por formulário; uma Service Task invoca um serviço; um gateway encaminha o caso conforme condições. O Studio suporta um subconjunto de elementos BPMN voltado a automação; um diagrama válido para documentação pode conter elementos que precisem ser adaptados antes de executar.\n\nAs regras de negócio controlam o fluxo, validam ou calculam dados, alteram propriedades dos controles do formulário e ajudam a alocar usuários. Ações de atividade podem ocorrer ao entrar na atividade, ao salvar ou ao sair, cada momento com efeito diferente. Regras de roteamento respondem qual caminho seguir; atribuição responde quem pode receber ou executar a tarefa.\n\n| Componente | Responsabilidade no ciclo |\n| --- | --- |\n| Modeler | Desenhar e documentar o processo BPMN |\n| Studio | Configurar dados, regras, formulários, participantes e integrações |\n| Automation Services/runtime | Executar e controlar os processos automatizados |\n| Work Portal | Oferecer tarefas e casos aos usuários finais |\n\n### Operação, integração e ambientes\n\nO processo automatizado opera com dados do caso e entidades relacionadas. Regras podem navegar o modelo de dados por expressões/XPath; formulários coletam e apresentam os valores necessários. Connectors e componentes permitem integrar serviços e sistemas corporativos. Configurações ambientais, como endpoints de serviços, precisam corresponder a desenvolvimento, teste e produção. Deployment transfere metadados selecionados e deve respeitar dependências entre processo, regras, dados e integração.\n\nNão confunda Modeler com o motor de execução, nem Studio com a caixa de tarefas do usuário. Modeler é principalmente autoria gráfica; Studio é o ambiente de construção/configuração da solução; runtime e portal participam da execução e do trabalho operacional.\n\n### Como cai na prova\n\n- Modeler desenha; Studio configura automação; runtime executa; portal dá acesso ao trabalho.\n- Modelo de dados, regras e formulários são necessários para transformar o desenho em caso executável.\n- Regras de roteamento escolhem caminho; regras de alocação determinam destinatários compatíveis.\n- O subconjunto de BPMN suportado pelo Studio importa: nem todo elemento desenhado é necessariamente automatizável sem adaptação."
+    },
+    {
+      "title": "5. Comparação e escolhas de arquitetura",
+      "markdown": "### O problema que este assunto resolve\n\nAMQP, AOP, jBPM e Bizagi aparecem em questões de arquitetura, mas resolvem problemas de naturezas diferentes. Saber distingui-los evita respostas que trocam protocolo de comunicação, mecanismo de modularização e plataforma de processos.\n\n> **Siglas e termos deste capítulo**\n> - **Acoplamento**: dependência direta entre componentes.\n> - **Mensageria assíncrona**: envio desacoplado no tempo entre produtor e consumidor.\n> - **Concern transversal**: comportamento que cruza módulos, como auditoria.\n> - **Orquestração**: coordenação explícita de atividades e decisões de um processo.\n> - **Interoperabilidade**: capacidade de implementações diferentes comunicarem pelo mesmo contrato.\n\n### Qual tecnologia responde a qual necessidade?\n\n| Necessidade | Tecnologia | Resultado principal |\n| --- | --- | --- |\n| Trocar mensagens entre aplicações por contrato comum | AMQP | Protocolo de transferência e estado de mensagens |\n| Aplicar transação, logging ou auditoria a chamadas selecionadas | AOP | Modularização transversal por pointcut/advice |\n| Executar processos BPMN em uma plataforma Java/KIE | jBPM | Runtime de definições, instâncias e tarefas |\n| Criar solução de processo com ambiente visual e low-code | Bizagi BPMS | Modelagem e automação com Studio e runtime |\n\nAMQP pode servir de mecanismo de integração dentro de uma arquitetura que também contenha um BPMS; isso não faz do broker o motor do processo. AOP pode proteger ou observar chamadas do código de integração, mas não desenha o fluxo BPMN. Um motor de processo pode invocar serviços que publicam mensagens, mas protocolo, processo e mecanismo transversal continuam conceitos separados.\n\n### Como escolher e como diagnosticar\n\nSe a pergunta descreve produtores e consumidores, interoperabilidade, link credit ou estado da entrega, pense em AMQP. Se descreve aplicar lógica antes/depois de chamadas de métodos sem repetir código, pense em AOP e identifique o pointcut/advice. Se descreve executar definição BPMN, instâncias e tarefas humanas num toolkit Java/KIE, pense em jBPM. Se descreve Modeler, Studio, regras gráficas, formulários e portal operacional, pense em Bizagi.\n\nDiagnóstico também depende do mecanismo: chamada interna via `this` pode contornar o proxy AOP; uma tarefa sem performer pode ficar sem atribuição adequada; mensagem transferida sem estado terminal pode ainda não ter settlement; e um modelo BPMN de documentação pode exigir ajuste ao conjunto automatizável do Studio. Cada falha aponta a uma camada diferente.\n\n### Como cai na prova\n\n- Não trate AMQP como produto específico nem como mecanismo de processo.\n- Não confunda jBPM e Bizagi com a notação BPMN: são toolkits/plataformas que podem executar modelos.\n- Pointcut decide onde aplicar advice; gateway decide para onde o fluxo do processo segue.\n- Use a descrição do problema para identificar a camada: transporte, interceptação, motor ou suíte de automação."
+    }
+  ],
+  "summary": "AMQP 1.0 é um protocolo aberto para intercâmbio de mensagens entre aplicações e intermediários compatíveis. No transporte, connections ligam containers, sessions fornecem contextos lógicos e links transferem mensagens entre sender e receiver; link credit regula o fluxo, enquanto resultados como accepted e rejected informam estado da entrega e settlement. A programação orientada a aspectos (AOP) modulariza interesses transversais como transações e auditoria: pointcuts selecionam join points, advice executa o comportamento e aspectos organizam esses elementos. Spring AOP usa proxies em tempo de execução, de modo que autoinvocação via this pode contornar o advice e métodos privados ou finais têm limitações de interceptação por CGLIB. jBPM, integrante do ecossistema KIE, executa definições de processos BPMN como instâncias com estado próprio e separa operações de runtime do ciclo de tarefas humanas. Bizagi organiza a modelagem gráfica no Modeler, a configuração de modelo de dados, regras, formulários e integrações no Studio e o trabalho operacional no runtime e Work Portal. São camadas complementares: protocolo, interceptação transversal, motor de processos e suíte BPMS.",
+  "flashcards": [
+    {
+      "front": "O que padroniza AMQP como tecnologia de integração?",
+      "back": "Um protocolo para intercâmbio de mensagens entre pares compatíveis; não define um broker único."
+    },
+    {
+      "front": "Como se relacionam connection, session e link no AMQP?",
+      "back": "A conexão liga containers, a sessão agrupa diálogo lógico e links transferem mensagens dentro da sessão."
+    },
+    {
+      "front": "Quais papéis e termini aparecem nas pontas do link AMQP?",
+      "back": "Sender e receiver, associados a termini source e target."
+    },
+    {
+      "front": "Como link credit ajuda a regular o fluxo de mensagens?",
+      "back": "É capacidade concedida ao sender para transferir mensagens sem sobrecarregar o receiver."
+    },
+    {
+      "front": "O que comunica accepted no estado de uma entrega?",
+      "back": "Um estado de resultado da entrega que indica aceitação pelo receiver/terminus segundo a semântica negociada."
+    },
+    {
+      "front": "AMQP 1.0 exige exchanges no modelo de todo broker?",
+      "back": "Não; roteamento e topologia interna podem ser específicos da implementação."
+    },
+    {
+      "front": "O que é join point em Spring AOP?",
+      "back": "Um ponto de execução interceptável, tipicamente execução de método."
+    },
+    {
+      "front": "Qual é o papel do pointcut numa configuração AOP?",
+      "back": "Selecionar os join points nos quais o advice deve atuar."
+    },
+    {
+      "front": "O que o advice faz quando um join point é alcançado?",
+      "back": "Executa comportamento transversal antes, depois ou ao redor do join point."
+    },
+    {
+      "front": "Qual advice pode impedir a chamada original e retornar outro resultado?",
+      "back": "Around pode não chamar proceed e retornar outro valor ou lançar exceção."
+    },
+    {
+      "front": "Por que autoinvocação pode ignorar advice no Spring?",
+      "back": "A chamada por this vai direto ao alvo e não atravessa o proxy."
+    },
+    {
+      "front": "Qual limitação CGLIB se aplica a métodos final?",
+      "back": "Não pode sobrescrevê-los para interceptar a chamada."
+    },
+    {
+      "front": "O que descreve uma process definition no jBPM?",
+      "back": "O modelo implantável que descreve os nós, eventos, condições e fluxos do processo."
+    },
+    {
+      "front": "O que significa process instance no jBPM?",
+      "back": "Uma execução concreta de uma definição, com dados e estado próprios."
+    },
+    {
+      "front": "Como runtime e TaskService diferem no toolkit jBPM?",
+      "back": "Runtime controla instâncias; TaskService administra tarefas humanas."
+    },
+    {
+      "front": "O que pode ocorrer ao completar uma tarefa humana?",
+      "back": "Resultados podem ser gravados como dados da tarefa e liberar o avanço do fluxo."
+    },
+    {
+      "front": "Qual é a função típica do Bizagi Modeler?",
+      "back": "Desenhar e documentar graficamente o processo, normalmente em BPMN."
+    },
+    {
+      "front": "Que tipos de configuração são feitos no Bizagi Studio?",
+      "back": "Dados, regras, formulários, performers, integrações e demais detalhes da automação."
+    },
+    {
+      "front": "Para que servem regras de roteamento de processo?",
+      "back": "Avaliam condições e determinam qual caminho do fluxo o caso seguirá."
+    },
+    {
+      "front": "Para que servem regras de alocação de usuários?",
+      "back": "Definem condições para selecionar usuários compatíveis com a tarefa."
+    },
+    {
+      "front": "Qual trabalho o Work Portal oferece aos usuários finais?",
+      "back": "Apresenta casos e tarefas para o trabalho operacional dos usuários."
+    },
+    {
+      "front": "O Bizagi Modeler executa sozinho processos automatizados?",
+      "back": "Não; é ferramenta de desenho/documentação, enquanto runtime executa a automação."
+    }
+  ],
+  "tips": [
+    "Na hierarquia AMQP, guarde connection, session e link como níveis diferentes.",
+    "Associe crédito de link ao controle de fluxo e accepted/rejected ao estado de entrega.",
+    "Em AOP, memorize: pointcut seleciona; advice atua; aspecto reúne.",
+    "Em Spring AOP, verifique se a chamada passa pelo proxy antes de culpar a anotação.",
+    "No jBPM, separe implantação da definição, criação da instância e conclusão da tarefa.",
+    "No Bizagi, relacione Modeler à modelagem, Studio à configuração e runtime/portal à execução."
+  ],
+  "traps": [
+    "Chamar qualquer produto de mensageria de AMQP: o padrão é protocolo, não produto.",
+    "Tratar link credit como confirmação de processamento: ele controla permissão de envio.",
+    "Supor que todo método Spring é interceptado: private, final e autoinvocação têm limites.",
+    "Confundir definição jBPM com instância: uma é modelo implantado, a outra é execução identificável.",
+    "Supor que uma tarefa humana é executada pelo motor sem usuário: ela aguarda interação conforme atribuição.",
+    "Achar que qualquer diagrama BPMN do Modeler já é automaticamente executável no Studio."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a sequência connection, session, link e a função de cada elemento.",
+      "answer": "Connection conecta containers; session cria contexto lógico; link transfere mensagens entre sender e receiver."
+    },
+    {
+      "question": "Diferencie link credit de settlement no protocolo AMQP.",
+      "answer": "Credit regula quantas transferências podem avançar; settlement comunica encerramento/estado da responsabilidade pela entrega."
+    },
+    {
+      "question": "Defina aspecto, pointcut e advice sem trocar os papéis.",
+      "answer": "Aspecto organiza a preocupação; pointcut seleciona junções; advice executa comportamento nelas."
+    },
+    {
+      "question": "Por que método interno chamado por this pode escapar ao advice Spring?",
+      "answer": "Porque a autoinvocação não retorna ao proxy que intercepta as chamadas externas."
+    },
+    {
+      "question": "Descreva como uma definição jBPM se torna execução concreta.",
+      "answer": "O artefato com definição é implantado; o runtime inicia uma instância com variáveis, que avança e pode aguardar tarefas ou eventos."
+    },
+    {
+      "question": "Como se distinguem runtime e serviço de tarefas no jBPM?",
+      "answer": "Runtime opera instâncias e fluxo; serviço de tarefas oferece operações sobre trabalho humano."
+    },
+    {
+      "question": "Quais etapas Bizagi convertem desenho em processo automatizado?",
+      "answer": "Modelar o fluxo, configurar dados/regras/formulários/performers e integrações no Studio, publicar e executar no runtime."
+    },
+    {
+      "question": "Como separar roteamento de alocação de usuários no Bizagi?",
+      "answer": "Roteamento escolhe o próximo caminho; alocação define quem pode receber ou executar uma tarefa."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Estrutura AMQP",
+      "summary": "Confundir a conexão física/lógica, a sessão e o link leva a interpretar incorretamente multiplexação e transferência."
+    },
+    {
+      "key": "e2",
+      "title": "Estado e fluxo da mensagem",
+      "summary": "Crédito do link controla fluxo; estados como accepted ou rejected descrevem resultado de entrega. Um não substitui o outro."
+    },
+    {
+      "key": "e3",
+      "title": "Vocabulário AOP",
+      "summary": "Pointcut seleciona, advice executa e aspecto organiza a lógica transversal."
+    },
+    {
+      "key": "e4",
+      "title": "Limites dos proxies Spring",
+      "summary": "A chamada precisa atravessar o proxy; autoinvocação e métodos não sobrescrevíveis não recebem advice como esperado."
+    },
+    {
+      "key": "e5",
+      "title": "Modelagem versus execução BPM",
+      "summary": "jBPM/Bizagi executam instâncias e tarefas; definição BPMN, ferramenta de modelagem, configuração e runtime têm responsabilidades diferentes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No AMQP 1.0, uma sessão pode estar associada simultaneamente a vários links, que fazem as transferências entre os terminus de origem e destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A sessão fornece contexto lógico para os links; cada link estabelece uma relação sender/receiver e associa os termini necessários às mensagens.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo AMQP, link credit representa a confirmação de que o consumidor já processou a mensagem e encerrou sua responsabilidade por ela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Link credit é mecanismo de controle de fluxo que limita ou autoriza transferências. Resultado de entrega e settlement são conceitos distintos e comunicam o estado da responsabilidade pela entrega.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "AMQP 1.0 é um protocolo interoperável; ele não obriga cada implementação a oferecer internamente a mesma topologia de filas, exchanges e regras de roteamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O padrão especifica comunicação e transferência compatíveis. Produtos podem adicionar abstrações e recursos próprios, desde que não se confunda extensão do produto com requisito universal do protocolo.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em AMQP, o receiver é necessariamente o broker e o sender é necessariamente uma aplicação cliente, pois esses papéis são fixados pela arquitetura do protocolo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Sender e receiver são papéis das extremidades de um link, não uma classificação rígida entre broker e aplicação cliente. Brokers e clientes podem participar de interações conforme o link e o fluxo de mensagens.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma connection AMQP conecta containers; as sessions oferecem contextos lógicos e os links transferem mensagens dentro desses contextos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A separação permite que uma relação de transporte comporte sessões e que uma sessão comporte links com transferências independentes.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estado accepted significa apenas que o frame chegou ao socket do broker, sem qualquer significado relacionado à entrega da mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Accepted é um estado de resultado de entrega na semântica AMQP. Ele informa aceitação pelo receiver/terminus conforme a transferência e a política aplicável; não é sinônimo de mera chegada de bytes à camada de transporte.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um broker pode implementar nós como filas e encaminhar mensagens, enquanto produtores e consumidores aparecem como nós de aplicação no modelo conceitual AMQP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A especificação descreve containers com nós; filas são exemplo de nó no broker e produtores/consumidores são exemplos de nós de aplicação. O modelo não exige que toda implementação use idêntica arquitetura interna.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sessão AMQP é o elemento que substitui o papel do link e associa diretamente o sender ao target, sem necessidade de termini.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A sessão fornece contexto para comunicação; o link é que associa termini e estabelece a relação de transferência entre sender e receiver. São níveis diferentes do transporte.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um advice after throwing é executado quando o método selecionado termina lançando uma exceção, enquanto after returning se refere ao retorno normal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os tipos de advice distinguem o resultado do join point: after throwing observa saída excepcional e after returning observa conclusão normal.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring AOP baseado em proxy, uma chamada `this.atualizar()` feita de dentro do próprio alvo passa novamente pelo proxy e dispara o advice do método atualizar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A autoinvocação usa a referência this do objeto alvo, contornando o proxy. Para aplicar advice, a chamada precisa chegar pela referência proxyada.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pointcut seleciona join points e um advice implementa o comportamento aplicado nos pontos que correspondem à seleção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O pointcut funciona como predicado de seleção; o advice contém a ação, como auditoria, transação ou medição, associada aos join points selecionados.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe final pode ser interceptada por proxy CGLIB da mesma maneira que uma classe aberta, pois CGLIB cria uma instância delegada sem herança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. CGLIB cria uma subclasse em tempo de execução; uma classe final não pode ser estendida, e método final não pode ser sobrescrito para receber interceptação por esse mecanismo.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Around advice pode executar lógica antes e depois da chamada e também pode escolher não chamar proceed, devolvendo resultado próprio ou lançando exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Around envolve a execução e controla se o join point original prossegue. Essa capacidade exige cuidado para não suprimir involuntariamente o método alvo.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O weaving de Spring AOP por proxy ocorre em tempo de execução, e o objeto que o cliente chama pode ser o proxy que delega ao alvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Spring AOP usa proxies em runtime para aplicar advice às invocações interceptadas. Isso difere de weaving em bytecode de AspectJ e explica as limitações de chamadas internas.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O advice before pode impedir o fluxo de execução de chegar ao join point sem lançar exceção, sendo por isso equivalente ao around advice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Before advice executa antes e não controla a continuação, salvo se lançar exceção. Around é o tipo que decide chamar ou não o ponto original por meio de proceed.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O advisor de baixo nível do Spring pode associar uma peça de advice a um pointcut, enquanto o aspecto costuma organizar uma preocupação transversal mais ampla.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No modelo Spring, advisor é uma associação de advice e pointcut, frequentemente pequena e autocontida. Aspecto é o conceito de modularização de preocupações transversais.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Métodos privados podem ser interceptados por proxy CGLIB porque o proxy os sobrescreve na subclasse e delega ao alvo original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Métodos privados não são visíveis para override na subclasse e, por isso, não podem ser interceptados por esse mecanismo de proxy. A seleção de um pointcut não remove essa limitação estrutural.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No jBPM, implantar uma definição e iniciar uma instância são operações conceitualmente distintas: a primeira disponibiliza o modelo e a segunda começa uma execução concreta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A definição descreve o fluxo reutilizável; uma instância tem identidade, variáveis e estado próprios e percorre o modelo em runtime.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O TaskService do jBPM é o componente principal para implantar pacotes de processo, enquanto a API de runtime fica restrita a reivindicar tarefas humanas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O runtime controla a execução das instâncias e tarefas de processo; o serviço de tarefas administra o ciclo das tarefas humanas, como consultar, reivindicar e completar. Implantação é ainda uma etapa distinta de disponibilizar a definição.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa humana pode suspender o avanço normal de uma instância jBPM até que um ator habilitado execute e complete a tarefa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A tarefa humana representa trabalho externo ao fluxo automático. Sua atribuição e conclusão podem fornecer resultados e liberar a continuação do processo.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Persistência de instâncias jBPM garante, por si só, atomicidade distribuída entre qualquer serviço externo chamado pelo processo e o banco do motor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Persistência mantém estado do processo entre reinícios, mas não torna automaticamente transacional uma chamada externa. Integrações ainda precisam lidar com falhas, repetição, idempotência e consistência.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A publicação de uma nova definição jBPM substitui automaticamente o estado e o caminho de todas as instâncias já em andamento, sem estratégia adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Definição publicada e instâncias ativas têm identidades e estados distintos. Migrar instâncias entre versões requer capacidade e estratégia próprias do ambiente; não decorre simplesmente da implantação de uma nova definição.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway avalia condições ou sincroniza caminhos no fluxo, enquanto uma tarefa de serviço representa ação automatizada no processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Gateway controla a lógica de roteamento ou sincronização; tarefa de serviço executa atividade automatizada, como invocação de integração configurada.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Variáveis associadas a uma instância podem carregar dados entre os nós do processo e oferecer valores às tarefas e condições do fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os dados da instância dão contexto às atividades e podem servir como entrada ou resultado de tarefas e como operandos de condições de roteamento.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa humana no jBPM equivale a uma tarefa de serviço porque ambas são concluídas automaticamente pelo motor ao alcançar o nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Tarefa de serviço é automatizada; tarefa humana aguarda trabalho de um usuário ou grupo habilitado e possui ciclo de vida de atribuição e conclusão externa.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bizagi, o Modeler é usado principalmente para desenhar e documentar processos, e o Studio acrescenta a configuração de dados, regras e componentes de automação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O Modeler oferece autoria gráfica do fluxo; o Studio é o ambiente de construção que transforma o desenho em solução automatizada com dados, regras, formulários e integrações.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda forma BPMN que aparece no Bizagi Modeler é necessariamente suportada de modo idêntico para execução automática no Studio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O Studio dá suporte a um subconjunto de elementos BPMN voltado à automação. Elementos fora do conjunto podem exigir conversão ou redesenho antes da execução.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bizagi, regras de negócio podem controlar o fluxo, validar dados, calcular valores e alterar propriedades dos controles de um formulário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do Bizagi descreve regras para roteamento, ações e cálculos, validações e gestão da interface, como deixar controles visíveis, obrigatórios ou somente leitura.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra Bizagi de alocação escolhe o caminho de sequência que o caso deve seguir, enquanto uma regra de roteamento seleciona o usuário que receberá a tarefa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Roteamento escolhe o caminho com base nas condições do processo; alocação define os requisitos ou critérios para selecionar usuários que possam executar uma tarefa.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ações Bizagi associadas a uma atividade podem ser configuradas para ocorrer na entrada, no salvamento do formulário ou na saída da atividade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os eventos On Enter, On Save e On Exit representam momentos diferentes do ciclo da atividade e permitem executar cálculos e validações nos instantes apropriados.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Work Portal é o ambiente de desenho BPMN e substitui o Modeler e o Studio durante a definição de processos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Modeler e Studio são ferramentas de autoria/construção. O Work Portal é interface operacional para que usuários trabalhem em casos e tarefas da solução executada.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modelo de dados do Bizagi define entidades e atributos que fornecem estrutura para os dados usados pelas atividades do processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O passo de modelagem de dados define as entidades, seus atributos e relações necessárias à execução e ao acesso coerente às informações do processo.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O deployment no Bizagi pode transferir metadados do processo, mas não elimina a necessidade de conferir dependências e configurações específicas de cada ambiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A publicação leva configurações selecionadas a outros ambientes; endpoints, credenciais e parâmetros ambientais precisam corresponder ao destino, assim como regras, dados e integrações dependentes.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "AMQP, AOP, jBPM e Bizagi são quatro implementações equivalentes de brokers de mensageria que diferem principalmente na linguagem usada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. AMQP é protocolo de mensageria; AOP é paradigma de modularização transversal; jBPM é toolkit/motor de processos; Bizagi é suíte de modelagem e automação BPMS. Atuam em camadas e necessidades distintas.",
+      "section": "5. Comparação e escolhas de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma equipe precisa trocar mensagens entre aplicações de fornecedores diferentes usando um protocolo aberto, mantendo separados o protocolo e o produto broker. Qual afirmação descreve melhor AMQP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um framework AOP que intercepta os métodos dos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um produto broker único que exige uma topologia de filas proprietária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma API Java que substitui o transporte de rede entre aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma notação BPMN para desenhar processos de mensageria e definir estados de entrega.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um protocolo de mensagens que pode ser implementado por brokers distintos.",
+          "correct": true
+        }
+      ],
+      "explanation": "AMQP define um protocolo interoperável para troca de mensagens. Brokers diferentes podem implementá-lo, enquanto topologia e recursos particulares podem variar. Não é API Java, notação de processos nem framework AOP.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma conexão AMQP, a aplicação quer transportar vários diálogos lógicos e, em cada diálogo, estabelecer relações de envio e recebimento. Que estrutura corresponde a cada nível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Link para conexão, container para sessão e mensagem para relação de envio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Session para conexão, frame para link e source para container lógico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Connection liga containers; sessions criam contextos e links transportam mensagens.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Target para conexão, sender para sessão e broker para link de protocolo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Settlement para conexão, credit para sessão e receiver para container de transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "A hierarquia é connection entre containers, sessions como contextos lógicos e links que transportam mensagens com papéis sender e receiver. Os demais termos citados têm funções diferentes ou não correspondem a essa hierarquia.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um receiver quer controlar o volume de mensagens que o sender envia sem esperar pela conclusão individual de cada entrega. Qual mecanismo AMQP atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Accepted, que confirma todas as mensagens ainda não entregues.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Target, que encerra a conexão quando o buffer fica cheio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Link credit, que concede capacidade de transferência ao sender.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Settlement, que define quantos links cabem numa sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Detach, que aumenta a janela para transferências futuras.",
+          "correct": false
+        }
+      ],
+      "explanation": "Link credit é o mecanismo de controle de fluxo do link: o receiver indica ao sender quantas transferências pode receber. Accepted é resultado de entrega; settlement encerra responsabilidades; target é terminus e detach altera estado do link.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma integração, o cliente recebeu um resultado terminal positivo para uma transferência AMQP. Qual leitura de accepted é tecnicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registra aceitação da entrega pelo receiver, conforme a semântica AMQP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O estado comprova que a lógica de negócio foi concluída em qualquer sistema posterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O estado informa somente que o frame passou pela conexão TCP sem erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O estado concede link credit adicional ao sender para outra transferência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O estado significa que o broker apagou a mensagem antes de armazená-la.",
+          "correct": false
+        }
+      ],
+      "explanation": "Accepted é um resultado de entrega AMQP, interpretado na semântica do link/terminus e do modo de settlement. Não prova conclusão de toda lógica downstream, não equivale à chegada de bytes e não é mecanismo de concessão de crédito.",
+      "section": "1. AMQP: protocolo de mensagens interoperável",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa aplicar auditoria antes de certas chamadas de serviço, sem inserir código repetido em cada método. Qual composição AOP expressa os papéis corretos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aspecto seleciona, pointcut executa e advice representa a classe interceptada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pointcut seleciona execuções e advice executa a auditoria nesses pontos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Advice seleciona classes e join point armazena a configuração do proxy.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proxy define o fluxo BPMN e weaving escolhe os usuários da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Join point agrupa transações e aspecto substitui o método de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pointcut seleciona os join points relevantes, e o advice contém o comportamento de auditoria aplicado a eles. O aspecto reúne a preocupação transversal; proxy e weaving são mecanismos relacionados à aplicação do advice.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço registra duração antes e depois de executar uma chamada e precisa deixar a chamada original seguir seu curso. Qual tipo de advice é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "After throwing, porque mede o tempo somente quando há exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "After returning, porque envolve a chamada antes de começar e garante a execução do método-alvo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Before, porque executa depois do retorno do método alvo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Around, chamando proceed e registrando duração antes e depois.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Introduction, porque acrescenta um campo que guarda o cronômetro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Around advice permite executar lógica antes e depois do join point. Para a chamada original acontecer, o advice deve chamar proceed; after-returning só atua depois do retorno normal e não envolve o início da execução.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma anotação transacional funciona quando o serviço é chamado por outro bean, mas não numa chamada de um método para outro via `this`. Qual causa é mais provável no Spring AOP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pointcut só pode reconhecer métodos que retornam valores primitivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A anotação converte a chamada interna em mensagem AMQP não confirmada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A autoinvocação acessa diretamente o alvo e contorna o proxy interceptor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O advice before só se aplica a gateways de processos BPMN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O proxy invalida a transação quando o alvo pertence à mesma classe.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na chamada externa, a invocação passa pelo proxy e pode receber advice transacional. A chamada interna por this ocorre no objeto alvo, sem atravessar o proxy, portanto o advice pode não ser acionado.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe sem interface precisa ser proxyada por CGLIB. Qual método não pode ser interceptado por override nesse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um método público não final herdado e visível na subclasse.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um método protegido que possa ser sobrescrito no pacote aplicável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um método de instância não final definido na classe de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um método público declarado em uma interface implementada pelo alvo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um método privado, pois não pode ser sobrescrito pela subclasse proxy.",
+          "correct": true
+        }
+      ],
+      "explanation": "CGLIB cria uma subclasse e intercepta por override. Métodos privados não são herdados/sobrescritos; métodos finais também não podem ser sobrescritos. A questão pergunta pelo caso que não pode receber interceptação por override.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer um advice apenas para observar o valor devolvido quando a execução termina normalmente, sem controlar a continuação do método. Qual opção é mais específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Around, sem chamar proceed e retornando sempre o valor original após a execução selecionada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "After throwing, porque recebe qualquer retorno sem exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "After returning, associado ao pointcut dos métodos de interesse.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Before, que lê o retorno antes da invocação do método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Introduction, que intercepta a saída e calcula o resultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "After-returning é desenhado para atuar após conclusão normal e pode observar o retorno. Around é mais poderoso, mas desnecessário se a chamada não precisa ser envolvida ou controlada.",
+      "section": "2. AOP e o modelo de proxies do Spring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um artefato de processo jBPM foi publicado e está disponível, mas nenhum caso foi iniciado. O que falta para haver uma execução concreta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir um pointcut e criar proxy de cada nó do processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Iniciar uma process instance a partir da definição implantada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar uma fila AMQP para converter a definição em tarefa humana.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abrir o Work Portal do Bizagi para copiar o diagrama ao runtime.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concluir uma tarefa humana que ainda não foi criada pelo fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Implantar disponibiliza a process definition ao runtime. A execução concreta começa quando se inicia uma process instance, que então recebe estado e dados próprios.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa listar tarefas humanas elegíveis, reivindicar uma tarefa e registrá-la como concluída. Qual componente do toolkit jBPM atende a esse ciclo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O parser BPMN, responsável por executar operações de usuários autenticados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O TaskService expõe operações sobre o ciclo das tarefas humanas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A API de runtime, que administra exclusivamente permissões e caixas de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O serviço de deployment, que conclui tarefas humanas ao publicar uma nova versão do processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pointcut de serviço, que encaminha tarefas pelo proxy da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serviço de tarefas oferece operações sobre tarefas humanas, inclusive consultas e transições de ciclo de vida. A API de runtime concentra o controle de instâncias e do fluxo; deployment disponibiliza definições.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo deve aguardar que um servidor externo execute uma ação automatizada e devolva o resultado. Que tipo de atividade BPMN é mais diretamente associado a esse trabalho automatizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "User Task, que aguarda um performer humano preencher o formulário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manual Task, que representa trabalho fora do sistema sem invocação automática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gateway exclusivo, que executa a chamada de integração e guarda a resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Service Task, configurada para invocar uma integração automatizada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Start Event, que representa cada mensagem de resposta como atividade de serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Service Task representa atividade executada por serviço ou integração automatizada. User Task requer trabalho humano; gateway roteia o fluxo e eventos indicam ocorrências no processo.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo jBPM chegou a uma User Task e aguarda dados preenchidos por um usuário autorizado. O que normalmente permite que o processo avance com esses dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tarefa é reivindicada e concluída pelo serviço de tarefas, com resultados associados à execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O broker confirma link credit, que converte automaticamente o nó em gateway.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O runtime apaga a instância quando a tela da tarefa é aberta pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A definição do processo é novamente implantada a cada alteração de formulário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pointcut do método interno conclui a tarefa sem passar pela API de tarefas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tarefa humana segue seu ciclo de vida: fica disponível aos atores autorizados, é reivindicada/iniciada e completada. Resultados podem ser associados à tarefa e usados pelo fluxo após a conclusão.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe Java escolheu jBPM para executar processos BPMN e quer distinguir o que cada objeto representa. Qual alternativa está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma process instance é o pacote de definição que contém todos os modelos do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um gateway é a API que persiste o banco de dados de todas as tarefas humanas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um TaskService é a notação gráfica usada para editar fluxos BPMN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma process definition descreve o fluxo; a instância percorre esse fluxo com estado próprio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma tarefa humana é a conexão de transporte que une dois containers KIE.",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição é o modelo do processo; a instância é uma execução específica com variáveis e estado. TaskService administra tarefas humanas, gateway controla fluxo e BPMN é notação de modelagem.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização mapeou o processo no Bizagi Modeler e agora precisa configurar entidades, formulários, regras e integrações para execução. Qual ferramenta se encaixa nessa etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bizagi Studio, ambiente de construção da automação baseada no modelo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AMQP 1.0, protocolo que cria entidades e formulários do caso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Spring AOP, mecanismo que gera o runtime BPMS a partir do diagrama.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Work Portal, interface do usuário que substitui a configuração do processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TaskService, serviço jBPM que importa formulários Bizagi para o broker.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bizagi Studio é o ambiente para construir a solução automatizada, incluindo dados, regras, interfaces e integrações. Modeler desenha/documenta; Work Portal é interface operacional; AMQP, AOP e TaskService pertencem a outras camadas/produtos.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bizagi, uma condição aprovada deve levar o caso ao ramo de contratação e uma condição negada ao ramo de arquivamento. Qual função é pertinente à decisão do caminho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A regra de alocação, pois escolhe o usuário que receberá o resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A regra de roteamento, que avalia condição e escolhe o fluxo seguinte.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O modelo de entidades, pois executa sozinho as transições de sequência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ação On Save, pois substitui gateways e decide o fluxo em qualquer instante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Work Portal, que altera permanentemente o diagrama conforme cada usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras de roteamento controlam a sequência e determinam o ramo com base em condição. Alocação determina os usuários elegíveis para tarefa; modelo de dados guarda informação, não substitui a lógica de fluxo.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao rejeitar uma solicitação, o formulário deve exigir justificativa; se aprovada, o campo fica oculto. Qual recurso Bizagi pode ajustar essa interface conforme a condição do caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A regra de negócio que controla propriedades como visibilidade e obrigatoriedade dos campos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O link credit, que adiciona campos conforme a capacidade do receiver.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O deployment, que converte automaticamente toda entidade em campo obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A process instance, que guarda os dados do caso e altera a definição BPMN do formulário para ocultar controles.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão AMQP, que transmite o campo para todos os usuários do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras Bizagi podem controlar a interface, tornando controles visíveis, requeridos ou somente leitura conforme dados e condições do processo. Credit, deployment e connection têm funções diferentes.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer executar validação uma vez quando a atividade começa, recalcular durante salvamentos e fazer uma atualização ao sair. Que configuração Bizagi distingue esses momentos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Três gateways paralelos, um para cada tipo de dado da entidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma regra de alocação, que dispara ao entrar, salvar e encerrar o caso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ações On Enter, On Save e On Exit associadas à atividade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um deployment separado por cada usuário que abre o formulário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um único evento de início, que continua ativo durante todos os casos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bizagi permite associar Activity Actions aos eventos On Enter, On Save e On Exit. Eles ocorrem em momentos distintos do ciclo da atividade, adequados às três necessidades descritas.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário final precisa consultar sua caixa de trabalho e operar tarefas de casos já automatizados. Qual componente Bizagi é o ponto de interação operacional mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bizagi Modeler, que lista tarefas para os usuários finais em cada ambiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bizagi Studio, que executa cada formulário diretamente no editor de regras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O designer de entidades, que substitui a caixa de entrada do processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Work Portal, que expõe tarefas e casos para usuários do processo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O Process Xchange, que contém as tarefas em execução de cada projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Work Portal é a interface de uso dos processos, casos e tarefas. Modeler documenta, Studio constrói e configura, enquanto a execução é oferecida aos usuários pelo portal/runtime.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma modeladora criou elementos BPMN válidos para documentação, mas alguns não são aceitos no fluxo de automação do Studio. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BPMN proíbe diagramas que não executem em qualquer produto de automação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Studio automatiza um subconjunto dos elementos e pode exigir conversão ou ajuste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O modelo de dados substitui todos os elementos não suportados sem intervenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Work Portal interpreta qualquer símbolo e gera regras sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A solução é exportar o diagrama para AMQP, que converte BPMN em tarefas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Modeler e Studio usam BPMN, mas Studio dá suporte a um subconjunto voltado aos elementos mais comuns de automação. Elementos não suportados podem ser mapeados ou exigir adaptação para execução.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura usa AMQP para integração assíncrona, jBPM para coordenar etapas de um processo e AOP para auditoria de chamadas. Qual separação de responsabilidades é consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AMQP transporta mensagens, jBPM executa o fluxo e AOP aplica comportamento transversal às chamadas selecionadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AMQP escolhe gateways, jBPM intercepta métodos e AOP confirma settlement de links.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AMQP substitui o motor, jBPM fornece apenas a notação e AOP executa tarefas humanas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AMQP modela entidades, jBPM realiza proxy weaving e AOP administra o broker.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "AMQP valida formulários, jBPM roteia usuários e AOP armazena a definição BPMN.",
+          "correct": false
+        }
+      ],
+      "explanation": "As tecnologias atuam em camadas complementares: AMQP é protocolo de mensagens; jBPM coordena execução de processos; AOP modulariza e aplica lógica transversal como auditoria. Integrá-las não transforma uma na função da outra.",
+      "section": "5. Comparação e escolhas de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo Bizagi precisa enviar uma solicitação para um serviço externo e depois aguardar a atualização do caso. Qual combinação descreve melhor as responsabilidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A User Task envia a mensagem e o link credit seleciona o próximo performer.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Modeler executa a integração e o Work Portal persiste o settlement AMQP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A definição BPMN é o protocolo de transporte e elimina a necessidade de runtime.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma atividade de serviço pode chamar o sistema, enquanto o processo controla fluxo e espera.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A regra de alocação substitui integração, broker, runtime e dados do caso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A integração pode ser configurada como ação/atividade de serviço, enquanto o BPMS controla a sequência e mantém o estado do caso. Se a integração usar AMQP, o protocolo transporta a mensagem; ele não substitui o desenho nem o runtime do processo.",
+      "section": "5. Comparação e escolhas de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diagnóstico encontra advice que não roda numa chamada interna, um processo sem usuário destinatário e uma mensagem ainda sem resultado terminal. Qual associação de causas está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gateway AOP ausente, session Bizagi inválida e definição AMQP não implantada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pointcut escolhe performer, link credit define gateway e TaskService conclui a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Weaving requer AMQP, deployment define o usuário e accepted cria a instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CGLIB substitui o runtime, Work Portal dá settlement e source roteia o caso humano.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autoinvocação contorna proxy, regra de alocação está incompleta e settlement ainda não encerrou a entrega.",
+          "correct": true
+        }
+      ],
+      "explanation": "Cada sintoma aponta a uma camada: chamada interna via this pode ignorar proxy Spring; Bizagi precisa de condições de alocação/performer; AMQP tem estado de entrega e settlement próprios. As responsabilidades não se misturam entre as ferramentas.",
+      "section": "5. Comparação e escolhas de arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de aprovação deve abrir uma tarefa para pessoas elegíveis, guardar a decisão no caso e somente depois continuar pelo ramo correspondente. Qual abordagem Bizagi descreve esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar link credit para selecionar os aprovadores e settlement para atualizar a entidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma Service Task que aguarda a edição manual no Work Portal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir User Task com performer, formulário e regra de roteamento da decisão, sem critério de alocação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar Service Task, critérios de alocação e formulário após a conclusão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar User Task, critérios de alocação, formulário e roteamento após a conclusão do trabalho.",
+          "correct": true
+        }
+      ],
+      "explanation": "A User Task representa interação humana; critérios de alocação selecionam atores; formulário coleta decisão; regra de roteamento avalia o resultado e escolhe o próximo caminho. As alternativas de protocolo de mensagens ou execução automática não atendem ao ciclo descrito.",
+      "section": "4. Bizagi BPMS: modelagem, automação e execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema publica uma definição de processo e precisa que casos novos iniciem sem alterar casos antigos. Qual escolha de arquitetura representa melhor esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reaplicar o modelo sobre cada instância e zerar os estados existentes no runtime.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Iniciar novas instâncias pela nova definição e forçar migração imediata das instâncias ativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o TaskService para mudar a definição e todas as execuções sem publicar outra versão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o gateway por settlement, preservando automaticamente o estado de cada tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a nova definição para os casos novos e gerir separadamente a evolução dos casos em andamento.",
+          "correct": true
+        }
+      ],
+      "explanation": "Definições e instâncias têm papéis distintos. A nova versão pode atender novas execuções, enquanto instâncias ativas conservam seu estado, salvo estratégia específica de migração. TaskService não substitui essa operação.",
+      "section": "3. Toolkit jBPM: modelar, implantar e executar processos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "AMQP Version 1.0 Specification",
+      "publisher": "OASIS / AMQP.org",
+      "reference": "Modelo de transporte: containers, sessões, links, fluxo e estados de entrega",
+      "url": "https://www.amqp.org/sites/amqp.org/files/amqp.pdf",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AMQP Addressing Version 1.0",
+      "publisher": "OASIS",
+      "reference": "Conceitos de nós, links, containers e endereçamento AMQP",
+      "url": "https://docs.oasis-open.org/amqp/addressing/v1.0/addressing-v1.0.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AOP Concepts",
+      "publisher": "Spring",
+      "reference": "Aspecto, join point, pointcut, advice e proxy",
+      "url": "https://docs.spring.io/spring-framework/reference/core/aop/introduction-defn.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Proxying Mechanisms",
+      "publisher": "Spring",
+      "reference": "Proxies JDK/CGLIB, métodos finais/privados e autoinvocação",
+      "url": "https://docs.spring.io/spring-framework/reference/core/aop/proxying.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jBPM Documentation",
+      "publisher": "jBPM / KIE",
+      "reference": "Definições BPMN, runtime, instâncias, tarefas humanas e APIs do toolkit",
+      "url": "https://docs.jbpm.org/6.4.0.Final/jbpm-docs/pdf/jbpm-docs.pdf",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guidance for automation",
+      "publisher": "Bizagi",
+      "reference": "Relação Modeler, Studio, BPMN e elementos suportados para automação",
+      "url": "https://help.bizagi.com/platform/en/guidance_for_automation.htm",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Business Rules",
+      "publisher": "Bizagi",
+      "reference": "Roteamento, ações, interface e alocação de usuários",
+      "url": "https://help.bizagi.com/platform/en/defining_business_rules.htm",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Data Modeling",
+      "publisher": "Bizagi",
+      "reference": "Entidades, atributos e modelo de dados de processos",
+      "url": "https://help.bizagi.com/platform/en/modeling_data.htm",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

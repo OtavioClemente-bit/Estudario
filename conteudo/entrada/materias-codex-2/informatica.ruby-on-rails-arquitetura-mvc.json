@@ -1,0 +1,1683 @@
+{
+  "id": "informatica.ruby-on-rails-arquitetura-mvc",
+  "subject": "Informática",
+  "title": "Ruby on Rails: conceitos, arquitetura, models, views e controllers",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ruby on Rails: conceitos, arquitetura, models, views e controllers",
+    "Framework Ruby on Rails e arquitetura MVC",
+    "Arquitetura MVC no Ruby on Rails",
+    "Modelos Active Record em aplicações Rails",
+    "Views e templates Action View no Rails",
+    "Controllers e actions do Ruby on Rails",
+    "Ciclo de requisição MVC no Rails",
+    "Framework Rails para aplicações web em Ruby"
+  ],
+  "scope": {
+    "covers": "Conceitos fundamentais do Ruby on Rails, convenção sobre configuração e estrutura de aplicação; arquitetura MVC e ciclo de requisição; responsabilidades e convenções de models com Active Record, views com Action View e controllers com Action Controller; roteamento, actions, renderização, layouts, parâmetros, validações e associações em nível introdutório.",
+    "excludes": "Sintaxe completa da linguagem Ruby, implantação e administração de aplicações, detalhes de versões específicas, segurança aprofundada, testes, APIs avançadas e configuração de infraestrutura."
+  },
+  "theoryTitle": "Rails organiza a aplicação pelo fluxo MVC",
+  "chapters": [
+    {
+      "title": "1. Rails e a estrutura de uma aplicação",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação web recebe pedidos HTTP, decide o que fazer com eles, consulta ou altera dados e devolve uma resposta. Ruby on Rails é um framework escrito para a linguagem Ruby que fornece convenções e componentes para organizar esse trabalho. Em vez de começar cada projeto do zero, a equipe usa uma estrutura comum para arquivos, rotas, modelos e telas.\n\n> **Siglas e termos deste capítulo**\n> - **Framework**: conjunto de componentes e convenções que estrutura uma aplicação.\n> - **HTTP**: protocolo pelo qual clientes enviam requisições e recebem respostas.\n> - **MVC**: Model, View, Controller; separa dados e regras, apresentação e coordenação de requisições.\n> - **Convenção sobre configuração**: Rails adota nomes e locais padrão, reduzindo configurações explícitas quando se segue a convenção.\n> - **DRY**: princípio de evitar duplicar a mesma informação ou lógica em vários lugares.\n\n### Convenções que conectam arquivos\n\nUma aplicação Rails costuma separar código em diretórios previsíveis: `app/models` guarda modelos; `app/controllers`, controladores; e `app/views`, templates. A configuração de rotas fica em `config/routes.rb`. Essa organização não é apenas estética: convenções de nomes permitem que o framework encontre componentes relacionados. Por exemplo, `PostsController` e os templates em `app/views/posts/` se associam pelo nome.\n\nRails favorece rotas orientadas a recursos. `resources :posts` declara um conjunto coerente de caminhos para operações usuais sobre posts. O roteador compara método HTTP e caminho da requisição com `config/routes.rb`, e encaminha a correspondência para uma action de controller. Helpers de rota gerados ajudam a construir caminhos no código sem espalhar URLs literais.\n\n### Como cai na prova\n\n- Rails é um framework web que roda sobre Ruby; não é uma linguagem própria.\n- Convenção sobre configuração significa que padrões conhecidos reduzem configuração, não que a aplicação nunca possa ser configurada.\n- `config/routes.rb` declara o encaminhamento de caminhos para controllers e actions; não contém, por padrão, a lógica de persistência nem os templates."
+    },
+    {
+      "title": "2. Arquitetura MVC e jornada da requisição",
+      "markdown": "### O problema que este assunto resolve\n\nMVC divide responsabilidades para que a interface não concentre regras de negócio e o acesso a dados não fique misturado com a resposta HTTP. No Rails, o roteador recebe o caminho e o método HTTP, encontra uma rota, e entrega a requisição à action do controller correspondente. O controller coordena a operação, conversa com modelos quando precisa de dados e prepara uma resposta, muitas vezes renderizada por uma view.\n\n> **Siglas e termos deste capítulo**\n> - **Model (modelo)**: representa dados e regras do domínio; frequentemente usa Active Record para conversar com o banco.\n> - **View (visão)**: produz a apresentação da resposta, como HTML, usando dados disponibilizados pelo controller.\n> - **Controller (controlador)**: recebe a requisição roteada, coordena o caso de uso e define a resposta.\n> - **Router (roteador)**: relaciona método e caminho a um controller e uma action.\n> - **Action**: método de instância do controller que atende uma rota.\n\n### Um fluxo de ponta a ponta\n\nConsidere `GET /posts/42`. Uma rota de recurso pode encaminhar esse pedido a `PostsController#show`, passando `42` como parâmetro `id`. A action pode buscar `Post.find(params[:id])`; o Active Record localiza o registro ou gera erro se não o encontrar. O controller disponibiliza o objeto, por exemplo em `@post`, à view `app/views/posts/show.html.erb`. A view monta o conteúdo HTML e o Rails envia a resposta.\n\nUma requisição para criar dados percorre caminho semelhante, mas usa normalmente `new` para exibir o formulário e `create` para processar o envio. Após salvar com sucesso, o controller costuma redirecionar para outra URL; se a validação falhar, pode renderizar novamente o formulário com erros. Redirecionar causa uma nova requisição do navegador; renderizar produz a resposta atual sem iniciar por si só uma nova requisição.\n\n| Parte | Responsabilidade típica | Exemplo Rails |\n| --- | --- | --- |\n| Roteador | Encontrar destino para método e caminho | `config/routes.rb` |\n| Controller | Coordenar entrada, modelo e resposta | `PostsController#show` |\n| Model | Dados, persistência e regras do domínio | `Post` |\n| View | Apresentação da resposta | `posts/show.html.erb` |\n\n### Como cai na prova\n\nA separação MVC não quer dizer que cada parte seja isolada de toda comunicação. O controller recebe dados do roteador, consulta modelos e entrega objetos à view. O erro típico é inverter papéis: a view não deve decidir qual rota atende a URL e o model não monta o HTML da página."
+    },
+    {
+      "title": "3. Models e Active Record",
+      "markdown": "### O problema que este assunto resolve\n\nO model representa conceitos do domínio e centraliza operações e regras relacionadas a esses dados. Em aplicações Rails, Active Record é a camada de mapeamento objeto-relacional: objetos Ruby correspondem a registros de banco relacional, e atributos do objeto correspondem a colunas. Em convenções usuais, a classe singular `Post` se relaciona à tabela plural `posts`.\n\n> **Siglas e termos deste capítulo**\n> - **ORM**: mapeamento objeto-relacional, que relaciona objetos da aplicação a estruturas relacionais.\n> - **Active Record**: componente Rails que fornece esse mapeamento e operações de persistência.\n> - **Migração**: arquivo versionado para alterar a estrutura do banco; não é o próprio model.\n> - **Validação**: regra que determina se os dados de um objeto são aceitáveis antes de persistir.\n> - **Associação**: declaração de relação entre modelos, como `has_many` e `belongs_to`.\n\n### Persistir e validar\n\nUm model pode oferecer operações de criação, leitura, atualização e remoção. Por exemplo, `Post.find(42)` procura um registro, enquanto `Post.where(published: true)` constrói uma consulta para registros publicados. `post.save` tenta salvar o objeto; com validações declaradas como `validates :title, presence: true`, a ausência do título impede a gravação normal e registra mensagens de erro em `post.errors`. `save!` sinaliza falha com exceção.\n\nModelos também expressam associações. `class Post < ApplicationRecord; has_many :comments; end` declara que um post possui muitos comentários; o modelo `Comment` costuma declarar `belongs_to :post`. Essas declarações dão métodos para navegar pela relação e dependem de chaves estrangeiras e esquema compatíveis no banco. As migrações mudam tabelas e colunas; a associação descreve a relação na camada de modelos.\n\nRegras do domínio que precisam ser mantidas independentemente da tela devem, em geral, ficar próximas ao model ou em objetos de domínio apropriados, e não duplicadas em vários controllers. Ainda assim, model não é sinônimo de tabela: é um objeto com comportamento e regras, embora a convenção frequentemente associe um model a uma tabela.\n\n### Como cai na prova\n\n- Convenção padrão associa `Post` a `posts`, mas nomes podem ser configurados.\n- Validação de model ajuda a rejeitar dados inválidos na aplicação; restrições de banco continuam importantes para integridade.\n- `has_many` e `belongs_to` descrevem associações entre modelos; não substituem a criação da chave estrangeira no banco quando ela é necessária."
+    },
+    {
+      "title": "4. Views, controllers e respostas",
+      "markdown": "### O problema que este assunto resolve\n\nO controller traduz a requisição em uma operação da aplicação; a view transforma os dados dessa operação em uma resposta apresentável. No Rails, controllers herdam de `ApplicationController`, que por sua vez deriva da infraestrutura de Action Controller. Uma classe `PostsController` agrupa actions como `index`, `show`, `new`, `create`, `edit`, `update` e `destroy`, comuns em recursos RESTful.\n\n> **Siglas e termos deste capítulo**\n> - **Action View**: componente responsável por templates, helpers e apresentação.\n> - **Action Controller**: componente que processa requisições e respostas HTTP.\n> - **Template ERB**: arquivo de view que combina HTML com expressões Ruby delimitadas por ERB.\n> - **Layout**: estrutura externa compartilhada por páginas, como cabeçalho e navegação.\n> - **Partial**: fragmento de template reutilizável, normalmente com nome iniciado por sublinhado.\n> - **Strong Parameters**: mecanismo para limitar quais parâmetros podem ser usados em atribuição em massa.\n\n### Actions, parâmetros e renderização\n\nUma action acessa dados de rota e do formulário pelo objeto `params`. O parâmetro recebido é entrada externa, portanto não deve ser confiado sem validação. Para atribuição em massa, controllers declaram explicitamente campos permitidos, por exemplo `params.require(:post).permit(:title, :body)`. Isso reduz a chance de o cliente alterar campos não destinados ao formulário.\n\nQuando uma action termina sem especificar outra resposta, Rails normalmente tenta renderizar o template correspondente à action e ao controller. Assim, `PostsController#show` procura por padrão `app/views/posts/show.html.erb`. `render` escolhe uma apresentação para a resposta atual; `redirect_to` instrui o cliente a fazer novo pedido a outro caminho. Um layout envolve o template e insere seu conteúdo no ponto `yield`; partials permitem compartilhar fragmentos sem copiar todo o HTML.\n\nViews devem cuidar da apresentação. Helpers podem formatar valores e gerar links ou formulários; partials reduzem duplicação visual. Regras de negócio complexas e consultas devem ser evitadas em templates. O controller também deve permanecer enxuto: coordena o pedido, mas não é o local ideal para toda regra do domínio.\n\n### Como cai na prova\n\n- A combinação convencional de controller e action determina o template padrão.\n- `render` e `redirect_to` não são equivalentes: o primeiro compõe a resposta atual; o segundo redireciona o cliente e produz uma nova requisição.\n- Strong Parameters controla quais atributos entram em atribuição em massa; não substitui autenticação, autorização ou validação do model."
+    },
+    {
+      "title": "5. A arquitetura em uso: roteamento e CRUD",
+      "markdown": "### O problema que este assunto resolve\n\nO desenho MVC fica concreto quando cada operação sobre um recurso tem uma rota, uma action e uma forma de resposta. Com `resources :posts`, o roteador Rails gera rotas convencionais para listar, exibir, criar, editar, atualizar e remover posts. O método HTTP participa da seleção: `GET` consulta, `POST` normalmente cria, `PATCH` ou `PUT` atualiza, e `DELETE` remove.\n\n> **Siglas e termos deste capítulo**\n> - **CRUD**: Create, Read, Update, Delete; criar, consultar, atualizar e remover.\n> - **REST**: estilo de organização de interfaces em torno de recursos e operações HTTP.\n> - **Path helper**: método gerado pelas rotas para montar um caminho, como `posts_path`.\n> - **Flash**: mensagem temporária guardada para a próxima resposta, comum após um redirecionamento.\n\n### Rotas convencionais e sequência de trabalho\n\nAs rotas de `resources :posts` conectam caminhos e verbos às actions convencionais: `index` lista; `show` exibe um registro; `new` prepara formulário; `create` processa criação; `edit` prepara edição; `update` altera; `destroy` remove. `new` e `edit` normalmente exibem formulários e não persistem por si sós. A gravação ocorre em `create` ou `update`.\n\nUma implementação típica de `create` constrói um post com parâmetros permitidos. Se `save` for verdadeiro, grava e pode definir mensagem flash e redirecionar; se for falso, mantém o objeto com erros e renderiza `new` para mostrar as mensagens. Esse padrão liga a validação do model à apresentação sem colocar a regra da validação no template.\n\nRotas nomeadas geram helpers, como `posts_path` para a coleção e `post_path(@post)` para um registro. Os helpers acompanham a definição das rotas, evitando espalhar caminhos codificados. Não se deve confundir o helper de caminho com a action: o helper constrói URL; a action executa o comportamento no servidor.\n\n### Como cai na prova\n\nUm enunciado pode descrever o formulário vazio, o envio válido e a exibição do registro. Associe `new` à preparação da tela, `create` à tentativa de persistência e `show` à apresentação de um objeto. Rotas geradas são convenções úteis, não significam que qualquer aplicação seja obrigada a expor todas as operações."
+    }
+  ],
+  "summary": "Ruby on Rails é um framework web em Ruby que organiza aplicações por convenções e pelo padrão MVC. O roteador associa método e caminho a uma action. O controller coordena a requisição, consulta ou altera models e escolhe a resposta; Active Record relaciona modelos Ruby a registros e oferece consultas, persistência, validações e associações; Action View usa templates, layouts e partials para apresentação. Rotas resourceful conectam operações CRUD às actions convencionais. Renderizar compõe a resposta atual; redirecionar pede ao cliente uma nova requisição.",
+  "flashcards": [
+    {
+      "front": "O que é Ruby on Rails?",
+      "back": "Framework para aplicações web escrito em Ruby, com componentes e convenções que organizam o desenvolvimento."
+    },
+    {
+      "front": "O que significa MVC?",
+      "back": "Model, View, Controller: dados e regras, apresentação e coordenação da requisição."
+    },
+    {
+      "front": "Qual é o trabalho do roteador Rails?",
+      "back": "Relacionar método HTTP e caminho a um controller e uma action."
+    },
+    {
+      "front": "Onde se declaram normalmente as rotas Rails?",
+      "back": "Em config/routes.rb."
+    },
+    {
+      "front": "Qual o papel do controller?",
+      "back": "Processar a requisição, coordenar acesso a modelos e definir a resposta."
+    },
+    {
+      "front": "Qual o papel do model?",
+      "back": "Representar dados e regras do domínio, incluindo persistência e relações quando aplicável."
+    },
+    {
+      "front": "Qual o papel da view?",
+      "back": "Apresentar dados em uma resposta, normalmente HTML."
+    },
+    {
+      "front": "O que é Active Record?",
+      "back": "ORM do Rails que mapeia objetos Ruby e registros relacionais e oferece operações de persistência."
+    },
+    {
+      "front": "Qual associação convencional liga Post à tabela?",
+      "back": "A classe singular Post é associada convencionalmente à tabela plural posts."
+    },
+    {
+      "front": "Para que serve uma validação de model?",
+      "back": "Verificar se os atributos atendem regras antes da persistência normal."
+    },
+    {
+      "front": "O que registra post.errors?",
+      "back": "Mensagens de validação associadas ao objeto que não passou pelas regras."
+    },
+    {
+      "front": "O que expressa has_many :comments?",
+      "back": "Que a instância do model pode estar relacionada a muitas instâncias de Comment."
+    },
+    {
+      "front": "Qual é a função de uma migração?",
+      "back": "Versionar mudanças na estrutura do banco, como tabelas, colunas e índices."
+    },
+    {
+      "front": "O que é uma action?",
+      "back": "Método de controller chamado para responder a uma rota."
+    },
+    {
+      "front": "Onde Rails procura convencionalmente show de PostsController?",
+      "back": "Em app/views/posts/show.html.erb, quando a resposta padrão usa HTML."
+    },
+    {
+      "front": "O que faz um layout?",
+      "back": "Envolve o template da página com estrutura compartilhada e insere o conteúdo no yield."
+    },
+    {
+      "front": "Para que serve um partial?",
+      "back": "Reutilizar um fragmento de apresentação em uma ou mais views."
+    },
+    {
+      "front": "O que limita Strong Parameters?",
+      "back": "Os atributos que podem ser aceitos para atribuição em massa pelo controller."
+    },
+    {
+      "front": "Como render difere de redirect_to?",
+      "back": "render prepara a resposta atual; redirect_to instrui o cliente a fazer outro pedido."
+    },
+    {
+      "front": "Qual a função típica da action new?",
+      "back": "Preparar um objeto e exibir o formulário de criação, sem gravar por si só."
+    }
+  ],
+  "tips": [
+    "Siga o fluxo: rota → controller/action → model quando necessário → view ou outra resposta.",
+    "Lembre que Rails é escrito em Ruby; MVC é uma forma de organizar a aplicação.",
+    "Associe Post, PostsController e app/views/posts às convenções de nomes do recurso posts.",
+    "Separe new/edit, que preparam formulários, de create/update, que processam a gravação.",
+    "Ao ver render e redirect_to, pergunte se a resposta atual é composta ou se o cliente fará novo pedido.",
+    "Validação vive na camada do model; a view pode exibir erros, mas não define a regra de domínio."
+  ],
+  "traps": [
+    "Dizer que a view consulta diretamente a rota e escolhe o controller mistura apresentação com roteamento.",
+    "Confundir model com tabela ignora que o model também contém comportamento e regras da aplicação.",
+    "Achar que uma migração é uma validação confunde alteração estrutural do banco com regra de aceitação de dados.",
+    "Supor que render causa uma nova requisição confunde composição de resposta com redirecionamento HTTP.",
+    "Permitir todos os parâmetros do formulário pode abrir atribuição de campos que o cliente não deveria alterar.",
+    "A rota resourceful cria conexões convencionais; ela não executa sozinha a lógica de persistência."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a jornada de GET /posts/42 em Rails.",
+      "answer": "O roteador encontra a rota, chama PostsController#show com id 42, a action pode buscar Post.find, e a view apresenta o objeto em HTML."
+    },
+    {
+      "question": "Explique como MVC divide responsabilidades.",
+      "answer": "Model representa dados e regras, view apresenta dados e controller coordena a requisição e a resposta."
+    },
+    {
+      "question": "Por que Rails usa convenções de nomes e pastas?",
+      "answer": "Para componentes relacionados serem encontrados por padrões conhecidos, reduzindo configuração explícita."
+    },
+    {
+      "question": "Como uma validação afeta uma tentativa de salvar um model?",
+      "answer": "Se inválido, save retorna falha e o objeto mantém erros para que o controller possa renderizar o formulário novamente."
+    },
+    {
+      "question": "Diferencie uma associação de uma migração.",
+      "answer": "A associação descreve a relação entre models; a migração altera a estrutura do banco que pode sustentar essa relação."
+    },
+    {
+      "question": "O que o controller faz com params?",
+      "answer": "Lê dados da requisição e deve restringir explicitamente os campos aceitos para atribuição em massa."
+    },
+    {
+      "question": "Compare render e redirect_to.",
+      "answer": "render usa uma apresentação na resposta atual; redirect_to envia instrução ao cliente para requisitar outro endereço."
+    },
+    {
+      "question": "Associe as actions CRUD mais comuns a suas tarefas.",
+      "answer": "index lista, show exibe, new e edit preparam formulários, create e update processam gravação, destroy remove."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca entre model, view e controller",
+      "summary": "Model representa dados e regras; view cuida da apresentação; controller coordena a requisição e escolhe uma resposta."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre renderização e redirecionamento",
+      "summary": "Render compõe a resposta atual; redirect_to provoca nova requisição do cliente para outro caminho."
+    },
+    {
+      "key": "e3",
+      "title": "Model confundido com tabela",
+      "summary": "Active Record associa classes e registros por convenção, mas o model é um objeto com comportamento, validações e associações."
+    },
+    {
+      "key": "e4",
+      "title": "Formulário confundido com persistência",
+      "summary": "new e edit preparam telas; create e update processam a tentativa de salvar os atributos."
+    },
+    {
+      "key": "e5",
+      "title": "Rota confundida com lógica de aplicação",
+      "summary": "Rota encaminha método e caminho a uma action; a action coordena o comportamento e pode chamar model e view."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma aplicação Rails, qual componente relaciona uma requisição recebida a um controller e uma action?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A migração, identificando o caminho pelo esquema do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O model, usando o nome da tabela e o conteúdo do formulário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A view, comparando o HTML enviado com o layout ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O helper, escolhendo a action a partir da resposta anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O roteador, usando o método HTTP e o caminho configurado.",
+          "correct": true
+        }
+      ],
+      "explanation": "O roteador compara caminho e método HTTP com as declarações de rotas e encaminha a requisição para uma action. Model, view, helper e migração têm outras funções.",
+      "section": "1. Rails e a estrutura de uma aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão MVC do Rails, qual divisão de responsabilidades está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "View persiste, model roteia, e controller formata tabelas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Controller apresenta, view valida, e model seleciona rotas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Model trata regras e dados; view apresenta; controller coordena.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Model monta páginas, view grava, e controller declara migrações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "View recebe rotas, controller define tabelas, e model envia HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "No MVC, o model concentra dados e regras, a view apresenta informações e o controller coordena o atendimento da requisição. As outras alternativas trocam essas responsabilidades.",
+      "section": "2. Arquitetura MVC e jornada da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pela convenção usual do Active Record, a que tabela a classe Post se associa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "À tabela post, com nome singular e inicial maiúscula.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "À tabela posts, com nome plural em minúsculas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "À tabela PostModel, derivada do nome completo da classe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "À tabela post_records, com sufixo obrigatório do framework.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "À tabela records, escolhida pelo nome da action padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A convenção do Rails usa nome de classe singular em CamelCase e nome de tabela plural em snake_case. É possível sobrescrever a convenção, mas posts é o padrão para Post.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra exige que todo Post tenha título antes da persistência normal. Onde ela se encaixa melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em uma declaração de rota que rejeite caminhos sem título quando o parâmetro não vier preenchido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em um layout que esconda o formulário sem conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em um helper que reescreva o SQL durante a resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em uma validação do model, que registra erro quando falta título.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Em uma migração que transforme cada título vazio em rota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validações de Active Record verificam atributos do objeto antes da persistência e registram mensagens de erro. A view pode exibir esses erros, mas não é o local adequado para a regra.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade usual de Strong Parameters em um controller?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir autenticação e autorização do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar índices automaticamente ao receber formulários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher o layout HTML pelo tipo de tabela consultada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter toda rota GET em gravação de registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restringir atributos aceitos em atribuição em massa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Strong Parameters exige que atributos aceitos sejam permitidos explicitamente, limitando a atribuição em massa. Esse filtro não substitui autenticação nem autorização.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma action PostsController#show usa a renderização padrão para HTML, qual template a convenção procura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "app/models/posts/show.html.erb, junto da classe de persistência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "app/views/posts/show.html.erb, associado à action show.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "config/routes/show.html.erb, ao lado das rotas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "app/controllers/show/posts.html.erb, dentro do controller.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "db/views/posts/show.html.erb, junto das migrações SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rails associa convencionalmente o controller PostsController ao diretório app/views/posts e a action show ao template show.html.erb.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual frase distingue corretamente render de redirect_to?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos sempre gravam o model e devolvem o mesmo status HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "render inicia nova requisição; redirect_to apenas monta HTML.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "render escolhe a resposta atual; redirect_to pede outro acesso ao cliente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "render altera a rota; redirect_to valida atributos do model.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "render apaga registros; redirect_to cria templates parciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Renderizar usa um template ou outra representação para compor a resposta atual. Redirecionar envia uma resposta de redirecionamento que leva o cliente a fazer outro pedido.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde à action new em um fluxo comum de criação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove o registro selecionado antes de exibir a coleção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplica a alteração enviada e confirma no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lista todos os registros com a ordem definida na rota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exibe um formulário para iniciar a criação de um registro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Processa o envio do formulário e salva o objeto válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A action new normalmente prepara um objeto vazio e exibe o formulário. A tentativa de persistência após o envio pertence à action create.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao declarar resources :posts, o que se obtém normalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rotas convencionais para operações de recurso posts.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma tabela posts preenchida com dados de exemplo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma view completa e validada para cada registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma classe de model com todas as regras de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma garantia de autorização para todos os usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "resources declara rotas convencionais para ações de um recurso e permite gerar helpers de caminho. Não cria por si só banco, lógica completa ou autorização.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo representa uma associação declarada no model Rails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "resources :comments no arquivo de rotas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "render :show na action do controller de posts.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "validates :title, presence: true no model Post.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "yield no layout compartilhado pela aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "has_many :comments no model Post.",
+          "correct": true
+        }
+      ],
+      "explanation": "has_many :comments declara uma relação entre Post e muitos Comments. As demais opções exemplificam roteamento, renderização, validação e composição de layout.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Em Rails, um framework é melhor descrito como qual elemento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma linguagem independente que substitui Ruby em todas as aplicações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um conjunto de componentes e convenções para estruturar aplicações web.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um banco relacional que contém os templates HTML da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma ferramenta de roteamento que não participa do restante do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um protocolo HTTP alternativo usado entre navegador e servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rails é um framework web escrito em Ruby. Ele reúne componentes como roteamento, controllers, models e views, além de convenções de organização.",
+      "section": "1. Rails e a estrutura de uma aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma action show recebe id 42 e precisa carregar o post correspondente. Qual abordagem encaixa no fluxo MVC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A view encontra a tabela e consulta diretamente a rota HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A migração lê params e imprime o registro na resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controller consulta o model e disponibiliza o objeto à view.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O roteador monta o HTML e salva o registro automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O layout executa a action e escolhe o banco de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O roteador encaminha id à action; o controller coordena a consulta pelo model e disponibiliza o resultado à view para apresentação.",
+      "section": "2. Arquitetura MVC e jornada da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer alterar a coluna body de posts em conjunto com o código versionado. Qual recurso Rails atende à mudança estrutural?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma partial que insere a coluna no formulário durante a renderização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma action que adiciona a coluna somente à requisição recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma validação que cria campos ausentes antes de cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma migração que descreve a alteração no esquema do banco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um helper de rota que cria colunas por convenção de URL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Migrações Rails versionam mudanças de esquema, como adicionar ou remover colunas. Model validations verificam valores, não alteram a estrutura da tabela.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se post.save falha por validação, qual consequência é esperada no fluxo normal do Active Record?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A gravação falha e o objeto mantém mensagens de erro disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tabela é removida e a action é apagada do roteador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A view é convertida em migração antes de salvar de novo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Rails redireciona sempre para a página inicial sem estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A validação é ignorada e o registro é persistido em segundo plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "save retorna falso quando o model não passa nas validações e mantém mensagens em errors. O controller pode então renderizar o formulário com o objeto e seus erros.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência decorre da convenção de nome entre PostsController e suas views?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os templates convencionais desse controller ficam em app/views/posts.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As tabelas do controller ficam obrigatoriamente em app/views/posts.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As migrações correspondentes ficam dentro do arquivo do controller.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os helpers de rota são declarados automaticamente nos templates HTML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classe model relacionada precisa se chamar PostsControllerModel.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rails usa convenções de nomes para associar PostsController ao diretório de views posts. A convenção não desloca tabelas ou migrações para essa pasta.",
+      "section": "1. Rails e a estrutura de uma aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mesma mensagem de validação deve ser apresentada no formulário sem copiar todo o template. Qual recurso de view ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma migração chamada pelo layout para editar a coluna inválida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma rota aninhada que persiste as mensagens ao navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um callback do banco que define o template do controller.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma action de model que envia HTML por meio do roteador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma partial reutilizável que apresenta os erros do objeto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Partial é fragmento reutilizável de apresentação. Ela pode receber o objeto com erros e exibi-los sem duplicar o mesmo markup em vários templates.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma action create recebe title e body do formulário. Que prática reduz atribuição indevida de atributos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar todos os parâmetros para qualquer atributo público do model.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir explicitamente title e body com Strong Parameters.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar os parâmetros em uma migração antes da validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Passar todos os campos à view e pedir que ela filtre depois.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar as rotas POST e criar os objetos por GET.",
+          "correct": false
+        }
+      ],
+      "explanation": "Strong Parameters permite especificar quais atributos são aceitos para atribuição em massa. Essa prática não substitui autorização, mas impede que qualquer campo enviado seja atribuído indiscriminadamente.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após create bem-sucedido, a aplicação redireciona para post_path(@post). Qual evento ocorre normalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O navegador segue o redirecionamento com uma nova requisição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O model executa uma migração para transformar a rota em view.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controller renderiza o mesmo template sem responder ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A view passa a controlar diretamente a action show no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A validação é repetida pelo roteador antes de ler o endereço.",
+          "correct": false
+        }
+      ],
+      "explanation": "redirect_to responde com uma instrução de redirecionamento, e o cliente faz um novo pedido ao caminho indicado. Isso difere de renderizar um template na resposta corrente.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação é mais diretamente associada à action destroy em um controller resourceful?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibir um formulário vazio para cadastrar novo recurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Listar registros da coleção sem selecionar um deles.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o registro escolhido, conforme a lógica da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Exibir um formulário com os dados atuais para edição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar uma coluna nova e gerar uma migração automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "destroy é a action convencional para remover o recurso identificado. A rota e a implementação precisam encaminhar o registro e executar a operação apropriada.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre convenção sobre configuração no Rails é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O padrão elimina toda configuração mesmo quando os nomes divergem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Convenções conhecidas permitem omitir configurações redundantes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A convenção impede que o desenvolvedor configure nomes alternativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A configuração substitui todos os componentes de MVC da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O padrão exige declarar cada coluna também como rota HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rails usa padrões para reduzir configurações explícitas quando arquivos e nomes seguem as convenções. Configuração continua possível quando necessário.",
+      "section": "1. Rails e a estrutura de uma aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma action lista posts publicados. Qual abordagem respeita melhor a divisão MVC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A view monta SQL e abre conexão própria para percorrer as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O roteador seleciona as linhas e envia o HTML pronto ao navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controller obtém os dados por meio do model e a view os apresenta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O layout consulta o banco e decide qual controller receberá a URL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A migração renderiza a lista e valida os parâmetros de consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controller coordena a solicitação e pode pedir ao model a coleção desejada; a view apresenta os resultados. Assim, consulta e apresentação não ficam misturadas no roteador ou no template.",
+      "section": "2. Arquitetura MVC e jornada da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma relação Post has_many Comment é declarada em Ruby. O que ainda pode ser necessário no banco para garantir a relação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma rota de view no arquivo do model para cada comentário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um layout compartilhado que contenha a tabela comments.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma action show com o nome da chave estrangeira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma estrutura compatível, como chave estrangeira em comments para posts.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um helper de formulário que substitua a integridade relacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "A associação fornece métodos e navegação no nível dos modelos, mas o esquema deve possuir as colunas e restrições compatíveis exigidas pela aplicação. A declaração Ruby não cria necessariamente a chave estrangeira física.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro inválido precisa permanecer disponível para que o template exiba seus erros. Qual resposta é adequada após falha de save em create?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Renderizar o template new com o objeto e as mensagens de erro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Redirecionar para new sem transportar qualquer estado do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o objeto e mandar a view buscar erros no roteador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma migração temporária para salvar os erros na tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Chamar destroy e renderizar show para o registro removido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao renderizar new na resposta atual com o objeto que falhou, o template pode acessar errors e preservar os valores preenchidos. Um redirecionamento inicia outra requisição e não mantém automaticamente esse objeto em memória.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa posts_path em um link para a lista. O que esse helper representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma consulta Active Record que retorna os posts ordenados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma URL/caminho gerado pelas definições de rota para a coleção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma validação de model que restringe os campos de post.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um template que renderiza todos os posts sem controller.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma migração que cria a tabela para o recurso posts.",
+          "correct": false
+        }
+      ],
+      "explanation": "Helpers de rota constroem caminhos ou URLs com base nas rotas declaradas. A consulta aos dados é responsabilidade do model e a composição da resposta envolve controller e view.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma view não deve concentrar uma consulta complexa e uma regra de negócio inteira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque templates são usados só pelo banco e não podem gerar HTML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque o roteador impede que views acessem qualquer variável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque somente migrações podem consultar objetos Active Record.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque views não podem conter expressões ou helpers Ruby.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque apresentação fica acoplada à lógica e prejudica a separação de papéis.",
+          "correct": true
+        }
+      ],
+      "explanation": "Views existem para apresentar dados e podem usar helpers e expressões limitadas, mas concentrar nelas regras de domínio e consultas complexas mistura responsabilidades e dificulta manutenção.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa compara corretamente validação de model e restrição de banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validação substitui sempre chaves estrangeiras e toda integridade do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Restrição de banco monta mensagens HTML e escolhe o layout da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validação protege regras na aplicação; restrições de banco podem reforçar integridade persistente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "As duas são rotas HTTP executadas antes da seleção do controller.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambas existem somente na view e não afetam a persistência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validações Active Record verificam objetos no fluxo da aplicação. Restrições relacionais, como NOT NULL e chaves estrangeiras, protegem o banco também contra gravações que não passem pelo mesmo caminho da aplicação.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota recebe PATCH /posts/42. Em um desenho resourceful, qual action costuma tratar a alteração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "new, que só prepara formulário sem atualizar atributos existentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "index, que lista a coleção sem selecionar o registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "show, que exibe os dados sem processar atualização enviada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "update, que processa os atributos para o registro identificado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "edit, que apenas prepara a tela de edição do recurso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rotas resourceful associam PATCH ou PUT de um registro à action update. A action edit normalmente prepara o formulário, enquanto show apenas apresenta o recurso.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Em uma consulta Active Record, o que expressa Post.where(published: true)?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma consulta por posts cujo atributo published é verdadeiro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A alteração permanente da coluna published em todos os registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A criação de uma rota para a action published do controller.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A validação que exige que cada post tenha um título preenchido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A renderização de uma view com o nome do atributo consultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "where constrói uma consulta para filtrar registros por condições. Nesse exemplo, a condição seleciona posts cujo atributo published seja verdadeiro; não altera os registros nem cria uma rota.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rota resourceful convencional, qual destino corresponde a GET /posts?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "PostsController#show, para exibir um registro identificado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PostsController#create, para processar um novo formulário enviado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PostsController#new, para preparar o formulário de criação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PostsController#index, para listar a coleção de posts.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "PostsController#edit, para carregar o formulário de alteração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nas rotas resourceful usuais, GET para a coleção encaminha a index. show atende a um registro individual, enquanto new e edit preparam formulários e create processa o envio.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Rails, a arquitetura MVC separa dados e regras, apresentação e coordenação do pedido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Model representa dados e regras; view apresenta; controller coordena o atendimento. A separação organiza responsabilidades sem impedir a comunicação entre componentes.",
+      "section": "2. Arquitetura MVC e jornada da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Rails é uma linguagem de programação distinta de Ruby, usada apenas para escrever views.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Rails é um framework web escrito em Ruby. Ele inclui componentes para models, views, controllers, rotas e outras partes da aplicação.",
+      "section": "1. Rails e a estrutura de uma aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota Rails pode encaminhar uma combinação de método HTTP e caminho para uma action de controller.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O roteador consulta as declarações de rotas e encaminha a requisição correspondente para controller e action, podendo também extrair parâmetros do caminho.",
+      "section": "1. Rails e a estrutura de uma aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação convencional, a view é responsável por definir qual URL deve ser encaminhada ao controller.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Quem encaminha URLs é o roteador, configurado normalmente em config/routes.rb. A view apresenta a resposta e pode gerar links usando helpers de rota.",
+      "section": "2. Arquitetura MVC e jornada da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A convenção usual associa a classe singular Post à tabela plural posts.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Active Record segue essa convenção de singular para classes e plural para tabelas; configurações explícitas podem alterar o nome esperado.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração Rails é a mesma coisa que uma validação de model porque ambas impedem valores inválidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Migrações versionam mudanças de esquema do banco. Validações verificam atributos de objetos no fluxo de persistência; são recursos diferentes.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma validação normal falha, save pode retornar falso e deixar erros acessíveis no model.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Quando validações impedem a persistência, save retorna falso e errors mantém mensagens úteis para que o controller e a view mostrem os problemas.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A declaração has_many em um model cria automaticamente qualquer chave estrangeira necessária no banco existente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A associação declara a relação na camada Active Record, mas a estrutura do banco deve ser criada ou alterada por migração quando a aplicação precisa de coluna ou restrição física.",
+      "section": "3. Models e Active Record",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Strong Parameters limita quais atributos enviados podem participar de atribuição em massa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O controller permite explicitamente atributos que podem ser atribuídos em massa. Isso é uma medida de controle de entrada, não um mecanismo completo de autorização.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "render e redirect_to sempre produzem a resposta navegacional por meio da mesma requisição HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "render compõe uma resposta na requisição atual; redirect_to orienta o cliente a realizar outra requisição para o destino indicado.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um layout pode envolver o template específico da página e inserir seu conteúdo no ponto yield.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Layouts fornecem estrutura comum, como elementos de página compartilhados, e yield indica onde o conteúdo da view será inserido.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A action create normalmente exibe apenas um formulário vazio e não processa a submissão recebida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "create processa os atributos recebidos e tenta persistir o novo registro. new normalmente prepara e exibe o formulário vazio.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O helper post_path(@post) constrói um caminho para o recurso e não executa, por si só, a action do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Helpers de rota geram caminhos ou URLs com base nas rotas. A requisição ao caminho é que será posteriormente roteada para uma action.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma view pode receber um objeto preparado pelo controller e usá-lo para apresentar informações ao usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O controller disponibiliza dados à view, que os utiliza na apresentação. A view não passa a ser responsável por persistência nem por roteamento.",
+      "section": "2. Arquitetura MVC e jornada da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando save falha em create, redirecionar sempre preserva automaticamente o objeto Ruby e seus erros no próximo pedido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Um redirecionamento inicia outra requisição, que não conserva automaticamente o objeto Ruby em memória. Renderizar o formulário na resposta atual mantém o objeto e seus erros disponíveis à view.",
+      "section": "4. Views, controllers e respostas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota declarada com resources obriga a aplicação a implementar todas as operações possíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "resources declara rotas de recurso conforme convenções, mas o projeto pode restringir rotas e precisa implementar a lógica das actions utilizadas.",
+      "section": "5. A arquitetura em uso: roteamento e CRUD",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Getting Started with Rails",
+      "publisher": "Ruby on Rails Guides",
+      "reference": "Estrutura da aplicação, MVC, ciclo de requisição, rotas e controllers",
+      "url": "https://guides.rubyonrails.org/getting_started.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Active Record Basics",
+      "publisher": "Ruby on Rails Guides",
+      "reference": "ORM, convenções, models, CRUD, validações e associações",
+      "url": "https://guides.rubyonrails.org/active_record_basics.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Action Controller Overview",
+      "publisher": "Ruby on Rails Guides",
+      "reference": "Ciclo do controller, parâmetros e Strong Parameters",
+      "url": "https://guides.rubyonrails.org/action_controller_overview.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Layouts and Rendering in Rails",
+      "publisher": "Ruby on Rails Guides",
+      "reference": "Renderização, layouts, partials e resposta do controller",
+      "url": "https://guides.rubyonrails.org/layouts_and_rendering.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Rails Routing from the Outside In",
+      "publisher": "Ruby on Rails Guides",
+      "reference": "Roteador, recursos RESTful, actions e helpers de caminho",
+      "url": "https://guides.rubyonrails.org/routing.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

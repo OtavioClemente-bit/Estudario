@@ -433,14 +433,10 @@ export function validateLibraryMaterial(material: Json): Json {
     const total = count((q) => q.difficulty === level);
     if (total < LIBRARY_MIN.perDifficulty) c.fail(`questions: só ${total} ${level} (mínimo ${LIBRARY_MIN.perDifficulty})`);
   }
-  // A alternativa certa não pode cair quase sempre na mesma letra.
-  const letters = new Map<string, number>();
-  questions.filter((q) => q.format === "MULTIPLE_CHOICE").forEach((q) => {
-    const key = String((q.options as Json[] | undefined)?.find((o) => o.correct === true)?.key ?? "");
-    letters.set(key, (letters.get(key) ?? 0) + 1);
-  });
+  // Não há mais regra de letra concentrada: o app e o site embaralham as alternativas (OptionShuffle). Ela fazia
+  // o Codex mover só a marca "correct" para outra letra, sem mover o texto, e a questão ficava com gabarito
+  // errado (07/11: ~300 questões corrigidas à mão em ~60 matérias).
   const multiple = questions.length - trueFalse;
-  if (multiple >= 10 && Math.max(0, ...letters.values()) > multiple * 0.4) c.fail("questions: gabarito concentrado demais numa letra");
   // Quem chuta "a mais longa" (ou "a mais curta") não pode acertar quase sempre.
   const extremes = { longest: 0, shortest: 0 };
   questions.filter((q) => q.format === "MULTIPLE_CHOICE").forEach((q) => {

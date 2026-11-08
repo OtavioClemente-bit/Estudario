@@ -119,8 +119,8 @@ async function trabalhador(n: number) {
 O conferidor apontou só isto:
 ${erros.slice(0, 3000)}
 Corrija AGORA esses pontos editando o arquivo (alongue explicações curtas para 120+ caracteres explicando o porquê;
-equilibre o tamanho das alternativas encurtando a certa ou alongando as erradas; troque a letra da certa entre A–E
-onde o gabarito estiver concentrado; complete questões se faltar). Escreva cada texto você mesmo, sem script.
+equilibre o tamanho das alternativas encurtando a certa ou alongando as erradas, sem mudar "correct" de lugar;
+complete questões se faltar). Escreva cada texto você mesmo, sem script.
 PROIBIDO: ao equilibrar, NUNCA escreva uma alternativa errada que diga o mesmo que a certa com outras palavras
 (isso cria duas corretas e a matéria é rejeitada na revisão). Cada alternativa errada precisa estar ERRADA de verdade.
 IMPORTANTE: o AGENTS.md proíbe só PROGRAMA que gere/embaralhe/equilibre. Reescrever você mesmo, à mão, o texto de
@@ -143,14 +143,16 @@ deve agir com ética") é rejeitada na revisão. Confira em cada questão: só U
 marcado na alternativa certa e explicação da própria questão.
 JÁ NA PRIMEIRA VERSÃO (é o que mais reprova): escreva as 5 alternativas com tamanho parecido; a certa NÃO pode ser
 a mais longa (no máximo em 4 de cada 10 questões); alongue as erradas com detalhe plausível e errado de verdade.
-Espalhe a letra certa por igual entre A, B, C, D e E (cerca de 1/5 cada) e em Certo/Errado metade de cada.
-Antes de gravar, conte quantas vezes a certa é a mais longa e quantas vezes cada letra é gabarito, e ajuste.
+A letra do gabarito NÃO importa (o app embaralha as alternativas): nunca mude "correct" de lugar para equilibrar
+letras ou tamanhos. Para corrigir tamanho, reescreva o TEXTO das alternativas. Se mover a certa de letra, mova o
+texto junto. Em Certo/Errado, deixe metade de cada, e o gabarito tem de bater com o "Certo."/"Errado." da explicação.
+Antes de gravar, confira em CADA questão que a alternativa marcada é a que a explicação defende.
 Cada alternativa errada deve ser um erro que um candidato
 cometeria (nada absurdo nem frase extra só para alongar). Todo enunciado de múltipla escolha termina em pergunta,
 nunca alternativas "Sim/Não". Certo/Errado não pode depender só de "jamais", "apenas", "exclusivamente". Não repita
 o mesmo fato em duas questões. Cubra cada parte do título e do escopo (se o título fala de X e Y, ensine os dois).
 Se o arquivo já existir, NÃO recomece: rode o conferidor e corrija só o que ele apontar (explicações curtas,
-alternativa certa longa demais, gabarito concentrado numa letra) até dar OK.
+alternativa certa longa demais) até dar OK, sem nunca mudar "correct" de lugar só para passar.
 Se os itens forem só números de atos sem assunto e você não achar o conteúdo, escreva a matéria sobre o tipo de ato
 (o que é, quem edita, para que serve, tramitação) sem inventar o conteúdo de cada número.`;
   const o = await new Deno.Command("node", {

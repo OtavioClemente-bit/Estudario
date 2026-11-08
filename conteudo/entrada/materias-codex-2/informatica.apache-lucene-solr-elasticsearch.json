@@ -1,0 +1,2339 @@
+{
+  "id": "informatica.apache-lucene-solr-elasticsearch",
+  "subject": "Informática",
+  "title": "Ferramentas Apache Lucene, Solr e Elasticsearch",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ferramentas Apache Lucene, Solr e Elastic Search",
+    "Apache Lucene para indexação e busca textual",
+    "Plataforma Apache Solr baseada em Lucene",
+    "Motor Elasticsearch para busca distribuída",
+    "Lucene Solr e Elasticsearch em sistemas de busca",
+    "Indexação de documentos com Apache Lucene",
+    "Consultas textuais com Apache Solr e Elasticsearch",
+    "Índice invertido em Solr e Elasticsearch",
+    "Analisadores e tokenizadores de texto no Lucene",
+    "Shards e réplicas no SolrCloud e Elasticsearch",
+    "Busca textual distribuída com ferramentas Apache",
+    "Diferenças entre Lucene Solr e Elasticsearch"
+  ],
+  "scope": {
+    "covers": "Conceitos de Apache Lucene, Apache Solr e Elasticsearch; índice invertido, documentos, campos, análise textual, indexação, consulta, relevância e segmentos; recursos do Solr, cores, coleções, SolrCloud, shards e réplicas; índices, mappings, APIs, Query DSL, shards, réplicas e refresh no Elasticsearch; diferenças entre biblioteca e plataformas de busca.",
+    "excludes": "Instalação detalhada, sintaxe exaustiva de APIs, tuning de versões específicas, segurança, licenciamento e administração avançada."
+  },
+  "theoryTitle": "Da biblioteca de busca às plataformas distribuídas",
+  "chapters": [
+    {
+      "title": "1. Lucene: mecanismo de indexação e busca",
+      "markdown": "### O problema que este assunto resolve\nUma busca textual precisa localizar documentos sem percorrer todos os arquivos a cada consulta. Apache Lucene é uma biblioteca Java para indexar e pesquisar texto. A aplicação que a incorpora controla ingestão e operação. Solr e Elasticsearch usam Lucene como mecanismo de índice e acrescentam APIs e gestão de serviço.\n\n> **Siglas e termos deste capítulo**\n> - **Documento**: unidade pesquisável formada por campos.\n> - **Campo**: atributo nomeado, com tipo e comportamento de indexação.\n> - **Token/termo**: unidade produzida pela análise textual.\n> - **Índice invertido**: termo associado aos documentos em que aparece.\n> - **Postings**: ocorrências de termos, com documentos e eventualmente posições.\n> - **Segmento**: parte imutável e pesquisável de um índice Lucene.\n> - **Analyzer**: cadeia que converte texto em tokens.\n\n### Índice invertido e campos\nEm vez de consultar cada documento procurando uma palavra, o índice invertido guarda associações termo-documento. Posições permitem consultas por frase; offsets podem apoiar destaque. Postings respondem a busca textual, enquanto stored fields recuperam valores de documentos. Um campo pode ser indexado, armazenado, ambos ou nenhum. DocValues mantêm valores em formato colunar, útil para ordenação e facetas; pontos são adequados a intervalos numéricos e dados geoespaciais. Logo, “pesquisável” não significa automaticamente “recuperável como valor armazenado”.\n\n### Análise textual\nLucene recebe texto simples; converter PDF, HTML ou Word em texto cabe ao parser da aplicação. O analyzer pode tokenizar, normalizar caixa e acentos, remover stop words, aplicar stemming ou expandir sinônimos. Um tokenizer divide texto; filtros transformam ou removem tokens. A cadeia muda o que será encontrado: a análise na consulta deve ser compatível com a aplicada ao indexar. Remover palavras frequentes pode reduzir ruído, mas também prejudicar frases em que elas importam.\n\n### Escrita e leitura\n`IndexWriter` cria e altera o índice, adicionando, atualizando e excluindo documentos. `IndexReader` oferece uma visão consistente para pesquisa; uma leitura já aberta não incorpora automaticamente toda escrita posterior, devendo ser atualizada/reaberta. Segmentos são gravados como estruturas completas e imutáveis. Merges juntam segmentos e recuperam espaço de documentos removidos. ID interno de documento não é chave de negócio estável.\n\n### Como cai na prova\n- Termo para lista de documentos: índice invertido/postings.\n- Stored fields recuperam valores; DocValues apoiam operações colunares como ordenação; postings atendem pesquisa por termos.\n- Lucene é biblioteca, não servidor pronto de cluster com API HTTP.\n- Uma leitura existente mantém sua visão até atualização; merge não é consulta."
+    },
+    {
+      "title": "2. Apache Solr: serviço de busca sobre Lucene",
+      "markdown": "### O problema que este assunto resolve\nApache Solr é uma plataforma de busca e análise construída sobre Lucene. Ela fornece serviços de indexação e consulta, administração, configuração de esquema, facetas e realce de trechos (*highlighting*). Solr expõe APIs e servidor, enquanto Lucene é biblioteca de baixo nível.\n\n> **Siglas e termos deste capítulo**\n> - **Core**: índice e configuração associados, comum em modo standalone.\n> - **Collection**: conjunto lógico de busca administrado no SolrCloud.\n> - **Configset**: configuração da coleção, incluindo esquema e `solrconfig.xml`.\n> - **SolrCloud**: modo distribuído coordenado com ZooKeeper.\n> - **Shard**: partição lógica de documentos.\n> - **Replica**: cópia física de um shard com seu próprio índice Lucene.\n\n### Core, collection e esquema\nEm instalação simples ou modo gerenciado, um core representa índice e arquivos de configuração. No SolrCloud a entidade lógica é collection, composta de shards e réplicas. Uma réplica é representada internamente por um core, mas na topologia distribuída “réplica” é o termo mais claro. O esquema declara campos e tipos: um campo textual pode ser analisado para busca livre; um código pode ser configurado para correspondência exata. Analyzers configurados para `fieldType` combinam tokenizer e filtros Lucene.\n\n### Consultas e recursos\nConsultas podem combinar campos, filtros, ordenação e relevância. Facetas resumem resultados por valores; filtros restringem documentos; highlighting marca trechos correspondentes. O esquema e a análise textual afetam o comportamento da consulta, não só a exibição.\n\n### SolrCloud\nCada shard contém uma parte lógica da collection e existe fisicamente em uma ou mais réplicas; cada réplica mantém um índice Lucene. O líder de cada shard recebe atualizações e as propaga. ZooKeeper mantém estado do cluster e configuração distribuída, e participa da coordenação e eleição de líder. Réplicas do mesmo shard guardam o mesmo subconjunto, não partições adicionais. Aumentar shards reparte dados e paraleliza; aumentar réplicas cria cópias que podem ampliar disponibilidade e leitura.\n\n### Como cai na prova\n- Solr é plataforma sobre Lucene; ZooKeeper coordena SolrCloud, não executa busca textual.\n- Core é índice/configuração; collection é conjunto lógico distribuído.\n- Shard particiona; réplica copia.\n- Faceta agrega por valores; highlighting destaca correspondências."
+    },
+    {
+      "title": "3. Elasticsearch: índices, documentos e consulta",
+      "markdown": "### O problema que este assunto resolve\nElasticsearch oferece APIs distribuídas para armazenar documentos JSON, indexá-los e consultá-los. Um índice lógico contém shards físicos, cada qual um índice Lucene autônomo com parte dos documentos. A plataforma distribui dados e consultas entre nós e oferece APIs de busca e análise.\n\n> **Siglas e termos deste capítulo**\n> - **Cluster**: conjunto de nós que distribui dados e consultas.\n> - **Node**: processo participante que pode hospedar shards.\n> - **Index**: agrupamento lógico de documentos.\n> - **Mapping**: definição ou inferência dos tipos de campos.\n> - **Primary shard**: cópia principal que recebe inicialmente a escrita.\n> - **Replica shard**: cópia redundante de um shard.\n> - **Refresh**: torna operações recentes pesquisáveis.\n\n### Mapping e análise\n`text` é analisado para busca de texto completo; `keyword` conserva valor exato e é comum em filtros, agregações e ordenação. Datas, números e booleanos têm tipos próprios. Mapping dinâmico pode inferir tipos, mas um identificador com zeros à esquerda inferido como número perde sua representação textual. Planejar o mapping evita consultas e agregações inesperadas.\n\nAnalyzer transforma texto em tokens para o índice invertido. Uma consulta `match` também analisa o texto informado; `term` procura igualdade de termo e é comum para campo `keyword`, não para texto analisado livre. `_analyze` permite inspecionar tokens. Alterações de interpretação dos dados podem exigir índice novo e reindexação.\n\n### Query DSL e visibilidade\n`_search` aceita Query DSL em JSON. `match` busca texto analisado; `term` e `range` atendem igualdade e intervalos de tipos compatíveis; `bool` combina cláusulas. No query context calcula-se `_score`; no filter context a decisão é binária, sem relevância, adequado a status, data ou categoria. Aggregations resumem métricas e grupos dos resultados. Bulk reúne várias operações de escrita.\n\nUma escrita não fica necessariamente pesquisável no mesmo instante. Refresh atualiza a visão de busca; Elasticsearch é near real time. `refresh=true` força atualização e tem custo; `refresh=wait_for` espera uma atualização periódica; o padrão não força refresh. Visibilidade de busca não é sinônimo de replicação ou durabilidade.\n\n### Como cai na prova\n- `text` para texto analisado; `keyword` para valor exato.\n- `match` analisa a consulta; `term` procura termo exato.\n- Query context pontua; filter context não calcula score.\n- Refresh explica o intervalo entre escrita e busca."
+    },
+    {
+      "title": "4. Distribuição e comparação das ferramentas",
+      "markdown": "### O problema que este assunto resolve\nUm índice grande pode superar um nó e uma cópia única falha junto com seu servidor. SolrCloud e Elasticsearch dividem índices em shards e mantêm réplicas. Ambos se apoiam em Lucene, mas têm APIs, configuração e coordenação próprias.\n\n> **Siglas e termos deste capítulo**\n> - **Particionamento**: distribuir subconjuntos de documentos em shards.\n> - **Replicação**: manter cópias de um shard em nós.\n> - **Roteamento**: escolher o shard que receberá operação.\n> - **Near real time**: busca vê atualizações após refresh, não necessariamente no instante da escrita.\n> - **Agregação/faceta**: resumo calculado sobre resultados.\n\n### Distribuir tem custo\nParticionar distribui armazenamento e trabalho, mas uma busca pode consultar vários shards e combinar respostas. Shards demais elevam custo de coordenação; poucos podem limitar paralelismo. Réplicas consomem recursos e apoiam disponibilidade e leitura; duas cópias no mesmo domínio de falha não protegem contra a perda desse domínio.\n\nNo Elasticsearch, cada documento pertence a um primário; escrita é propagada às réplicas. A quantidade de primários é fixada na criação do índice, enquanto réplicas podem ser alteradas depois. Uma réplica pode ser promovida se o primário falhar. No SolrCloud, cada shard tem réplicas, líder recebe atualizações e ZooKeeper participa da coordenação. Os nomes semelhantes não tornam idênticos os protocolos.\n\n| Aspecto | Lucene | Solr | Elasticsearch |\n| --- | --- | --- | --- |\n| Forma | Biblioteca Java | Plataforma Apache sobre Lucene | Serviço distribuído de busca |\n| Interface típica | APIs Java | HTTP, esquema e administração | HTTP/JSON e Query DSL |\n| Unidade cobrada | Índice/documento/campo | Core; collection no SolrCloud | Index/documento/shard |\n| Distribuição | Aplicação cria operação ao redor | SolrCloud | Cluster, primários e réplicas |\n\n### Como cai na prova\nLucene é biblioteca; Solr e Elasticsearch são plataformas/serviços. Shard particiona e réplica duplica. A busca distribuída coordena shards e combina resultados; não exige que cada nó armazene todos os documentos. Use Lucene integrado quando a aplicação Java assumir a camada de serviço; Solr ou Elasticsearch fornecem APIs e operação de plataforma. Nenhum deles extrai sozinho texto de todo formato de origem sem parser ou ingestão apropriada."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O índice invertido relaciona termos aos documentos em que ocorrem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A estrutura permite partir do termo para os documentos e ocorrências, evitando percorrer todos os textos a cada busca.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A biblioteca Lucene converte diretamente arquivos PDF e Word para texto como responsabilidade nativa de sua API de indexação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Lucene recebe texto simples; a aplicação utiliza um parser apropriado para extrair o texto de formatos como PDF ou Word antes da indexação.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo Lucene pode ser indexado para busca sem ser configurado para armazenar seu valor recuperável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Indexação e armazenamento são propriedades distintas; postings podem localizar o documento sem que o valor original esteja em stored fields.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os segmentos Lucene são alterados no próprio lugar sempre que um documento é excluído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Segmentos são imutáveis; exclusões e atualizações são registradas por novas estruturas e merges posteriores podem recuperar espaço.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analyzer pode encadear tokenizer e filtros para transformar texto em tokens indexáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O analyzer reúne componentes em sequência: o tokenizer primeiro divide a entrada em tokens, e os filtros seguintes podem normalizar grafia, remover termos ou expandir sinônimos. Essa transformação define quais termos serão pesquisáveis no índice.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "IndexReader incorpora automaticamente toda escrita posterior sem atualizar sua visão do índice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cada reader mantém uma visão consistente; para incorporar alterações posteriores, é preciso atualizar ou abrir uma nova visão de leitura.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DocValues são estruturas colunares úteis para operações como ordenação e facetas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. DocValues organizam valores por campo e documento, favorecendo operações colunares; não substituem postings para busca textual.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O número interno de documento Lucene deve ser tratado como identificador de negócio estável fora do índice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. IDs internos podem mudar quando segmentos são combinados e são detalhes de implementação, não chaves externas duráveis.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Apache Solr é uma plataforma de busca construída sobre Apache Lucene.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Solr é uma plataforma que acrescenta servidor, APIs e recursos administrativos para indexar e consultar dados. Lucene fornece o mecanismo subjacente de índice e pesquisa textual, mas não é por si só o serviço completo de busca.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SolrCloud, cada réplica de um shard guarda um conjunto diferente de documentos para ampliar o particionamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A divisão dos documentos é feita pelos shards. Cada réplica de um mesmo shard mantém uma cópia daquele subconjunto, o que pode apoiar disponibilidade ou leitura, mas não cria uma partição adicional com documentos diferentes.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma collection no SolrCloud pode reunir vários shards e suas réplicas sob uma entidade lógica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Collection é o conjunto lógico gerenciado no SolrCloud, enquanto shards repartem documentos e réplicas materializam cópias.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ZooKeeper é o componente que analisa termos e executa diretamente as consultas textuais Solr.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ZooKeeper auxilia a coordenação e mantém estado/configuração do cluster; Lucene realiza o trabalho de indexação e pesquisa textual.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analyzer Solr pode ser configurado em um fieldType para processar campos textuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No esquema do Solr, o fieldType pode associar uma cadeia de análise ao campo textual. O tokenizer separa o conteúdo em tokens e filtros os transformam depois, de modo que a configuração influencia tanto os termos indexados quanto a interpretação da consulta.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um core é o nome preferido para a entidade lógica que contém todas as coleções SolrCloud do cluster.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Core está ligado a um índice/configuração e representa internamente uma réplica; collection é a entidade lógica distribuída.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SolrCloud, o líder de shard recebe atualizações e as propaga às outras réplicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A réplica líder é a fonte de atualização daquele shard, e as demais cópias recebem as mudanças conforme o protocolo do cluster.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Facetas e highlighting são recursos que Solr pode oferecer além da correspondência textual básica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Facetas agrupam ou contam resultados segundo valores de campos, enquanto highlighting retorna trechos do documento que correspondem à consulta. São recursos de apresentação e análise oferecidos pela plataforma, com objetivos distintos da simples localização textual.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Elasticsearch usa shards que são índices Lucene autônomos com subconjuntos dos documentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O índice lógico Elasticsearch distribui documentos em shards físicos, cada qual baseado em um índice Lucene próprio.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Elasticsearch, o tipo text é apropriado para correspondência exata sem análise do conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. text é analisado para busca de texto completo; keyword é normalmente usado para valores exatos, filtros e agregações.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Elasticsearch, o número de shards primários fica fixado ao criar o índice, mas o número de réplicas pode ser alterado depois.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação distingue primários definidos na criação do índice e réplicas ajustáveis posteriormente sem interromper operações normais.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura permite encontrar documentos começando por um termo pesquisado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Parser de formatos que converte cada documento em página HTML e executa as consultas por relevância sem criar postings.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tabela de réplicas que guarda uma cópia por palavra digitada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Stored fields que percorrem o texto integral de todos os documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rotina de refresh que ordena documentos pelo horário da gravação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Índice invertido que mapeia termos para documentos e ocorrências.",
+          "correct": true
+        }
+      ],
+      "explanation": "O índice invertido associa termos às listas de documentos que os contêm. Parser, réplicas, recuperação de campos e refresh têm outros papéis e não substituem essa estrutura de busca.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java deseja criar e alterar índice local usando APIs de busca, sem adotar servidor HTTP pronto. Qual ferramenta se ajusta a esse uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SolrCloud, que oferece coleção distribuída por padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ZooKeeper, coordenador de estado de coleções e nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elasticsearch, serviço com endpoints JSON de consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kibana, interface de exploração visual do Elastic Stack que executa indexação Lucene local diretamente dentro da aplicação Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apache Lucene, biblioteca incorporada ao código da aplicação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Lucene oferece APIs Java para a própria aplicação indexar e pesquisar. Solr e Elasticsearch são plataformas/serviços, ZooKeeper coordena SolrCloud e Kibana é ferramenta de interface.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente da cadeia de análise divide texto em unidades que podem ser filtradas e indexadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Merge, que combina segmentos existentes do índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reader, que fornece uma visão consistente para pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DocValues, que organiza valores em estrutura colunar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replica, que mantém cópia de um shard físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tokenizer, que separa a entrada em tokens.",
+          "correct": true
+        }
+      ],
+      "explanation": "O tokenizer divide o texto em tokens. Filtros atuam depois sobre esses tokens; merge, reader, DocValues e réplicas são conceitos de armazenamento, leitura ou distribuição.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa recuperar no resultado o valor original de um campo armazenado, além de pesquisar por termos. Que estrutura Lucene oferece essa recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Postings, que apontam termos para listas de documentos e, por isso, também recuperam valores originais de campos não armazenados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Analyzer, que converte texto em fluxo de tokens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Points, que servem a intervalos numéricos e geoespaciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Stored fields, que recuperam valores guardados do documento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Segments, que são subconjuntos completos e pesquisáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stored fields são usados para recuperar valores armazenados de um documento. Postings resolvem busca por termos; analyzer transforma texto e as outras estruturas têm usos diferentes.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta oferece servidor de busca Apache sobre Lucene, com APIs, esquema, administração e facetas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apache Lucene, biblioteca que a aplicação incorpora diretamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ZooKeeper, serviço de coordenação usado por clusters SolrCloud e que armazena o índice textual que atende diretamente às consultas dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IndexReader, API Lucene que mantém uma visão de leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DocValues, estrutura colunar consultada para ordenação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apache Solr, plataforma que acrescenta serviços de busca sobre Lucene.",
+          "correct": true
+        }
+      ],
+      "explanation": "Solr é a plataforma de busca que usa Lucene e fornece camada de servidor, configuração, APIs e recursos como facetas. Lucene sozinho é uma biblioteca.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SolrCloud, qual termo designa o conjunto lógico de busca distribuído em partições e cópias?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Core, associado ao índice e à sua configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configset, que reúne configuração de esquema e servidor e constitui o agrupamento lógico de dados particionado em shards no SolrCloud.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Postings, que associam termos a documentos encontrados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Leader, réplica que recebe as atualizações do shard.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Collection, entidade lógica composta de shards e réplicas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Collection é o conjunto lógico administrado pelo SolrCloud. Core representa índice/configuração; configset é configuração, postings são estrutura Lucene e leader é função de réplica.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que recurso Solr apresenta trechos do documento que correspondem aos termos da consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Faceting, que agrupa resultados por valores de campo e devolve frases destacadas no contexto em que aparecem nos documentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Highlighting, que marca trechos correspondentes da resposta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sharding, que reparte documentos entre partições distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mapping, que declara tipos de campo no Elasticsearch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Refresh, que abre uma visão pesquisável de dados recentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Highlighting devolve trechos destacados que correspondem à busca. Faceting resume valores; sharding distribui; mapping define tipos e refresh trata de visibilidade no Elasticsearch.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma categoria como `situacao=ativo` precisa de correspondência exata e agregações no Elasticsearch. Que tipo de campo é o mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "text, analisado para busca livre por palavras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "date, interpretado como instante ou calendário e destinado a preservar strings de categoria para filtro exato e agregações textuais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "keyword, preservado como valor exato para filtro e agregação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "object, usado para agrupar propriedades JSON aninhadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "analyzer, cadeia que transforma texto durante indexação.",
+          "correct": false
+        }
+      ],
+      "explanation": "keyword representa strings exatas e é apropriado a filtros, agregações e ordenação por valor. text é analisado para busca de texto completo; os demais itens não são o tipo indicado.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cláusula é adequada para combinar texto analisado de uma consulta com um campo textual Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "term, usada para igualdade literal de um termo indexado e para analisar a frase de consulta antes da busca textual completa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "range, usada para limites de valores compatíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "refresh, usado para tornar escritas pesquisáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "match, que analisa a consulta para busca textual.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "bulk, usado para agrupar várias operações de escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "match analisa o texto da consulta e o compara com conteúdo textual analisado. term é correspondência exata; range delimita valores e refresh/bulk não são cláusulas de busca textual.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença essencial entre shard e réplica em um índice distribuído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Shard é uma cópia; réplica é uma partição com outros documentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Shard é uma partição lógica; réplica é uma cópia física desse shard.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Shard guarda configuração; réplica guarda somente logs de consultas e nunca mantém uma cópia do índice ou de seus documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Shard coordena o cluster; réplica define os tipos dos campos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Shard analisa texto; réplica converte arquivos em documentos JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "Shard reparte logicamente os documentos; réplicas mantêm cópias redundantes de uma partição. Assim, cópias não devem ser contadas como novas partes distintas do corpus.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal do ZooKeeper na arquitetura SolrCloud?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar os postings Lucene de cada busca recebida pelo cluster.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transformar cada documento HTML em tokens no momento do envio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar os stored fields que serão retornados aos clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir as réplicas líderes e armazenar todos os índices Lucene, sem manter dados de estado do cluster em qualquer outro componente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter estado e configuração distribuídos e apoiar coordenação do cluster.",
+          "correct": true
+        }
+      ],
+      "explanation": "ZooKeeper oferece coordenação centralizada para estado e configsets de SolrCloud e participa da gestão de líderes. Não substitui Lucene nem armazena o índice de documentos.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma busca Elasticsearch, deve-se exigir categoria exata sem relevância textual, além de pesquisar palavras no campo de descrição. Como combinar corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar term em description e match em category, ambos no query context, pois term tokeniza automaticamente qualquer texto livre e dispensa keyword.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar refresh à categoria e stored fields à descrição para filtrar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar match na descrição e condição term sobre keyword em filter context.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter os dois campos em text e ordenar pelo score de categoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar range na descrição e analyzer como valor do filtro de categoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "match atende texto analisado; uma condição term em campo keyword dentro de filter context restringe pela categoria exata sem contribuir com score. As demais opções trocam tipos ou confundem funções.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência decorre de aumentar a quantidade de shards em uma busca distribuída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada busca pode envolver mais partições e custo de coordenação, embora haja mais paralelismo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os documentos passam a existir em cada nó sem cópias adicionais, mesmo que a quantidade de shards e réplicas do índice permaneça inalterada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os campos text deixam de passar por análise durante a indexação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As réplicas são removidas e cada shard torna-se um servidor HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A pesquisa passa a depender exclusivamente de refresh manual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais shards permitem distribuir trabalho, mas exigem coordenação e combinação das respostas de mais partições. O aumento não replica todos os dados nem muda análise textual ou APIs.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual situação é correto considerar refresh=wait_for no Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando se deseja forçar repetidamente refresh imediato em todos os índices e garantir que cada escrita futura apareça sem aguardar qualquer atualização de visibilidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando se pretende trocar o mapping sem reindexar documentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando se quer promover uma réplica a shard primário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando a resposta deve aguardar a visibilidade após um refresh periódico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Quando se quer desativar a análise de texto em todo o cluster.",
+          "correct": false
+        }
+      ],
+      "explanation": "wait_for aguarda a atualização periódica que torna a operação pesquisável, sem necessariamente provocar refresh imediato. Forçar refresh tem custo e a opção não altera mapping, papéis de shard ou analisadores.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa buscar títulos e destacar trechos, além de apresentar contagem por categoria no Solr. Quais recursos correspondem a essas tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Refresh para destacar e postings para manter a contagem de categorias, dispensando recursos de apresentação e agregação próprios da plataforma Solr.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Highlighting para trechos e faceting para agrupar resultados por categoria.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ZooKeeper para trechos e core para executar contagem distribuída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Stored fields para facetas e configset para destacar palavras consultadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Shard para realce e réplica para definir valores de categoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Highlighting destaca fragmentos correspondentes; faceting resume resultados por valores de campo. Os outros conceitos tratam de armazenamento, configuração ou distribuição.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao corrigir analyzer de um campo, a equipe percebe que uma consulta e a indexação produzem tokens incompatíveis. Qual princípio orienta a correção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar postings, pois consultas e indexação devem usar stored fields.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar refresh como etapa de conversão dos termos pesquisados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alinhar o processamento dos termos da consulta aos termos produzidos ao indexar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Copiar todas as réplicas para um único shard sem alterar o analyzer, o que por si só transforma termos incompatíveis em tokens de consulta equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar cada segmento por um core Solr para compatibilizar tokens.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para a correspondência ocorrer, os tokens da consulta precisam estar no formato compatível com os tokens indexados. Refresh não transforma termos e mudanças estruturais de cluster não corrigem análise incompatível.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema Solr cresce para além de um servidor e precisa distribuir collection, replicar dados e encaminhar requisições. Qual arquitetura atende diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lucene local com um reader compartilhado entre todos os computadores, fornecendo por conta própria coordenação distribuída, roteamento e replicação de collections.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um core independente por máquina, sem coordenação ou roteamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma collection única sem shards, com todos os dados em um nodo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SolrCloud com shards, réplicas e coordenação via ZooKeeper.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DocValues distribuídos por arquivo, sem processo Solr em execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "SolrCloud distribui collections em shards e réplicas, usando ZooKeeper para estado e coordenação. Um Lucene local ou cores autônomos não fornecem esse gerenciamento integrado.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta Elasticsearch deve localizar documentos por faixa de data e combinar resultados por relevância textual. Qual abordagem é compatível com Query DSL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar range no campo data e cláusula textual em query context.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar term em qualquer campo data e ordenar sem consultar texto, pois essa cláusula interpreta intervalos cronológicos e calcula relevância textual automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar refresh como limite de data e mapping como score textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar stored fields para comparar faixas e excluir query context.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar replica para pontuar resultados e analyzer para limitar datas.",
+          "correct": false
+        }
+      ],
+      "explanation": "range aplica limites a campos compatíveis, como datas; uma cláusula de busca textual em query context calcula relevância. As demais alternativas trocam funções de consulta e armazenamento.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao gravar documentos repetidamente, qual afirmação descreve de forma correta a atualização de segmentos Lucene?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada atualização modifica os bytes do segmento antigo no lugar para manter seus IDs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Novos dados geram estruturas e merges podem combinar segmentos imutáveis posteriormente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O analyzer reescreve segmentos a cada consulta para normalizar campos antigos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O reader transfere documentos removidos para stored fields durante uma busca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DocValues são apagados e recriados por ZooKeeper a cada operação de escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segmentos são imutáveis; escritas produzem novas estruturas e merges combinam segmentos depois. Analyzers atuam no processamento de texto e reader expõe visão de leitura.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo usado como identificador pode conter zeros à esquerda, mas o mapping dinâmico o inferiu como número. Qual é o risco concreto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A busca por frase ficará impossível porque réplicas são convertidas em shards, e essa conversão também acrescenta zeros à esquerda aos valores numéricos inferidos pelo mapping.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O campo numérico passa a ser automaticamente stored field em SolrCloud.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A análise de texto adicionará zeros extras a todos os outros campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O refresh removerá os zeros quando promover uma cópia primária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A interpretação numérica pode perder a representação textual original do identificador.",
+          "correct": true
+        }
+      ],
+      "explanation": "Mapping inadequado pode converter um identificador em valor numérico e perder zeros à esquerda, prejudicando igualdade e apresentação textual. O tipo do campo deve refletir seu uso como identificador exato.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação, uma réplica Elasticsearch precisa assumir após falha do primário. Qual afirmação descreve esse papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica pode ser promovida e assumir responsabilidades do primário indisponível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A réplica converte-se em mapping e deixa de conter documentos indexados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A réplica vira um analyzer e assume o processamento de texto do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A réplica substitui o cluster e desativa os demais shards existentes, assumindo também a configuração de todos os mappings e nós da implantação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A réplica é apenas cache de consulta e não mantém cópia dos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas são cópias de shards e uma cópia elegível pode ser promovida se o primário falhar. Elas contêm dados, não são apenas cache nem substituem o cluster inteiro.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa um campo text no Elasticsearch e envia consulta term com a frase original. Por que pode não obter a correspondência esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque term executa refresh e não aceita campos de texto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque text é sempre armazenado sem qualquer índice invertido, de modo que consultas de igualdade term consultam automaticamente o conteúdo original dos stored fields.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque term não analisa a frase como match e procura termo exato indexado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque toda frase deve ser consultada exclusivamente em DocValues.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque o analyzer é usado somente pelo parser de arquivos PDF.",
+          "correct": false
+        }
+      ],
+      "explanation": "term é consulta de igualdade de termo e não analisa a entrada como match. Em campo text, a análise de caixa, tokenização e filtros pode fazer os termos armazenados diferirem da frase literal enviada.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação exige que uma escrita esteja pesquisável antes de responder ao usuário, mas quer evitar refresh forçado sempre que possível. Qual parâmetro atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "refresh=false, pois força a atualização imediata do shard primário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "refresh=true, que aguarda sem provocar atividade extra de índice.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "wait_for, que altera o mapping depois de concluir a escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "refresh=wait_for, que aguarda a atualização periódica tornar a escrita visível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "bulk, que bloqueia buscas até todas as réplicas reiniciarem.",
+          "correct": false
+        }
+      ],
+      "explanation": "refresh=wait_for espera o refresh periódico e então retorna, evitando forçar uma atualização imediata como refresh=true pode fazer. refresh=false não aguarda visibilidade e bulk apenas agrupa operações.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time considera ativar mais réplicas para obter documentos que hoje estão ausentes em parte do corpus. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Réplicas mantêm cópias do mesmo shard; é preciso indexar os documentos ausentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Réplicas criam subconjuntos adicionais e substituem a necessidade de primários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Réplicas só corrigem o analyzer e recuperam termos removidos na análise.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Réplicas armazenam somente o mapping e nunca conteúdo de documentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Réplicas tornam todo documento pesquisável sem que a indexação seja executada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas copiam o conteúdo de um shard e podem ampliar disponibilidade/leitura, mas não são uma nova partição do corpus nem criam documentos ausentes. Para repartir novos documentos, trata-se de shards e indexação.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma avaliação de arquitetura, qual comparação entre as três ferramentas está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lucene é biblioteca, Solr é plataforma Apache e Elasticsearch é serviço com APIs distribuídas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Lucene e Solr são bancos relacionais, enquanto Elasticsearch é parser de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Solr é biblioteca Java de baixo nível, mas Lucene fornece servidor REST pronto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elasticsearch é extensão do ZooKeeper e não utiliza estruturas de índice Lucene.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As três ferramentas são formatos equivalentes de arquivo sem APIs próprias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lucene é biblioteca de busca; Solr fornece plataforma Apache sobre Lucene; Elasticsearch oferece serviço distribuído e APIs JSON, também usando índices Lucene nos shards.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que armazenar uma réplica no mesmo servidor físico da única cópia não garante tolerância à falha desse servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque réplicas sempre ficam indisponíveis quando há mais de um nó no cluster.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque a falha do domínio físico pode derrubar simultaneamente as duas cópias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque shard e réplica são valores do mapping, não estruturas distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque ZooKeeper remove automaticamente todos os índices em falhas de hardware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque somente stored fields podem ser copiados para outro servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Redundância protege quando as cópias estão em domínios de falha independentes. Se a única máquina hospeda ambas, sua perda pode tornar as duas indisponíveis ao mesmo tempo.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma consequência de executar refresh=true em cada solicitação de escrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As buscas passam a usar query context para todos os filtros estruturados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os primários do índice podem ser reconfigurados sem recriar o índice.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O campo keyword passa automaticamente a ser analisado como texto livre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A resposta fica visível após uma atualização forçada, com custo potencial de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A atualização imediata pode aumentar custo e prejudicar desempenho de indexação e busca.",
+          "correct": true
+        }
+      ],
+      "explanation": "refresh=true força refresh para tornar a escrita pesquisável imediatamente, mas refresh é custoso e seu uso frequente pode reduzir desempenho. Ele não altera contexto de consulta, mapping ou quantidade de primários.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SolrCloud, um node recebe consulta para uma collection com múltiplos shards. Qual comportamento geral se espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O node consulta apenas o core local e ignora o estado guardado no cluster.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ZooKeeper executa o índice invertido e devolve os documentos completos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A requisição pode ser encaminhada às réplicas apropriadas e os resultados combinados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A collection deixa de existir durante toda consulta distribuída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada réplica recebe uma partição nova que não existe nos outros shards.",
+          "correct": false
+        }
+      ],
+      "explanation": "SolrCloud usa informação do estado para rotear consultas aos shards e réplicas apropriados e combinar respostas. ZooKeeper coordena, enquanto índices Lucene nas réplicas atendem a pesquisa.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa pesquisar frases e também ordenar resultados por um valor de campo. Qual descrição dos recursos Lucene é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Posições em postings podem apoiar frase; DocValues podem apoiar ordenação por valor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Stored fields criam postings; analyzer ordena documentos sem ler campos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Merge faz consulta por frase; points recuperam qualquer texto armazenado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Refresh mantém posições e ZooKeeper ordena os termos de cada documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replica executa stemming e reader armazena a ordenação de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Postings podem armazenar posições para relações entre termos, enquanto DocValues oferecem estrutura colunar útil à ordenação. Stored fields, analyzers e componentes distribuídos têm funções distintas.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação pode exigir reindexação ao alterar a forma como Elasticsearch interpreta um campo textual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar temporariamente o número de réplicas para atender mais leituras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mudar a ordenação da resposta de uma consulta sem alterar dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o número de nós que participam do cluster durante expansão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Corrigir configuração de análise que deve produzir outros termos indexados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Esperar pelo próximo refresh após gravar documento novo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudar o analyzer altera os termos que devem constar do índice; documentos existentes não são automaticamente reprocessados só porque a configuração mudou, podendo ser necessário reindexar.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que não é adequado expor IDs internos de documentos Lucene como referência permanente em sistemas externos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque IDs são sempre gerados pelo parser de arquivos antes da indexação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque merge pode reorganizar documentos e esses IDs são detalhes internos do índice.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque o analyzer converte todos os IDs numéricos em palavras comuns.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque stored fields apagam IDs quando um documento fica pesquisável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque cada consulta Solr reinicia a numeração de todo o cluster.",
+          "correct": false
+        }
+      ],
+      "explanation": "IDs internos de Lucene são locais às estruturas do índice e podem mudar quando segmentos são mesclados. Aplicações devem usar identificadores externos estáveis próprios.",
+      "section": "1. Lucene: mecanismo de indexação e busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta combina texto relevante e condição obrigatória por status. Qual combinação conceitual do Elasticsearch evita pontuar o filtro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar ambas as condições como valores stored fields sem cláusula de busca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar refresh no status e analyzer no resultado textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar cláusula textual em query context e status no bloco filter.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar somente term em text e calcular o score no mapping.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o filtro por réplica e a busca por shard primário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Query context mede correspondência/relevância; filter context aplica condição binária sem score. A separação permite ordenar pelo texto e restringir por status sem pontuar o filtro.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe Elasticsearch para oferecer APIs JSON, consulta estruturada e agregações sobre documentos. Que endpoint recebe uma consulta Query DSL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`_search`, que aceita cláusulas Query DSL e pode retornar agregações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`_refresh`, que interpreta filtros e combina métricas de consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`_mapping`, que executa consulta livre sem ler documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`_bulk`, que pesquisa documentos e calcula relevância textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`_analyze`, que retorna documentos completos que correspondem à consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O endpoint `_search` recebe consultas Query DSL e pode incluir agregações nos resultados. `_refresh` controla visibilidade, `_mapping` descreve campos, `_bulk` escreve em lote e `_analyze` mostra tokens.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer balancear leituras e proteger dados contra falha de nó. Qual afirmação sobre réplicas é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Réplicas guardam documentos diferentes e eliminam comunicação entre shards.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Réplicas só armazenam configurações de consulta e não dados indexados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Réplicas não podem atender leituras nem ser promovidas após falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Réplicas mantêm cópia do shard e podem servir leituras e redundância.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Réplicas substituem analyzers e impedem novas escritas no índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas redundam o conteúdo de shards, podem ampliar capacidade de leitura e uma cópia elegível pode assumir após falha do primário. Não são partições com documentos distintos.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão reduz o risco de perder zeros à esquerda em um código usado para igualdade exata no Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mapear o identificador como keyword para conservar sua forma textual exata.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mapear o identificador como número e aplicar stemming no analyzer.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar o código somente em uma réplica sem primário associado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o campo em text e usar refresh para restaurar zeros removidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir o código como postings e desativar o mapping do índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "keyword conserva a string como valor exato, ao contrário de interpretação numérica que pode remover zeros à esquerda. Analyzer e refresh não restauram informação perdida pela conversão.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa identifica uma limitação conceitual do uso direto de Lucene em comparação a Solr ou Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lucene não permite indexar texto ou pesquisar termos em documentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Lucene não oferece índice invertido e depende de banco relacional externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lucene não suporta campos, segmentos nem leitores de índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lucene é uma biblioteca; a aplicação deve fornecer camada de serviço e operação distribuída.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Lucene só é utilizado pelo Solr e não pode ser incorporado em aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lucene fornece as estruturas e APIs de busca, mas não é por si só uma plataforma HTTP com gestão de cluster. A aplicação que o usa diretamente constrói a camada de serviço necessária.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Solr, qual descrição diferencia corretamente faceting de filtro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Faceting converte arquivos; filtro cria segmentos Lucene imutáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Faceting agrupa ou conta resultados por valores; filtro restringe o conjunto retornado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Faceting replica documentos; filtro elege líder para cada shard.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faceting define schema; filtro mantém a configuração no ZooKeeper.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faceting atualiza escrita; filtro força refresh de todos os índices.",
+          "correct": false
+        }
+      ],
+      "explanation": "Facetas resumem distribuição de valores entre resultados; filtros aplicam critérios para incluir ou excluir documentos. São operações complementares, com finalidades diferentes.",
+      "section": "2. Apache Solr: serviço de busca sobre Lucene",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de analyzer deve ser testada com texto representativo antes de reindexar. Qual recurso ajuda a inspecionar tokens no Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`_bulk`, que lista como cada filtro alterou o texto enviado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`_refresh`, que devolve a sequência de tokens de cada campo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`_analyze`, que mostra os tokens produzidos pela cadeia de análise.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`_mapping`, que executa stemmer sobre documentos sem análise.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`_search`, que expõe os offsets de toda cadeia antes da consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "`_analyze` permite enviar texto e observar os tokens gerados pela configuração de análise. Os demais endpoints escrevem, atualizam visibilidade, descrevem mapping ou executam busca.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma busca em índice distribuído pode exigir combinar resultados de mais de um shard?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque cada shard contém apenas uma cópia idêntica do índice completo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque réplicas armazenam mappings diferentes em vez de documentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque analyzer distribui as palavras entre os nós sem preservar documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque um shard coordena todos os outros e nunca contém documentos próprios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque os documentos são repartidos entre shards e a consulta reúne correspondências pertinentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Particionamento distribui subconjuntos dos documentos entre shards. Uma busca sobre a coleção precisa consultar partições relevantes e combinar os resultados para formar a resposta global.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa escolher entre usar Lucene diretamente ou adotar plataforma. Qual requisito favorece Solr ou Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Necessidade de APIs e serviço de busca com gestão de índices e distribuição integradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Necessidade de usar postings como estrutura conceitual de busca textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Necessidade de manter campos em segmentos imutáveis no mecanismo de índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Necessidade de incorporar biblioteca Java e construir serviço próprio ao redor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Necessidade de analisar texto antes de transformá-lo em tokens pesquisáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Solr e Elasticsearch fornecem plataformas e APIs com recursos de operação distribuída. Uso direto de Lucene é adequado quando a aplicação quer incorporar a biblioteca e construir a camada de serviço por conta própria.",
+      "section": "4. Distribuição e comparação das ferramentas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que filtros comuns por status não alterem a relevância dos documentos encontrados por texto. Que escolha do Elasticsearch é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar status em query context para que cada valor receba score próprio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar filter context para a condição binária de status, separada da pontuação textual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar refresh ao status e remover a cláusula de texto da busca.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar stored fields para pontuar e postings para guardar o status literal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar status em analyzer e ordenar pelo identificador interno do documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filter context responde se o documento satisfaz a condição, sem calcular relevância. A busca textual pode continuar em query context e determinar o score dos resultados elegíveis.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta precisa devolver totais por grupos de preço, além dos documentos encontrados. Que recurso Elasticsearch calcula esse tipo de resumo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aggregations, que produzem métricas ou agrupamentos sobre os resultados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Refresh, que determina a periodicidade de busca dos termos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mapping, que executa a consulta e calcula o score dos documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replica, que agrega cópias de shards em um campo JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Analyzer, que conta categorias antes de tokenizar o conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aggregations calculam métricas e buckets/grupos no contexto da busca. Mapping descreve campos, analyzer processa texto, replica mantém cópia e refresh atualiza visibilidade.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação Elasticsearch reúne várias instruções de indexação, atualização ou exclusão em uma única requisição de ingestão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Refresh, que torna mudanças pesquisáveis em um shard.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bulk, que agrupa múltiplas operações de escrita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mapping, que declara os tipos dos campos de documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Analyze, que apresenta os tokens gerados para um texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Search, que consulta índices por Query DSL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API bulk agrupa operações de indexação, atualização e exclusão para ingestão. Refresh trata da visibilidade, mapping dos tipos, analyze dos tokens e search das consultas.",
+      "section": "3. Elasticsearch: índices, documentos e consulta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "summary": "Lucene é a biblioteca que implementa estruturas de indexação e pesquisa; seu índice invertido mapeia termos a documentos, e analyzers transformam texto em tokens. Solr e Elasticsearch fornecem plataformas de busca sobre índices Lucene. Solr organiza cores e collections; SolrCloud distribui collections em shards e réplicas, coordenados com ZooKeeper. Elasticsearch organiza documentos JSON em índices e shards primários/réplicas, define tipos por mappings, consulta por Query DSL e torna gravações pesquisáveis após refresh. Em ambas as plataformas, shard é partição e réplica é cópia.",
+  "flashcards": [
+    {
+      "front": "O que é Apache Lucene?",
+      "back": "Biblioteca Java que fornece APIs e estruturas para indexação e pesquisa de texto."
+    },
+    {
+      "front": "O que é índice invertido?",
+      "back": "Estrutura que associa cada termo aos documentos e ocorrências em que aparece."
+    },
+    {
+      "front": "Qual é o papel de postings?",
+      "back": "Listam documentos associados a termos e podem conter posições para consultas textuais."
+    },
+    {
+      "front": "Para que servem stored fields?",
+      "back": "Para recuperar valores de campos armazenados de documentos encontrados."
+    },
+    {
+      "front": "Para que servem DocValues?",
+      "back": "Estrutura colunar usada especialmente para ordenação e facetas."
+    },
+    {
+      "front": "O que faz um analyzer?",
+      "back": "Converte texto em fluxo de tokens por tokenização e filtros de análise."
+    },
+    {
+      "front": "Quem converte PDF em texto para Lucene?",
+      "back": "O parser da aplicação; Lucene recebe texto simples."
+    },
+    {
+      "front": "Como são segmentos Lucene?",
+      "back": "Partes completas, pesquisáveis e imutáveis do índice; merges combinam segmentos."
+    },
+    {
+      "front": "Qual é o papel de IndexWriter?",
+      "back": "Criar índice e adicionar, atualizar ou excluir documentos."
+    },
+    {
+      "front": "Qual é o papel de IndexReader?",
+      "back": "Oferecer uma visão consistente do índice para leitura e pesquisa."
+    },
+    {
+      "front": "O que é Apache Solr?",
+      "back": "Plataforma de busca e análise construída sobre Lucene, com APIs e administração."
+    },
+    {
+      "front": "O que é core no Solr?",
+      "back": "Índice e configuração associados, usados especialmente em modo standalone/gerenciado."
+    },
+    {
+      "front": "O que é collection no SolrCloud?",
+      "back": "Conjunto lógico de busca repartido em shards e réplicas."
+    },
+    {
+      "front": "Qual é o papel do ZooKeeper no SolrCloud?",
+      "back": "Manter estado/configuração do cluster e apoiar coordenação distribuída."
+    },
+    {
+      "front": "O que diferencia shard de réplica?",
+      "back": "Shard divide logicamente os documentos; réplica mantém cópia física de shard."
+    },
+    {
+      "front": "Para que serve highlighting no Solr?",
+      "back": "Exibir trechos dos documentos que correspondem à consulta."
+    },
+    {
+      "front": "O que define o mapping do Elasticsearch?",
+      "back": "Os tipos e propriedades com que os campos dos documentos serão interpretados."
+    },
+    {
+      "front": "Quando usar text?",
+      "back": "Para texto analisado e busca de texto completo."
+    },
+    {
+      "front": "Quando usar keyword?",
+      "back": "Para valores exatos, filtros, agregações e ordenação."
+    },
+    {
+      "front": "O que faz match no Elasticsearch?",
+      "back": "Analisa o texto informado e procura os termos resultantes em campo textual."
+    },
+    {
+      "front": "O que faz term?",
+      "back": "Procura correspondência exata de termo, sendo comum em campos keyword."
+    },
+    {
+      "front": "Query context e filter context diferem como?",
+      "back": "Query calcula relevância; filter decide correspondência binária sem score."
+    },
+    {
+      "front": "O que é refresh?",
+      "back": "Atualização da visão pesquisável para incluir operações recentes."
+    },
+    {
+      "front": "O que significa refresh=wait_for?",
+      "back": "A operação aguarda o próximo refresh para que a escrita fique pesquisável."
+    }
+  ],
+  "tips": [
+    "Associe Lucene a biblioteca; Solr e Elasticsearch a plataformas com APIs de serviço.",
+    "Lembre-se: postings localizam por termo; stored fields recuperam valores; DocValues ajudam a ordenar e agregar.",
+    "Na análise, tokenizer divide e filtros transformam os tokens; parser de PDF é responsabilidade externa.",
+    "Em SolrCloud, collection contém shards e réplicas; ZooKeeper coordena estado e configuração.",
+    "No Elasticsearch, text é analisado e keyword conserva valor exato; match e term refletem essa diferença.",
+    "Escrita e visibilidade são etapas diferentes: refresh torna mudanças pesquisáveis."
+  ],
+  "traps": [
+    "Tratar Lucene como servidor HTTP completo: ele é uma biblioteca incorporada pela aplicação.",
+    "Confundir campo indexado com campo armazenado: pesquisa e recuperação são funções distintas.",
+    "Dizer que merge edita segmentos no lugar: segmentos são imutáveis e merges geram outros segmentos.",
+    "Confundir core com collection: collection é a entidade lógica distribuída do SolrCloud.",
+    "Chamar réplica de partição nova: cópias de um shard têm o mesmo subconjunto de documentos.",
+    "Esperar que qualquer escrita Elasticsearch apareça imediatamente sem refresh."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como o índice invertido acelera uma busca por termo.",
+      "answer": "Ele mantém associações termo-documento, permitindo localizar documentos pela lista do termo em vez de percorrer toda a coleção."
+    },
+    {
+      "question": "Diferencie parser e analyzer.",
+      "answer": "Parser extrai texto de formatos como PDF; analyzer transforma o texto em tokens e os filtra para indexação/consulta."
+    },
+    {
+      "question": "Por que stored fields e postings não são sinônimos?",
+      "answer": "Postings apontam dos termos aos documentos para pesquisa; stored fields recuperam valores de campos do documento."
+    },
+    {
+      "question": "Explique segmento e merge em Lucene.",
+      "answer": "Segmento é uma parte imutável e pesquisável; merge combina segmentos e recupera espaço de documentos removidos."
+    },
+    {
+      "question": "Como se relacionam Solr e Lucene?",
+      "answer": "Solr é uma plataforma de busca que utiliza Lucene como mecanismo de índice."
+    },
+    {
+      "question": "Diferencie core, collection, shard e réplica no Solr.",
+      "answer": "Core representa índice/configuração; collection é conjunto lógico; shard é partição; réplica é cópia física do shard."
+    },
+    {
+      "question": "Qual é a função do ZooKeeper no SolrCloud?",
+      "answer": "Mantém configuração e estado distribuído e auxilia coordenação e eleição de líder."
+    },
+    {
+      "question": "Quando escolher keyword em vez de text?",
+      "answer": "Quando se quer igualdade exata, filtros, agregação ou ordenação sobre valor não analisado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Biblioteca confundida com plataforma",
+      "summary": "Lucene fornece APIs de indexação; Solr e Elasticsearch oferecem serviços e APIs de busca sobre estruturas Lucene."
+    },
+    {
+      "key": "e2",
+      "title": "Estruturas do índice confundidas",
+      "summary": "Postings pesquisam termos; stored fields recuperam campos; DocValues servem operações colunares como ordenação."
+    },
+    {
+      "key": "e3",
+      "title": "Partição confundida com cópia",
+      "summary": "Shard divide o conjunto de documentos; réplica duplica um shard para disponibilidade e capacidade de leitura."
+    },
+    {
+      "key": "e4",
+      "title": "Texto analisado confundido com valor exato",
+      "summary": "Elasticsearch text passa por análise; keyword preserva valor para igualdade, filtros e agregações."
+    },
+    {
+      "key": "e5",
+      "title": "Gravação confundida com visibilidade",
+      "summary": "Refresh torna operações pesquisáveis; sua temporização é distinta da própria solicitação de escrita."
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Lucene 10.1 — Index API",
+      "publisher": "Apache Software Foundation",
+      "reference": "IndexWriter, IndexReader, segmentos imutáveis, postings, stored fields, DocValues e estruturas de índice.",
+      "url": "https://lucene.apache.org/core/10_1_0/core/org/apache/lucene/index/package-summary.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Lucene 10.1 — Analysis API",
+      "publisher": "Apache Software Foundation",
+      "reference": "Texto simples, parsing externo, tokenização, analyzers e filtros de análise.",
+      "url": "https://lucene.apache.org/core/10_1_0/core/org/apache/lucene/analysis/package-summary.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr Reference Guide",
+      "publisher": "Apache Software Foundation",
+      "reference": "Solr como plataforma sobre Lucene e documentação oficial de indexação, consultas e administração.",
+      "url": "https://solr.apache.org/guide/solr/latest/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr — Analyzers",
+      "publisher": "Apache Software Foundation",
+      "reference": "Configuração de analyzers, tokenizers e filtros em field types text.",
+      "url": "https://solr.apache.org/guide/solr/latest/indexing-guide/analyzers.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr — Cluster Types",
+      "publisher": "Apache Software Foundation",
+      "reference": "Collections, cores, shards, réplicas, líderes, ZooKeeper e SolrCloud.",
+      "url": "https://solr.apache.org/guide/solr/latest/getting-started/cluster-types.html",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elasticsearch — Clusters, nodes, and shards",
+      "publisher": "Elastic",
+      "reference": "Índices e shards Lucene, primários, réplicas e distribuição entre nós.",
+      "url": "https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elasticsearch — Query DSL",
+      "publisher": "Elastic",
+      "reference": "Consultas, filtros, contexto de relevância e agregações.",
+      "url": "https://www.elastic.co/docs/explore-analyze/query-filter/languages/querydsl",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elasticsearch — The refresh parameter",
+      "publisher": "Elastic",
+      "reference": "Visibilidade de escrita, refresh=true, refresh=wait_for e comportamento padrão.",
+      "url": "https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elasticsearch — search_analyzer",
+      "publisher": "Elastic",
+      "reference": "Compatibilidade da análise na busca com os termos do índice.",
+      "url": "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/search-analyzer",
+      "accessedAt": "2026-11-05"
+    }
+  ]
+}

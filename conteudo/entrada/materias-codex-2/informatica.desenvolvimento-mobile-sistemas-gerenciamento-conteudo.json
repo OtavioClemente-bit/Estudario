@@ -1,0 +1,1621 @@
+{
+  "id": "informatica.desenvolvimento-mobile-sistemas-gerenciamento-conteudo",
+  "subject": "Informática",
+  "title": "Desenvolvimento para dispositivos móveis e sistemas de gerenciamento de conteúdo",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento para dispositivos móveis e sistemas de gerenciamento de conteúdo",
+    "Desenvolvimento de aplicações para dispositivos móveis",
+    "Desenvolvimento mobile para Android e iOS",
+    "Arquitetura de aplicações móveis nativas e híbridas",
+    "Aplicativos móveis com funcionamento conectado e offline",
+    "Ciclo de vida e arquitetura de aplicativos móveis",
+    "Permissões, armazenamento e conectividade em aplicativos móveis",
+    "Sistemas de gerenciamento de conteúdo CMS",
+    "Content Management System para publicação digital",
+    "Gestão de conteúdo e fluxo editorial em CMS",
+    "Tipos de conteúdo e taxonomias em sistemas CMS",
+    "CMS headless e API REST para conteúdo",
+    "Segurança e manutenção de sistemas de gerenciamento de conteúdo"
+  ],
+  "scope": {
+    "covers": "Fundamentos de desenvolvimento para dispositivos móveis: aplicações nativas, híbridas e web progressivas; arquitetura em camadas, interface adaptável, estado, ciclo de vida, armazenamento local, conectividade, sincronização, permissões, testes, acessibilidade e publicação. Sistemas de gerenciamento de conteúdo (CMS): finalidade e componentes, tipos de conteúdo, metadados, taxonomias, papéis e permissões, fluxo editorial, temas e extensões, CMS desacoplado/headless e API REST, segurança, cópias de segurança, atualização, desempenho e integração com aplicações móveis.",
+    "excludes": "Programação detalhada em uma linguagem ou framework específico, sintaxe completa de APIs de plataforma, configuração de infraestrutura em nuvem, regras comerciais atuais de lojas de aplicativos e administração aprofundada de um produto CMS específico."
+  },
+  "theoryTitle": "Aplicações móveis e publicação estruturada de conteúdo",
+  "chapters": [
+    {
+      "title": "1. Modelos e arquitetura de aplicações móveis",
+      "markdown": "### O problema que este assunto resolve\n\nUm aplicativo móvel precisa funcionar em aparelhos com telas, recursos e condições de rede diferentes. A equipe escolhe como entregar a experiência: aplicativo nativo, solução híbrida ou aplicação web progressiva. A decisão afeta acesso aos recursos do aparelho, distribuição, manutenção e experiência sem conexão.\n\n> **Siglas e termos deste capítulo**\n> - **Nativo**: aplicativo construído para a plataforma, com suas ferramentas e APIs.\n> - **Híbrido**: aplicação web empacotada em contêiner nativo, com ponte para recursos do aparelho.\n> - **PWA**: aplicação web progressiva, acessada pelo navegador e capaz de oferecer recursos instaláveis conforme suporte do navegador.\n> - **API**: interface pela qual componentes ou sistemas trocam dados e comandos.\n> - **UI**: interface apresentada à pessoa usuária.\n\n### Escolha do modelo de entrega\n\n| Modelo | Como funciona | Trade-off típico |\n| --- | --- | --- |\n| Nativo | Código usa SDKs e componentes da plataforma, como Android ou iOS | Integração direta com recursos do sistema; costuma exigir trabalho por plataforma |\n| Híbrido | Interface web roda dentro de um contêiner e acessa recursos por plugins ou ponte | Reaproveita código web; depende da qualidade da ponte e do ajuste da interface |\n| PWA | Site responsivo usa recursos web, como manifesto e service worker quando suportados | Distribuição pela web; acesso a APIs varia por navegador e sistema |\n\nNão existe uma opção universalmente superior. Um app de câmera com processamento intenso pode favorecer integração nativa; um catálogo institucional com conteúdo publicado por CMS pode funcionar bem como web responsiva ou PWA. A escolha deve considerar público, capacidades exigidas, conectividade, equipe, manutenção e acessibilidade.\n\n### Separar interface, regras e dados\n\nA arquitetura recomendada para um aplicativo Android separa ao menos a camada de interface da camada de dados e admite uma camada de domínio opcional. A UI exibe estado e envia eventos; a camada de dados concentra regras de negócio e acesso às fontes, por meio de repositórios; a camada de domínio organiza casos de uso reutilizados quando isso simplifica o sistema. Um repositório pode combinar uma API remota, banco local e arquivos, e esconder essa escolha da tela.\n\nNo fluxo unidirecional de dados, o estado chega à interface e os eventos da interface seguem de volta ao componente que é fonte de verdade. Por exemplo, a tela envia “favoritar artigo”; o domínio valida a ação, o repositório persiste e a UI recebe o novo estado. Isso reduz atualizações contraditórias. Componentes de tela não devem abrir conexões e duplicar regras de persistência em cada botão.\n\n### Ciclo de vida e estado\n\nO sistema operacional pode pausar, colocar em segundo plano ou encerrar um processo para liberar recursos. A aplicação deve salvar rascunhos e estado essencial em armazenamento persistente, e não presumir que a memória da tela sobreviverá. Em iOS, o ciclo baseado em cenas informa transições de estado; no SwiftUI, `ScenePhase` permite observar fases da cena ou, no nível do app, a agregação das cenas. No Android, componentes e estado da UI também precisam acompanhar o ciclo de vida correspondente. Trabalho demorado não deve bloquear a thread de interface.\n\n### Como cai na prova\n\n- “Híbrido” não significa que a aplicação seja automaticamente nativa: a interface costuma ser web dentro de contêiner.\n- A camada de dados centraliza fontes e conflitos; a UI apresenta estado e encaminha eventos.\n- Suspensão ou encerramento do processo torna incorreto guardar como única cópia um formulário importante apenas na memória.\n- Escolha de modelo depende de requisitos concretos; “nativo sempre é melhor” é uma generalização."
+    },
+    {
+      "title": "2. Experiência, dados e conectividade no dispositivo",
+      "markdown": "### O problema que este assunto resolve\n\nEm um telefone, a rede pode cair durante uma operação, a bateria e a memória são limitadas, e a pessoa pode alternar de aplicativo a qualquer momento. O desenho precisa lidar com essas condições sem perder dados ou prometer resultados falsos.\n\n> **Siglas e termos deste capítulo**\n> - **Cache**: cópia local usada para acelerar leitura ou manter dados disponíveis temporariamente.\n> - **Sincronização**: conciliação de alterações entre cópias locais e remotas.\n> - **Permissão**: autorização concedida pelo sistema ou pela pessoa para acessar um recurso protegido.\n> - **Persistência**: armazenamento que sobrevive ao encerramento da tela ou do processo.\n> - **Responsivo/adaptável**: interface que se reorganiza conforme espaço e características do dispositivo.\n\n### Interface móvel concreta\n\nA interface deve acomodar larguras e orientações diferentes, áreas seguras do sistema, ampliação de texto e métodos de entrada. Controles devem ser identificáveis, focáveis e utilizáveis com leitor de tela; cor não pode ser o único meio de comunicar erro ou seleção. Alvos de toque precisam permitir interação sem exigir precisão de ponteiro. Estados vazios, carregamento, falha e sucesso devem ser visíveis. Um layout adaptável pode trocar barra inferior por navegação lateral quando há espaço, preservando a mesma hierarquia de conteúdo.\n\nMobile-first é uma estratégia de projeto que começa pelas restrições da tela pequena e amplia progressivamente, não uma obrigação de remover conteúdo de telas maiores. Design responsivo usa regras de layout e mídia para acomodar o espaço disponível; aplicativo nativo usa também componentes e recursos de adaptação próprios da plataforma.\n\n### Dados locais e uso offline\n\nO aplicativo distingue dados temporários de dados que precisam sobreviver. Um cache de leitura pode ser descartável; um rascunho escrito pela pessoa precisa de persistência mais confiável. Uma fila de operações offline pode registrar “alterar favorito” e tentar enviá-la quando a rede voltar. A interface deve indicar se a alteração está pendente, confirmada ou falhou.\n\nConflitos exigem uma regra explícita: rejeitar a gravação e pedir revisão, manter a versão mais recente segundo critério conhecido, ou mesclar campos independentes. Sobrescrever silenciosamente uma alteração remota com uma cópia antiga pode apagar trabalho. Operações repetidas após timeout também exigem cuidado: a resposta pode ter se perdido mesmo que o servidor tenha concluído a operação, então operações idempotentes ou identificadores de requisição ajudam a evitar duplicidade.\n\n### Permissões e comunicação\n\nPeça acesso à câmera, localização ou notificações quando a função correspondente for necessária, explique a finalidade e trate recusa ou revogação. Permissão concedida não significa que o recurso estará sempre disponível: pode ser revogada, o sensor pode falhar e o aparelho pode estar offline. Comunicação com serviços deve proteger credenciais e dados em trânsito, validar respostas e tratar códigos de erro sem exibir informação interna sensível. Dados sensíveis não devem ser gravados sem necessidade em logs ou armazenamento desprotegido.\n\n### Como cai na prova\n\n- Cache não equivale a persistência durável nem a cópia de segurança.\n- “Operação enviada” não é sinônimo de “operação confirmada pelo servidor”; modele estados intermediários.\n- Permissões devem ser ligadas à função e sua ausência precisa ser tratada.\n- Em sincronização, escolha e explique a resolução de conflitos; não descarte silenciosamente alterações."
+    },
+    {
+      "title": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "markdown": "### O problema que este assunto resolve\n\nUm portal com centenas de páginas não deve depender de editar manualmente cada arquivo HTML. Um sistema de gerenciamento de conteúdo permite criar, revisar, organizar, aprovar e publicar conteúdo por interfaces administrativas, separando em diferentes graus o conteúdo, sua apresentação e a operação técnica. CMS significa *Content Management System*.\n\n> **Siglas e termos deste capítulo**\n> - **CMS**: sistema para criação, organização, edição e publicação de conteúdo.\n> - **Tipo de conteúdo**: estrutura que define campos e características de uma classe de itens editoriais.\n> - **Taxonomia**: mecanismo para classificar itens por termos, em grupos hierárquicos ou planos.\n> - **Metadado**: dado descritivo associado ao conteúdo, como autor, data, idioma ou resumo.\n> - **Workflow**: sequência de estados e tarefas de revisão e publicação.\n\n### Conteúdo estruturado e encontrável\n\nUma notícia, um serviço e um perfil institucional têm necessidades diferentes. Definir tipos de conteúdo com campos próprios (título, corpo, resumo, imagem alternativa, responsável e data de revisão, por exemplo) permite validar dados e apresentar o mesmo item em páginas diferentes. Taxonomias classificam: uma categoria hierárquica pode organizar “Serviços > Saúde”; uma tag plana pode marcar “inscrição”. A taxonomia não deve substituir uma estrutura de conteúdo que precisa de campos próprios.\n\nMetadados coerentes favorecem busca, filtros, navegação e reutilização em canais. URLs estáveis, títulos descritivos, relações entre itens e filtros que correspondem à linguagem do público melhoram a encontrabilidade. Duplicar o mesmo texto em várias páginas cria versões divergentes; é melhor manter uma fonte editorial e reutilizar a referência quando o sistema permitir.\n\n### Workflow, papéis e apresentação\n\nUm fluxo editorial típico passa por rascunho, revisão, aprovação e publicação, com possibilidade de agendar, devolver para correção e arquivar. Papéis definem capacidades: autor pode criar e editar o próprio rascunho; editor pode revisar e publicar; administrador configura usuários e o sistema. Os nomes variam por produto e podem ser configurados. Conceda a cada função apenas as capacidades necessárias; quem publica conteúdo não precisa, por isso, de acesso à configuração do servidor.\n\nTema controla apresentação; extensão ou plugin acrescenta funcionalidade; nenhum deles substitui a estrutura e as regras editoriais. A atualização de um tema ou plugin pode mudar comportamento e precisa ser gerida junto com compatibilidade e cópias de segurança.\n\n### CMS desacoplado e API\n\nNum CMS tradicional, administração, armazenamento e renderização do site costumam estar ligados no mesmo sistema. Num CMS headless, o back-end mantém o conteúdo e o entrega por API a consumidores separados, como site, aplicativo móvel ou painel. “Headless” descreve a separação da camada de apresentação; não significa ausência de interface editorial nem segurança automática.\n\nA API REST do WordPress, por exemplo, expõe recursos por rotas HTTP e representa dados em JSON. Tipos de conteúdo personalizados podem ser registrados e, quando configurados para isso, disponibilizados na REST API. Um aplicativo pode buscar notícias no CMS e renderizá-las nativamente; o CMS continua sendo a fonte editorial, enquanto o aplicativo controla navegação e apresentação. Deve-se definir autenticação e autorização para operações de escrita e limitar os campos públicos.\n\n### Como cai na prova\n\n- Tipo de conteúdo define campos e comportamento; taxonomia agrupa itens por termos.\n- CMS headless separa gestão e entrega/apresentação; não elimina API, autenticação nem interface de administração.\n- Tema altera apresentação; plugin/extensão acrescenta capacidades; fluxo editorial determina estados e responsabilidades.\n- A API é um contrato de integração, e não uma cópia do banco de dados exposta sem controle."
+    },
+    {
+      "title": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "markdown": "### O problema que este assunto resolve\n\nQuando conteúdo institucional alimenta um aplicativo, a equipe precisa sincronizar publicação e experiência móvel sem transformar o telefone em autoridade editorial nem expor funções administrativas. A integração bem planejada distribui conteúdo de forma consistente, rápida e segura.\n\n> **Siglas e termos deste capítulo**\n> - **Headless CMS**: back-end editorial que entrega conteúdo por API sem controlar diretamente a apresentação final.\n> - **JSON**: formato textual comum para representar dados em APIs.\n> - **CDN**: rede de distribuição que mantém cópias de recursos próximas às pessoas usuárias.\n> - **XSS**: execução de conteúdo/script não confiável no contexto de uma página.\n> - **Backup**: cópia recuperável de dados e arquivos para restauração após falha.\n\n### Um fluxo de publicação até o aplicativo\n\nA equipe editorial cria um item estruturado no CMS, revisa, aprova e publica. A API entrega campos autorizados; o aplicativo valida o formato, trata ausência de mídia ou campo opcional, armazena localmente o conteúdo necessário e apresenta uma versão adequada ao dispositivo. Uma notificação pode avisar que há conteúdo novo, mas o aplicativo ainda deve buscar e validar a versão no serviço. Publicação e remoção também precisam de semântica: cache offline pode manter item removido até vencer ou sincronizar, portanto conteúdo sensível requer política de expiração e revogação apropriada.\n\nPaginação evita baixar todo o acervo em cada consulta; filtros reduzem tráfego; cache com validade e identificadores de versão evitam requisições desnecessárias. Imagens precisam de dimensões adequadas e texto alternativo editorial. A resposta da API deve ser tratada como dado externo: validar tipos, lidar com erros e não inserir conteúdo como código executável.\n\n### Segurança operacional do CMS\n\nMantenha núcleo, temas, plugins e servidor atualizados; remova extensões sem uso e obtenha-as de fontes confiáveis. Use contas individuais, autenticação forte, papéis de menor privilégio e conexão administrativa protegida. O guia oficial do WordPress recomenda limitar acesso, conter impacto e preparar recuperação; também destaca que segurança da hospedagem e segurança da aplicação são responsabilidades distintas. Permissões de escrita em arquivos devem ser restritas ao necessário. Cópias de segurança precisam incluir banco e arquivos relevantes, ser guardadas em local confiável e ter restauração verificada.\n\nPara conteúdo enviado por usuários, valide e codifique dados na saída conforme o contexto, aplique proteção contra requisições indevidas e revise extensões que aceitam execução de código. Em API, diferencie leitura pública de operações de escrita autenticadas e autorizadas. Não coloque segredo administrativo dentro do pacote móvel: aplicativos distribuídos podem ser inspecionados.\n\n### Testes e manutenção\n\nTeste a cadeia completa: permissões de endpoint, conteúdo em rascunho versus publicado, campos ausentes, erros de rede, autenticação expirada, acessibilidade, telas pequenas e amplas, modo offline e atualização do aplicativo. Registre falhas de forma útil sem capturar tokens ou dados pessoais desnecessários. Monitore tempo de resposta, erros de API e falhas de sincronização. Em atualização de CMS ou aplicativo, preserve compatibilidade do contrato da API ou versione a interface quando mudanças incompatíveis forem inevitáveis.\n\n### Como cai na prova\n\n- No fluxo móvel, o CMS publica e a API entrega dados; o aplicativo não deve carregar credenciais de administrador.\n- Cache melhora disponibilidade e desempenho, mas tem política de atualização e invalidação.\n- Segurança inclui aplicação e hospedagem; backup sem teste de restauração não prova recuperabilidade.\n- Contratos de API devem considerar versões, campos ausentes, permissões e erros, além do caminho de sucesso."
+    }
+  ],
+  "summary": "Aplicações móveis podem ser nativas, híbridas ou web progressivas; a escolha considera recursos, distribuição, equipe e experiência. Arquitetura em camadas separa UI e dados, com domínio opcional, repositórios e fluxo unidirecional de estado/eventos. Aplicativos precisam preservar dados importantes entre transições de ciclo de vida, tratar rede instável, conflitos offline, permissões e acessibilidade. Um CMS estrutura conteúdo por tipos, campos, metadados e taxonomias e permite papéis e fluxo editorial de rascunho, revisão, aprovação e publicação. Tema trata da apresentação; extensões acrescentam capacidades. Em CMS headless, a gestão editorial entrega conteúdo por API a sites ou aplicativos independentes; a API REST pode representar recursos em JSON. Integração móvel exige paginação, cache com invalidação, validação de respostas e compatibilidade. Segurança requer atualizações, privilégios mínimos, contas protegidas, fontes confiáveis, separação entre responsabilidades de hospedagem e aplicação, e backup de arquivos e banco com restauração testada.",
+  "flashcards": [
+    {
+      "front": "Qual diferença essencial entre aplicativo nativo e híbrido?",
+      "back": "O nativo usa ferramentas e APIs da plataforma; o híbrido costuma executar interface web em contêiner nativo e acessa recursos por ponte ou plugins."
+    },
+    {
+      "front": "O que caracteriza uma PWA?",
+      "back": "É uma aplicação web que pode oferecer instalação e recursos como cache por service worker, conforme suporte do navegador e sistema."
+    },
+    {
+      "front": "Quais camadas mínimas a arquitetura Android recomendada considera?",
+      "back": "Interface (UI) e dados; uma camada de domínio pode ser adicionada para organizar e reutilizar casos de uso."
+    },
+    {
+      "front": "Qual é a função de um repositório na camada de dados?",
+      "back": "Expor e centralizar dados, encapsular suas fontes e resolver a combinação ou conflito entre elas."
+    },
+    {
+      "front": "O que significa fluxo unidirecional de dados?",
+      "back": "Estado flui em uma direção para a UI; eventos da UI retornam ao componente responsável por alterar a fonte de verdade."
+    },
+    {
+      "front": "Por que persistir um rascunho fora da memória da tela?",
+      "back": "O sistema pode suspender ou encerrar o processo; persistência permite recuperar o rascunho após a tela ou app ser recriado."
+    },
+    {
+      "front": "O que é uma interface responsiva?",
+      "back": "Uma interface que reorganiza layout e conteúdo para caber em diferentes espaços e características de tela."
+    },
+    {
+      "front": "Cache e backup são equivalentes?",
+      "back": "Não. Cache auxilia leitura e disponibilidade temporária; backup é cópia voltada à recuperação de dados."
+    },
+    {
+      "front": "O que deve comunicar uma operação offline ainda não confirmada?",
+      "back": "Que está pendente de sincronização; só deve ser apresentada como concluída no servidor após confirmação apropriada."
+    },
+    {
+      "front": "O que é uma taxonomia em CMS?",
+      "back": "Uma estrutura de classificação por termos, que pode ser hierárquica ou plana."
+    },
+    {
+      "front": "Para que serve um tipo de conteúdo?",
+      "back": "Define a classe editorial e seus campos e características, como notícia, serviço ou perfil institucional."
+    },
+    {
+      "front": "Como metadados ajudam a encontrar conteúdo?",
+      "back": "Permitem organizar busca, filtros, relações e apresentação por dados como assunto, data, autor e idioma."
+    },
+    {
+      "front": "O que um workflow editorial controla?",
+      "back": "Estados e tarefas como rascunho, revisão, aprovação, agendamento, publicação e arquivamento."
+    },
+    {
+      "front": "O que significa CMS headless?",
+      "back": "A gestão de conteúdo fica separada da apresentação final e entrega dados por API a consumidores independentes."
+    },
+    {
+      "front": "Como a REST API pode conectar WordPress a um app móvel?",
+      "back": "O app consulta rotas HTTP que expõem recursos autorizados, frequentemente representados em JSON, e apresenta esses dados em sua própria UI."
+    },
+    {
+      "front": "Tema e plugin têm a mesma função?",
+      "back": "Não. Tema controla principalmente apresentação; plugin ou extensão acrescenta capacidades ao sistema."
+    },
+    {
+      "front": "O app móvel deve conter uma senha de administrador do CMS?",
+      "back": "Não. O pacote distribuído pode ser inspecionado; credenciais administrativas devem permanecer no servidor."
+    },
+    {
+      "front": "O que significa privilégio mínimo no CMS?",
+      "back": "Cada conta recebe apenas as capacidades necessárias à sua função editorial ou técnica."
+    },
+    {
+      "front": "O que deve compor uma cópia de segurança do WordPress?",
+      "back": "Banco de dados e arquivos relevantes da instalação e do conteúdo, armazenados de forma confiável."
+    },
+    {
+      "front": "Por que testar a restauração de um backup?",
+      "back": "Porque a existência do arquivo não demonstra que está íntegro nem que permite recuperar o serviço."
+    },
+    {
+      "front": "Qual cuidado ter com conteúdo remoto recebido pela API?",
+      "back": "Validar estrutura e tipos, tratar erros e renderizar como dado, sem executá-lo como código confiável."
+    },
+    {
+      "front": "Para que serve paginação em uma API de conteúdo?",
+      "back": "Limita a quantidade de itens por resposta e evita baixar todo o acervo a cada consulta."
+    },
+    {
+      "front": "Qual é o papel de uma CDN?",
+      "back": "Distribuir cópias de recursos por pontos próximos às pessoas usuárias, reduzindo latência e carga da origem."
+    },
+    {
+      "front": "O que testar em integração CMS-aplicativo além do caminho de sucesso?",
+      "back": "Campos ausentes, conteúdo não publicado, falhas de rede, autenticação expirada, cache, acessibilidade e compatibilidade de API."
+    }
+  ],
+  "tips": [
+    "Associe nativo à integração direta com SDK; híbrido à interface web em contêiner; PWA à entrega pela web com capacidades sujeitas ao navegador.",
+    "Lembre o fluxo: fonte de dados/repositório fornece estado à tela; eventos da tela solicitam mudanças à fonte de verdade.",
+    "Separe cache descartável, persistência de trabalho e backup de recuperação: são objetivos diferentes.",
+    "No CMS, tipo de conteúdo define campos; taxonomia classifica instâncias por termos; metadados descrevem e ajudam a localizar.",
+    "Headless descreve a separação entre gestão e apresentação. A interface editorial pode continuar existindo no CMS.",
+    "Para integração móvel, siga o trajeto editorial: criar, revisar, publicar, expor campos permitidos, consultar API e renderizar com tratamento de falhas."
+  ],
+  "traps": [
+    "Chamar todo aplicativo que compartilha código de nativo ignora a diferença entre SDK nativo, contêiner híbrido e aplicação web.",
+    "Supor que um formulário em memória sobreviverá ao encerramento do processo confunde estado temporário com persistência.",
+    "Tratar cache como fonte definitiva pode reapresentar conteúdo desatualizado ou removido sem política de validade.",
+    "Confundir taxonomia com tipo de conteúdo troca classificação por estrutura de campos.",
+    "Dizer que headless não tem interface editorial confunde separação da apresentação pública com ausência de administração.",
+    "Confiar apenas na hospedagem ignora a responsabilidade da aplicação, dos plugins, das contas e das permissões do CMS."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare aplicativo nativo, híbrido e PWA em termos de execução e acesso a recursos.",
+      "answer": "Nativo é construído para a plataforma e usa suas APIs; híbrido executa interface web num contêiner que faz ponte para recursos; PWA é web e depende do suporte do navegador e sistema para instalação e APIs."
+    },
+    {
+      "question": "Descreva as camadas de uma aplicação móvel e o fluxo de uma ação do usuário.",
+      "answer": "A UI mostra estado e envia evento; camada de domínio opcional organiza um caso de uso; repositório da camada de dados aplica regra e acessa uma ou mais fontes; o novo estado retorna à UI."
+    },
+    {
+      "question": "Como evitar perder um rascunho quando o sistema encerra o app?",
+      "answer": "Persistir o rascunho em armazenamento apropriado e restaurá-lo quando a tela for recriada, sem depender somente da memória do processo."
+    },
+    {
+      "question": "Como desenhar sincronização offline sem induzir a pessoa a erro?",
+      "answer": "Manter fila local, sinalizar estado pendente, confirmar sucesso após resposta confiável e definir regra de conflito ou repetição para evitar perda e duplicidade."
+    },
+    {
+      "question": "Diferencie tipo de conteúdo, taxonomia e metadado em um CMS.",
+      "answer": "Tipo define estrutura e campos da classe editorial; taxonomia agrupa itens por termos; metadado descreve item, como autor, idioma e data."
+    },
+    {
+      "question": "Descreva um workflow editorial típico e por que os papéis importam.",
+      "answer": "Rascunho segue para revisão e aprovação, pode ser devolvido, agendado, publicado ou arquivado. Papéis limitam quem cria, revisa, publica ou administra configurações."
+    },
+    {
+      "question": "Explique como um CMS headless fornece conteúdo a um aplicativo móvel.",
+      "answer": "A equipe publica conteúdo estruturado no CMS; uma API autorizada fornece campos em formato consumível, e o app valida, armazena conforme política e apresenta a experiência móvel."
+    },
+    {
+      "question": "Quais controles tornam mais segura a operação de um CMS e sua API?",
+      "answer": "Atualizações, extensões confiáveis, contas protegidas, privilégio mínimo, acesso administrativo cifrado, validação de entradas, autorização para escrita, segredo mantido no servidor e backup restaurável."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Modelos de aplicação confundidos",
+      "summary": "Nativo usa a plataforma; híbrido empacota web num contêiner com ponte; PWA entrega pela web e depende das capacidades disponíveis no navegador."
+    },
+    {
+      "key": "e2",
+      "title": "Estado, cache e persistência misturados",
+      "summary": "Memória da UI pode sumir; cache pode ser descartado ou ficar obsoleto; rascunhos importantes exigem persistência e política de sincronização."
+    },
+    {
+      "key": "e3",
+      "title": "Estrutura e classificação de CMS invertidas",
+      "summary": "Tipo de conteúdo define campos e comportamento editorial; taxonomia agrupa itens; metadados descrevem para busca e reutilização."
+    },
+    {
+      "key": "e4",
+      "title": "CMS headless tratado como sistema sem administração",
+      "summary": "Headless separa o back-end editorial da apresentação; o conteúdo é entregue por API a múltiplos consumidores, que ainda precisam de segurança e contrato compatível."
+    },
+    {
+      "key": "e5",
+      "title": "Integração móvel e segurança operacional incompletas",
+      "summary": "API requer validação, paginação, cache com invalidação e autorização; CMS requer atualizações, privilégio mínimo e backup com restauração testada."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa aproveitar APIs de câmera e notificações do sistema e aceita manter implementações específicas para cada plataforma. Qual abordagem atende diretamente a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicativo nativo construído com as ferramentas e APIs de cada plataforma.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Site estático entregue sem código executado no dispositivo, com páginas iguais mesmo sem conexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PWA que presume acesso irrestrito a qualquer recurso do aparelho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Página responsiva que evita integração com o sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CMS tradicional que transforma automaticamente páginas em código nativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aplicação nativa usa os SDKs e APIs da plataforma, sendo apropriada quando a integração direta com recursos do aparelho é requisito. A disponibilidade de APIs em PWA varia; site estático e CMS não se tornam nativos por si só.",
+      "section": "1. Modelos e arquitetura de aplicações móveis",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação híbrida costuma apresentar conteúdo web dentro de um contêiner nativo e pode acessar funções do aparelho por meio de uma ponte ou plugins.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O modelo híbrido combina tecnologias web com um contêiner que intermedeia o acesso a recursos do dispositivo; isso não o torna equivalente a uma aplicação inteiramente nativa.",
+      "section": "1. Modelos e arquitetura de aplicações móveis",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura móvel em camadas, qual responsabilidade cabe principalmente à camada de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desenhar cada componente visual e definir sua hierarquia de navegação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir os testes de integração por validação manual do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Receber diretamente todos os toques sem comunicar estado à interface.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Expor dados, centralizar alterações e abstrair suas fontes para o restante do app.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Controlar exclusivamente o ciclo de vida do sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Repositórios da camada de dados expõem e centralizam dados e ocultam detalhes das fontes, que podem ser locais ou remotas. A renderização pertence à UI; ciclo de vida não é responsabilidade exclusiva dos dados.",
+      "section": "1. Modelos e arquitetura de aplicações móveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo unidirecional, eventos da interface podem solicitar mudanças, enquanto o estado atualizado é propagado de volta para a UI.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O fluxo separa o estado exibido dos eventos que solicitam sua alteração, ajudando a manter uma fonte de verdade e reduzir estados contraditórios.",
+      "section": "1. Modelos e arquitetura de aplicações móveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo guarda o único rascunho de um formulário em uma variável da tela. Qual risco concreto deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor transforma automaticamente a variável em cópia de segurança após qualquer troca de foco, sem configuração de persistência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A camada de dados recupera o valor sem receber qualquer persistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rede móvel bloqueia a gravação em memória de qualquer formulário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O leitor de tela apaga campos que não possuem conexão ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema pode encerrar o processo e eliminar o estado mantido apenas em memória.",
+          "correct": true
+        }
+      ],
+      "explanation": "O sistema operacional pode suspender ou encerrar o processo. Um dado importante mantido somente na memória da tela pode desaparecer; deve-se persistir e restaurar o rascunho conforme o ciclo de vida.",
+      "section": "1. Modelos e arquitetura de aplicações móveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SwiftUI, ScenePhase permite observar mudanças de fase; lida no nível de uma View, representa a cena que contém aquela View.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação da Apple diferencia o contexto: dentro de uma View, a fase é a da cena que a contém; no nível App, ela agrega as fases das cenas do aplicativo.",
+      "section": "1. Modelos e arquitetura de aplicações móveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão melhora a acessibilidade de uma tela móvel com mensagens de validação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indicar erros somente pela mudança da cor de fundo do campo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ocultar rótulos acessíveis e deixar o ícone explicar o campo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Associar texto de erro ao campo e expor o estado para tecnologias assistivas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar ampliação de texto para manter o alinhamento visual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir gesto de arrastar preciso como único meio de corrigir o erro, sem rótulo nem alternativa por teclado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma mensagem textual associada ao campo comunica a falha sem depender exclusivamente de cor e pode ser exposta a leitor de tela. Remover rótulos, impedir ampliação ou exigir gesto preciso cria barreiras.",
+      "section": "2. Experiência, dados e conectividade no dispositivo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Começar um projeto pela abordagem mobile-first significa eliminar recursos da versão para telas maiores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Mobile-first começa pelas restrições e prioridades da tela pequena e amplia progressivamente; não exige retirar conteúdo ou recursos de telas maiores.",
+      "section": "2. Experiência, dados e conectividade no dispositivo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente cache, persistência e backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar cache como registro autoritativo durável, sem validade, para reconstruir todos os dados após reinstalação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Backup é apenas uma resposta em memória usada para acelerar a tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Persistência guarda dados além da tela; cache agiliza acesso; backup apoia recuperação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Persistência e cache são sinônimos, mas backup é um tipo de interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache substitui sincronização e elimina qualquer conflito entre cópias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Persistência mantém dados além do ciclo de vida de uma tela ou processo; cache é cópia de acesso conveniente e pode ser descartável; backup é preparado para restaurar dados após perda.",
+      "section": "2. Experiência, dados e conectividade no dispositivo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma solicitação móvel termina por timeout, o servidor necessariamente não realizou a operação solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A resposta pode ter se perdido depois que o servidor concluiu a operação. Repetições podem duplicá-la; identificadores de requisição ou operações idempotentes ajudam a tratar esse caso.",
+      "section": "2. Experiência, dados e conectividade no dispositivo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O aparelho sincronizou um rascunho local antigo sobre um conteúdo que também foi editado remotamente. Qual tratamento é mais seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sobrescrever a versão remota pela cópia local ao reconectar, sem verificar quais campos mudaram nem informar a pessoa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descartar a cópia local sem informar a pessoa que a editou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir regra de conflito, comparar versões e preservar ou pedir revisão das mudanças.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter indefinidamente as duas versões sem identificar suas origens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar a falta de conexão como autorização para publicar ambas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sincronização precisa de regra explícita para conflito. Comparar versões e mesclar quando possível ou pedir revisão preserva trabalho; sobrescrever silenciosamente pode apagar alterações remotas ou locais.",
+      "section": "2. Experiência, dados e conectividade no dispositivo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma permissão concedida para localização continua garantida durante toda a vida do aplicativo e não precisa ser tratada como revogável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A pessoa pode revogar a permissão e o recurso pode falhar ou ficar indisponível. O app deve verificar o acesso quando necessário e oferecer comportamento adequado sem ele.",
+      "section": "2. Experiência, dados e conectividade no dispositivo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um CMS precisa representar notícias e serviços públicos com campos editoriais distintos e permitir classificação por assunto. Qual modelagem é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar um tipo de conteúdo adequado e associar taxonomias para os assuntos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar cada item como imagem sem metadados ou campos editáveis, reutilizando o arquivo em todas as editorias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o nome do tema como substituto de todos os campos editoriais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma conta de administrador para cada categoria de conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar toda classificação em texto duplicado no corpo da página.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tipos de conteúdo descrevem campos próprios de cada classe editorial; taxonomias agrupam itens por termos. Isso permite validação, busca, reutilização e apresentação mais consistente.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No WordPress, taxonomias podem ser hierárquicas ou planas e seus termos servem para classificar ou agrupar conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação para desenvolvedores descreve taxonomias como mecanismos de classificação e agrupamento, com relações hierárquicas ou planas.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um site repete os mesmos dados de horário de atendimento em muitas páginas, gerando divergências. Qual uso de CMS reduz o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar cópias independentes do texto para cada página e revisá-las em ciclos diferentes, sem sincronizar a fonte editorial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar o conteúdo somente no cache do navegador de cada servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover metadados e deixar a busca inferir os horários pelo contexto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o horário em imagem e bloquear sua edição pela equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter conteúdo estruturado como fonte editorial reutilizável em diversas apresentações.",
+          "correct": true
+        }
+      ],
+      "explanation": "Manter uma fonte estruturada e reutilizável evita que cópias divergentes sejam mantidas separadamente. Metadados e relações podem apoiar apresentação e busca sem duplicação manual.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um workflow editorial pode encaminhar conteúdo de rascunho para revisão e aprovação antes da publicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O fluxo editorial define estados e responsabilidades, podendo devolver o conteúdo para correção, agendar sua publicação ou arquivá-lo.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual política de papéis reduz o impacto de uma conta editorial comprometida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir que todos os autores instalem plugins e alterem configurações do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar uma única conta administrativa para simplificar a auditoria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder a cada pessoa as capacidades necessárias à sua tarefa editorial.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Deixar contas antigas ativas para preservar acesso em emergências futuras, embora seus titulares já não executem tarefas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar papéis apenas para definir cores e aparência da interface pública.",
+          "correct": false
+        }
+      ],
+      "explanation": "Privilégio mínimo limita o que uma conta pode fazer caso seja comprometida. Autoria e publicação não justificam automaticamente acesso à administração técnica ou instalação de extensões.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tema de um CMS controla principalmente a apresentação, enquanto uma extensão pode acrescentar funcionalidades ao sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Temas se concentram na apresentação; plugins ou extensões acrescentam capacidades. Ambos precisam de manutenção e compatibilidade controladas.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza um CMS headless em uma arquitetura que também possui aplicativo móvel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo editorial é removido e cada app passa a manter cópia própria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Toda API passa a dispensar autenticação, autorização e validação de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A interface administrativa deixa de existir quando o app consulta conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema publica apenas HTML e proíbe consumidores que não sejam navegadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A gestão de conteúdo entrega dados por API a apresentações independentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Headless separa a gestão editorial da camada de apresentação e pode servir vários consumidores por API. Não implica remover a administração ou deixar de controlar acesso e dados.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dizer que um CMS headless não possui interface editorial é uma descrição correta da arquitetura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Headless separa a apresentação pública ou do consumidor da gestão. O CMS normalmente mantém uma interface administrativa para criar, revisar e publicar conteúdo.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O app móvel consulta uma API REST para mostrar notícias publicadas no CMS. Qual descrição da integração é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O app lê diretamente as tabelas do banco de produção sem contrato de serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A API entrega recursos autorizados e o app valida e renderiza os dados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O CMS precisa compilar uma versão nativa para cada modelo de aparelho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A API transfere ao cliente móvel a senha administrativa do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A REST API substitui a necessidade de definir campos e estados editoriais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API forma um contrato de integração e pode expor recursos em formatos como JSON; o app trata a resposta como entrada externa e apresenta seus dados. Acesso direto ao banco e exposição de segredos contornam controles essenciais.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma REST API do WordPress, tipos de conteúdo personalizados podem ser disponibilizados como recursos da API quando configurados para isso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do WordPress descreve tipos personalizados e sua exposição na REST API como uma possibilidade configurável, não como efeito automático de qualquer tipo registrado.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma API de conteúdo deve limitar os campos retornados e separar leitura pública de operações de escrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para impedir que o aplicativo represente conteúdo em telas pequenas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para manter o conteúdo publicado fora do workflow editorial do CMS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para fazer com que a API dispense validação de respostas no cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para converter automaticamente o conteúdo em código nativo assinado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para reduzir exposição de dados e exigir autorização adequada para mudanças.",
+          "correct": true
+        }
+      ],
+      "explanation": "A resposta deve conter somente dados pertinentes; escrita exige autenticação e autorização compatíveis. Isso reduz exposição e impede que a API se torne uma via irrestrita de alteração.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Incluir no pacote do aplicativo uma chave administrativa permanente do CMS é seguro porque o binário móvel não pode ser inspecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Pacotes distribuídos podem ser inspecionados. Segredos administrativos devem permanecer no servidor, e o aplicativo deve usar mecanismos apropriados de autenticação e autorização.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CMS publica um catálogo extenso para o app, e cada abertura baixa todos os itens e imagens. Qual ajuste tende a reduzir tráfego sem remover conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar paginação, filtros e cache com validade ou versão definida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar toda validação de resposta e aumentar o tamanho das imagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar a senha administrativa no app e acessar o banco diretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar cada item em tabelas móveis sem política de atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Solicitar todos os campos privados em cada consulta do catálogo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação e filtros limitam cada resposta; cache com política de validade ou versão reduz requisições repetidas e precisa considerar invalidação. Acesso direto ao banco e campos privados aumentam risco.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia de segurança do CMS só precisa incluir imagens enviadas, pois os registros editoriais podem ser reconstruídos pelo tema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A recuperação requer banco de dados e arquivos relevantes, além de um procedimento testado. Tema não recria registros editoriais, contas ou configurações perdidas.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência de manutenção reduz riscos em uma instalação CMS que usa várias extensões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter extensões sem uso e atualizar somente quando ocorrer uma falha pública.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Obter extensões confiáveis, remover as sem uso, atualizar e validar compatibilidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Dar permissão de escrita irrestrita a todos os arquivos para facilitar atualizações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar backups para que as versões antigas não ocupem armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir instalação de código por qualquer autor de conteúdo publicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Extensões desnecessárias ampliam a superfície de ataque; fontes confiáveis, atualizações e testes de compatibilidade reduzem riscos de vulnerabilidade ou quebra. Acesso irrestrito e ausência de backup pioram o impacto de incidentes.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atualizar o CMS, seus temas e extensões é parte da manutenção de segurança, pois versões antigas podem deixar de receber correções.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação oficial do WordPress recomenda manter o software atualizado para receber correções de segurança e evitar permanecer em versões vulneráveis.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia ajuda um aplicativo e CMS a evoluírem sem quebrar consumidores móveis já distribuídos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover campos e alterar formatos sem aviso, esperando atualização imediata de todos os aparelhos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter contrato compatível ou versionar mudanças incompatíveis e testar clientes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Enviar instruções SQL para os aplicativos alterarem o esquema do CMS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar cache e validação para esconder diferenças entre versões da API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar notificações para substituir respostas e contratos da API.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aplicativos instalados podem permanecer em versões antigas. Preservar compatibilidade ou versionar alterações incompatíveis permite uma transição planejada e testável; notificações não substituem um contrato de dados.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API pode responder com erro ou campo opcional ausente; por isso, o aplicativo deve validar a resposta e representar estados de falha e carregamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Respostas externas podem estar incompletas ou falhar. Validação e estados explícitos evitam travamentos e permitem que a pessoa compreenda o resultado da operação.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conduta adequada ao receber do CMS um texto de usuário que será mostrado no aplicativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o texto como código para preservar formatação enviada pela API.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar formato e renderizar conteúdo como dado, aplicando tratamento contextual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Confiar no conteúdo porque o CMS é acessado por uma conexão autenticada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar a resposta inteira em logs públicos para futuras auditorias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o texto recebido em uma permissão de administrador temporária.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conteúdo remoto deve ser tratado como entrada externa; validação e renderização segura reduzem risco de execução de conteúdo malicioso. Autenticação não torna todos os dados confiáveis para execução.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O guia oficial do WordPress trata hospedagem segura e segurança da aplicação como responsabilidades que podem envolver partes diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O provedor pode cuidar da infraestrutura, mas o proprietário continua responsável pela aplicação, suas extensões, contas e práticas de operação.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo offline exibe um artigo removido do CMS porque a cópia local ainda não expirou. Qual medida trata a causa do problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir política de validade, sincronização e remoção para conteúdo armazenado localmente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar a API para impedir qualquer atualização futura do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter a cópia local sem prazo para garantir disponibilidade permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar a resposta em memória e ocultar o estado offline da interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar uma segunda cópia com o mesmo identificador no aplicativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache offline exige regra de expiração e sincronização. Quando há remoção, o app precisa atualizar ou invalidar a cópia segundo a política do conteúdo, especialmente se ele for sensível.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup existente comprova que a instalação do CMS pode ser restaurada com sucesso, mesmo que nunca tenha sido testado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um arquivo pode estar incompleto, corrompido ou não conter todos os componentes necessários. Testar restauração verifica a recuperabilidade prática.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela mostra informações incorretas ao retornar do segundo plano porque mantém uma cópia antiga do estado. Qual solução arquitetural é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconstruir a tela a partir do estado atualizado exposto pela fonte responsável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter duas cópias locais e escolher a que ocupar mais memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o ciclo de vida para impedir transições do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o repositório e usar apenas variáveis globais da interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualizar a tela por temporizador sem consultar os dados disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface deve refletir o estado vigente fornecido pela camada responsável pelos dados. Cópias independentes e temporizadores sem fonte de verdade tendem a perpetuar divergências.",
+      "section": "1. Modelos e arquitetura de aplicações móveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa que o mesmo app se adapte a um telefone estreito e a um tablet amplo. Qual projeto atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fixar dimensões de tela e ocultar todo conteúdo que exceda o telefone.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar proporcionalmente cada componente sem rever a navegação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adaptar layout e navegação à largura disponível, mantendo a hierarquia do conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar uma imagem única da interface para todas as densidades de tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir orientação alternativa e ampliação do texto em qualquer aparelho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma interface adaptável reorganiza conteúdo e navegação conforme o espaço, sem depender de dimensões fixas. A ampliação simples ou a imagem única não resolve diferenças de tela e acessibilidade.",
+      "section": "2. Experiência, dados e conectividade no dispositivo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe editorial quer liberar uma notícia em horário futuro sem publicar manualmente naquele instante. Qual recurso do CMS se aplica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter a notícia em taxonomia e deixar a busca ativá-la no horário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Salvar o texto como cache local em cada dispositivo de edição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o tema para renderizar automaticamente todo rascunho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agendar a publicação após a etapa de revisão e aprovação definida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Dar ao autor permissão de administração permanente do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um workflow pode permitir aprovação e agendamento, fazendo o conteúdo mudar de estado no horário definido sem que um editor precise estar presente para clicar em publicar.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um CMS armazena um artigo e seu resumo; tanto o site quanto o aplicativo devem apresentar o mesmo resumo atualizado. Qual desenho favorece consistência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter versões independentes do resumo no tema e no aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar o texto do artigo para cada consumidor sempre que houver revisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar o resumo somente no cache do navegador administrativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o campo editorial como fonte comum entregue aos consumidores autorizados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Gerar o resumo a partir de uma senha configurada no aplicativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um campo estruturado mantido no CMS pode ser exposto aos consumidores que têm autorização, evitando cópias manuais divergentes. Cache administrativo e senha não são fontes editoriais.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint público retorna rascunhos e dados internos de autores junto às notícias publicadas. Qual correção é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a validade do cache e manter os mesmos campos na resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar paginação para que clientes recebam tudo em uma resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover os metadados editoriais para impedir que exista conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover os rascunhos para o tema e deixar o endpoint sem alterações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restringir campos e aplicar autorização conforme estado e perfil de acesso.",
+          "correct": true
+        }
+      ],
+      "explanation": "A API deve expor somente o conteúdo e os campos apropriados. Rascunhos e dados internos exigem autorização; cache e paginação não corrigem exposição indevida.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um app mostra texto recebido do CMS em uma página web embutida. Qual cuidado reduz risco de execução de conteúdo malicioso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar todo texto publicado como script confiável por vir de uma API própria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar e codificar conteúdo de acordo com o contexto de renderização.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gravar tokens de acesso nos logs junto ao conteúdo para facilitar inspeção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir que a resposta substitua arquivos executáveis do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar autenticação de escrita para evitar falhas de sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem própria ou a autenticação da API não tornam o conteúdo automaticamente seguro para execução. Validação e codificação contextual ajudam a impedir que texto seja interpretado como código ativo.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar um CMS headless, o aplicativo móvel passa a controlar o workflow editorial e aprova automaticamente as alterações recebidas pela API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Headless separa a apresentação da gestão editorial. O workflow permanece no CMS segundo papéis e estados configurados; o consumidor da API não ganha autoridade editorial automaticamente.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Remover um plugin que não é usado pode reduzir a superfície de ataque, além de simplificar a manutenção do CMS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Extensões não usadas ainda podem conter código vulnerável ou exigir manutenção. Removê-las reduz componentes expostos e facilita acompanhar o que precisa de atualização.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para comprovar recuperabilidade, uma equipe deve ensaiar a restauração de cópias do banco e dos arquivos em ambiente controlado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O teste verifica se os arquivos estão íntegros, se os componentes necessários foram incluídos e se o procedimento de recuperação realmente recompõe o serviço.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação distribui artigos para leitura sem conexão e deve respeitar o período autorizado para manter cada cópia local. Que mecanismo atende a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar uma fila de eventos editoriais para mudar papéis de usuários no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir persistência por uma captura de tela armazenada no tema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deixar o app publicar conteúdo local assim que o prazo de cache vencer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar expiração e sincronização para atualizar ou remover a cópia offline.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Manter todos os artigos indefinidamente e ocultar sua origem local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma política de validade e sincronização permite renovar ou remover cópias locais quando expiram ou quando o CMS altera o conteúdo. A expiração não transforma o cliente em autoridade editorial.",
+      "section": "4. CMS em aplicações móveis: integração, segurança e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um CMS precisa adicionar um novo conjunto de conteúdos sem misturá-lo aos artigos comuns, com campos próprios e opção de exposição em API. Qual recurso é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma taxonomia plana e usá-la como substituta de todos os campos do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar o tema para armazenar itens editoriais diretamente no layout visual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma conta de usuário para cada instância do novo conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar um tipo de conteúdo personalizado com estrutura e capacidades adequadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Guardar os itens somente em arquivos de cache sem registro editorial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um tipo de conteúdo personalizado representa uma classe editorial com estrutura e comportamento próprios e pode ser configurado para exposição na REST API. Taxonomia classifica itens, mas não substitui o modelo com campos.",
+      "section": "3. CMS: conteúdo estruturado, papéis e publicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Guide to app architecture",
+      "publisher": "Android Developers",
+      "reference": "Camadas UI e dados, repositórios, domínio opcional e fluxo unidirecional",
+      "url": "https://developer.android.com/topic/architecture",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing your app’s life cycle",
+      "publisher": "Apple Developer Documentation",
+      "reference": "Estados de primeiro plano e segundo plano e notificações de ciclo de vida",
+      "url": "https://developer.apple.com/documentation/uikit/managing-your-app-s-life-cycle",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Migrating to the SwiftUI life cycle",
+      "publisher": "Apple Developer Documentation",
+      "reference": "Ciclo baseado em cenas e observação de ScenePhase",
+      "url": "https://developer.apple.com/documentation/swiftui/migrating-to-the-swiftui-life-cycle",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "REST API Handbook",
+      "publisher": "WordPress Developer Resources",
+      "reference": "Integração por API REST e recursos de conteúdo",
+      "url": "https://developer.wordpress.org/rest-api/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Custom Post Types",
+      "publisher": "WordPress Developer Resources",
+      "reference": "Tipos de conteúdo personalizados no WordPress",
+      "url": "https://developer.wordpress.org/plugins/post-types/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Taxonomies",
+      "publisher": "WordPress Developer Resources",
+      "reference": "Classificação por taxonomias hierárquicas e planas",
+      "url": "https://developer.wordpress.org/plugins/taxonomies/",
+      "accessedAt": "2026-11-05"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hardening WordPress",
+      "publisher": "WordPress Developer Resources",
+      "reference": "Atualizações, privilégio mínimo, fontes confiáveis, segurança da aplicação e cópias de segurança",
+      "url": "https://developer.wordpress.org/advanced-administration/security/hardening/",
+      "accessedAt": "2026-11-05"
+    }
+  ]
+}
