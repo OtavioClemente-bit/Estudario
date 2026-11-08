@@ -74,7 +74,9 @@ const walk = (d: string): string[] => [...Deno.readDirSync(d)].flatMap((e) => e.
 const PRECISA_TEXTO = /\b(texto|trecho|l\.\s*\d|linhas?\s+\d|par[áa]grafo|charge|tirinha|gr[áa]fico|tabela|figura|imagem|quadro|mapa|fragmento)\b/i;
 const anoDe = (j: Json) => Number(j.ano) || Number(String(`${j.concurso} ${j.url} ${j.gabaritoUrl}`).match(/(?:19|20)\d\d/g)?.find((a) => +a >= 2000 && +a <= 2026)) || null;
 Deno.mkdirSync(SAIDA, { recursive: true });
-const out = await Deno.open(`${SAIDA}/questoes.jsonl`, { write: true, create: true, truncate: true });
+// Grava ao lado e troca no fim: durante os minutos de preparo o questoes.jsonl antigo continua inteiro (08/11: a
+// conferência de alertas e o montar.ts liam o arquivo pela metade enquanto a coleta o refazia).
+const out = await Deno.open(`${SAIDA}/questoes.jsonl.novo`, { write: true, create: true, truncate: true });
 const enc = new TextEncoder();
 const fora: Record<string, number> = {};
 let total = 0, ok = 0, firmes = 0;
@@ -105,4 +107,5 @@ for (const banca of ["cebraspe", "fgv", "fundatec", "cesgranrio", "aocp"]) {
   }
 }
 out.close();
+Deno.renameSync(`${SAIDA}/questoes.jsonl.novo`, `${SAIDA}/questoes.jsonl`);
 console.log({ total, aproveitadas: ok, firmes, fora });
