@@ -1,0 +1,20 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Teste de resposta da navegação</title>
+<style>body{font:18px system-ui;padding:24px;max-width:800px;margin:auto;background:#15132b;color:#f5f1e8}button{font:inherit;padding:14px;margin:8px}output{display:block;white-space:pre-wrap;margin:12px}a{color:#c6b5ff}</style>
+<h1>Previsão sem bloquear cliques</h1><p>Teste sintético com 1.000 tópicos. Nenhum dado da conta.</p>
+<button id="start">Calcular previsão</button><button id="tap">Testar clique durante o cálculo</button>
+<output id="status">Pronto</output><output id="clicks">Cliques: 0</output><output id="heartbeat">Quadros: 0</output>
+<a href="/?demo#/edital">Abrir demonstração do app</a>
+<script>
+let frames=0,last=0,maxGap=0,running=false,clicks=0;
+function frame(now){if(running){if(last)maxGap=Math.max(maxGap,now-last);last=now;frames++;document.getElementById('heartbeat').textContent=`Quadros: ${frames}; maior intervalo: ${Math.round(maxGap)} ms`;}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+document.getElementById('tap').onclick=()=>document.getElementById('clicks').textContent='Cliques: '+(++clicks);
+document.getElementById('start').onclick=()=>{
+ const today=Math.floor(Date.now()/86400000), count=1000;
+ const data={topics:Array.from({length:count},(_,i)=>({id:i+1,subjectId:1,title:'Tópico de teste '+i,position:i,status:'NAO_ESTUDADO'})),studyPlans:[{id:'perf',competitionId:1,name:'Perf',start:today,exam:today+180,active:true,profile:'DO_ZERO'}],planSubjects:[{planId:'perf',subjectId:1,name:'Perf'}],studyAvailability:Array.from({length:7},(_,i)=>({planId:'perf',day:i+1,minutes:i===6?0:120,unavailable:i===6}))};
+ const worker=new Worker('forecast-worker.js');frames=0;last=0;maxGap=0;running=true;
+ document.getElementById('status').textContent='Calculando… Os botões continuam funcionando.';
+ worker.onmessage=e=>{running=false;worker.terminate();document.getElementById('status').textContent=e.data.ok?'Concluído: '+JSON.parse(e.data.result).roadmap.totalTopics+' tópicos.':'Falha no worker';};
+ worker.onerror=e=>{running=false;document.getElementById('status').textContent='Erro: '+e.message;worker.terminate();};
+ worker.postMessage(JSON.stringify({snapshot:JSON.stringify(data),planId:'perf',freeRules:false,excludedTopicIds:[]}));
+};
+</script></html>

@@ -1,0 +1,771 @@
+{
+  "id": "informatica.desenvolvimento-web-sistemas-distribuidos",
+  "subject": "Informática",
+  "title": "Desenvolvimento Web e Sistemas Distribuídos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento Web e Sistemas Distribuídos",
+    "Organização de diretórios em projetos web",
+    "Desenvolvimento web distribuído",
+    "Arquitetura web cliente servidor",
+    "Aplicações web e APIs HTTP",
+    "Estrutura de diretórios web",
+    "Organização de pastas em aplicações web",
+    "Arquitetura de aplicações distribuídas",
+    "Serviços web e comunicação entre sistemas",
+    "Projetos web e sistemas distribuídos"
+  ],
+  "scope": {
+    "covers": "Fundamentos concretos do desenvolvimento web e das aplicações distribuídas: cliente e servidor, requisições e respostas HTTP, recursos, métodos e códigos de status, APIs REST e JSON, política de mesma origem e CORS, sessões e estado, comunicação síncrona e assíncrona, falhas parciais, escalabilidade horizontal, balanceamento, replicação e idempotência. Organização de diretórios em projetos web, separação entre código-fonte, recursos estáticos, configuração, testes, dependências, build e artefatos, com exemplos de convenções em projetos Java/Spring Boot e Node.js.",
+    "excludes": "Implementação detalhada de frameworks ou linguagens específicas; configuração completa de nuvem, contêineres ou orquestradores; algoritmos formais de consenso e transações distribuídas; protocolos de negócio particulares; convenções obrigatórias universais de diretórios, pois a estrutura depende da ferramenta e do projeto."
+  },
+  "theoryTitle": "Da aplicação web ao sistema distribuído",
+  "chapters": [
+    {
+      "title": "1. A conversa web: cliente, servidor e HTTP",
+      "markdown": "### O problema que este assunto resolve\n\nUma página no navegador pode precisar de HTML, folhas de estilo, imagens e dados que vivem em outro computador. O desenvolvimento web organiza essa conversa: o cliente identifica um recurso por uma URI, envia uma requisição HTTP e interpreta a resposta do servidor. O cliente pode ser um navegador, aplicativo móvel ou outro serviço; servidor e cliente são papéis naquela comunicação, não tipos fixos de máquina.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo de aplicação para troca de mensagens entre clientes e servidores.\n> - **URI**: identificador de um recurso; uma URL é uma forma de URI que indica como localizá-lo.\n> - **Recurso**: objeto identificado, como `/api/clientes/42`.\n> - **Representação**: forma transmitida do recurso, por exemplo HTML ou JSON.\n> - **Status**: código de três algarismos que resume o resultado da requisição.\n\n### Da URL à resposta\n\nUma requisição HTTP contém método, alvo (em geral caminho e consulta), cabeçalhos e, quando cabível, conteúdo. A resposta traz status, cabeçalhos e, quando houver, conteúdo. Por exemplo, `GET /api/produtos/7` pode retornar `200` e um objeto JSON; um `POST /api/pedidos` pode enviar dados no corpo e receber a confirmação da criação. O cabeçalho `Content-Type` descreve o formato do conteúdo enviado; `Accept` expressa formatos que o cliente aceita.\n\n| Método | Intenção típica | Observação importante |\n| --- | --- | --- |\n| `GET` | Obter representação | Não deve ser usado para solicitar uma alteração de estado. |\n| `HEAD` | Obter metadados da resposta | Sem o corpo que seria retornado por `GET`. |\n| `POST` | Submeter dados ou solicitar processamento | Pode criar recurso ou iniciar uma ação; não é idempotente por definição. |\n| `PUT` | Criar ou substituir a representação no alvo | Repetir a mesma solicitação deve ter o mesmo efeito pretendido. |\n| `PATCH` | Aplicar alteração parcial | O efeito depende da semântica definida para a operação. |\n| `DELETE` | Remover a associação do recurso | Repetições não devem criar novas remoções de recursos distintos. |\n\nAs classes de status são concretas: `2xx` indica sucesso; `3xx`, redirecionamento; `4xx`, problema atribuído à requisição; `5xx`, falha do servidor ao atender uma requisição aparentemente válida. `201 Created` informa criação concluída; `204 No Content` indica sucesso sem conteúdo de resposta; `400 Bad Request` aponta requisição inválida; `404 Not Found` indica que o recurso não foi encontrado; `500 Internal Server Error` sinaliza falha interna. Não se deve confundir status HTTP com mensagem de erro de uma biblioteca cliente.\n\n### HTTP sem estado implícito\n\nHTTP é definido como sem estado: cada requisição precisa poder ser interpretada por si, e o servidor não pode deduzir que duas requisições na mesma conexão pertencem ao mesmo usuário. Isso não proíbe login nem sessão. Um cookie ou um token pode carregar uma referência de sessão; o servidor valida essa credencial e consulta estado persistente. Em uma API, é comum enviar token em cada chamada. Assim, a identidade não depende de uma conexão específica continuar aberta.\n\n### Como cai na prova\n\n- Uma questão descreve o navegador enviando `GET` e o servidor devolvendo status, cabeçalhos e HTML/JSON: esse é o modelo requisição/resposta.\n- HTTP sem estado não significa que aplicações não podem manter sessão; significa que o protocolo não conserva automaticamente o contexto entre requisições.\n- `401` e `403` não são sinônimos: o primeiro trata de falta de autenticação válida; o segundo, de acesso não autorizado ao recurso, embora a aplicação possa adotar políticas específicas.\n- O método comunica a intenção; o corpo não substitui o método nem o status."
+    },
+    {
+      "title": "2. APIs web e fronteiras entre origens",
+      "markdown": "### O problema que este assunto resolve\n\nUma interface pode ser publicada em um endereço e consumir dados de uma API hospedada em outro. Para que equipes e clientes distintos integrem sistemas sem compartilhar a implementação interna, a API define recursos, formatos e comportamento HTTP. A organização REST usa recursos identificados por URI e semântica dos métodos HTTP; JSON é um formato frequente de representação, mas REST não significa simplesmente “responder JSON”.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface pela qual um software solicita operações ou dados de outro.\n> - **REST**: estilo arquitetural que usa recursos, representações e semântica uniforme da interface.\n> - **JSON**: formato textual de objetos, arrays, strings, números, booleanos e `null`.\n> - **Origem**: combinação de esquema, host e porta.\n> - **CORS**: mecanismo por cabeçalhos HTTP que permite ao servidor autorizar leitura cross-origin pelo navegador.\n\n### Recursos, formatos e contrato\n\nUma API organizada por recursos pode expor `GET /clientes/42` para leitura, `POST /clientes` para submeter uma criação e `DELETE /clientes/42` para solicitar remoção. O contrato informa campos, tipos, erros possíveis e autenticação. O servidor continua responsável por validar os dados: receber JSON válido não torna seus valores corretos ou autorizados. `Content-Type: application/json` descreve o corpo JSON; não é uma autorização de acesso.\n\nA semântica HTTP ajuda intermediários e clientes. `GET` é seguro no sentido de não solicitar mudança de estado; `PUT` e `DELETE` são idempotentes por definição semântica: repetir a mesma solicitação tem o mesmo efeito pretendido que executá-la uma vez. Isso não exige que as respostas sejam byte a byte iguais. `POST` pode ser repetido pelo cliente, mas a operação pode criar um segundo pedido; por isso transações de criação frequentemente usam uma chave de idempotência definida pelo serviço para reconhecer uma repetição da mesma intenção.\n\n### Mesma origem e CORS\n\nA política de mesma origem limita o que scripts podem ler de outra origem. Duas URLs têm a mesma origem apenas quando coincidem esquema, host e porta: `https://app.exemplo` e `http://app.exemplo` diferem no esquema; `https://api.exemplo` difere no host. CORS é uma autorização enviada pelo servidor de destino em cabeçalhos como `Access-Control-Allow-Origin`; não é um mecanismo que o frontend ativa unilateralmente.\n\nEm uma requisição simples, o navegador pode enviar a chamada e só disponibilizar a resposta ao script se os cabeçalhos permitirem. Para certas chamadas, como métodos não simples ou cabeçalhos que exigem autorização prévia, envia antes uma requisição de preflight `OPTIONS` indicando método e cabeçalhos pretendidos. A resposta precisa permitir a origem, método e cabeçalhos; só então o navegador envia a chamada real. Se a requisição inclui credenciais, o servidor deve indicar uma origem específica em vez de `*`, além de permitir credenciais. CORS controla leitura pelo navegador e não substitui autenticação, autorização nem proteção contra chamadas feitas fora do navegador.\n\n### Como cai na prova\n\n- Cabeçalho CORS é emitido na resposta pelo servidor que decide quais origens podem ler o recurso.\n- Preflight é uma verificação `OPTIONS` do navegador; não é a chamada de negócio em si.\n- `no-cors` não libera leitura irrestrita: a resposta fica opaca para o JavaScript.\n- JSON é representação; REST é estilo de arquitetura e uso coerente de recursos e semântica HTTP."
+    },
+    {
+      "title": "3. Sistemas distribuídos por trás da aplicação web",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação que recebe mais chamadas do que um único processo suporta pode executar várias instâncias em máquinas diferentes. A partir daí, a chamada atravessa rede, proxy ou balanceador, serviços e possivelmente banco de dados e fila. Há falhas que não existem em uma função local: a rede pode atrasar, uma resposta pode se perder mesmo após o servidor concluir a operação, e apenas parte dos componentes pode estar indisponível.\n\n> **Siglas e termos deste capítulo**\n> - **Nó**: processo ou máquina participante do sistema.\n> - **Latência**: tempo entre enviar uma operação e receber resposta.\n> - **Balanceador**: componente que distribui tráfego por destinos disponíveis.\n> - **Replicação**: manutenção de cópias de dados ou serviços em mais de um nó.\n> - **Fila**: componente que guarda mensagens para processamento posterior.\n> - **Idempotência**: propriedade de repetir uma operação sem mudar o efeito final pretendido.\n\n### Escalar e tolerar falhas\n\nEscala vertical aumenta recursos de uma instância; escala horizontal acrescenta instâncias. Um balanceador pode escolher destinos saudáveis, mas não torna o serviço infalível: pode haver falha do próprio balanceador, dependência compartilhada saturada ou dados inconsistentes. Instâncias web tendem a ser mais fáceis de escalar quando não guardam sessão somente na memória local; estado compartilhado pode ficar em banco, cache ou serviço de sessão acessível a todas.\n\nUma falha parcial ocorre quando alguns componentes respondem e outros não. Timeout limita quanto tempo o chamador espera; retry tenta novamente, mas uma repetição pode duplicar uma operação não idempotente. Backoff progressivo reduz a pressão de novas tentativas durante uma falha. Circuit breaker deixa temporariamente de chamar uma dependência que falha repetidamente, permitindo recuperação e protegendo recursos. Essas técnicas melhoram resiliência, mas não garantem que uma operação remota tenha sido ou não concluída: o cliente pode perder a resposta depois da gravação.\n\n### Sincronismo, filas e consistência\n\nNa comunicação síncrona, o chamador aguarda resposta e fica sujeito à latência e disponibilidade do serviço chamado. Na comunicação assíncrona, o produtor envia mensagem e pode continuar; o consumidor processa mais tarde. A fila desacopla picos de carga e permite retentativas, mas exige tratar duplicatas, mensagens inválidas, ordenação e mensagens que não podem ser processadas. Um padrão comum é consumidor idempotente: registrar um identificador de mensagem já processada antes de repetir efeitos.\n\nReplicar dados melhora disponibilidade de leitura ou recuperação, mas cópias podem divergir temporariamente. Em consistência eventual, atualizações propagam-se e réplicas convergem se novas alterações cessarem e a propagação funcionar. Uma leitura logo após uma gravação pode atingir uma réplica atrasada. A aplicação precisa decidir se aceita essa janela ou se exige confirmação/leitura mais forte para determinada operação. Cache reduz leituras repetidas e latência, mas introduz invalidação e dados potencialmente obsoletos.\n\n### Como cai na prova\n\n- Retry sem idempotência pode duplicar pagamentos ou pedidos quando a primeira resposta se perdeu.\n- Balanceamento distribui solicitações; replicação mantém cópias; são mecanismos diferentes.\n- Uma fila desacopla produtor e consumidor, mas o processamento assíncrono exige lidar com falha e duplicidade.\n- Estado de sessão preso a uma instância causa problemas quando a próxima requisição chega a outra; sessão externa ou token evita essa dependência local."
+    },
+    {
+      "title": "4. Organização de diretórios em projetos web",
+      "markdown": "### O problema que este assunto resolve\n\nA estrutura de diretórios ajuda a localizar responsabilidades, separar arquivos editáveis de saídas geradas e permitir que build, testes e ferramentas encontrem o que precisam. Não existe uma árvore universal obrigatória para todo projeto web. Frameworks impõem ou sugerem convenções próprias; a equipe deve manter nomes claros e respeitar o caminho esperado pelas ferramentas.\n\n> **Siglas e termos deste capítulo**\n> - **Raiz do projeto**: diretório principal do repositório.\n> - **Código-fonte**: arquivos mantidos pelos desenvolvedores.\n> - **Recurso estático**: imagem, CSS, JavaScript ou outro arquivo servido sem geração dinâmica.\n> - **Build**: processo que transforma fontes em artefato executável ou publicável.\n> - **Dependência**: biblioteca externa declarada pelo projeto.\n> - **Artefato**: saída produzida pelo build, como pacote ou bundle.\n\n### Uma árvore compreensível\n\nUm projeto de frontend pode separar `src/` (componentes, páginas e lógica), `public/` (arquivos copiados ou servidos sem processamento), `tests/` (testes) e arquivos de configuração na raiz. Um backend pode separar rotas ou controladores HTTP, serviços de aplicação, acesso a dados, domínio, recursos e testes. A separação por camada deixa explícito o papel técnico; a separação por domínio aproxima os arquivos da mesma capacidade de negócio. Nenhuma abordagem elimina a necessidade de dependências bem definidas entre módulos.\n\nEm projetos Java com Maven, `src/main/java` contém código principal, `src/main/resources` contém recursos do classpath e `src/test/java` contém testes. Spring Boot recomenda uma classe principal em pacote raiz acima dos demais pacotes: o pacote base orienta a varredura de componentes. O framework não exige uma árvore única, mas o pacote padrão sem declaração é desaconselhado; nomes de pacote Java seguem convenções de nome reverso de domínio, como `com.exemplo.app`.\n\nEm Node.js, `package.json` descreve metadados, scripts e dependências do pacote. A pasta `node_modules` guarda dependências instaladas e normalmente não é editada como código próprio. A estrutura pode ter `src/`, `test/` e pastas de recursos, mas é a configuração do projeto que diz ao runtime e às ferramentas como localizar módulos e arquivos. `package.json` não é automaticamente um arquivo de configuração secreto: segredos não devem ser versionados junto do código.\n\n| Diretório/arquivo | Papel comum | Cuidado\n| --- | --- | --- |\n| `src/` | Código-fonte mantido | Evitar misturar artefatos gerados sem necessidade.\n| `public/` ou recursos | Arquivos estáticos ou recursos empacotados | O comportamento exato depende do framework/build.\n| `test/` ou `src/test/` | Testes automatizados | Seguir o padrão reconhecido pela ferramenta.\n| `config/` e arquivos de raiz | Configuração não secreta e metadados | Valores que mudam por ambiente devem ser externos ao código.\n| `build/`, `dist/` ou `target/` | Saída gerada | Em geral é recriável e não deve ser fonte editada manualmente.\n| `node_modules/` | Dependências Node instaladas | Evitar alterar bibliotecas de terceiros diretamente.\n\n### Configuração, dependências e repositório\n\nCódigo descreve o comportamento; configuração varia entre desenvolvimento, homologação e produção, como endereço de banco, chaves e nome do host. Separe configuração do código e forneça segredos por mecanismo apropriado ao ambiente, sem gravá-los no repositório. Registre dependências em manifestos e use arquivos de lock quando a ferramenta os oferece para reproduzir versões. Ignore artefatos temporários e dependências instaladas conforme as regras do projeto; não ignore fontes, testes ou arquivos de lock sem decisão consciente.\n\n### Como cai na prova\n\n- Uma questão pergunta se Spring Boot exige organização única: não; há boas práticas e a classe de aplicação no pacote raiz ajuda a limitar a varredura.\n- Em Maven, fonte Java de produção e recursos ficam em árvores distintas (`src/main/java` e `src/main/resources`); testes ficam sob `src/test/java`.\n- `dist/` ou `target/` costuma ser saída de build, não local para editar o código-fonte.\n- Estrutura adequada é aquela que mantém responsabilidades compreensíveis e integra-se com as convenções reais do framework e das ferramentas."
+    }
+  ],
+  "summary": "Aplicações web trocam mensagens HTTP entre clientes e servidores. A requisição informa método, alvo, cabeçalhos e eventualmente corpo; a resposta traz status, cabeçalhos e representação. HTTP é sem estado implícito entre requisições, embora cookies e tokens permitam sessões. APIs expõem recursos identificados por URI e podem usar JSON. A política de mesma origem restringe leitura cross-origin no navegador; CORS depende de cabeçalhos da resposta e certas chamadas começam com preflight OPTIONS. Em sistemas distribuídos, rede introduz latência e falhas parciais. Balanceadores distribuem tráfego, réplicas mantêm cópias, filas desacoplam produtores e consumidores; timeout, retry com cautela, backoff, circuit breaker e idempotência tratam modos de falha diferentes. Organização de diretórios não é universal: separam-se fontes, recursos, testes, configuração, dependências e artefatos conforme ferramentas. Maven usa src/main/java, src/main/resources e src/test/java; Spring Boot recomenda classe principal em pacote raiz; Node.js descreve pacotes em package.json. Configuração variável e segredos ficam fora do código versionado.",
+  "flashcards": [
+    { "front": "O que compõe em geral uma requisição HTTP?", "back": "Método, alvo, cabeçalhos e, quando aplicável, conteúdo (corpo)." },
+    { "front": "O que representa a classe 4xx?", "back": "Erro atribuído à requisição do cliente, como sintaxe inválida ou recurso ausente." },
+    { "front": "HTTP sem estado impede sessões?", "back": "Não. Cookies ou tokens podem identificar sessão; cada requisição precisa trazer contexto necessário." },
+    { "front": "O que distingue Content-Type de Accept?", "back": "Content-Type descreve o conteúdo enviado; Accept informa formatos que o cliente aceita." },
+    { "front": "Quais componentes definem uma origem web?", "back": "Esquema, host e porta." },
+    { "front": "Quem autoriza CORS?", "back": "O servidor de destino, incluindo cabeçalhos CORS apropriados na resposta." },
+    { "front": "Para que serve o preflight CORS?", "back": "O navegador envia OPTIONS para verificar se método e cabeçalhos pretendidos são permitidos." },
+    { "front": "O que significa idempotência HTTP?", "back": "Repetir a solicitação produz o mesmo efeito pretendido que executá-la uma vez." },
+    { "front": "POST é idempotente por definição?", "back": "Não; a repetição pode criar uma operação ou recurso adicional." },
+    { "front": "Qual diferença entre escala vertical e horizontal?", "back": "Vertical amplia recursos da instância; horizontal acrescenta instâncias." },
+    { "front": "Qual papel de um balanceador?", "back": "Distribuir solicitações entre destinos, normalmente considerando sua disponibilidade." },
+    { "front": "Replicação e balanceamento são a mesma coisa?", "back": "Não. Replicação mantém cópias; balanceamento distribui tráfego." },
+    { "front": "O que é falha parcial?", "back": "Uma parte do sistema falha enquanto outros componentes ainda respondem." },
+    { "front": "Por que retry pode ser perigoso?", "back": "A operação pode ter sido concluída mesmo que a resposta se perca; a repetição pode duplicar efeitos." },
+    { "front": "Para que serve timeout?", "back": "Limitar o tempo de espera por uma operação remota." },
+    { "front": "O que faz uma fila entre serviços?", "back": "Guarda mensagens e desacopla o envio do processamento pelo consumidor." },
+    { "front": "O que caracteriza consistência eventual?", "back": "Réplicas podem divergir por um tempo e convergir quando atualizações se propagam." },
+    { "front": "Em Maven, onde fica código Java principal?", "back": "Em src/main/java." },
+    { "front": "Em Maven, onde ficam recursos do classpath?", "back": "Em src/main/resources." },
+    { "front": "Qual papel comum de package.json?", "back": "Descrever o pacote Node.js, scripts, dependências e metadados." },
+    { "front": "O que costuma ficar em dist ou target?", "back": "Saídas geradas pelo processo de build." },
+    { "front": "Onde colocar credenciais de produção?", "back": "Na configuração apropriada ao ambiente, sem versioná-las junto ao código." }
+  ],
+  "tips": [
+    "Leia método, status e cabeçalhos como partes distintas da mensagem HTTP.",
+    "Ao avaliar CORS, identifique a origem e procure a autorização na resposta do servidor destino.",
+    "Diante de retry, pergunte se o efeito é idempotente e se uma resposta perdida pode esconder uma gravação concluída.",
+    "Não confunda componente que distribui chamadas com componente que mantém cópias dos dados.",
+    "Associe caminhos de diretório à ferramenta do projeto; não suponha que todo framework use o mesmo padrão.",
+    "Separe arquivos-fonte e configuração versionável de segredos e saídas recriáveis do build."
+  ],
+  "traps": [
+    "HTTP sem estado não quer dizer ausência de autenticação ou sessão; quer dizer que o protocolo não guarda contexto automaticamente entre requisições.",
+    "CORS não é permissão configurada apenas no JavaScript cliente e não substitui controle de acesso da API.",
+    "Retry não garante execução única: após timeout, o servidor pode já ter concluído a operação.",
+    "Balanceamento distribui solicitações; replicação mantém cópias, que podem ficar temporariamente atrasadas.",
+    "Spring Boot recomenda práticas de pacote e localização, mas não impõe uma única árvore de diretórios.",
+    "Diretório de build contém saída gerada; mudar o artefato ali não corrige necessariamente o código-fonte."
+  ],
+  "activeRecall": [
+    "Descreva uma ida e volta HTTP incluindo método, URI, cabeçalhos, status e corpo.",
+    "Explique por que HTTP sem estado ainda permite uma sessão autenticada.",
+    "Diferencie JSON, API e REST com um exemplo de recurso.",
+    "Explique quando um navegador faz preflight e quais informações verifica.",
+    "Compare timeout, retry e circuit breaker diante de serviço remoto lento.",
+    "Explique como a perda de uma resposta pode duplicar efeito de POST e como mitigar.",
+    "Compare balanceamento, replicação e fila no desenho de serviços web.",
+    "Monte a árvore mínima Maven e explique o papel de cada diretório principal."
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Sem estado confundido com ausência de sessão", "summary": "HTTP não conserva contexto por conta própria entre requisições; cookies e tokens podem levar identidade ou referência de sessão." },
+    { "key": "e2", "title": "CORS tratado como configuração do cliente", "summary": "O servidor de destino responde com cabeçalhos CORS; preflight OPTIONS antecede certas chamadas e CORS não autentica o usuário." },
+    { "key": "e3", "title": "Repetição remota sem análise de efeito", "summary": "Timeout não prova que o servidor falhou. Retry em operação não idempotente pode duplicar resultado; chave de idempotência ou consumidor deduplicador pode ajudar." },
+    { "key": "e4", "title": "Mecanismos distribuídos trocados", "summary": "Balanceador encaminha tráfego, réplica mantém cópia e fila armazena mensagens para processamento posterior; latência e falhas parciais persistem." },
+    { "key": "e5", "title": "Diretórios tratados como regra universal", "summary": "A estrutura depende de framework e build. Maven, Spring Boot e Node têm convenções reconhecíveis, mas projeto deve seguir configuração real da ferramenta." }
+  ],
+  "questions": [
+    {
+      "statement": "No HTTP, a semântica de cada requisição pode ser compreendida sem presumir que o servidor guardou automaticamente o contexto da requisição anterior.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. HTTP é definido como protocolo sem estado: o contexto necessário deve ser enviado ou recuperado por mecanismo da aplicação, como cookie, token ou armazenamento de sessão.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente envia GET /produtos/7 com Accept: application/json. Qual resposta descreve corretamente esse intercâmbio?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Retorna status e cabeçalhos, com JSON representando o produto solicitado.", "correct": true },
+        { "key": "B", "text": "O cabeçalho Accept obriga o servidor a gravar o produto antes de responder.", "correct": false },
+        { "key": "C", "text": "O método GET exige que o cliente envie o produto inteiro no corpo da requisição.", "correct": false },
+        { "key": "D", "text": "O servidor deve responder apenas com cabeçalhos, pois GET não admite conteúdo de resposta.", "correct": false },
+        { "key": "E", "text": "O caminho /produtos/7 identifica sempre uma pasta física do servidor web.", "correct": false }
+      ],
+      "explanation": "Accept informa formatos que o cliente aceita; o servidor pode responder com status, cabeçalhos e representação JSON. O método GET solicita representação e não impõe gravação, envio de corpo nem correspondência entre URI e caminho físico.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente um status HTTP da classe 4xx?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Indica que a requisição recebeu uma resposta informativa e ainda está em processamento.", "correct": false },
+        { "key": "B", "text": "Indica um resultado de sucesso, como a criação confirmada de um recurso.", "correct": false },
+        { "key": "C", "text": "Indica erro atribuído à requisição, como sintaxe inválida, dados inválidos ou recurso ausente.", "correct": true },
+        { "key": "D", "text": "Indica sempre um redirecionamento para uma URI diferente da solicitada.", "correct": false },
+        { "key": "E", "text": "Indica falha do servidor ao processar uma requisição aparentemente válida.", "correct": false }
+      ],
+      "explanation": "A classe 4xx corresponde a erros do cliente ou da requisição. As classes 1xx, 2xx, 3xx e 5xx representam, respectivamente, informação, sucesso, redirecionamento e erro do servidor.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta 204 No Content comunica sucesso sem trazer conteúdo de resposta.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. 204 pertence à classe de sucesso e informa que não há conteúdo de resposta. Não deve ser confundido com 404, que indica recurso não encontrado.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção separa corretamente os papéis de Content-Type e Accept?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Content-Type descreve o corpo enviado; Accept lista os formatos aceitos pelo cliente.", "correct": true },
+        { "key": "B", "text": "Content-Type autentica o usuário; Accept concede autorização para alterar o recurso.", "correct": false },
+        { "key": "C", "text": "Content-Type identifica a rota; Accept contém o método HTTP escolhido pelo servidor.", "correct": false },
+        { "key": "D", "text": "Accept descreve o corpo já recebido; Content-Type informa o status que será retornado.", "correct": false },
+        { "key": "E", "text": "Os dois cabeçalhos são nomes diferentes para o código de status da resposta.", "correct": false }
+      ],
+      "explanation": "Content-Type declara o tipo de mídia do conteúdo associado à mensagem. Accept expressa formatos de resposta aceitos pelo cliente; nenhum dos dois autentica usuário, escolhe rota ou representa status.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação web, o papel de cliente cabe somente ao navegador de um computador pessoal; um serviço jamais pode ser cliente HTTP.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Cliente é o programa que envia uma requisição naquela comunicação. Navegador, aplicativo móvel e outro serviço podem atuar como clientes HTTP; o mesmo programa pode também atuar como servidor em outra conexão.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar uma operação de leitura de um recurso, qual uso do método HTTP é mais coerente com sua semântica?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar GET para ler a representação sem solicitar mudança de estado no recurso.", "correct": true },
+        { "key": "B", "text": "Usar DELETE para obter o recurso, preservando sua associação no servidor.", "correct": false },
+        { "key": "C", "text": "Usar POST para toda leitura, pois GET não pode ser cacheado por intermediários.", "correct": false },
+        { "key": "D", "text": "Usar PUT para ler o recurso e substituir a representação por uma cópia idêntica.", "correct": false },
+        { "key": "E", "text": "Usar HEAD para obter a representação completa e o corpo com todos os dados.", "correct": false }
+      ],
+      "explanation": "GET solicita a representação do recurso e é método seguro: sua semântica não solicita mudança de estado. HEAD retorna metadados sem o corpo; DELETE e PUT têm intenção de alteração, e POST não é o método genérico de leitura.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta 201 Created pode informar que um recurso foi criado e identificar sua localização por cabeçalho ou representação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. 201 é um status de sucesso relacionado à criação concluída; a resposta pode apontar o recurso criado, por exemplo com o cabeçalho Location.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação salva a sessão do usuário apenas na memória do processo web A. Depois, o balanceador envia a próxima requisição do mesmo navegador ao processo B. Qual risco decorre dessa organização?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "B pode não encontrar a sessão, pois ela ficou apenas na memória local de A.", "correct": true },
+        { "key": "B", "text": "O navegador converte automaticamente o cookie em cópia integral da memória de A.", "correct": false },
+        { "key": "C", "text": "O balanceador transforma qualquer sessão local em estado compartilhado entre processos.", "correct": false },
+        { "key": "D", "text": "O protocolo HTTP associa permanentemente cada usuário ao mesmo processo servidor.", "correct": false },
+        { "key": "E", "text": "O processo B recupera a sessão porque balanceadores replicam o estado da aplicação por padrão.", "correct": false }
+      ],
+      "explanation": "Estado guardado apenas na memória de A não fica automaticamente disponível em B. Armazenamento compartilhado, token validável em qualquer instância ou afinidade de sessão são alternativas com implicações próprias; o balanceador e HTTP não replicam memória por padrão.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API envia um token válido em cada requisição; isso é compatível com HTTP sem estado, pois o servidor recebe o contexto necessário para autenticar a chamada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A ausência de estado implícito no protocolo não impede estado de aplicação. Token ou cookie pode identificar usuário ou sessão e ser validado a cada chamada.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois de encaminhar GET /relatorios ao servidor, o que o balanceador de carga faz principalmente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Escolhe um destino considerado saudável e encaminha a solicitação recebida.", "correct": true },
+        { "key": "B", "text": "Cria cópias persistentes de todas as tabelas do banco em cada navegador conectado.", "correct": false },
+        { "key": "C", "text": "Reescreve a semântica do método GET para torná-lo uma operação de atualização.", "correct": false },
+        { "key": "D", "text": "Garante que nenhum processo servidor ou dependência de dados possa falhar.", "correct": false },
+        { "key": "E", "text": "Substitui a API e produz a representação do recurso sem consultar os serviços de aplicação.", "correct": false }
+      ],
+      "explanation": "O balanceador distribui tráfego entre destinos e pode evitar destinos considerados indisponíveis. Ele não replica bancos por si só, não muda a semântica HTTP e não elimina falhas dos componentes.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Replicação de dados e balanceamento de requisições têm o mesmo efeito: ambos criam mais cópias da aplicação para dividir o tráfego.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Balanceamento distribui solicitações entre destinos. Replicação mantém cópias de dados ou serviços; as réplicas podem ter defasagem e exigem estratégia de consistência.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que uma fila de mensagens oferece em uma integração entre produtor web e consumidor de processamento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Guarda a mensagem e permite ao consumidor processá-la posteriormente.", "correct": true },
+        { "key": "B", "text": "Uma garantia de que todas as mensagens serão processadas uma única vez, sem falhas.", "correct": false },
+        { "key": "C", "text": "Um substituto para validação de entrada e autorização do endpoint HTTP.", "correct": false },
+        { "key": "D", "text": "Uma cópia síncrona da memória local do produtor compartilhada com cada consumidor.", "correct": false },
+        { "key": "E", "text": "Uma conexão que obriga o produtor a aguardar toda a lógica do consumidor terminar.", "correct": false }
+      ],
+      "explanation": "A fila separa o envio do processamento e pode absorver picos. Ela não garante processamento único sem falha nem torna o produtor necessariamente síncrono; duplicatas e mensagens problemáticas precisam ser tratadas.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura pode retornar dado antigo logo após uma gravação quando a requisição é atendida por réplica ainda não atualizada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Réplicas podem propagar alterações com atraso. Em consistência eventual, leituras durante essa janela podem observar estado anterior, até que as atualizações se propaguem.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente tenta criar um pedido, recebe timeout e não sabe se o servidor gravou a operação. Qual desenho reduz o risco de duplicar o pedido numa repetição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Enviar a mesma chave de idempotência para o serviço reconhecer a repetição.", "correct": true },
+        { "key": "B", "text": "Reenviar POST imediatamente com identificador novo, garantindo que o servidor reconheça a intenção anterior.", "correct": false },
+        { "key": "C", "text": "Trocar POST por GET e transmitir o conteúdo do pedido na URL para evitar gravação duplicada.", "correct": false },
+        { "key": "D", "text": "Desabilitar o timeout e manter a conexão aberta até que o cliente presuma sucesso.", "correct": false },
+        { "key": "E", "text": "Aumentar o número de réplicas para que duas gravações iguais sejam automaticamente mescladas.", "correct": false }
+      ],
+      "explanation": "Uma chave de idempotência permite ao serviço reconhecer que tentativas com a mesma chave representam a mesma operação e retornar o resultado já registrado. Timeout não informa se a gravação ocorreu; POST repetido sem deduplicação pode criar outro pedido.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de práticas ajuda a proteger um serviço web diante de uma dependência remota lenta ou indisponível?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Combinar timeout, backoff limitado e circuit breaker para conter falhas repetidas.", "correct": true },
+        { "key": "B", "text": "Remover timeout, repetir sem intervalo e manter todas as chamadas aguardando indefinidamente.", "correct": false },
+        { "key": "C", "text": "Aumentar o timeout a cada falha e desativar métricas para reduzir a carga da dependência.", "correct": false },
+        { "key": "D", "text": "Repetir todas as operações POST em paralelo até uma resposta bem-sucedida chegar.", "correct": false },
+        { "key": "E", "text": "Converter toda falha remota em status 200 e devolver resposta vazia ao navegador.", "correct": false }
+      ],
+      "explanation": "Timeout limita espera, backoff reduz a pressão de tentativas e circuit breaker interrompe temporariamente chamadas a uma dependência que falha. A combinação precisa considerar idempotência; esperas ilimitadas e repetições sem limite pioram a saturação.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância saudável pode continuar atendendo mesmo quando um serviço secundário falha; essa situação é exemplo de falha parcial.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Em sistema distribuído, componentes podem falhar independentemente. A aplicação precisa definir degradação, timeout e tratamento para dependências indisponíveis sem presumir que todo o sistema parou junto.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação compara corretamente comunicação síncrona e assíncrona entre serviços?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A chamada síncrona aguarda resposta; a mensagem assíncrona pode ser consumida depois.", "correct": true },
+        { "key": "B", "text": "Na síncrona, não há rede; na assíncrona, os serviços compartilham sempre a mesma memória.", "correct": false },
+        { "key": "C", "text": "Na assíncrona, mensagens não podem falhar, duplicar nem ser processadas fora de ordem.", "correct": false },
+        { "key": "D", "text": "Na síncrona, a conexão permanece ativa para sempre, mesmo após o cliente receber a resposta.", "correct": false },
+        { "key": "E", "text": "Na assíncrona, o consumidor precisa terminar antes que o produtor possa enviar qualquer mensagem.", "correct": false }
+      ],
+      "explanation": "Chamada síncrona espera a resposta do serviço invocado. Mensageria assíncrona permite ao produtor seguir após o envio e ao consumidor processar depois, com tratamento explícito de falhas, duplicidade e ordenação conforme o sistema.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição PUT repetida com a mesma representação deve ter o mesmo efeito pretendido que uma única execução, embora respostas possam variar.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. PUT é idempotente por sua semântica: repetições da mesma solicitação têm o mesmo efeito pretendido. Isso não exige respostas idênticas nem significa que toda operação HTTP seja idempotente.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma página em https://loja.exemplo chama por fetch uma API em https://dados.exemplo. O que precisa ocorrer para que o script possa ler a resposta cross-origin?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A resposta da API inclui cabeçalhos CORS que autorizam a página a ler o recurso.", "correct": true },
+        { "key": "B", "text": "O script deve definir Access-Control-Allow-Origin no cabeçalho de resposta que ele próprio envia.", "correct": false },
+        { "key": "C", "text": "A página deve mudar o método para GET, pois esse método ignora a política de mesma origem.", "correct": false },
+        { "key": "D", "text": "A API precisa devolver status 200, que por si só concede acesso a qualquer origem.", "correct": false },
+        { "key": "E", "text": "A página deve incluir o endereço da API em Accept para que o navegador libere a leitura.", "correct": false }
+      ],
+      "explanation": "A API de destino autoriza origens por cabeçalhos CORS na resposta. Um status de sucesso, mudança de método ou cabeçalho definido pelo script não substitui essa autorização do servidor.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Duas URLs com mesmo host e porta, mas com esquemas http e https, pertencem à mesma origem para a política do navegador.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Origem combina esquema, host e porta. HTTP e HTTPS diferem no esquema e, portanto, constituem origens distintas mesmo com host igual.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Quando um navegador envia preflight CORS, qual informação ele consulta antes de enviar a chamada real?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Consulta por OPTIONS se origem, método e cabeçalhos estão liberados para a chamada real.", "correct": true },
+        { "key": "B", "text": "Se o servidor já terminou a operação de negócio e gravou o resultado da chamada real.", "correct": false },
+        { "key": "C", "text": "Se o navegador deve converter a requisição original em uma resposta HTML local.", "correct": false },
+        { "key": "D", "text": "Se o token de acesso tem validade, dispensando autenticação na chamada real.", "correct": false },
+        { "key": "E", "text": "Se o servidor concorda em aceitar qualquer origem sem verificar os cabeçalhos da chamada.", "correct": false }
+      ],
+      "explanation": "O preflight OPTIONS informa a origem e os métodos e cabeçalhos pretendidos. A resposta CORS autoriza ou não a chamada real; ela não executa previamente a operação de negócio nem substitui a autenticação da chamada.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "CORS serve como mecanismo de autenticação de usuários da API, pois a lista de origens permitidas identifica individualmente cada usuário.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. CORS controla se scripts de determinada origem podem ler respostas no navegador. Autenticação verifica identidade e autorização decide acesso do usuário; CORS não as substitui.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API privada recebe uma chamada cross-origin autenticada por cookie. Qual configuração CORS é compatível com o uso de credenciais?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Indicar uma origem explícita permitida e autorizar credenciais nessa resposta CORS.", "correct": true },
+        { "key": "B", "text": "Responder Access-Control-Allow-Origin: * e confiar que o navegador associará qualquer cookie.", "correct": false },
+        { "key": "C", "text": "Omitir Access-Control-Allow-Origin, pois o cookie demonstra a autorização cross-origin.", "correct": false },
+        { "key": "D", "text": "Definir Allow-Origin apenas no JavaScript cliente e enviar a chamada em modo no-cors.", "correct": false },
+        { "key": "E", "text": "Permitir qualquer método, pois credenciais dispensam a verificação de preflight do navegador.", "correct": false }
+      ],
+      "explanation": "Para resposta CORS com credenciais, o servidor precisa indicar uma origem explícita e permitir credenciais; o curinga não é aceito nessa combinação. Cookie autentica a chamada, mas não substitui cabeçalhos CORS.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Definir fetch com mode: no-cors torna qualquer resposta cross-origin legível pelo JavaScript, mesmo sem cabeçalhos de autorização.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Em no-cors a resposta é opaca para JavaScript: status, cabeçalhos e corpo não ficam disponíveis como numa resposta normal. Esse modo não remove a política de leitura cross-origin.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API precisa apresentar dados de clientes em formatos diferentes para consumidores distintos. Qual desenho separa corretamente os conceitos envolvidos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A API define recursos e operações; JSON é um dos formatos que representam os dados.", "correct": true },
+        { "key": "B", "text": "JSON define autenticação e autorização; API é somente a extensão do arquivo de resposta.", "correct": false },
+        { "key": "C", "text": "REST é um formato de texto que substitui URI, método HTTP e código de status.", "correct": false },
+        { "key": "D", "text": "Content-Type identifica o usuário e define quais recursos REST ele pode consultar.", "correct": false },
+        { "key": "E", "text": "A URI contém necessariamente todo o conteúdo JSON retornado pelo servidor.", "correct": false }
+      ],
+      "explanation": "API é a interface de interação, recurso é o objeto identificado e JSON é uma representação possível dos dados. REST é um estilo arquitetural, não um formato que substitui URI e semântica HTTP.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API pode usar JSON sem ser REST, pois o formato da representação não determina sozinho o estilo arquitetural da interface.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. JSON é um formato de dados. Uma interface REST envolve decisões arquiteturais sobre recursos, representações e interface uniforme; usar JSON sozinho não estabelece essas propriedades.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo descreve melhor consistência eventual em serviço que lê de réplicas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Réplicas podem mostrar estado antigo e convergir após a atualização se propagar.", "correct": true },
+        { "key": "B", "text": "Toda leitura retorna sempre o valor mais recente, independentemente do atraso de replicação.", "correct": false },
+        { "key": "C", "text": "As réplicas nunca recebem atualizações e permanecem permanentemente em estados independentes.", "correct": false },
+        { "key": "D", "text": "O balanceador atualiza de forma síncrona cada cópia antes de encaminhar qualquer leitura.", "correct": false },
+        { "key": "E", "text": "O cliente mantém sozinho uma cópia definitiva dos dados e elimina necessidade de servidor.", "correct": false }
+      ],
+      "explanation": "Consistência eventual permite defasagem temporária enquanto mudanças se propagam. Se a propagação ocorrer e novas atualizações cessarem, espera-se convergência; não há garantia de leitura imediata do valor mais recente.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um circuito aberto por circuit breaker interrompe temporariamente chamadas a uma dependência que falha repetidamente, em vez de continuar pressionando-a sem limite.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O circuit breaker deixa de encaminhar chamadas por um período após falhas repetidas e pode permitir sondagem posterior. Ele complementa timeouts e retentativas limitadas; não repara a dependência.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor de fila recebe novamente uma mensagem porque a confirmação se perdeu após o processamento. Que propriedade ajuda a evitar repetir o efeito de negócio?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Registrar a identidade da mensagem processada antes do efeito e deduplicar nova entrega.", "correct": true },
+        { "key": "B", "text": "Escala vertical do produtor, que impede a rede de perder confirmações de consumo.", "correct": false },
+        { "key": "C", "text": "Cabeçalho CORS na fila, que instrui o consumidor a descartar duplicatas automaticamente.", "correct": false },
+        { "key": "D", "text": "Aumento do timeout até que o broker elimine a mensagem sem confirmação explícita.", "correct": false },
+        { "key": "E", "text": "Replicação do consumidor, que garante que todos os processos vejam a mensagem uma única vez.", "correct": false }
+      ],
+      "explanation": "Sistemas de mensageria podem entregar mensagem novamente após falha ou perda de confirmação. Consumidor idempotente registra a identidade processada e evita reaplicar o mesmo efeito; escala e CORS não deduplicam mensagens.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada síncrona entre serviços continua sujeita à latência e indisponibilidade do serviço chamado, mesmo quando ambos usam HTTP.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. HTTP define a comunicação, mas não elimina latência ou falhas de rede e do serviço. O chamador síncrono aguarda resposta e deve limitar espera e tratar erro.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende reduzir dependência temporal entre envio de uma solicitação e processamento pesado por outro serviço. Qual opção se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Publicar a solicitação numa fila para o consumidor processar mais tarde.", "correct": true },
+        { "key": "B", "text": "Manter uma chamada HTTP síncrona aberta até o processamento pesado terminar em todos os casos.", "correct": false },
+        { "key": "C", "text": "Salvar o trabalho apenas na memória do processo web e responder antes de persistir a solicitação.", "correct": false },
+        { "key": "D", "text": "Replicar o navegador em vários nós para executar a mesma solicitação em paralelo.", "correct": false },
+        { "key": "E", "text": "Usar CORS para transformar uma solicitação bloqueante em evento assíncrono confiável.", "correct": false }
+      ],
+      "explanation": "A fila separa o momento de envio do processamento, permitindo que o produtor prossiga enquanto consumidor trabalha depois. A solução precisa persistir e tratar duplicidade, falhas e monitoramento; CORS não altera sincronismo.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Escala horizontal aumenta a capacidade acrescentando instâncias, enquanto escala vertical amplia recursos de uma instância existente.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Horizontal significa adicionar nós ou processos; vertical, aumentar recursos como CPU ou memória da instância. As opções têm limites e efeitos operacionais distintos.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy reverso encaminha chamadas para várias instâncias, mas um dos serviços atrás dele falha de maneira intermitente. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Pode evitar destinos indisponíveis, mas não elimina falhas parciais ou comuns.", "correct": true },
+        { "key": "B", "text": "A presença do proxy garante disponibilidade total, pois todas as falhas viram respostas locais bem-sucedidas.", "correct": false },
+        { "key": "C", "text": "A falha intermitente prova que as instâncias mantêm sessões idênticas em memória compartilhada.", "correct": false },
+        { "key": "D", "text": "O proxy deve repetir qualquer operação quantas vezes forem necessárias, mesmo para POST sem deduplicação.", "correct": false },
+        { "key": "E", "text": "O proxy converte automaticamente chamadas síncronas em processamento por fila durável.", "correct": false }
+      ],
+      "explanation": "Proxy reverso e balanceador podem encaminhar tráfego e verificar saúde, mas não resolvem toda falha de serviço, rede, armazenamento ou dependência compartilhada. Repetições precisam observar idempotência e limites.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Configurar uma réplica de leitura significa que qualquer leitura imediatamente posterior a uma gravação verá obrigatoriamente o dado recém-gravado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A réplica pode estar atrasada em relação à gravação. Para leitura após escrita com garantia, o desenho deve direcionar a leitura ao estado atualizado ou adotar mecanismo de consistência apropriado.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto Maven web, onde se espera encontrar código Java de produção, recursos da aplicação e testes Java?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "src/main/java, src/main/resources e src/test/java, respectivamente.", "correct": true },
+        { "key": "B", "text": "src/test/java, src/main/java e target/classes, respectivamente.", "correct": false },
+        { "key": "C", "text": "target/java, public/resources e node_modules/test, respectivamente.", "correct": false },
+        { "key": "D", "text": "src/main/resources, src/test/resources e pom.xml, respectivamente.", "correct": false },
+        { "key": "E", "text": "webroot/java, build/resources e src/production, respectivamente.", "correct": false }
+      ],
+      "explanation": "A convenção Maven separa fontes Java de produção em src/main/java, recursos em src/main/resources e testes Java em src/test/java. Diretórios target contêm saídas geradas, não a árvore de fontes principal.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em Node.js, package.json pode declarar metadados, dependências e scripts associados ao pacote do projeto.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. package.json descreve o pacote e pode declarar scripts, dependências e campos usados pela resolução de módulos, entre outros metadados; não é substituto para todo o código-fonte.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual divisão de diretórios é uma convenção plausível para um frontend web com código processado por build?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "src para código mantido, public para arquivos estáticos e dist para saída gerada pelo build.", "correct": true },
+        { "key": "B", "text": "dist para código-fonte editável, src para dependências instaladas e public para segredos de produção.", "correct": false },
+        { "key": "C", "text": "public para testes automatizados, dist para arquivos de configuração privada e src para imagens copiadas.", "correct": false },
+        { "key": "D", "text": "src para resultados de produção, public para scripts de build e dist para testes não executados.", "correct": false },
+        { "key": "E", "text": "node_modules para componentes próprios, dist para metadados e src para conteúdo temporário de cache.", "correct": false }
+      ],
+      "explanation": "Essa é uma organização comum, mas o papel exato de public depende do framework e do build. dist costuma ser saída gerada; não é normalmente a fonte editável nem o local de segredos.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A estrutura de diretórios de um projeto web é definida por uma regra universal, igual em todos os frameworks e ferramentas de build.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Existem convenções comuns e caminhos esperados por frameworks e ferramentas, mas não uma árvore universal. A estrutura deve seguir a configuração e as convenções efetivamente usadas pelo projeto.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em aplicação Spring Boot, por que costuma ser recomendável colocar a classe principal em um pacote raiz acima dos demais pacotes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A classe principal define o pacote-base usado para localizar componentes da aplicação.", "correct": true },
+        { "key": "B", "text": "Porque Spring Boot só inicia quando todos os arquivos ficam no pacote padrão sem declaração.", "correct": false },
+        { "key": "C", "text": "Porque a classe principal precisa estar dentro de node_modules para ser encontrada pelo Java.", "correct": false },
+        { "key": "D", "text": "Porque o pacote raiz armazena as tabelas do banco e substitui a configuração de conexão.", "correct": false },
+        { "key": "E", "text": "Porque o framework exige que controladores, entidades e testes fiquem no mesmo arquivo Java.", "correct": false }
+      ],
+      "explanation": "A classe anotada com Spring Boot costuma definir a base da varredura de componentes e outras classes anotadas. Pacote raiz acima dos módulos ajuda a encontrá-los sem escanear desnecessariamente bibliotecas; pacote padrão é desaconselhado.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A pasta node_modules é o local recomendado para editar diretamente a lógica própria do projeto, pois as alterações são preservadas pelo gerenciador de pacotes.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. node_modules contém dependências instaladas e pode ser recriada pelo gerenciador. Código próprio deve ficar em áreas mantidas do projeto, como src, e alterações em bibliotecas não são preservadas como fonte própria.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor altera um arquivo em target/classes e a mudança desaparece após novo build. Qual interpretação explica melhor o ocorrido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "target/classes é saída compilada recriável; a correção deve ser feita na fonte correspondente.", "correct": true },
+        { "key": "B", "text": "target/classes é a pasta de testes original que Maven restaura de um servidor remoto.", "correct": false },
+        { "key": "C", "text": "O Maven usa target/classes como configuração externa e apaga fontes quando encontra divergência.", "correct": false },
+        { "key": "D", "text": "A pasta contém dependências instaladas que substituem o código principal do projeto.", "correct": false },
+        { "key": "E", "text": "O diretório é um recurso público do navegador, enviado sem qualquer processamento.", "correct": false }
+      ],
+      "explanation": "target/classes contém classes e recursos copiados ou compilados durante o build. O processo pode recriá-lo; uma mudança durável deve ser realizada na fonte em src/main/java ou src/main/resources.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Segredos e endereços que variam entre desenvolvimento e produção devem ser tratados como configuração do ambiente, em vez de credenciais fixas no código versionado.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A configuração que varia por implantação deve ficar separada do código e ser fornecida de modo apropriado ao ambiente. Credenciais fixas no repositório expõem segredos e dificultam separar implantações.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe arquitetura por domínio em vez de manter diretórios separados para controlador, serviço e repositório. Qual afirmação é mais correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "É uma opção válida: arquivos da mesma capacidade de negócio podem ficar próximos, desde que limites e dependências permaneçam claros.", "correct": true },
+        { "key": "B", "text": "É inválida, pois todo framework web exige exatamente uma pasta global por tipo técnico.", "correct": false },
+        { "key": "C", "text": "É obrigatória em qualquer aplicação, pois elimina a necessidade de módulos e contratos entre camadas.", "correct": false },
+        { "key": "D", "text": "Só funciona quando código, testes, configuração e artefatos são armazenados no mesmo arquivo.", "correct": false },
+        { "key": "E", "text": "É impossível em Spring Boot, que reconhece componentes apenas por nome de diretório literal.", "correct": false }
+      ],
+      "explanation": "Organização por domínio é uma opção arquitetural válida e pode aproximar arquivos da mesma capacidade. Não é exigência universal; clareza de dependências e integração com descoberta de componentes continuam importantes.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Colocar todos os módulos numa pasta chamada src garante que dependências, responsabilidades e configuração do projeto estejam corretamente organizadas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O nome src, por si só, não define limites de módulo, dependências nem configuração. A estrutura precisa expressar responsabilidades e corresponder ao que build, runtime e testes esperam.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deve decidir o que versionar numa aplicação Node.js. Qual conjunto representa melhor código próprio e metadados do projeto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Versionar fontes, manifesto e lockfile; recriar dependências a partir deles.", "correct": true },
+        { "key": "B", "text": "Somente node_modules, sem manifesto, pois a árvore instalada documenta as dependências declaradas.", "correct": false },
+        { "key": "C", "text": "O bundle de produção em dist e segredos locais, descartando os arquivos-fonte originais.", "correct": false },
+        { "key": "D", "text": "Cache do gerenciador de pacotes e arquivos temporários, sem package.json para evitar metadados.", "correct": false },
+        { "key": "E", "text": "Toda configuração privada em package.json, pois o arquivo não é publicado ou compartilhado.", "correct": false }
+      ],
+      "explanation": "Manifesto e lockfile documentam dependências e ajudam a reproduzir a instalação; fontes próprias devem ser versionadas. node_modules e caches são normalmente recriáveis, e segredos não devem ser incluídos em arquivos compartilhados.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em projeto Spring Boot, declarar package para as classes e posicionar a classe principal acima dos pacotes da aplicação ajuda a controlar a descoberta de componentes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O pacote da classe principal serve como base comum para varredura. Pacotes nomeados seguem convenções Java e evitam os problemas associados ao pacote padrão sem declaração.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação POST de pagamento recebe timeout. Por que repetir a chamada sem chave de idempotência pode causar cobrança duplicada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A primeira chamada pode ter concluído a cobrança antes de a resposta se perder, e a repetição pode executar outra.", "correct": true },
+        { "key": "B", "text": "O timeout confirma que o servidor cancelou a operação antes de processar qualquer dado recebido.", "correct": false },
+        { "key": "C", "text": "POST é idempotente por definição, então a duplicidade só pode ser causada por CORS.", "correct": false },
+        { "key": "D", "text": "O navegador transforma a repetição em PUT e substitui automaticamente a cobrança anterior.", "correct": false },
+        { "key": "E", "text": "Uma resposta de erro de rede reverte toda gravação confirmada em qualquer serviço distribuído.", "correct": false }
+      ],
+      "explanation": "Timeout descreve que o cliente não recebeu resposta a tempo, não que a operação deixou de ocorrer. Como POST não é idempotente por definição, repetição sem deduplicação pode criar uma segunda cobrança.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada GET deve ser projetada para alterar saldo como efeito principal, pois o método é o mais adequado para operações de leitura e escrita.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. GET é método seguro e deve solicitar leitura sem mudança de estado pretendida. Uma operação que altera saldo deve usar semântica de método apropriada e controles de autorização e repetição.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado indica que a URI existe, mas o método usado não é permitido para aquele recurso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "405 Method Not Allowed, eventualmente acompanhado da lista de métodos permitidos.", "correct": true },
+        { "key": "B", "text": "404 Not Found, que sempre significa que o método não está implementado no servidor.", "correct": false },
+        { "key": "C", "text": "501 Not Implemented, usado quando o recurso existe mas não permite aquele método.", "correct": false },
+        { "key": "D", "text": "201 Created, que confirma que a operação foi recusada para essa URI.", "correct": false },
+        { "key": "E", "text": "301 Moved Permanently, que informa a lista de métodos aceitos pelo recurso original.", "correct": false }
+      ],
+      "explanation": "405 informa que o método é reconhecido, mas não permitido para o recurso; o servidor pode indicar métodos aceitos em Allow. 501 refere-se a método não implementado pelo servidor.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo armazena o estado de uma tarefa apenas na memória de um processo e esse processo pode ser encerrado e iniciado em outro nó sem aviso ao cliente.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Estado exclusivamente local pode desaparecer quando o processo termina ou outra instância recebe a chamada. Serviços escaláveis devem persistir ou compartilhar estado necessário e tolerar reinício de processos.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual proposta separa configuração que varia por implantação de comportamento versionado da aplicação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter comportamento no código e fornecer endpoints e credenciais por mecanismo externo específico do ambiente.", "correct": true },
+        { "key": "B", "text": "Criar uma cópia do código para cada ambiente e fixar a senha de produção em cada classe.", "correct": false },
+        { "key": "C", "text": "Guardar as credenciais em arquivos públicos estáticos para o frontend descobrir na inicialização.", "correct": false },
+        { "key": "D", "text": "Colocar valores de produção no diretório dist depois do build e editar o artefato manualmente.", "correct": false },
+        { "key": "E", "text": "Usar package.json como cofre de segredos, sem controlar acesso ao repositório.", "correct": false }
+      ],
+      "explanation": "Configuração que varia entre implantações, como endpoints e credenciais, deve ser separada do código. Segredos precisam ser fornecidos por mecanismo protegido do ambiente, não gravados em código, bundle ou manifesto compartilhado.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O status 500 pertence à classe 5xx e indica que o servidor falhou ao cumprir uma requisição aparentemente válida.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A classe 5xx representa falha do servidor ao atender uma requisição aparentemente válida; 500 é o status de erro interno genérico.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia reduz o acoplamento entre instâncias web ao escalar horizontalmente um serviço com sessão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar token verificável em cada chamada ou armazenamento de sessão acessível por todas as instâncias.", "correct": true },
+        { "key": "B", "text": "Manter a sessão somente em memória local e supor que o balanceador sempre escolhe o mesmo nó.", "correct": false },
+        { "key": "C", "text": "Incluir a sessão inteira na URL e confiar que cache e logs não armazenarão esse dado.", "correct": false },
+        { "key": "D", "text": "Desativar autenticação, pois instâncias adicionais passam a compartilhar automaticamente seus processos.", "correct": false },
+        { "key": "E", "text": "Replicar somente os arquivos estáticos, que passam a representar a memória privada de cada sessão.", "correct": false }
+      ],
+      "explanation": "Token enviado a cada requisição ou armazenamento compartilhado torna o estado acessível sem depender de qual instância recebeu a chamada. Afinidade pode direcionar tráfego, mas mantém dependência de nó e não substitui alta disponibilidade.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "HEAD solicita metadados correspondentes à representação que GET retornaria, mas não transfere o corpo dessa representação.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. HEAD tem semântica semelhante a GET, mas a resposta não inclui o corpo da representação. Ele pode ser útil para consultar metadados sem transferir o conteúdo completo.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em projeto com camadas e módulos, que princípio de organização ajuda a manutenção sem impor árvore universal?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Agrupar responsabilidades compreensíveis, explicitar dependências e seguir os caminhos reconhecidos pelas ferramentas.", "correct": true },
+        { "key": "B", "text": "Criar diretórios para cada classe e permitir que todos os módulos importem qualquer implementação interna.", "correct": false },
+        { "key": "C", "text": "Concentrar fontes, testes, segredos e artefatos numa pasta para reduzir o número de caminhos.", "correct": false },
+        { "key": "D", "text": "Copiar convenções de outro framework sem conferir configurações e plugins presentes no projeto.", "correct": false },
+        { "key": "E", "text": "Usar somente a extensão do arquivo para substituir manifests, dependências e configuração de build.", "correct": false }
+      ],
+      "explanation": "Boa organização deixa responsabilidades e limites visíveis e respeita a descoberta de arquivos pelas ferramentas. A estrutura pode ser por camada ou domínio; nenhum nome de pasta, isoladamente, substitui dependências e configuração corretas.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de rede pode impedir o cliente de receber a resposta mesmo depois de o servidor ter concluído a operação solicitada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Em comunicação distribuída, requisição e resposta atravessam a rede separadamente. O servidor pode concluir a gravação e a resposta se perder; o cliente não deve inferir cancelamento apenas pelo timeout.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer registrar imagens estáticas entregues diretamente ao navegador e código que precisa ser transformado pelo bundler. Qual separação é usual, sujeita à convenção do framework?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter fontes processadas em src e arquivos públicos não processados na pasta estática configurada, como public.", "correct": true },
+        { "key": "B", "text": "Manter imagens exclusivamente em node_modules e código processado no diretório de cache do navegador.", "correct": false },
+        { "key": "C", "text": "Guardar todo recurso em dist antes do build, pois essa pasta é sempre a origem de entrada.", "correct": false },
+        { "key": "D", "text": "Colocar fontes dentro de package-lock.json para que o navegador extraia os módulos no carregamento.", "correct": false },
+        { "key": "E", "text": "Usar src apenas para imagens e public apenas para código-fonte que será compilado pelo servidor.", "correct": false }
+      ],
+      "explanation": "É comum manter código que passa pelo build em src e arquivos estáticos numa pasta como public, embora o tratamento exato varie por ferramenta. dist costuma ser destino de saída, não diretório de entrada.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API que responde 404 informa necessariamente que o servidor está indisponível e deve ser reiniciado.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. 404 é resposta da classe 4xx que indica que o recurso solicitado não foi encontrado. Indisponibilidade ou erro interno de servidor costuma ser expressa por status da classe 5xx.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o uso de DELETE em uma API está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Expressa a intenção de remover a associação do recurso identificado pelo alvo da requisição.", "correct": true },
+        { "key": "B", "text": "Expressa leitura da representação sem alteração, como se fosse equivalente a GET.", "correct": false },
+        { "key": "C", "text": "Exige que o servidor apague todo o banco de dados para cumprir a semântica do método.", "correct": false },
+        { "key": "D", "text": "É método de resposta que o servidor envia ao navegador depois de um status 204.", "correct": false },
+        { "key": "E", "text": "Não pode ser usado com URI de recurso, pois opera apenas sobre conexões de rede.", "correct": false }
+      ],
+      "explanation": "DELETE solicita remoção da associação do recurso-alvo. Não significa apagar todo o banco, ler recurso ou enviar resposta; a aplicação define efeitos concretos compatíveis com o recurso e sua autorização.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em arquitetura por domínio, diretórios como clientes e pedidos podem conter componentes diferentes da mesma capacidade, desde que o projeto mantenha limites compreensíveis.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Organização por domínio agrupa responsabilidades relacionadas ao negócio. É uma convenção de projeto, não uma imposição; módulos ainda devem controlar dependências e evitar acoplamento indevido.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente faz GET numa rota e recebe resposta 302 com cabeçalho Location. O que esse status normalmente sinaliza?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Redirecionamento, com indicação de outro alvo que o cliente pode consultar conforme a semântica do status.", "correct": true },
+        { "key": "B", "text": "Criação confirmada do recurso solicitado, sem necessidade de nova localização.", "correct": false },
+        { "key": "C", "text": "Erro de sintaxe na requisição que deve ser corrigido antes de qualquer resposta.", "correct": false },
+        { "key": "D", "text": "Falha interna do servidor, que garante que a operação não foi executada.", "correct": false },
+        { "key": "E", "text": "Resposta sem corpo que informa sucesso final e encerra o uso da URI original.", "correct": false }
+      ],
+      "explanation": "302 pertence à classe 3xx de redirecionamento e normalmente acompanha Location. Não é sucesso de criação, erro de cliente ou falha interna de servidor.",
+      "section": "1. A conversa web: cliente, servidor e HTTP", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação web em múltiplas instâncias pode usar cache compartilhado para reduzir consultas repetidas, mas precisa considerar invalidação e obsolescência dos valores.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Cache compartilhado pode reduzir latência e carga de leituras, mas dados podem ficar obsoletos. O projeto precisa definir expiração, invalidação e consistência exigida pelos consumidores.",
+      "section": "3. Sistemas distribuídos por trás da aplicação web", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint de atualização parcial deve sempre ser chamado PUT, pois PUT e PATCH têm semântica idêntica para qualquer representação.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. PUT substitui ou cria a representação no alvo conforme sua semântica, enquanto PATCH aplica alteração parcial. O contrato da API define a representação e o processamento específico.",
+      "section": "2. APIs web e fronteiras entre origens", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual árvore corresponde à separação típica de uma aplicação Java com Maven e Spring Boot?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "src/main/java para código Java, src/main/resources para recursos e src/test para testes.", "correct": true },
+        { "key": "B", "text": "src/main/resources para classes Java, node_modules para testes e public para configuração Maven.", "correct": false },
+        { "key": "C", "text": "target para código-fonte, src/test para dependências baixadas e pom.xml para imagens estáticas.", "correct": false },
+        { "key": "D", "text": "src/test para a aplicação empacotada, target para fontes editáveis e src/main/java para cache.", "correct": false },
+        { "key": "E", "text": "webapp para todas as classes, package.json para dependências Java e dist para fontes de produção.", "correct": false }
+      ],
+      "explanation": "A convenção Maven separa código Java, recursos e testes em suas árvores. O build gera artefatos em target; package.json e node_modules pertencem ao ecossistema Node.js, não são convenção Maven.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização de projeto por camada técnica aproxima todos os controladores, serviços e repositórios em diretórios distintos, enquanto a organização por domínio aproxima arquivos ligados a uma capacidade de negócio.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. São dois critérios de agrupamento possíveis: camada técnica ou domínio. Nenhum é universalmente obrigatório; a equipe deve avaliar navegação, coesão e limites entre módulos.",
+      "section": "4. Organização de diretórios em projetos web", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    { "kind": "OFICIAL", "title": "RFC 9110: HTTP Semantics", "publisher": "RFC Editor / IETF", "reference": "Mensagens HTTP, métodos, semântica sem estado, status codes e idempotência", "url": "https://www.rfc-editor.org/rfc/rfc9110.html", "accessedAt": "2026-11-08" },
+    { "kind": "OFICIAL", "title": "Cross-Origin Resource Sharing (CORS)", "publisher": "MDN / Mozilla", "reference": "Política de mesma origem, preflight OPTIONS, cabeçalhos de resposta e credenciais", "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS", "accessedAt": "2026-11-08" },
+    { "kind": "OFICIAL", "title": "Using the Fetch API", "publisher": "MDN / Mozilla", "reference": "Modos de requisição cross-origin e resposta opaca no-cors", "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch", "accessedAt": "2026-11-08" },
+    { "kind": "OFICIAL", "title": "Structuring Your Code", "publisher": "Spring", "reference": "Pacote raiz, classe principal e convenções de organização de aplicação Spring Boot", "url": "https://docs.spring.io/spring-boot/reference/using/structuring-your-code.html", "accessedAt": "2026-11-08" },
+    { "kind": "OFICIAL", "title": "Modules: Packages", "publisher": "Node.js", "reference": "package.json, escopo de pacote e organização de módulos Node.js", "url": "https://nodejs.org/api/packages.html", "accessedAt": "2026-11-08" },
+    { "kind": "OFICIAL", "title": "The Twelve-Factor App: Config, Processes, Concurrency and Disposability", "publisher": "12factor.net", "reference": "Configuração separada do código, processos sem estado, concorrência e tolerância a reinício", "url": "https://12factor.net/", "accessedAt": "2026-11-08" },
+    { "kind": "OFICIAL", "title": "Client-server overview", "publisher": "MDN / Mozilla", "reference": "Servidor web, arquivos estáticos, requisições HTTP e respostas de aplicação", "url": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview", "accessedAt": "2026-11-08" }
+  ]
+}

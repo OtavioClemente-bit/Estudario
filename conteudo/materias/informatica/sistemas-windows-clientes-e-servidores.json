@@ -1,0 +1,2629 @@
+{
+  "id": "informatica.sistemas-windows-clientes-e-servidores",
+  "subject": "Informática",
+  "title": "Sistemas Windows: clientes, servidores, usuários e permissões",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas Windows: 10/11, Server 2019/2022.",
+    "Gerenciamento de usuários e permissões de acesso no Windows",
+    "Windows 10 e Windows 11 para estações clientes",
+    "Windows Server 2019 e Windows Server 2022",
+    "Administração de contas locais no Windows",
+    "Contas e grupos no Active Directory Domain Services",
+    "Permissões NTFS em arquivos e pastas Windows",
+    "Compartilhamento de arquivos e permissões Windows",
+    "Controle de acesso por ACL no sistema Windows",
+    "Usuários, grupos, SID e autorização no Windows"
+  ],
+  "scope": {
+    "covers": "Características de uso de Windows 10 e 11 como sistemas clientes e Windows Server 2019 e 2022 como sistemas de servidor; instalações Server Core e Desktop Experience, funções gerais e diferenças de edições; contas locais e de domínio, grupos, Active Directory Domain Services e ferramentas administrativas; autenticação e autorização, SID, ACL, permissões NTFS e de compartilhamento, herança, propriedade, privilégios de usuário, UAC e concessão segura de acesso.",
+    "excludes": "Instalação passo a passo de cada edição, comandos avançados de PowerShell, arquitetura interna detalhada do Active Directory, configuração de serviços de rede específicos e licenciamento comercial. Datas de suporte são próprias da edição e versão e devem ser verificadas na política oficial vigente."
+  },
+  "theoryTitle": "Windows cliente e servidor: contas, grupos e controle de acesso",
+  "chapters": [
+    {
+      "title": "1. Windows cliente e Windows Server",
+      "markdown": "### O problema que este assunto resolve\n\nUma estação de trabalho e um servidor podem usar a família Windows, mas atendem a necessidades diferentes. Windows 10 e Windows 11 são sistemas clientes voltados ao uso interativo em computadores pessoais e corporativos. Windows Server 2019 e 2022 são plataformas para oferecer serviços a vários usuários e computadores, como diretório, arquivos, impressão, virtualização e aplicações. O papel depende da configuração: uma máquina com Windows Server só presta um serviço de rede quando a função correspondente é instalada e administrada.\n\nWindows 10 e 11 incluem interface gráfica, gerenciamento de dispositivos, contas locais ou conectadas a uma organização e recursos de segurança para a estação. Windows 11 é uma geração posterior, com requisitos de hardware e interface próprios; não se deve presumir que um computador compatível com Windows 10 atende automaticamente aos requisitos de Windows 11. O suporte varia por edição e versão. A documentação de ciclo de vida distingue, por exemplo, os canais de disponibilidade geral das edições LTSC. Windows 10 versão 22H2 encerrou atualizações no canal geral; uma edição LTSC pode ter calendário distinto.\n\nNo Windows Server, a instalação **Server Core** fornece ambiente reduzido, administrado principalmente por ferramentas remotas, PowerShell e interfaces de gerenciamento. **Server with Desktop Experience** inclui a interface gráfica tradicional. A seleção é feita na instalação, e a escolha impacta como o administrador opera o servidor. Windows Server 2019 LTSC oferece ambas as opções de instalação.\n\n| Sistema | Uso típico | Exemplo de característica\n|---|---|---\n| Windows 10/11 | Computador cliente | Usuário executa aplicações e acessa serviços de rede\n| Windows Server 2019 | Servidor de organização | Desktop Experience ou Server Core; System Insights e Windows Admin Center são recursos documentados\n| Windows Server 2022 | Servidor de organização | Reforços de segurança, incluindo TLS 1.3 habilitado por padrão na plataforma e melhorias de SMB\n\nAs edições Standard e Datacenter do Server compartilham diversas funções, mas Datacenter oferece recursos avançados ligados a virtualização e infraestrutura definida por software. Datacenter: Azure Edition acrescenta recursos associados a ambientes Azure, como SMB over QUIC e Hotpatch em cenários suportados. Consulte a matriz oficial da edição para confirmar cada função; não deduza uma capacidade só pelo nome “Server”.\n\n### Siglas e termos deste capítulo\n\n- **SO cliente:** sistema operacional usado principalmente por uma estação de trabalho.\n- **Server Core:** instalação reduzida do Windows Server, sem a experiência gráfica completa.\n- **Desktop Experience:** instalação do servidor com interface gráfica tradicional.\n- **LTSC:** canal de manutenção de longo prazo, associado a versões específicas.\n- **Windows Admin Center:** aplicativo de gerenciamento baseado em navegador para servidores e outros sistemas compatíveis.\n\n### Como cai na prova\n\nA banca pode confundir Windows Server com um serviço pronto: o sistema é a plataforma, e funções e recursos são instalados/configurados conforme a necessidade. Outra pegadinha é afirmar que Server Core não possui meios de administração: ele pode ser gerenciado remotamente e por ferramentas de linha de comando. Também é incorreto tratar o suporte de todas as edições Windows 10/11 como uma única data; os ciclos dependem da versão e do canal."
+    },
+    {
+      "title": "2. Contas locais, contas de domínio e grupos",
+      "markdown": "### O problema que este assunto resolve\n\nO Windows precisa reconhecer quem está usando o computador antes de conceder acesso aos recursos. Uma **conta local** existe no próprio computador e suas credenciais são validadas por ele. Ela pode ser adequada a um equipamento isolado ou a uma conta administrativa local. Uma **conta de domínio** é mantida no diretório da organização, geralmente pelo Active Directory Domain Services (AD DS), e pode ser usada em computadores associados ao domínio. Essa administração central permite que políticas, grupos e recursos sejam organizados para muitos equipamentos.\n\nNo AD DS, objetos de usuário são organizados em domínios, unidades organizacionais e contêineres. A console **Active Directory Users and Computers (ADUC)** permite criar e administrar objetos quando as ferramentas de administração apropriadas estão instaladas e o operador possui permissões. Ao criar usuário, o administrador escolhe o contêiner ou unidade organizacional, informa nome completo e nome de logon, define uma senha inicial e pode marcar para que a senha seja alterada no próximo logon. A conta também pode ser criada desabilitada.\n\nGrupos reúnem usuários e outros objetos para simplificar a administração. Em vez de conceder a cada pessoa acesso individual a uma pasta, atribui-se o acesso a um grupo de segurança e administra-se a associação de usuários. O princípio é conceder somente o acesso necessário à função de trabalho. Grupos locais existem no computador; grupos de domínio são mantidos no diretório e podem ser usados em recursos do domínio conforme o escopo e as relações de confiança.\n\nO gerenciamento exige privilégio adequado. Por padrão, Domain Admins e Enterprise Admins podem administrar contas de usuário, grupo e computador dentro de seus âmbitos. Account Operators têm privilégios limitados: criam e modificam a maioria das contas (usuários, computadores e grupos comuns), mas não equivalem a Domain Admins nem administram contas e grupos de administração do domínio. Não basta estar conectado à console: a operação depende das permissões do operador. Quando uma pessoa sai da organização ou perde a necessidade de acesso, desabilitar a conta interrompe novos logons; a sessão já aberta permanece conectada até ser encerrada. A documentação recomenda desabilitar antes de excluir, pois a conta pode ter permissões ainda necessárias para auditoria ou recuperação.\n\n### Siglas e termos deste capítulo\n\n- **AD DS:** serviço de diretório que mantém objetos e identidade de domínio.\n- **ADUC:** console Active Directory Users and Computers para administrar objetos do domínio.\n- **Conta local:** identidade administrada no próprio computador.\n- **Conta de domínio:** identidade administrada no diretório da organização.\n- **Grupo de segurança:** conjunto de identidades usado para atribuir permissões e direitos.\n\n### Como cai na prova\n\nDiferencie identidade local de identidade de domínio pelo local de validação e administração. ADUC não dispensa permissões administrativas. A banca também pode trocar os limites dos grupos delegados: Account Operators têm privilégio limitado e não equivalem a Domain Admins nem a Enterprise Admins. Desabilitar impede novos logons, mas não derruba automaticamente uma sessão existente."
+    },
+    {
+      "title": "3. Autenticação, autorização, SID e ACL",
+      "markdown": "### O problema que este assunto resolve\n\nO acesso seguro tem etapas diferentes. **Autenticação** verifica a identidade apresentada (por exemplo, credenciais de uma conta). **Autorização** verifica o que aquela identidade pode fazer em determinado recurso. Um usuário autenticado ainda pode receber “acesso negado” se não tiver permissão para o arquivo ou serviço solicitado.\n\nO Windows representa contas e grupos como **principals de segurança**, identificados por um **SID** (security identifier). O SID identifica a entidade de forma distinta do nome que aparece na interface; por isso, renomear uma conta não transforma a identidade de segurança em outra. Durante uma verificação, o Windows considera os SIDs associados à identidade e as regras do objeto solicitado.\n\nUma **ACL** (access control list) reúne entradas de controle de acesso associadas a um objeto. A DACL contém regras que permitem ou negam tipos de acesso a usuários e grupos. A SACL registra regras de auditoria, indicando quais acessos devem gerar eventos de auditoria quando a auditoria está configurada. ACLs podem proteger arquivos, pastas, objetos do Active Directory e outros objetos do sistema. O proprietário de um objeto pode, conforme as permissões, conceder acesso. Em geral, atribui-se a grupos em vez de manter uma lista individual de cada pessoa.\n\nPermissões de arquivo e pasta descrevem operações sobre o objeto, como leitura, gravação, modificação ou controle total. Permissões **NTFS** são aplicadas pelo sistema de arquivos NTFS e podem ser definidas para objetos locais ou acessados pela rede. Pastas podem herdar permissões do objeto pai; a herança facilita a administração, mas pode ser interrompida ou refinada em subpastas. Uma entrada explícita e uma herdada podem coexistir, por isso a avaliação de acesso efetivo deve considerar todas as entradas aplicáveis e os grupos da identidade. Uma negação explícita pode impedir acesso que seria permitido por outra entrada; por isso, evite regras conflitantes e verifique as permissões efetivas.\n\n### Siglas e termos deste capítulo\n\n- **SID:** identificador de segurança atribuído a uma conta ou grupo.\n- **ACL:** lista de controle de acesso vinculada a um objeto.\n- **DACL:** parte da ACL que define permissões de acesso.\n- **SACL:** parte da ACL usada para auditoria de acessos.\n- **Herdada:** permissão recebida de um contêiner ou pasta pai.\n\n### Como cai na prova\n\nAutenticação não é sinônimo de autorização. O nome exibido não é a base única da identidade: o SID identifica a entidade. DACL decide permissões; SACL relaciona-se à auditoria. A permissão herdada vem da hierarquia do objeto e pode ser ajustada, enquanto acesso efetivo depende das regras aplicáveis à identidade e seus grupos."
+    },
+    {
+      "title": "4. Permissões de compartilhamento, direitos e elevação",
+      "markdown": "### O problema que este assunto resolve\n\nQuando uma pasta NTFS é publicada como compartilhamento de rede, há duas camadas relevantes: a permissão do **compartilhamento** e a permissão NTFS do arquivo ou pasta. Para acesso pela rede, ambas precisam permitir a operação. O acesso efetivo fica limitado pela combinação mais restritiva: se o compartilhamento permite leitura e NTFS permite modificação, pela rede o usuário continua limitado à leitura; se NTFS permite leitura mas o compartilhamento não dá acesso, a conexão também não permite ler. No acesso local ao volume, a permissão de compartilhamento não é a camada que controla a operação.\n\nÉ comum organizar acessos por grupos, conceder apenas o nível necessário e testar como um usuário representativo. Conceder Controle Total a “Everyone” para corrigir rapidamente um erro abre o recurso a um público excessivo e não substitui uma configuração correta. Ao remover um usuário de um grupo, o acesso associado àquele grupo deixa de ser concedido, mas outras associações ou permissões diretas ainda podem manter acesso.\n\n**Direitos de usuário** não são permissões de arquivo. Direitos concedem privilégios ou possibilidades de logon e operação, como entrar interativamente no computador ou fazer backup de arquivos. Permissões são ligadas a objetos específicos. Direitos podem ser administrados em políticas de segurança local ou por política de domínio; a interface de permissões do arquivo não é a ferramenta para atribuir direitos de logon.\n\nO **Controle de Conta de Usuário (UAC)** ajuda a reduzir alterações não autorizadas e a limitar o uso cotidiano de privilégios administrativos. Uma conta que pertence a Administradores normalmente executa aplicações com um token de usuário padrão até que uma operação administrativa exija elevação; o prompt solicita consentimento ou credenciais conforme o tipo de conta e a política. UAC não transforma um usuário padrão em administrador por si só e não substitui ACLs, grupos ou autenticação.\n\n### Siglas e termos deste capítulo\n\n- **NTFS:** sistema de arquivos do Windows que oferece permissões por objeto.\n- **Compartilhamento:** recurso de rede que expõe uma pasta ou impressora.\n- **Direito de usuário:** privilégio de logon ou ação aplicável a uma identidade.\n- **UAC:** mecanismo que solicita elevação para operações administrativas.\n- **Acesso efetivo:** conjunto de operações que a identidade realmente pode realizar após avaliar as regras aplicáveis.\n\n### Como cai na prova\n\nA permissão de compartilhamento não substitui NTFS; pela rede, as duas camadas precisam autorizar e a mais restritiva limita a operação. Direito de logon não é permissão de arquivo. UAC pede elevação para determinadas tarefas, mas não é mecanismo de concessão geral de acesso a pastas."
+    }
+  ],
+  "summary": "Windows 10/11 atendem principalmente estações clientes; Windows Server 2019/2022 oferecem uma plataforma para funções de organização, com opções Server Core e Desktop Experience. Contas locais são administradas no computador; contas de domínio são mantidas centralmente pelo AD DS. O Windows usa SIDs para identificar principals. Autenticação confirma identidade, enquanto autorização avalia o acesso a cada objeto. ACLs protegem recursos: DACL define permissões e SACL apoia auditoria. Permissões NTFS e de compartilhamento são camadas distintas; pela rede, ambas limitam o acesso. Grupos simplificam a concessão, direitos de usuário diferem de permissões de objeto e UAC controla elevação administrativa.",
+  "flashcards": [
+    {
+      "front": "Qual é o uso típico do Windows 10/11?",
+      "back": "Atuar como sistema operacional cliente em estações de trabalho que executam aplicações e acessam serviços locais e de rede."
+    },
+    {
+      "front": "Qual é o papel geral do Windows Server?",
+      "back": "Fornecer plataforma para funções e serviços usados por clientes e cargas de trabalho de uma organização."
+    },
+    {
+      "front": "O que caracteriza Server Core?",
+      "back": "Instalação reduzida do Windows Server sem a experiência gráfica completa, usualmente administrada por ferramentas remotas ou linha de comando."
+    },
+    {
+      "front": "O que oferece Desktop Experience?",
+      "back": "Instalação do Windows Server que inclui a interface gráfica tradicional."
+    },
+    {
+      "front": "Uma conta local é validada onde?",
+      "back": "No próprio computador que mantém a conta."
+    },
+    {
+      "front": "Onde uma conta de domínio é administrada?",
+      "back": "No diretório da organização, normalmente por meio do AD DS."
+    },
+    {
+      "front": "Para que serve ADUC?",
+      "back": "Criar e administrar objetos como contas de usuário, grupos e computadores do Active Directory, desde que o operador tenha as permissões necessárias."
+    },
+    {
+      "front": "Qual é a vantagem de atribuir permissões a grupos?",
+      "back": "A associação de usuários ao grupo passa a controlar o acesso de forma central e mais fácil de manter."
+    },
+    {
+      "front": "O que fazem Domain Admins e Enterprise Admins por padrão?",
+      "back": "Podem administrar contas de usuários, grupos e computadores dentro dos respectivos escopos."
+    },
+    {
+      "front": "Qual é o limite relevante de Account Operators?",
+      "back": "Têm privilégio limitado de criar e modificar a maioria das contas, mas não equivalem a Domain Admins nem administram contas e grupos de administração do domínio."
+    },
+    {
+      "front": "O que ocorre ao desabilitar uma conta AD?",
+      "back": "Ela não pode iniciar novos logons; uma pessoa já conectada permanece na sessão aberta até que ela seja encerrada."
+    },
+    {
+      "front": "O que é autenticação?",
+      "back": "Verificação da identidade apresentada por uma conta ou credencial."
+    },
+    {
+      "front": "O que é autorização?",
+      "back": "Avaliação do que uma identidade autenticada pode fazer em um recurso específico."
+    },
+    {
+      "front": "O que identifica uma conta ou grupo no controle de acesso do Windows?",
+      "back": "Um SID, identificador de segurança associado ao principal."
+    },
+    {
+      "front": "Para que serve uma DACL?",
+      "back": "Conter regras que permitem ou negam tipos de acesso ao objeto protegido."
+    },
+    {
+      "front": "Para que serve uma SACL?",
+      "back": "Definir eventos de acesso que podem ser auditados, quando a auditoria está configurada."
+    },
+    {
+      "front": "O que significa permissão herdada?",
+      "back": "Permissão recebida de uma pasta ou objeto pai na hierarquia."
+    },
+    {
+      "front": "O que são permissões NTFS?",
+      "back": "Regras de acesso aplicadas a arquivos e pastas protegidos pelo sistema de arquivos NTFS."
+    },
+    {
+      "front": "Como interagem permissões de compartilhamento e NTFS pela rede?",
+      "back": "As duas camadas se aplicam, e a mais restritiva limita o acesso efetivo."
+    },
+    {
+      "front": "O que é um direito de usuário?",
+      "back": "Privilégio de logon ou de realizar uma ação do sistema, como entrar interativamente ou fazer backup."
+    },
+    {
+      "front": "Como um direito de usuário difere de uma permissão?",
+      "back": "O direito se aplica à identidade e a ações de sistema; a permissão está associada a um objeto protegido."
+    },
+    {
+      "front": "Qual é o papel do UAC?",
+      "back": "Solicitar consentimento ou credenciais para elevar operações que requerem privilégios administrativos."
+    },
+    {
+      "front": "O UAC atribui automaticamente direitos de administrador ao usuário padrão?",
+      "back": "Não. A elevação não converte por si só uma conta padrão em membro de Administradores."
+    },
+    {
+      "front": "Que recurso de Server 2019 permite análise preditiva local?",
+      "back": "System Insights analisa dados do sistema, como contadores de desempenho e eventos."
+    },
+    {
+      "front": "Qual característica de segurança de Server 2022 é documentada como habilitada por padrão?",
+      "back": "TLS 1.3 na plataforma; aplicações e serviços também precisam oferecer suporte para usá-lo."
+    }
+  ],
+  "tips": [
+    "Separe sempre três ideias: autenticação identifica, autorização decide acesso e auditoria registra eventos selecionados.",
+    "Em acesso a pasta compartilhada pela rede, confira a permissão do compartilhamento e a NTFS; a mais restritiva limita o resultado.",
+    "Grupos de segurança ajudam a aplicar o princípio do menor privilégio sem editar permissões pessoa por pessoa.",
+    "Use ADUC para contas de domínio e ferramentas locais para contas do computador; confirme o escopo antes de alterar uma identidade.",
+    "Server Core continua sendo Windows Server e pode ser administrado remotamente; ausência de GUI completa não significa ausência de administração.",
+    "Não generalize datas de suporte de Windows 10/11: verifique edição, versão e canal de manutenção na tabela oficial vigente."
+  ],
+  "traps": [
+    "Confundir conta autenticada com usuário autorizado a abrir qualquer recurso.",
+    "Afirmar que a permissão NTFS sozinha define o acesso pela rede quando existe também uma permissão de compartilhamento.",
+    "Tratar SID como simples nome de usuário que muda quando a conta é renomeada.",
+    "Trocar DACL, que controla permissões, por SACL, relacionada a auditoria.",
+    "Confundir direitos de usuário, como logon interativo, com permissões de leitura ou gravação de arquivos.",
+    "Supor que desabilitar uma conta encerra instantaneamente toda sessão que já estava aberta."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare conta local e conta de domínio pelo local de administração e pelo uso típico.",
+      "answer": "A conta local é mantida e validada pelo próprio computador. A conta de domínio é administrada no diretório da organização e pode ser usada em máquinas associadas ao domínio."
+    },
+    {
+      "question": "Descreva a sequência conceitual entre autenticação e autorização.",
+      "answer": "Primeiro o sistema verifica a identidade; depois avalia se essa identidade tem permissão para acessar o objeto e executar a operação solicitada."
+    },
+    {
+      "question": "Explique a diferença entre DACL e SACL.",
+      "answer": "DACL reúne regras que permitem ou negam acesso. SACL reúne critérios para auditar acessos quando a auditoria correspondente está habilitada."
+    },
+    {
+      "question": "Como as permissões de compartilhamento e NTFS afetam a conexão remota a uma pasta?",
+      "answer": "As duas se aplicam ao acesso pela rede. O usuário só pode realizar operações autorizadas por ambas, ficando limitado pela camada mais restritiva."
+    },
+    {
+      "question": "Por que atribuir acesso a grupos costuma simplificar a administração?",
+      "answer": "A equipe administra a associação de usuários aos grupos e mantém as permissões no recurso, em vez de criar regras individuais para cada pessoa."
+    },
+    {
+      "question": "O que acontece quando uma conta de domínio é desabilitada?",
+      "answer": "Ela deixa de iniciar novos logons, mas a desativação não encerra automaticamente uma sessão que já estava conectada."
+    },
+    {
+      "question": "Diferencie Server Core de Desktop Experience.",
+      "answer": "Server Core é uma instalação reduzida sem a experiência gráfica completa; Desktop Experience inclui a interface gráfica tradicional do Windows Server."
+    },
+    {
+      "question": "Qual é o propósito do UAC e o que ele não substitui?",
+      "answer": "O UAC solicita elevação para tarefas administrativas; não substitui autenticação, permissões de objeto ou associação a grupos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Cliente e servidor confundidos",
+      "summary": "Windows 10/11 são usados principalmente como clientes; Windows Server é plataforma para funções e serviços. Server Core e Desktop Experience são opções de instalação do servidor."
+    },
+    {
+      "key": "e2",
+      "title": "Identidade e permissão confundidas",
+      "summary": "Autenticação identifica a conta; autorização verifica as ações admitidas. SID identifica o principal no controle de acesso."
+    },
+    {
+      "key": "e3",
+      "title": "ACL e herança interpretadas incorretamente",
+      "summary": "DACL controla permissões e SACL associa auditoria. Permissões herdadas vêm de objetos pais; acesso efetivo depende de todas as regras aplicáveis."
+    },
+    {
+      "key": "e4",
+      "title": "Compartilhamento separado do NTFS",
+      "summary": "No acesso remoto, permissões de compartilhamento e NTFS devem permitir a operação; a camada mais restritiva determina o limite efetivo."
+    },
+    {
+      "key": "e5",
+      "title": "Privilégios e permissões trocados",
+      "summary": "Direitos de usuário tratam de logon e ações de sistema; permissões tratam de operações sobre objetos. UAC controla elevação, não concede acesso geral."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um técnico autenticado tenta abrir uma pasta e recebe acesso negado. Qual etapa explica diretamente a recusa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autorização avaliou que as permissões do recurso não permitem a operação solicitada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A autenticação confirmou a identidade e, por isso, deveria liberar automaticamente todos os objetos protegidos do computador, de servidores remotos e da rede corporativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A auditoria substituiu a senha da conta por uma regra de acesso temporária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SID da pasta foi convertido em uma conta local e bloqueou o domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O UAC removeu permanentemente o usuário do grupo que possui a pasta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autenticação apenas confirma a identidade. A autorização compara a identidade e suas permissões com o objeto e a operação; por isso, um usuário autenticado pode não ter acesso à pasta.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede corporativa, qual opção descreve melhor a função típica do Windows 11?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atuar como sistema cliente para executar aplicações e consumir serviços da organização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Hospedar obrigatoriamente o diretório central e autenticar todas as contas do domínio sem instalar uma função de servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir as funções de servidor de arquivos sem instalar ou configurar nenhum serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar somente como sistema embarcado, sem interface de usuário ou aplicativos locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Administrar todas as contas locais de todos os computadores sem conexão ou política central.",
+          "correct": false
+        }
+      ],
+      "explanation": "Windows 11 é um sistema cliente para estação de trabalho. Serviços de diretório e arquivos são funções de servidor configuradas em plataforma apropriada; não são consequência automática de instalar Windows 11.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Windows precisa de uma instalação sem a interface gráfica tradicional. Qual opção atende a essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Server Core, com ambiente reduzido e administração por ferramentas compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desktop Experience, que remove a interface e conserva apenas os serviços de rede, sem oferecer área de trabalho gráfica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Windows 11 Home, que se converte em Server Core ao ingressar no domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modo de segurança, que é uma edição permanente para hospedar serviços corporativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Active Directory Users and Computers, que instala o sistema operacional do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Server Core é a opção reduzida do Windows Server sem a experiência gráfica completa. Ela continua administrável por ferramentas remotas e de linha de comando; ADUC é console administrativa, não uma edição de sistema.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer administrar contas de usuários de domínio em uma console gráfica. Qual ferramenta é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Active Directory Users and Computers, com ferramentas instaladas e permissões adequadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gerenciador de Tarefas, que cria objetos de usuário diretamente no diretório e concede ao operador poderes de domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Explorador de Arquivos, que transforma pastas em contas de domínio permanentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Windows Update, que altera grupos e permissões ao baixar atualizações mensais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "UAC, que centraliza as contas de todos os domínios da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "ADUC administra objetos do Active Directory quando os componentes administrativos estão disponíveis, o computador está associado ao domínio e o operador possui direitos necessários.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual identificador o Windows associa a um principal de segurança para distingui-lo no controle de acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SID, identificador de segurança atribuído a contas e grupos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "UAC, identificador que registra a senha atual da conta e a sessão usada pelo funcionário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SACL, identificador que autentica o usuário em qualquer domínio confiável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NTFS, identificador exclusivo criado para cada sessão de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DACL, identificador do computador que hospeda o objeto solicitado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SID é o identificador de segurança do principal. UAC trata de elevação; SACL é relacionada à auditoria; NTFS é sistema de arquivos; DACL contém regras de acesso.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual elemento de uma ACL contém regras que permitem ou negam operações sobre um objeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DACL, que reúne entradas de controle de acesso ao objeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SACL, que contém exclusivamente as regras de auditoria de logons interativos e decide se o usuário pode abrir a pasta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SID, que lista as operações de leitura e gravação permitidas na pasta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UAC, que grava a lista de usuários autorizados dentro do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ADUC, que é um formato de permissão armazenado em cada arquivo NTFS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A DACL contém entradas usadas para permitir ou negar acessos ao objeto. A SACL permite definir eventos para auditoria; SID identifica o principal, e UAC/ADUC são mecanismos e ferramentas diferentes.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma pasta compartilhada, a permissão de rede permite leitura e NTFS permite modificação. Qual limite se aplica ao usuário que acessa pela rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura, pois a permissão mais restritiva entre compartilhamento e NTFS limita o acesso remoto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Modificação, porque a permissão NTFS sempre substitui a regra do compartilhamento em qualquer acesso pela rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Controle total, porque o Windows soma as permissões das duas camadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhum acesso, pois permissões diferentes causam bloqueio automático do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravação e exclusão, pois a rede ignora a permissão de compartilhamento após logon.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pela rede, o acesso deve ser permitido tanto pela camada de compartilhamento quanto pela NTFS. O limite final é a operação mais restrita, neste cenário leitura.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente um direito de usuário do Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode autorizar uma ação como logon interativo ou backup de arquivos e diretórios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É uma permissão NTFS que define leitura de um arquivo específico para um grupo e controla o logon local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma entrada de compartilhamento que publica uma pasta na rede local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um SID temporário que identifica apenas uma unidade de disco removível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma regra DACL que controla exclusivamente quais eventos aparecem no log.",
+          "correct": false
+        }
+      ],
+      "explanation": "Direitos de usuário concedem privilégios e direitos de logon, por exemplo entrar interativamente ou fazer backup. Permissões NTFS estão associadas a objetos, e auditoria é tratada pela SACL.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que efeito o UAC pode ter quando uma conta administrativa inicia uma tarefa que exige elevação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Solicitar consentimento ou credenciais para executar a operação com privilégio elevado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder ao usuário padrão associação permanente ao grupo Administradores e manter o privilégio após reinicializações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a senha e substituir a autenticação por permissões herdadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar automaticamente a DACL de todos os arquivos do computador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a auditoria de segurança enquanto a janela de confirmação estiver aberta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O UAC solicita consentimento ou credenciais para elevar uma operação. Não muda permanentemente a associação a grupos, nem substitui autenticação, permissões ou auditoria.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma permissão definida em uma pasta pai é propagada aos arquivos e subpastas descendentes, salvo ajustes de herança. Como ela é classificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Herdada, porque é recebida do objeto pai na hierarquia.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Explícita, porque foi digitada em uma conta de usuário individual e substitui a regra do objeto pai.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "De compartilhamento, porque toda pasta pai é publicada na rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "De auditoria, porque qualquer regra propagada é armazenada na SACL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "De domínio, porque somente o Active Directory propaga permissões NTFS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A permissão herdada vem de um contêiner ou objeto pai. A herança pode ser ajustada em objetos descendentes; não implica que a pasta esteja compartilhada ou que a regra seja de auditoria.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso do Windows Server 2019 faz análise preditiva local a partir de dados como contadores de desempenho e eventos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "System Insights, que aplica modelos locais a dados do sistema para apoiar a gestão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "UAC, que prevê falhas e corrige permissões de usuários sem política definida, além de ajustar o desempenho do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ADUC, que analisa eventos para criar contas de domínio automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Server Core, que executa previsão de desempenho ao remover todos os registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SACL, que calcula consumo de disco e altera grupos conforme a demanda.",
+          "correct": false
+        }
+      ],
+      "explanation": "System Insights é um recurso de análise preditiva local no Windows Server 2019, usando dados como contadores de desempenho e eventos. As demais opções são ferramenta de conta, controle de acesso ou modo de instalação.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso de segurança da plataforma Windows Server 2022 é descrito pela Microsoft como habilitado por padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "TLS 1.3, embora aplicações e serviços também precisem oferecer suporte ao protocolo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "UAC desativado, para permitir logon remoto sem confirmação administrativa em computadores do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SMB sem criptografia, para impedir negociação de cifras entre servidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Server Core obrigatório, sem opção de instalação com interface gráfica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hotpatch em todas as edições locais, sem requisitos de Azure ou configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Server 2022 aponta HTTPS e TLS 1.3 habilitados por padrão na plataforma, mas o serviço ou aplicação precisa implementar suporte para usar o protocolo. Hotpatch tem requisitos de edição e cenário.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer aplicar permissões a uma equipe que muda de integrantes, evitando editar a ACL do recurso para cada entrada e saída. Qual desenho é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder o acesso ao grupo de segurança e manter a associação dos usuários atualizada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder controle total a cada conta individual e manter usuários antigos na lista, facilitando a continuidade do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar a pasta com Everyone e usar o nome do arquivo para identificar a equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o SID do objeto a cada alteração para apagar a necessidade de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma conta local comum em todos os computadores, sem registrar seus integrantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atribuição a um grupo de segurança centraliza as permissões no recurso; a equipe controla quem pertence ao grupo. A concessão ampla ou contas compartilhadas prejudicam o princípio do menor privilégio e a rastreabilidade.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador consegue usar ADUC, mas não tem direito para modificar uma conta do domínio. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A presença da console não concede privilégios; a operação exige permissões adequadas no domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A instalação da console deveria conceder automaticamente Domain Admins ao operador e propagar o privilégio para toda a floresta, sem uma delegação explícita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conta deve ser renomeada, pois somente o nome determina direitos de administração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O computador precisa trocar NTFS por FAT para habilitar as operações no diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A SACL deve ser removida, pois auditoria impede qualquer alteração em contas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ADUC é uma ferramenta administrativa, mas a possibilidade de alterar objetos depende das permissões atribuídas ao operador. Instalar ferramentas não inclui automaticamente o usuário em grupos privilegiados.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um funcionário encerrou o vínculo, e a equipe precisa impedir novos logons enquanto verifica recursos associados à identidade. Qual procedimento inicial é recomendado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar a conta e revisar acessos antes de decidir pela exclusão do objeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Excluir imediatamente a conta e presumir que todos os arquivos sejam apagados junto com os dados pessoais e permissões associados no servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o nome da conta e manter habilitadas todas as sessões e credenciais anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover a conta de Domain Admins e concluir que nenhum outro acesso continuará válido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o AD DS inteiro até que os arquivos pessoais sejam copiados para o servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A orientação documentada é desabilitar antes de excluir, permitindo verificar permissões que possam depender da conta. Desabilitar impede novos logons, mas não encerra uma sessão já aberta; outras permissões também devem ser avaliadas.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer registrar tentativas de acesso a um objeto para auditoria. Qual parte da ACL está relacionada a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SACL, configurada para identificar acessos que devem gerar auditoria.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DACL, que armazena senhas e define o tempo de expiração da conta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SID, que guarda eventos de leitura em vez de identificar o principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UAC, que substitui o log de segurança por uma aprovação em tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NTFS, que é a console usada para pesquisar eventos de autenticação do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A SACL permite definir critérios de auditoria de acesso. A DACL controla permissões; SID identifica o principal; UAC lida com elevação e NTFS é um sistema de arquivos.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deseja permitir leitura local de uma pasta, mas o grupo não deve acessar a pasta pela rede. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A permissão de compartilhamento controla o acesso remoto; ela não é a camada aplicada ao acesso local ao volume.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A permissão de compartilhamento também bloqueia necessariamente a leitura local no próprio disco, mesmo para o proprietário conectado ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NTFS só se aplica a conexões pela rede e deixa o acesso local sem controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UAC deve substituir o compartilhamento e permitir leitura por todos os usuários locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A SACL da pasta controla sozinha o acesso e torna desnecessárias as regras NTFS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Permissões de compartilhamento regulam o acesso pela rede. O acesso local ao volume é controlado pelas permissões do objeto, como NTFS, e não depende da permissão de compartilhamento.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma permissão explicitamente concedida a um usuário e outra recebida por herança se aplicam ao mesmo arquivo. O que deve ser avaliado para entender o acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As entradas aplicáveis ao arquivo, os grupos da identidade e eventuais permissões de negação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente a entrada herdada, pois concessões explícitas são ignoradas pelo Windows quando o arquivo está dentro de uma pasta pai.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o nome de exibição do usuário, sem consultar seu SID ou associação a grupos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A permissão de compartilhamento, mesmo quando o arquivo é acessado localmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A data de criação do arquivo, porque ela substitui as permissões anteriores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso efetivo depende das regras aplicáveis ao objeto e dos SIDs da identidade, incluindo as associações a grupos. Regras herdadas e explícitas podem coexistir, e negações aplicáveis exigem atenção.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A empresa precisa de um servidor Windows com interface gráfica para tarefas administrativas locais. Qual opção de instalação corresponde a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Server with Desktop Experience, que inclui a interface gráfica tradicional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Server Core, que inclui por definição toda a área de trabalho gráfica do Windows cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Windows 10 LTSC, que é uma variante gráfica de Windows Server 2022.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AD DS, que é a opção de instalação com explorador de arquivos e menu Iniciar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Windows Admin Center, que substitui o sistema operacional instalado no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Server with Desktop Experience instala a interface gráfica tradicional. Server Core não inclui essa experiência completa; AD DS é uma função e Windows Admin Center é uma ferramenta de gerenciamento.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a equipe deve verificar a edição e o canal de manutenção ao avaliar a atualização de um Windows cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque versões e edições, como canais gerais e LTSC, podem ter calendários de suporte diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque todas as instalações de Windows 10 e Windows 11 recebem suporte até uma data idêntica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o canal determina se o sistema utiliza SID ou senha para autenticar usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque uma versão LTSC não pode receber atualizações de segurança durante seu ciclo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque o suporte é contado a partir da criação da conta local de cada usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Microsoft publica ciclos por produto, versão, edição e canal. Generalizar uma única data para Windows 10 ou 11 pode levar a conclusões erradas; o estado deve ser conferido na tabela oficial vigente.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um recurso de arquivo precisa estar acessível pela rede apenas para leitura, embora a ACL NTFS permita modificação. Que ajuste limita a conexão remota à leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar a permissão do compartilhamento para leitura e manter o acesso NTFS compatível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover todas as permissões NTFS, pois a permissão de compartilhamento já substitui a ACL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder controle total no compartilhamento e confiar que a auditoria bloqueie gravações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar UAC no servidor, pois ele define o nível de acesso remoto a cada arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar todos os usuários a Administradores e retirar a permissão de leitura do grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso remoto precisa ser permitido pelas duas camadas. Uma permissão de compartilhamento limitada à leitura restringe a conexão mesmo quando NTFS permite mais; não é adequado remover a proteção NTFS nem conceder acesso administrativo amplo.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação usa uma conta local e não está associada ao domínio. Onde se administra diretamente a senha dessa conta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nas ferramentas de gerenciamento de contas do próprio computador que mantém a identidade local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No ADUC de qualquer domínio, que replica automaticamente todas as contas locais isoladas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na SACL do perfil, pois a auditoria armazena as credenciais locais dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na permissão de compartilhamento do perfil, que contém a senha por usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No Windows Admin Center de qualquer servidor, sem conexão nem autorização administrativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma conta local é mantida pelo próprio computador. ADUC administra objetos do Active Directory, e permissões de arquivo ou auditoria não armazenam a senha da conta.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pasta filha recebeu permissão herdada do pai, mas o administrador precisa que ela tenha uma regra própria. Qual conceito explica a alteração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A herança pode ser ajustada no objeto filho, que pode receber permissões específicas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda permissão herdada é imutável e não pode ser interrompida em subpastas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A herança só existe para contas de domínio e não se aplica a objetos NTFS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra própria deve ser gravada na SACL, mesmo se não houver auditoria envolvida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O administrador deve renomear o SID do pai para criar uma permissão independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A herança facilita aplicar regras ao longo da hierarquia, mas pode ser ajustada no objeto filho para permitir regras específicas. Isso não exige alterar o SID do pai nem transformar controle de acesso em auditoria.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário pertence a dois grupos, um com permissão de leitura e outro com negação aplicável à mesma operação. O administrador quer avaliar o acesso efetivo. Qual abordagem é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar as entradas aplicáveis à identidade e seus grupos, inclusive a negação relevante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Considerar apenas o grupo com leitura, porque permissões de grupo são sempre somadas sem exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Considerar apenas o grupo mais antigo, pois o Windows ignora as associações adicionadas depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover a autenticação, pois o SID deixa de existir quando há associação a mais de um grupo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a SACL para permitir a leitura e descartar a DACL durante a verificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A verificação considera os SIDs da identidade e as entradas aplicáveis ao objeto; uma negação aplicável pode impedir o acesso que seria permitido por outra regra. A SACL trata de auditoria, não de concessão.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende instalar o Windows Admin Center para gerenciar servidores compatíveis. Qual descrição corresponde à ferramenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicativo de gerenciamento baseado em navegador para servidores, clusters e outros sistemas compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sistema operacional cliente que substitui Windows 10 e converte PCs em controladores de domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Protocolo de autenticação que atribui SID a cada pasta compartilhada da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Edição de Server Core que remove as ferramentas remotas e exige administração local gráfica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Camada NTFS responsável por armazenar as permissões de todos os usuários do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Windows Admin Center é uma aplicação de gerenciamento baseada em navegador, utilizável para administrar servidores e clusters compatíveis. Não é um sistema operacional, protocolo de autenticação ou sistema de arquivos.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador do grupo Account Operators acredita que a participação nesse grupo lhe dá administração total do domínio. Qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Esse grupo tem privilégio limitado de criação e modificação de contas, sem equivaler a Domain Admins nem a Enterprise Admins.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Esse grupo tem os mesmos poderes de Enterprise Admins em toda a floresta do Active Directory.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Esse grupo pode apenas redefinir senhas e não criar, modificar ou excluir contas de usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A associação ao grupo concede controle total sobre todos os arquivos NTFS dos servidores, mesmo sem uma regra atribuída ao grupo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A instalação da ADUC amplia o grupo automaticamente para que gerencie grupos e permissões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Account Operators é um grupo interno de privilégio limitado: cria e modifica a maioria das contas, mas não equivale a Domain Admins nem a Enterprise Admins. A console não amplia esse escopo de privilégio.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A senha de uma conta foi validada, mas a ACL não concede leitura do documento. Qual conclusão decorre do modelo de acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade foi autenticada, mas a autorização para ler aquele objeto não foi concedida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A autenticação falhou, pois qualquer falta de permissão significa senha inválida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A SACL deve conceder leitura, porque auditoria e autorização são a mesma etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conta precisa ser renomeada, pois a ACL reconhece somente o texto do nome.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O UAC deve alterar a senha antes de avaliar se o documento está compartilhado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autenticação da senha confirma a identidade; a autorização é uma decisão separada, feita para o recurso. A ausência de permissão de leitura não torna a senha inválida.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista quer conceder a um usuário o direito de iniciar sessão localmente, sem alterar a leitura de uma pasta específica. Qual tipo de configuração corresponde ao caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir o direito de logon apropriado por política de segurança, no escopo correto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder permissão NTFS de leitura na pasta, que habilita qualquer tipo de logon.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar o usuário à SACL da pasta para que a auditoria libere sua entrada no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma permissão de compartilhamento, que controla o início de sessão interativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Habilitar UAC, que adiciona automaticamente direitos de logon a usuários padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Direitos de usuário incluem direitos de logon e são administrados por políticas de segurança, não pela ACL de um arquivo. Permissões NTFS controlam acesso ao objeto, não entrada interativa no sistema.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo de suporte precisa alterar arquivos de uma pasta, sem administrar permissões nem tomar posse dos objetos. Qual prática é mais compatível com o menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder ao grupo somente a permissão NTFS necessária para modificar o conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder controle total a Everyone para evitar futuras solicitações de suporte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar todos os técnicos a Enterprise Admins para permitir mudanças nos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o UAC e remover a ACL para que o sistema não avalie operações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar uma SACL de leitura, esperando que ela também autorize gravação e exclusão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menor privilégio recomenda conceder ao grupo apenas a operação requerida, neste caso modificar o conteúdo, sem controle total ou privilégios administrativos excessivos. SACL é auditoria, não concessão de acesso.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta de domínio é criada desabilitada durante uma preparação de admissão. O que ocorre até que ela seja habilitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade existe no diretório, mas não pode iniciar novos logons enquanto permanecer desabilitada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O objeto é apagado do diretório e precisa ser recriado para receber uma senha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conta pode iniciar sessão normalmente, mas não pode acessar pastas compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O domínio inteiro rejeita autenticação até que todas as contas sejam habilitadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SID é transferido para o UAC e a conta passa a ser um grupo local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma conta pode ser criada em estado desabilitado. Ela continua sendo um objeto do diretório, porém não pode iniciar novos logons até ser habilitada; isso não apaga nem afeta as demais contas do domínio.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Windows Server 2022 possui uma plataforma compatível com TLS 1.3, mas uma aplicação antiga não implementa esse protocolo. Qual conclusão é segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação também precisa oferecer suporte ao protocolo para utilizá-lo em suas conexões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ativação na plataforma converte automaticamente qualquer aplicação antiga para TLS 1.3.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor deve desabilitar todas as permissões NTFS para habilitar TLS na aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O TLS 1.3 é uma permissão de compartilhamento que só protege arquivos locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O UAC atualiza o código da aplicação quando o administrador aceita a elevação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A plataforma pode habilitar TLS 1.3, mas aplicações e serviços precisam implementar o protocolo para utilizá-lo. UAC, NTFS e permissões de compartilhamento têm finalidades diferentes.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Windows Server, qual afirmação distingue corretamente uma função do sistema operacional de um recurso automaticamente presente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor é a plataforma; serviços como diretório ou arquivos dependem das funções instaladas e configuradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo Windows Server é controlador de domínio assim que termina a instalação inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma máquina vira servidor de arquivos sempre que seu usuário recebe controle total no perfil.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Server Core inclui obrigatoriamente AD DS e publica todas as pastas na rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A edição Datacenter converte por si só todas as contas locais em identidades de domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Windows Server fornece a plataforma; o administrador instala e configura as funções necessárias, como AD DS ou serviços de arquivo. A edição ou modo de instalação não configura automaticamente esses papéis.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador está comparando Standard e Datacenter para planejar funções. Qual método evita concluir incorretamente que toda função existe em todas as edições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar a matriz oficial de comparação para a versão e edição específicas do Windows Server.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que todas as funções são idênticas e selecionar pela quantidade de usuários locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher Datacenter e considerar que toda função será ativada sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a tabela de suporte do Windows 11, pois ela lista os recursos de cada servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar o nome Standard como uma edição cliente com funções sempre reduzidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A disponibilidade varia por edição e versão; a documentação oficial traz a comparação de Standard, Datacenter e Azure Edition. Mesmo uma função disponível pode exigir instalação e configuração.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo de domínio recebe acesso a uma pasta em um servidor, e um usuário é incluído nesse grupo. Qual efeito se espera na autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O usuário pode passar a receber as permissões concedidas ao grupo, conforme as regras aplicáveis ao objeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A inclusão altera o SID da pasta e remove todas as regras herdadas do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conta passa a ser autenticada pela permissão NTFS, dispensando suas credenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A associação converte automaticamente a permissão NTFS em direito de logon interativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O usuário recebe controle total sobre qualquer servidor, pois o grupo é do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Usuários adicionados a grupos podem assumir os acessos atribuídos ao grupo, sujeitos às permissões efetivas e aos recursos envolvidos. A associação não muda o SID do objeto nem concede direitos irrestritos no domínio.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação oficial descreve ACLs como mecanismo que protege arquivos, impressoras, chaves de registro e objetos do AD DS. O que isso demonstra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O controle de acesso se aplica a diversos tipos de objeto, com permissões apropriadas a cada tipo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todas as classes de objeto aceitam exatamente as mesmas permissões de arquivo NTFS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ACL é outro nome para senha de usuário e autentica sem verificar o recurso solicitado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente arquivos compartilhados podem possuir ACL; objetos do diretório ficam sem proteção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A SACL substitui a autorização em todos os objetos do sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "ACLs podem proteger diferentes objetos, mas as permissões disponíveis dependem do tipo de objeto. O mecanismo não se limita a arquivos compartilhados e não substitui autenticação ou autorização.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta foi removida de um grupo que concedia leitura, mas ainda consegue abrir a pasta. Qual explicação deve ser investigada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Outra associação a grupo ou uma permissão atribuída diretamente ainda pode conceder acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A remoção do grupo necessariamente desabilita o usuário, mas o acesso segue por causa do UAC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A SACL concede leitura em qualquer objeto auditado, mesmo sem regras na DACL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SID ignora alterações em grupos e mantém para sempre todas as permissões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A permissão de compartilhamento converte automaticamente qualquer conta em proprietária NTFS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A associação removida elimina apenas as permissões derivadas daquele grupo após a atualização aplicável. Acesso pode continuar por outra associação ou entrada direta; a auditoria não concede leitura.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário padrão precisa instalar uma alteração que exige privilégio administrativo. Qual afirmação sobre UAC é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pedido de elevação pode exigir credenciais de uma conta administrativa, conforme a configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O usuário padrão ganha privilégios permanentes ao pressionar Sim no prompt de UAC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O UAC concede por padrão todas as permissões NTFS a qualquer usuário do computador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O prompt do UAC autentica o usuário na conta de domínio sem verificar credenciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A elevação é feita pela SACL e não pode depender de credenciais administrativas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para uma conta padrão, uma operação administrativa pode solicitar credenciais de uma conta administrativa. O UAC permite elevação controlada da operação, não torna a conta padrão administradora permanentemente.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma auditoria, a equipe precisa descobrir quais usuários tentaram ler determinado objeto. Qual configuração combina com esse objetivo sem conceder leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar auditoria pertinente na SACL e manter a decisão de acesso nas permissões da DACL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar leitura à SACL, pois essa lista simultaneamente autoriza e registra todas as operações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a DACL e usar o SID para registrar cada leitura realizada no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar UAC, que grava automaticamente cada tentativa de leitura em uma lista de permissões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o nome da conta para que o NTFS inclua as tentativas no histórico do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A SACL pode selecionar acessos para auditoria; a DACL continua definindo se a operação é permitida ou negada. Auditoria observa eventos, não concede a operação.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma administradora delegada precisa criar e modificar a maioria das contas do domínio, sem receber administração total do domínio. Qual grupo interno corresponde a esse escopo limitado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Account Operators, dentro do domínio e das permissões aplicáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Users, que recebe por padrão controle irrestrito sobre contas e ACLs do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remote Desktop Users, que administra grupos e permissões do Active Directory.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup Operators, que substitui Enterprise Admins na gestão de todos os objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Everyone, que tem privilégios de criação e exclusão de qualquer conta de domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Account Operators é o grupo interno de privilégio limitado para criar e modificar a maioria das contas. O escopo não equivale a administração total do domínio.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pasta só será compartilhada com membros do grupo de projetos. Qual abordagem alinha concessão e princípio do menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder ao grupo apenas as permissões necessárias e ajustar o compartilhamento e a ACL NTFS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder controle total a Everyone e depender de os usuários não conhecerem o caminho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar a pasta para todos e remover a DACL, pois o nome do compartilhamento restringe usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar os membros a Domain Admins para herdar leitura sem configurar o objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar somente uma SACL para que usuários não integrantes sejam bloqueados da pasta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A concessão a grupo permite administrar os integrantes e manter as regras no recurso. No acesso de rede, configure compartilhamento e NTFS para o público e as operações necessários; a SACL registra auditoria, não bloqueia por si só.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa já está conectada quando o administrador desabilita sua conta de domínio. O que a documentação indica sobre a sessão existente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sessão já iniciada permanece conectada, embora a conta não possa realizar novos logons.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A sessão é sempre encerrada imediatamente em todos os computadores do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conta é apagada junto com todos os arquivos que pertencem ao seu perfil.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SID é alterado para um SID de auditoria que continua autenticando o usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O usuário recebe controle total temporário até que o administrador exclua a conta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desabilitar uma conta impede novos logons, mas um usuário já conectado permanece conectado. O administrador deve encerrar a sessão separadamente quando isso for necessário.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Windows 11 pode acessar um servidor de arquivos compatível por SMB. Que relação entre os sistemas está representada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Windows cliente consome um serviço oferecido pelo servidor, sujeito à autenticação e às permissões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Windows cliente torna-se automaticamente controlador de domínio ao montar a pasta remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor transfere ao cliente sua DACL e deixa de verificar as permissões do recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O protocolo SMB converte a conta local em conta de domínio sem associação ou credenciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A permissão de compartilhamento permite a qualquer cliente ignorar as regras NTFS do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estação cliente acessa um serviço disponibilizado pelo servidor. O acesso continua sujeito à autenticação e às permissões configuradas no recurso; o protocolo não converte identidades nem ignora ACLs.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na autorização de um arquivo NTFS, a que se associam as permissões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ao objeto protegido e a principals identificados por usuários, grupos ou computadores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "À senha digitada, sem relação com o arquivo ou com a identidade autenticada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ao monitor e ao teclado, que controlam todas as leituras e gravações da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "À data de instalação do Windows, que determina quem pode abrir cada documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "À SACL exclusivamente, pois a DACL não pode controlar operações sobre arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Permissões definem os tipos de acesso concedidos a principals em um objeto. DACL contém as regras de autorização; SACL pode orientar a auditoria de acessos.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador está avaliando acesso a um recurso vindo de um computador local e pela rede. Qual distinção deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O acesso local avalia as permissões do objeto; o remoto também exige autorização da camada de compartilhamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O acesso local sempre depende do compartilhamento e o remoto ignora as permissões NTFS definidas para arquivos e pastas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rede usa somente UAC e o acesso local usa somente a conta de domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A auditoria substitui as permissões NTFS para acessos iniciados fora do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O acesso local e o remoto ignoram ACLs quando o usuário foi autenticado no domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "No acesso local ao volume, permissões do objeto como NTFS controlam operações. Pela rede, a permissão do compartilhamento também participa, além das permissões NTFS.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador quer atribuir um direito de usuário a um conjunto de contas, mantendo a política simples de revisar. Qual prática é indicada pela documentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Administrar o direito no nível de grupo, sempre que adequado, em vez de distribuir entradas individuais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar uma DACL diferente para cada arquivo, mesmo que o direito seja de logon no sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a SACL como grupo, pois ela mantém a associação e concede o privilégio de logon.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder o direito a todos os usuários e bloquear a ação por meio do compartilhamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear todos os usuários para o nome do direito e deixar a política sem configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Direitos de usuário podem ser atribuídos a contas individuais, mas a administração por grupo é uma prática recomendada. Isso não é feito pela ACL de arquivos, pois o direito é uma prerrogativa de logon ou ação do sistema.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe planeja Windows Server 2022 Datacenter: Azure Edition especificamente por causa de recursos como SMB over QUIC. Qual afirmação é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A edição Azure inclui recursos específicos de integração com Azure, sujeitos aos cenários e requisitos documentados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SMB over QUIC é obrigatório em todas as instalações Windows Server 2019 Standard.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A edição Azure é uma conta de usuário especial que concede controle total sobre compartilhamentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A escolha da edição remove a necessidade de configurar identidade e permissões no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A edição Azure transforma automaticamente qualquer PC Windows 11 em servidor de arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação descreve recursos como SMB over QUIC para Windows Server 2022 Datacenter: Azure Edition em cenários compatíveis. A escolha da edição não elimina configuração de funções, contas e permissões.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário consegue ler um arquivo localmente, mas não pela rede. Qual causa é compatível com o modelo de permissões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A permissão de compartilhamento pode não conceder leitura, apesar da permissão NTFS local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A conta local necessariamente perdeu seu SID quando tentou acessar pela rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A SACL do arquivo impede automaticamente qualquer acesso feito em outro computador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A autenticação local remove a permissão NTFS assim que o usuário fecha a sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O UAC converte todas as permissões NTFS em direitos de logon remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso local não depende da permissão de compartilhamento; a conexão pela rede depende também dela. Portanto, o compartilhamento pode restringir acesso que a ACL NTFS permitiria localmente.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Windows, alterar o nome visível de um usuário deve ser tratado como alteração do principal de segurança?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O SID identifica o principal de segurança. O nome exibido pode ser alterado sem que isso, por si só, transforme a identidade de segurança em outra.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Windows Server Core não inclui a experiência gráfica completa, mas pode ser administrado por ferramentas remotas e de linha de comando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Server Core é uma instalação reduzida, voltada a uma pegada menor, e admite administração por ferramentas compatíveis, inclusive remotas e de linha de comando.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação de uma conta garante que ela tenha permissão para executar qualquer operação em todos os objetos do computador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A autenticação confirma a identidade; autorização avalia separadamente quais operações aquela identidade pode fazer em cada recurso.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A DACL contém regras de acesso ao objeto, enquanto a SACL está associada à seleção de eventos para auditoria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A DACL define permissões de acesso; a SACL pode indicar quais acessos devem ser auditados quando a auditoria está configurada.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta de domínio é mantida no diretório da organização, enquanto uma conta local é administrada pelo computador que a contém.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A distinção central é o escopo de administração e validação: computador para conta local e diretório de domínio para conta de domínio.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na conexão de rede a uma pasta, as permissões de compartilhamento e NTFS podem ser consideradas em conjunto para determinar o limite do acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para acesso pela rede, a operação precisa ser autorizada pelas duas camadas; a mais restritiva limita o resultado. No acesso local ao volume, a permissão do compartilhamento não é aplicada.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Account Operators é grupo de privilégio limitado, e por isso equivale a Domain Admins na administração de todas as contas e grupos do domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Account Operators tem privilégio limitado de criação e modificação de contas e não equivale a Domain Admins, que administra todo o domínio.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Windows Server 2019 oferece a opção de instalação Server Core ou Server with Desktop Experience.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do Server 2019 descreve a escolha entre instalação Server Core e Server with Desktop Experience durante a configuração do sistema.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A permissão de compartilhamento determina o acesso local ao arquivo no servidor mesmo quando o usuário não utiliza a rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A permissão de compartilhamento se aplica ao acesso pela rede. O acesso local ao volume é controlado por permissões do objeto, como as permissões NTFS.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Direitos de usuário, como logon interativo, são a mesma coisa que permissões NTFS de leitura de um arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Direitos de usuário concedem privilégios ou direitos de logon; permissões NTFS definem operações sobre objetos protegidos pelo sistema de arquivos.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instalação da console ADUC, por si só, concede ao operador os privilégios necessários para alterar qualquer objeto do domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ferramenta permite administrar objetos, mas o operador ainda precisa de permissões adequadas no domínio para cada operação.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma permissão herdada é originada em um objeto pai e pode ser ajustada em um objeto descendente conforme a configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Contêineres podem propagar configurações a filhos para facilitar a administração; a herança pode ser ajustada em objetos descendentes que precisem de regras próprias.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "UAC substitui a ACL NTFS e concede automaticamente ao usuário padrão o acesso necessário a todo arquivo solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. UAC controla a elevação de operações administrativas e não substitui permissões de objeto nem transforma automaticamente um usuário padrão em administrador.",
+      "section": "4. Permissões de compartilhamento, direitos e elevação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta desabilitada deixa de iniciar novos logons, mas uma sessão que já estava aberta não é necessariamente encerrada por essa alteração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A desativação impede novos logons, mas a documentação informa que uma pessoa já conectada continua conectada. Encerrar a sessão é uma ação separada.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome de uma conta é o identificador usado em lugar do SID durante a verificação de acesso a todos os objetos Windows.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Contas e grupos são representados por SIDs no modelo de controle de acesso. O nome é uma forma legível de identificar a conta, mas não substitui o identificador de segurança.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows Server 2022, TLS 1.3 habilitado por padrão significa que qualquer aplicação antiga o utilizará sem suporte próprio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Embora TLS 1.3 esteja habilitado por padrão na plataforma, aplicações e serviços também precisam implementar suporte ao protocolo para usá-lo.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As permissões atribuídas a grupos podem ser aproveitadas pelos usuários que integram esses grupos, tornando mais simples administrar o acesso a recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Windows considera grupos de segurança como principals; usuários incluídos neles podem receber as permissões atribuídas ao grupo, conforme as regras aplicáveis ao recurso.",
+      "section": "2. Contas locais, contas de domínio e grupos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SACL com auditoria de leitura autoriza por si só que um usuário leia o arquivo, ainda que a DACL negue a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SACL relaciona-se à auditoria de eventos. A autorização é definida pelas permissões de acesso, como as regras da DACL; registrar uma tentativa não concede leitura.",
+      "section": "3. Autenticação, autorização, SID e ACL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Windows 10 e Windows 11 têm necessariamente a mesma data de fim de suporte em todas as edições e canais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ciclo depende de produto, versão, edição e canal de manutenção. As datas devem ser verificadas na página oficial de versões suportadas e no ciclo de vida vigente.",
+      "section": "1. Windows cliente e Windows Server",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Access Control Overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Autenticação e autorização, SID, ACL, permissões e direitos de usuário no Windows",
+      "url": "https://learn.microsoft.com/en-us/windows/security/identity-protection/access-control/access-control",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Manage user accounts in Active Directory Users and Computers",
+      "publisher": "Microsoft Learn",
+      "reference": "Requisitos e procedimentos de criação, associação a grupos, desativação e administração de contas AD DS",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage-user-accounts-in-windows-server",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What's new in Windows Server 2019",
+      "publisher": "Microsoft Learn",
+      "reference": "Server Core e Desktop Experience, Windows Admin Center e System Insights",
+      "url": "https://learn.microsoft.com/en-us/windows-server/get-started/whats-new-in-windows-server-2019",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What's new in Windows Server 2022",
+      "publisher": "Microsoft Learn",
+      "reference": "Segurança, TLS 1.3, SMB e recursos da plataforma Windows Server 2022",
+      "url": "https://learn.microsoft.com/en-us/windows-server/get-started/whats-new-in-windows-server-2022",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Supported versions of Windows client",
+      "publisher": "Microsoft Learn",
+      "reference": "Versões de Windows cliente, canais de manutenção e fim de atualizações por edição",
+      "url": "https://learn.microsoft.com/en-us/windows/release-health/supported-versions-windows-client",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Comparison of Windows Server editions",
+      "publisher": "Microsoft Learn",
+      "reference": "Comparação de funções e recursos entre Standard, Datacenter e Datacenter: Azure Edition",
+      "url": "https://learn.microsoft.com/en-us/windows-server/get-started/editions-comparison?pivots=windows-server-2019",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

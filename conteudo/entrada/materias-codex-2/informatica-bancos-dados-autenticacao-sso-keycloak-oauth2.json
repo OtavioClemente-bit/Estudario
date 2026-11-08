@@ -1,0 +1,1626 @@
+{
+  "id": "informatica.bancos-dados-autenticacao-sso-keycloak-oauth2",
+  "subject": "Informática",
+  "title": "Bancos PostgreSQL e H2; SSO, Keycloak e OAuth 2.0",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "PostgreSQL, H2 Database, SSO, Keycloak e OAuth2",
+    "PostgreSQL, H2 Database, SSO, Keycloak e protocolo OAuth2",
+    "Bancos PostgreSQL e H2 Database",
+    "Banco de dados: H2 Database",
+    "Banco de dados PostgreSQL",
+    "Banco H2 Database e PostgreSQL",
+    "Autenticação SSO com Keycloak e OAuth2",
+    "Single Sign-On, Keycloak e OAuth 2.0",
+    "OAuth 2.0 e OpenID Connect no Keycloak",
+    "PostgreSQL e H2 para aplicações Java"
+  ],
+  "scope": {
+    "covers": "Características e usos dos bancos relacionais PostgreSQL e H2 Database; tipos, transações, concorrência, conexões, modos de operação e diferenças práticas; SSO e federação de identidade; conceitos, atores, fluxos, tokens e escopos do OAuth 2.0; distinção entre autorização OAuth 2.0 e autenticação OpenID Connect; configuração conceitual do Keycloak com realms, clientes, usuários, papéis, endpoints e validação de tokens.",
+    "excludes": "Administração aprofundada de produção, sintaxe completa de SQL, otimização específica por versão, configuração de infraestrutura de alta disponibilidade, desenvolvimento de provedores personalizados e detalhes de implantação de uma versão particular do Keycloak."
+  },
+  "theoryTitle": "Bancos relacionais e identidade federada",
+  "chapters": [
+    {
+      "title": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "markdown": "### O problema que este assunto resolve\n\nO PostgreSQL é um sistema gerenciador de banco de dados relacional e objeto-relacional, de código aberto, que recebe comandos SQL e mantém dados organizados em tabelas relacionadas. Uma aplicação conecta-se ao servidor, envia consultas ou alterações e recebe resultados; o servidor controla concorrência, integridade e persistência. Não confunda o PostgreSQL (o SGBD) com SQL (a linguagem usada para interagir com ele).\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: software que armazena, consulta e protege dados.\n> - **SQL**: linguagem declarativa de consulta e manipulação de dados.\n> - **ACID**: atomicidade, consistência, isolamento e durabilidade das transações.\n> - **MVCC**: controle de concorrência por múltiplas versões de linhas.\n> - **JSONB**: representação binária do PostgreSQL para dados JSON, com operadores e suporte a índices.\n\n### Tipos, integridade e transações\n\nO PostgreSQL oferece tipos numéricos, texto, data e hora, booleano, UUID, arrays, tipos de rede e tipos JSON, entre outros. A escolha do tipo expressa o formato e as operações válidas: valores monetários ou quantidades exatas normalmente pedem tipos decimais, enquanto ponto flutuante admite aproximação. Restrições como `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL` e `CHECK` fazem o servidor rejeitar estados inválidos, em vez de depender apenas da aplicação.\n\nUma transação reúne operações num bloco que termina em confirmação (`COMMIT`) ou cancelamento (`ROLLBACK`). A atomicidade faz com que as etapas confirmem juntas ou sejam desfeitas juntas. O PostgreSQL usa MVCC: consultas e alterações concorrentes trabalham com visões de versões das linhas, reduzindo bloqueios entre leitores e escritores; isso não elimina a necessidade de entender isolamento e conflitos. Índices aceleram certas buscas, mas ocupam espaço e têm custo de manutenção quando os dados mudam.\n\n| Recurso | Para que serve | Limite importante\n| --- | --- | --- |\n| Chave primária | Identificar unicamente uma linha | Não substitui validações de negócio mais amplas |\n| Chave estrangeira | Exigir referência válida a outra tabela | A aplicação ainda escolhe como lidar com a violação |\n| Índice | Reduzir trabalho em consultas compatíveis | Não acelera toda consulta e consome recursos |\n| Transação | Agrupar mudanças com resultado coerente | A aplicação precisa confirmar ou tratar falha |\n\n### Modelo cliente-servidor e ferramentas\n\nEm uma instalação comum, o processo servidor aceita conexões de clientes, autentica a conexão conforme configuração e executa comandos com os privilégios da função conectada. O `psql` é um cliente de linha de comando; não é o servidor nem o banco em si. Uma conexão envolve endereço, porta, banco de destino, usuário, senha ou outro método de autenticação e parâmetros de sessão. As regras de conexão e privilégios são parte da segurança: uma conta da aplicação não deve receber poderes administrativos sem necessidade.\n\nO PostgreSQL suporta extensões que acrescentam funções e tipos, mas a disponibilidade de uma extensão depende de ela estar instalada e habilitada no ambiente. `jsonb` não transforma o banco em um banco documental sem esquema: continua coexistindo com tabelas e restrições relacionais.\n\n### Como cai na prova\n\n- Diferencie SGBD, servidor, banco, cliente (`psql`) e linguagem SQL.\n- Transação oferece unidade de confirmação ou cancelamento; índice não substitui chave ou restrição de integridade.\n- MVCC ajuda a conciliar acessos concorrentes, mas não significa que qualquer conflito desapareça.\n- PostgreSQL tem tipos relacionais e recursos como JSONB; seu uso não muda o papel do sistema como SGBD relacional."
+    },
+    {
+      "title": "2. H2 Database e comparação com PostgreSQL",
+      "markdown": "### O problema que este assunto resolve\n\nH2 é um banco SQL escrito em Java, com API JDBC, que pode rodar incorporado à aplicação ou como servidor. Também oferece bancos em memória e baseados em arquivo, além de console web. A facilidade de iniciar um banco leve torna o H2 útil em testes e desenvolvimento; isso não torna seus comportamentos idênticos aos do PostgreSQL.\n\n> **Siglas e termos deste capítulo**\n> - **JDBC**: interface Java para conexão e execução de operações em bancos.\n> - **Embarcado**: banco executado no mesmo processo da aplicação que o utiliza.\n> - **Em memória**: dados mantidos na memória; sua persistência depende do modo e do ciclo de vida configurados.\n> - **Dialeto SQL**: variações de sintaxe e comportamento entre implementações de SQL.\n> - **MVStore**: mecanismo de armazenamento usado pelo H2 em versões atuais.\n\n### Modos de operação e persistência\n\nNo modo embarcado, a aplicação carrega o driver e acessa diretamente o banco. No modo servidor, um processo H2 separado recebe conexões de clientes. Um banco em memória permite testes rápidos, mas pode desaparecer ao encerrar a conexão ou o processo, conforme a URL e as opções utilizadas; já um banco em arquivo grava os dados em armazenamento persistente. Em ambiente com várias conexões, é necessário configurar corretamente o ciclo de vida: fechar a conexão que mantém o banco vivo pode encerrar uma instância em memória.\n\nO H2 fornece console de navegador para inspecionar e executar SQL, drivers JDBC e suporte a transações. A existência de console não significa que o banco deva ser exposto sem proteção em produção. A escolha entre memória, arquivo, modo embarcado e servidor altera persistência, acesso e operação.\n\n| Aspecto | PostgreSQL | H2 Database |\n| --- | --- | --- |\n| Implementação | Servidor de banco de propósito geral | Banco SQL escrito em Java |\n| Integração Java | Pode ser acessado por driver JDBC | Possui API e driver JDBC |\n| Execução | Usualmente serviço servidor separado | Embarcado ou como servidor |\n| Uso comum | Aplicações e serviços persistentes | Testes, desenvolvimento e cenários leves |\n| Compatibilidade | Referência do próprio dialeto PostgreSQL | Compatibilidade não garante equivalência total |\n\n### Testes com H2 e limites da substituição\n\nÉ comum usar H2 em memória para criar rapidamente um esquema de teste e descartar os dados ao final. Porém, uma aplicação que funciona em H2 pode falhar em PostgreSQL por diferenças de dialeto, tipos, funções, tratamento de identificadores, sequências, restrições, transações ou recursos específicos. Modos de compatibilidade ajudam em certos casos, mas não transformam o H2 em implementação idêntica ao PostgreSQL. Testes de integração que precisam garantir comportamento do PostgreSQL devem executar com PostgreSQL.\n\n### Como cai na prova\n\n- H2 não é somente em memória: pode usar armazenamento em arquivo e modo servidor.\n- Banco em memória não significa automaticamente que os dados durarão após o fim da aplicação.\n- H2 e PostgreSQL oferecem SQL, mas diferenças reais podem escapar de testes que usam apenas H2.\n- JDBC é uma interface de acesso Java; não é um formato de arquivo nem um SGBD."
+    },
+    {
+      "title": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "markdown": "### O problema que este assunto resolve\n\nSingle Sign-On (SSO) permite que uma pessoa autentique sua identidade uma vez em um provedor e use essa sessão para acessar diferentes aplicações integradas, respeitadas as políticas de cada uma. A aplicação delega a autenticação ao provedor de identidade; o SSO reduz logins repetidos, mas não faz uma sessão ser eterna nem concede automaticamente acesso a todos os recursos.\n\n> **Siglas e termos deste capítulo**\n> - **SSO**: Single Sign-On, autenticação única reutilizada entre aplicações integradas.\n> - **OAuth 2.0**: estrutura de autorização delegada para acesso limitado a recursos HTTP.\n> - **OpenID Connect (OIDC)**: camada de identidade e autenticação construída sobre OAuth 2.0.\n> - **Resource owner**: pessoa ou entidade capaz de autorizar acesso a um recurso.\n> - **Client**: aplicação que solicita autorização em nome próprio ou do usuário.\n> - **Authorization server**: componente que autentica o usuário quando aplicável e emite tokens.\n> - **Resource server**: API que hospeda os recursos protegidos.\n> - **Scope**: delimitação das permissões solicitadas ou concedidas.\n\n### OAuth 2.0 autoriza; OIDC comunica autenticação\n\nOAuth 2.0 foi definido para permitir que uma aplicação obtenha acesso limitado a um serviço HTTP. Seus papéis são resource owner, client, authorization server e resource server. O client apresenta uma solicitação; o authorization server concede ou nega uma autorização e pode emitir um access token; o resource server valida esse token e aplica as permissões. OAuth 2.0, por si só, não define um protocolo padronizado para afirmar a identidade do usuário ao client.\n\nOpenID Connect acrescenta essa camada de identidade: o client recebe um ID Token com claims sobre a autenticação e o usuário, além dos tokens de acesso que podem autorizar chamadas a APIs. ID Token e access token têm propósitos diferentes. O access token é apresentado ao recurso protegido; o ID Token comunica informações de autenticação ao client. Não se deve tratar um deles como substituto universal do outro.\n\n### Fluxos e proteções\n\nNo Authorization Code Flow, o navegador é redirecionado ao provedor, o usuário autentica e o provedor retorna um código de autorização ao endereço de retorno registrado. O client troca esse código no endpoint de token e recebe tokens se a solicitação for válida. Aplicações públicas que não conseguem manter segredo devem usar PKCE para vincular a troca ao início da solicitação. Aplicações web confidenciais também devem proteger o segredo do client no servidor.\n\nO fluxo Client Credentials é apropriado para comunicação entre serviços quando não há usuário final autorizando a operação: o client autenticado solicita um token em seu próprio nome. O fluxo implícito entregava token pelo agente do usuário e é legado para novos projetos; práticas atuais favorecem código de autorização com PKCE. O parâmetro `state` correlaciona solicitação e resposta e ajuda a proteger contra falsificação de solicitação; `redirect_uri` deve ser validado contra os endereços registrados. TLS protege a comunicação em trânsito, mas não corrige validação de token ou autorização mal configurada.\n\n### Como cai na prova\n\n- OAuth 2.0 trata de autorização delegada; OIDC acrescenta autenticação federada e claims de identidade.\n- Access token destina-se ao acesso ao recurso; ID Token informa ao client sobre a autenticação.\n- No fluxo de código, o código é trocado no endpoint de token; não é o próprio access token.\n- SSO reutiliza autenticação entre aplicações integradas, enquanto cada client continua sujeito a configuração e autorização próprias."
+    },
+    {
+      "title": "4. Keycloak: realms, clients, usuários e tokens",
+      "markdown": "### O problema que este assunto resolve\n\nKeycloak é um servidor de identidade e acesso que oferece SSO, federação de identidade e endpoints compatíveis com protocolos como OpenID Connect. Ele pode autenticar usuários, gerenciar sessões e emitir tokens para aplicações registradas. Uma aplicação é configurada como client; uma API protegida atua como resource server e verifica se o token e as permissões permitem a operação.\n\n> **Siglas e termos deste capítulo**\n> - **Realm**: domínio administrativo que contém usuários, clients, papéis e configurações.\n> - **Client**: aplicação ou serviço registrado que interage com o Keycloak.\n> - **IdP**: provedor de identidade, responsável pela autenticação federada.\n> - **Role**: atribuição de autorização que pode pertencer ao realm ou a um client.\n> - **Claim**: atributo incluído em um token, como identificador ou papel.\n> - **JWKS**: conjunto de chaves públicas publicado para verificar assinaturas de tokens.\n\n### Realm e client definem limites distintos\n\nCada realm mantém seu próprio conjunto de usuários, credenciais, sessões, clients e políticas, embora o realm `master` também seja usado para administrar a instalação. Um client registra a aplicação, seus endereços de redirecionamento permitidos, tipos de acesso e configurações de protocolo. Clients confidenciais podem guardar credencial no lado servidor; clients públicos, como aplicações executadas no navegador ou dispositivo do usuário, não conseguem manter segredo com segurança. Um endereço de retorno amplo ou não validado pode permitir redirecionamentos indevidos.\n\nPapéis de realm representam permissões no âmbito do realm; papéis de client representam permissões relacionadas a uma aplicação. Mapeamentos de papéis e escopos determinam quais claims aparecem em tokens. A existência de um usuário autenticado não significa que esse usuário recebeu qualquer papel ou autorização para toda API.\n\n### Descoberta, endpoints e validação\n\nO documento de descoberta OIDC fica no endereço `/{base}/realms/{realm}/.well-known/openid-configuration` e informa endpoints e parâmetros relevantes para aquele realm. Entre eles estão o endpoint de autorização (`/protocol/openid-connect/auth`), o endpoint de token (`/protocol/openid-connect/token`) e o endpoint UserInfo (`/protocol/openid-connect/userinfo`). O endpoint UserInfo exige access token bearer. O cliente descobre os endereços em vez de supor que todos os realms ou instalações usam uma raiz fixa.\n\nUma API não deve aceitar qualquer token só porque sua assinatura parece válida. Deve verificar assinatura usando chaves confiáveis, emissor esperado, validade temporal, audiência apropriada e permissões necessárias. A chave pública pode ser obtida pelo conjunto de chaves publicado pelo provedor. A validação local da assinatura e dos claims é distinta de consultar UserInfo; cada estratégia tem implicações de atualização e disponibilidade.\n\n### Como cai na prova\n\n- Realm separa configurações e identidades; client representa a aplicação que usa o provedor.\n- Autenticação confirma identidade; roles e scopes alimentam autorização conforme a configuração.\n- O endpoint de descoberta publica metadados; UserInfo devolve claims do usuário e requer bearer token.\n- O servidor de API valida issuer, audience, expiração, assinatura e permissões antes de liberar o recurso."
+    },
+    {
+      "title": "5. Integração e segurança: do login ao banco",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação pode usar PostgreSQL ou H2 para persistir seus dados e Keycloak para autenticar usuários. São responsabilidades diferentes: o SGBD persiste e consulta dados; o provedor de identidade emite tokens; a aplicação e a API decidem o que a pessoa autenticada pode fazer. Uma identidade válida não elimina o controle de acesso nem as regras de integridade do banco.\n\n> **Siglas e termos deste capítulo**\n> - **TLS**: proteção criptográfica da comunicação entre sistemas.\n> - **Bearer token**: token cuja posse permite apresentá-lo; deve ser protegido contra exposição.\n> - **Audience (`aud`)**: destinatário previsto para um token.\n> - **Issuer (`iss`)**: entidade que emitiu o token.\n> - **Least privilege**: conceder apenas os privilégios necessários à função.\n> - **Pool de conexões**: conjunto reutilizável de conexões entre aplicação e banco.\n\n### Separação de autenticação, autorização e persistência\n\nO percurso típico é: navegador solicita página protegida; aplicação redireciona ao Keycloak; após autenticação, recebe um código; o client troca o código por tokens; a aplicação mantém sua sessão ou usa tokens; chamadas à API carregam access token; a API valida token e autorização; somente então consulta ou altera o banco com uma conta técnica de privilégios limitados. Senhas de usuários finais não devem ser copiadas para tabelas da aplicação só para simular SSO.\n\nCredenciais de conexão ao banco são segredos distintos das credenciais do client OIDC. A conta usada pela aplicação deve ter apenas permissões de que precisa, conexões devem ser protegidas e credenciais não devem ser embutidas em código-fonte público. Um pool mal configurado pode manter transações ou conexões abertas; transações de negócio precisam ser curtas e encerrar com commit ou rollback.\n\n### Ambientes, migrações e testes\n\nUm fluxo de teste pode iniciar H2 em memória, criar o esquema e exercitar repositórios rapidamente. Para confirmar compatibilidade com PostgreSQL, execute também testes de integração no próprio PostgreSQL, sobretudo quando o sistema depende de tipos, funções, índices, sintaxe ou comportamento específicos. Mantenha configuração e segredos por ambiente e não exponha console H2 ou painel administrativo do Keycloak indiscriminadamente.\n\nAo depurar login, identifique onde a falha ocorre: redirecionamento/client, troca de código, validação de token, decisão de autorização, conexão ao banco ou consulta SQL. Essa separação evita corrigir permissões de banco para um erro de audience ou alterar o client por uma falha de transação.\n\n### Como cai na prova\n\n- Keycloak não substitui o banco transacional da aplicação, e PostgreSQL não é um provedor de identidade.\n- O client troca código por token; a API valida o access token e verifica a permissão requerida.\n- A conta do banco e o segredo do client são credenciais distintas e devem seguir privilégio mínimo.\n- H2 agiliza testes, mas testes executados apenas em H2 não provam equivalência com PostgreSQL."
+    }
+  ],
+  "summary": "PostgreSQL é um SGBD relacional cliente-servidor com tipos variados, restrições, índices, transações e MVCC. H2 é um banco SQL Java com JDBC, modos embarcado e servidor e armazenamento em memória ou arquivo; diferenças de dialeto tornam necessário testar também no PostgreSQL quando esse é o banco de produção. SSO reutiliza uma autenticação entre aplicações integradas. OAuth 2.0 delega autorização; OIDC acrescenta identidade e autenticação. Keycloak organiza identidades e configurações em realms, registra aplicações como clients, expõe metadados e endpoints OIDC e emite tokens. Clients, APIs e bancos têm credenciais e responsabilidades distintas: a API valida tokens e permissões, enquanto a aplicação acessa o banco com privilégio mínimo.",
+  "flashcards": [
+    {
+      "front": "O que é PostgreSQL?",
+      "back": "Um SGBD relacional e objeto-relacional, de código aberto, que recebe SQL e controla dados, transações, concorrência e persistência."
+    },
+    {
+      "front": "O que faz uma chave estrangeira no PostgreSQL?",
+      "back": "Exige que o valor referenciado corresponda a uma linha válida na tabela relacionada, conforme a restrição configurada."
+    },
+    {
+      "front": "Qual é o papel do MVCC?",
+      "back": "Permitir que operações concorrentes trabalhem com versões de linhas, reduzindo a interferência entre leitores e escritores."
+    },
+    {
+      "front": "O que diferencia COMMIT de ROLLBACK?",
+      "back": "COMMIT confirma as mudanças da transação; ROLLBACK cancela as mudanças ainda não confirmadas."
+    },
+    {
+      "front": "O que é JSONB no PostgreSQL?",
+      "back": "Um tipo de armazenamento binário para dados JSON com operadores e possibilidade de indexação."
+    },
+    {
+      "front": "O que é psql?",
+      "back": "Um cliente de linha de comando para conectar-se ao PostgreSQL e executar comandos; não é o servidor."
+    },
+    {
+      "front": "O que é o H2 Database?",
+      "back": "Um banco SQL escrito em Java, com JDBC, que pode executar embarcado ou como servidor."
+    },
+    {
+      "front": "Quais opções de persistência o H2 oferece?",
+      "back": "Pode usar banco em memória ou baseado em arquivo; a duração dos dados depende do modo e da configuração."
+    },
+    {
+      "front": "O que significa modo embarcado no H2?",
+      "back": "O banco executa no mesmo processo da aplicação cliente, que acessa o mecanismo diretamente."
+    },
+    {
+      "front": "H2 e PostgreSQL são intercambiáveis em qualquer teste?",
+      "back": "Não. Há diferenças de dialeto, tipos, funções e comportamento; testes de integração devem usar PostgreSQL quando ele é o alvo real."
+    },
+    {
+      "front": "O que é JDBC?",
+      "back": "Uma API Java que permite a aplicações conectar-se a bancos e executar operações."
+    },
+    {
+      "front": "O que SSO oferece ao usuário?",
+      "back": "Uma sessão de autenticação reutilizável entre aplicações integradas ao mesmo provedor, respeitadas suas políticas."
+    },
+    {
+      "front": "Qual é o propósito do OAuth 2.0?",
+      "back": "Delegar acesso limitado a recursos HTTP, com papéis como client, resource owner, authorization server e resource server."
+    },
+    {
+      "front": "OAuth 2.0 padroniza autenticação do usuário ao client?",
+      "back": "Não por si só; OpenID Connect adiciona a camada de identidade e autenticação."
+    },
+    {
+      "front": "Para que serve o ID Token?",
+      "back": "Comunicar ao client claims sobre a autenticação e identidade do usuário, no contexto do OpenID Connect."
+    },
+    {
+      "front": "Para que serve o access token?",
+      "back": "Autorizar acesso a um recurso protegido, sendo apresentado ao resource server/API conforme as permissões concedidas."
+    },
+    {
+      "front": "O que é o Authorization Code Flow?",
+      "back": "Fluxo em que o usuário autentica no provedor, retorna um código ao client e este troca o código por tokens no endpoint de token."
+    },
+    {
+      "front": "O que PKCE protege?",
+      "back": "Vincula a troca do código de autorização ao client que iniciou o fluxo, sendo importante para clients públicos."
+    },
+    {
+      "front": "O que é um realm no Keycloak?",
+      "back": "Um domínio administrativo que contém usuários, clients, sessões, papéis e configurações próprias."
+    },
+    {
+      "front": "O que é um client no Keycloak?",
+      "back": "Uma aplicação ou serviço registrado que interage com o Keycloak por protocolos de identidade e autorização."
+    },
+    {
+      "front": "Como diferenciar client público e confidencial?",
+      "back": "O confidencial consegue guardar credencial no servidor; o público não consegue proteger um segredo executado no dispositivo do usuário."
+    },
+    {
+      "front": "Para que serve o endpoint well-known do Keycloak?",
+      "back": "Publica metadados OIDC do realm, incluindo endpoints e parâmetros de configuração."
+    },
+    {
+      "front": "O que a API deve verificar em um token?",
+      "back": "Assinatura confiável, emissor, audience, validade temporal e permissões exigidas pelo recurso."
+    },
+    {
+      "front": "Qual a diferença entre autenticação e autorização?",
+      "back": "Autenticação verifica quem é o usuário; autorização determina quais ações e recursos ele pode acessar."
+    },
+    {
+      "front": "Por que usar privilégio mínimo na conta do banco?",
+      "back": "Limita o impacto de falhas ou comprometimentos, concedendo à aplicação somente as operações necessárias."
+    }
+  ],
+  "tips": [
+    "Associe H2 a Java/JDBC e lembre que ele pode operar embarcado ou como servidor, em memória ou em arquivo.",
+    "Quando a produção usa PostgreSQL, inclua testes de integração nesse SGBD para cobrir diferenças que H2 não reproduz.",
+    "Memorize a sequência: navegador, endpoint de autorização, código, endpoint de token e tokens.",
+    "Guarde a distinção: OAuth 2.0 delega autorização; OIDC acrescenta autenticação e identidade.",
+    "No Keycloak, realm é o domínio de configuração e client é a aplicação registrada.",
+    "Em APIs, valide issuer, audience, assinatura, expiração e autorização; mera decodificação do token não basta."
+  ],
+  "traps": [
+    "Afirmar que PostgreSQL é a linguagem SQL confunde o servidor SGBD com a linguagem de comandos.",
+    "Dizer que H2 só funciona em memória ignora o modo servidor e os bancos baseados em arquivo.",
+    "Supor que sucesso em H2 garante sucesso em PostgreSQL ignora diferenças de dialeto e implementação.",
+    "Tratar OAuth 2.0 como protocolo completo de login ignora a camada de autenticação definida pelo OIDC.",
+    "Usar ID Token para chamar qualquer API confunde informação de autenticação com autorização de acesso ao recurso.",
+    "Afirmar que todo usuário autenticado tem acesso presume autorização sem avaliar papéis, escopos e políticas."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como PostgreSQL protege integridade referencial.",
+      "answer": "Restrições como chave primária e chave estrangeira são avaliadas pelo servidor e impedem estados que violem as relações declaradas."
+    },
+    {
+      "question": "Compare o modo em memória e o modo em arquivo do H2.",
+      "answer": "O primeiro mantém dados em memória e pode perdê-los ao encerrar a instância; o segundo grava dados em armazenamento persistente."
+    },
+    {
+      "question": "Por que H2 não substitui todos os testes com PostgreSQL?",
+      "answer": "Os sistemas têm diferenças de sintaxe, tipos, funções e comportamento; testes no alvo real verificam essas dependências."
+    },
+    {
+      "question": "Quais são os quatro papéis centrais do OAuth 2.0?",
+      "answer": "Resource owner, client, authorization server e resource server."
+    },
+    {
+      "question": "O que OIDC acrescenta ao OAuth 2.0?",
+      "answer": "Uma camada padronizada de autenticação e identidade, com claims e ID Token para o client."
+    },
+    {
+      "question": "Descreva a troca do Authorization Code Flow.",
+      "answer": "O usuário autentica no authorization server; o client recebe um código de retorno e o troca no token endpoint por tokens válidos."
+    },
+    {
+      "question": "Diferencie realm, client e role no Keycloak.",
+      "answer": "Realm é o domínio de configuração; client é a aplicação registrada; role é uma atribuição de autorização no realm ou no client."
+    },
+    {
+      "question": "O que uma API protegida verifica antes de processar uma chamada?",
+      "answer": "Valida token e destinatário, validade, emissor, assinatura e permissões necessárias para o recurso solicitado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "PostgreSQL, SQL e clientes confundidos",
+      "summary": "PostgreSQL é o SGBD servidor, SQL é a linguagem e psql é um cliente de linha de comando."
+    },
+    {
+      "key": "e2",
+      "title": "Supor equivalência entre H2 e PostgreSQL",
+      "summary": "H2 agiliza testes e oferece diversos modos, mas diferenças de dialeto e comportamento pedem testes no PostgreSQL real."
+    },
+    {
+      "key": "e3",
+      "title": "OAuth 2.0 tratado como protocolo de login",
+      "summary": "OAuth 2.0 delega autorização; OIDC define a camada de identidade, autenticação e ID Token."
+    },
+    {
+      "key": "e4",
+      "title": "Tipos de token trocados",
+      "summary": "Access token é apresentado ao recurso protegido; ID Token informa identidade e autenticação ao client OIDC."
+    },
+    {
+      "key": "e5",
+      "title": "Identidade confundida com permissão",
+      "summary": "Realm, client, usuários, roles e scopes têm funções distintas; autenticar não concede autorização automática à API."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No PostgreSQL, uma transação pode agrupar diversas alterações para que confirmem juntas ou sejam canceladas juntas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A transação agrupa operações; a confirmação efetiva ocorre com commit e as alterações pendentes podem ser canceladas com rollback.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção identifica corretamente SQL, PostgreSQL e psql?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SQL é linguagem, PostgreSQL é SGBD e psql é cliente de linha de comando.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SQL é o servidor, PostgreSQL é linguagem e psql é mecanismo de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PostgreSQL é cliente gráfico, psql é banco e SQL é protocolo de transporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "psql é a linguagem relacional, e PostgreSQL é apenas o nome de sua porta de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SQL e psql são servidores independentes, enquanto PostgreSQL designa um formato de arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "SQL é a linguagem usada para comandos; PostgreSQL é o sistema gerenciador e psql é um cliente que se conecta ao servidor para executá-los.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna precisa admitir somente valores positivos ou nulos. Que mecanismo do PostgreSQL expressa diretamente essa regra no esquema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um índice comum, que rejeita automaticamente qualquer valor fora da faixa permitida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma restrição CHECK, que avalia a condição declarada para os valores da coluna.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma chave estrangeira, que valida o sinal numérico sem consultar outra tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma transação serializável, que substitui regras persistentes de validação do esquema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma sequência, que impede a inserção manual de valores negativos na relação.",
+          "correct": false
+        }
+      ],
+      "explanation": "CHECK registra no esquema uma condição que os valores devem satisfazer. Índices, transações, sequências e chaves estrangeiras atendem a outras finalidades.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O MVCC elimina qualquer bloqueio e garante que duas atualizações concorrentes da mesma linha sejam sempre aplicadas sem conflito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. MVCC permite visões de versões e reduz interferência entre operações, mas não elimina todo bloqueio ou conflito entre escritores concorrentes.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta recorrente filtra linhas por uma coluna e a equipe considera criar um índice. Qual afirmação descreve corretamente a decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O índice pode acelerar buscas filtradas compatíveis, com custo adicional de espaço e manutenção nas escritas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O índice substitui a chave estrangeira e passa a impedir valores sem linha relacionada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O índice garante que todas as consultas do banco deixem de ler páginas de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O índice transforma a coluna em chave primária, mesmo sem declarar restrição de unicidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O índice é uma cópia de segurança que recupera a tabela após exclusão acidental.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices podem reduzir o trabalho de consultas compatíveis, mas exigem espaço e manutenção nas escritas. Não substituem restrições de integridade nem backups.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave estrangeira no PostgreSQL pode exigir que cada valor referenciado exista na tabela apontada, conforme a regra declarada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A chave estrangeira é uma restrição de integridade referencial que relaciona valores entre tabelas. Ao inserir ou alterar a referência, o servidor verifica a regra e rejeita uma linha que a viole, salvo comportamento específico previsto pela restrição.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que representa o tipo JSONB do PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um protocolo de autenticação que substitui OAuth em aplicações distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um mecanismo de backup que armazena cópias binárias de todas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma representação binária de dados JSON com operadores e suporte a índices.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um modo do servidor que executa consultas SQL diretamente no navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma restrição que impede tabelas relacionais de armazenar atributos estruturados.",
+          "correct": false
+        }
+      ],
+      "explanation": "JSONB é um tipo para armazenar dados JSON em representação binária e oferece operadores e possibilidades de indexação; não é mecanismo de autenticação ou backup.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando ROLLBACK confirma as mudanças pendentes de uma transação PostgreSQL e as torna permanentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ROLLBACK cancela mudanças pendentes; COMMIT é a operação que confirma a transação. Em caso de erro antes da confirmação, cancelar impede que aquelas alterações sejam efetivadas como parte da unidade de trabalho.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java precisa conectar-se a um banco por uma interface padronizada da plataforma. Qual tecnologia cumpre esse papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OIDC, que fornece os métodos Java para abrir uma transação relacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JDBC, que fornece APIs Java para conexões e operações em bancos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MVCC, que padroniza a autenticação de usuários em servidores Java.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JWKS, que representa o protocolo de consulta SQL para aplicações empresariais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PKCE, que cria índices e chaves estrangeiras em bancos relacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "JDBC é a API Java para conexão e operações com bancos. OIDC, MVCC, JWKS e PKCE pertencem a outros contextos. A aplicação usa um driver compatível para conversar com o SGBD por essa interface.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "H2 só pode executar como banco em memória e não oferece banco baseado em arquivo ou modo servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. H2 oferece bancos em memória ou em arquivo e pode funcionar embarcado ou como servidor. Persistência e modo de execução são escolhas distintas, então a possibilidade de rodar em memória não exclui o uso de arquivos ou de conexões cliente-servidor.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário descreve melhor um uso frequente do H2 em memória?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar testes leves que criam um banco temporário sem manter dados após o ciclo configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar todos os dados de produção em serviço distribuído sem instalar mecanismo de persistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o servidor de autenticação e emitir tokens para usuários de várias aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantir compatibilidade total com cada função e tipo específico do PostgreSQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar consultas SQL somente por uma conexão de navegador e sem driver Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "O H2 em memória é conveniente para criar e descartar bancos de teste. Persistência e ciclo de vida dependem da configuração; ele não emite tokens nem replica integralmente o PostgreSQL.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo embarcado do H2 executa o banco no mesmo processo da aplicação que o acessa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No modo embarcado, a aplicação carrega e acessa o banco localmente no mesmo processo; no modo servidor, clientes conectam-se a outro processo H2.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A suíte de testes usa H2, mas a produção usa PostgreSQL com funções e tipos específicos. Que plano oferece evidência mais forte de compatibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter apenas testes unitários sem banco, pois compilação prova compatibilidade SQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar testes de integração também no PostgreSQL usado em produção, com os tipos e funções empregados pela aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ativar modo compatível no H2 e assumir que ele reproduz integralmente o PostgreSQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter as consultas para SQL genérico e dispensar qualquer teste contra um SGBD real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar testes apenas no console web do H2, pois a interface corrige diferenças de dialeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Modos de compatibilidade não eliminam todas as diferenças. Testes de integração no PostgreSQL verificam sintaxe, tipos e comportamentos efetivamente usados pela produção.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco H2 em memória persiste necessariamente os mesmos dados depois que sua instância e a aplicação são encerradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Banco em memória não implica persistência após o encerramento; o comportamento depende do modo e do ciclo de vida configurados.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção caracteriza corretamente o H2 Database?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Banco SQL escrito em Java, com JDBC e opções embarcadas em memória ou arquivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cliente nativo do PostgreSQL que converte automaticamente qualquer esquema em tabelas H2.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Servidor OAuth que mantém usuários e envia comandos SQL a APIs protegidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Biblioteca de índices sem suporte a transações ou consultas relacionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Linguagem de consulta exclusiva para execução em navegadores com persistência remota obrigatória.",
+          "correct": false
+        }
+      ],
+      "explanation": "H2 é banco SQL escrito em Java e oferece JDBC, transações e opções de execução embarcada, servidor, memória ou arquivo. Essas características dão flexibilidade a testes e aplicações, embora não assegurem que seu comportamento replique cada detalhe de outro SGBD.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar o console web do H2 sem restrições de acesso em produção é seguro porque ele não consegue executar comandos SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O console permite inspecionar e executar SQL; sua exposição sem proteção pode permitir acesso indevido ao banco.",
+      "section": "2. H2 Database e comparação com PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que o SSO permite quando várias aplicações estão integradas ao mesmo provedor de identidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reutilizar uma autenticação entre aplicações integradas, cada uma ainda sujeita às próprias regras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar a mesma conexão direta ao banco para dispensar sessões de usuário em todas as aplicações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder automaticamente todas as permissões administrativas em cada client participante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter uma senha única sem expiração que os clients recebem em cada redirecionamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar a necessidade de autorização nas APIs quando o usuário conclui o primeiro login.",
+          "correct": false
+        }
+      ],
+      "explanation": "SSO permite reutilizar a autenticação entre sistemas integrados; autorização e políticas continuam sendo avaliadas por cada aplicação e recurso. Portanto, uma sessão central evita repetir o login, mas não confere automaticamente as mesmas permissões em todos os serviços.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OAuth 2.0 define delegação de acesso limitado a recursos HTTP; sozinho, não padroniza a identidade do usuário apresentada ao client.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. OAuth 2.0 é uma estrutura de autorização; OpenID Connect acrescenta autenticação e claims de identidade para o client.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa obter dados básicos de autenticação padronizados sobre o usuário além de solicitar acesso a uma API. Qual protocolo atende a essa camada de identidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OpenID Connect, que acrescenta identidade e autenticação sobre OAuth 2.0.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JDBC, que acrescenta claims de autenticação a comandos SQL remotos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MVCC, que publica o cadastro do usuário em versões concorrentes de linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SAML metadata, que substitui os papéis e endpoints do OAuth em qualquer API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JSONB, que transforma o access token em credencial relacional para o client.",
+          "correct": false
+        }
+      ],
+      "explanation": "OIDC é uma camada de identidade construída sobre OAuth 2.0 e define a comunicação de autenticação e claims ao client. O ID Token comunica informações da autenticação segundo OpenID Connect, enquanto o access token atende ao acesso de recursos protegidos.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O access token e o ID Token têm o mesmo destinatário e podem ser usados indistintamente para qualquer finalidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O access token é destinado ao acesso a recursos; o ID Token comunica claims de autenticação ao client OIDC. Seus destinatários e usos diferem.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quais são os quatro papéis centrais descritos pelo OAuth 2.0?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resource owner, client, authorization server e resource server.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Realm, role, JDBC driver e banco de dados relacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Navegador, chave estrangeira, índice e servidor de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Issuer, audience, assinatura digital e console administrativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Access token, senha, refresh token e pool de conexões.",
+          "correct": false
+        }
+      ],
+      "explanation": "OAuth 2.0 distingue o proprietário do recurso, a aplicação cliente, o servidor de autorização e o servidor que hospeda o recurso protegido.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Authorization Code Flow, o código recebido pelo client é trocado no endpoint de token para obter tokens, se a solicitação for válida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O fluxo retorna um código ao client e este o troca no token endpoint; o código não é o próprio access token. A autorização somente resulta em tokens depois que o servidor valida a solicitação de troca e os dados do client.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pública móvel usa Authorization Code Flow e não consegue armazenar segredo com segurança. Que proteção vincula a troca de código à solicitação iniciada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PKCE, que usa um verificador associado à solicitação e protege a troca do código.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MVCC, que associa versões de linhas ao endpoint de autorização do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JDBC, que cifra o segredo do client dentro de cada consulta ao banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas ocultar o client_id no aplicativo, pois ele funciona como segredo criptográfico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tempo de vida do código até que o aplicativo possa guardá-lo sem validação.",
+          "correct": false
+        }
+      ],
+      "explanation": "PKCE vincula a troca do código ao client que iniciou o fluxo, sendo indicado para clients públicos que não podem proteger segredo estático.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fluxo Client Credentials é voltado a um client que solicita acesso em nome próprio, sem usuário final participando da autorização da chamada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Client Credentials serve a comunicação entre serviços em nome do client autenticado, sem fluxo de consentimento de um usuário final.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o parâmetro redirect_uri é adequada em uma configuração OAuth/OIDC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar o endereço de retorno contra os destinos registrados para o client, evitando redirecionamentos externos não autorizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Deve aceitar qualquer domínio informado pelo navegador para aumentar a interoperabilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É a URL do banco relacional e precisa apontar ao endpoint JDBC da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui a validação de assinatura porque o navegador confirma a identidade do issuer.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o local onde o authorization server armazena senha e credenciais da API protegida.",
+          "correct": false
+        }
+      ],
+      "explanation": "O endereço de retorno precisa ser validado conforme o registro do client; aceitar destinos arbitrários pode desviar respostas e códigos de autorização.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um realm do Keycloak agrupa configurações, usuários, clients e papéis sob um domínio administrativo próprio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O realm delimita usuários, clients, sessões, políticas e outros elementos de identidade e acesso. Assim, a separação por realm organiza os domínios de configuração do Keycloak e evita tratar todos os clients como parte de um único conjunto indiferenciado.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação Keycloak, o que representa um client?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma aplicação ou serviço registrado que interage com o provedor de identidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma tabela de usuários que substitui o realm e armazena transações SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma assinatura de token que identifica obrigatoriamente o servidor PostgreSQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um papel global que concede acesso irrestrito a todo usuário autenticado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um endpoint de logout que mantém credenciais do usuário em texto simples.",
+          "correct": false
+        }
+      ],
+      "explanation": "Client é a aplicação ou serviço cadastrado para interagir com Keycloak. Usuários, papéis e endpoints são elementos relacionados, mas distintos.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação executada no navegador pode guardar com segurança um segredo estático do client, pois o código-fonte entregue ao usuário permanece privado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Código executado no dispositivo do usuário não consegue manter um segredo estático protegido; esse tipo de aplicação é tratado como client público.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa descobrir endpoints OIDC do realm Keycloak implantado sem fixar manualmente cada URL. Qual recurso deve consultar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Documento de descoberta well-known do realm, que publica metadados e endpoints.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tabela de usuários do H2, que contém os endereços de todos os providers.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Índice do PostgreSQL, que enumera automaticamente endpoints de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endpoint UserInfo sem token, que redireciona para a lista completa de clients.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Parâmetro redirect_uri, que fornece a configuração de descoberta do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O endpoint well-known de configuração OIDC publica endpoints e metadados do realm. UserInfo não é um catálogo e requer bearer token.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endpoint UserInfo do Keycloak devolve claims padronizados do usuário autenticado e é protegido por access token bearer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. UserInfo retorna claims de usuário e a solicitação precisa apresentar bearer token válido. Esse endpoint atende à consulta de dados do usuário autenticado; a obtenção de tokens ocorre em endpoint distinto.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento diferencia adequadamente clients públicos e confidenciais no Keycloak?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Client confidencial guarda segredo no servidor; client público não o protege no dispositivo do usuário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Client público exige segredo mais longo, enquanto o confidencial não usa autenticação alguma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Client confidencial é sempre uma pessoa, e client público é sempre um banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos mantêm segredos no navegador, mas somente o público recebe access token.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distinção define qual banco de dados será criado, não como a aplicação se autentica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Clients confidenciais executam em ambientes capazes de proteger credenciais; aplicações públicas não conseguem manter segredo estático fora do alcance do usuário.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um papel de client e um papel de realm são nomes intercambiáveis para a mesma permissão, sem distinção de escopo no Keycloak.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Papéis de realm se aplicam no âmbito do realm; papéis de client se relacionam à aplicação correspondente. Mapeamentos determinam claims e permissões.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe token com assinatura válida, mas emitido por outro realm e destinado a outro serviço. O que deve fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rejeitá-lo, pois issuer e audience também precisam corresponder ao contexto esperado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aceitá-lo, porque assinatura válida libera o token para qualquer serviço da instalação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aceitá-lo após consultar a tabela de usuários do banco, sem conferir claims do token.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o token por um ID Token e ignorar emissor e destinatário originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rejeitá-lo somente se o usuário ainda não possuir senha no PostgreSQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API deve verificar emissor e audience esperados, além de assinatura, validade e permissões. Uma assinatura válida não torna o token apropriado para qualquer destinatário.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Keycloak pode emitir tokens e manter sessões de identidade, enquanto PostgreSQL ou H2 persiste os dados de negócio da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Provedor de identidade e SGBD de negócio têm papéis distintos, ainda que uma instalação Keycloak também dependa de armazenamento próprio.",
+      "section": "5. Integração e segurança: do login ao banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois que o usuário autentica no Keycloak, que sequência descreve corretamente uma chamada protegida a uma API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Client apresenta access token; a API valida-o e verifica a permissão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O client envia senha do usuário ao banco; a API confia no nome informado sem token.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A API entrega ID Token ao PostgreSQL e deixa que o índice decida a autorização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O navegador chama o banco diretamente, e Keycloak confirma a transação SQL depois.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A API aceita qualquer token decodificável e valida apenas se o usuário existe em H2.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API recebe access token, verifica assinatura, issuer, audience, validade e autorização antes de executar a operação. Não deve confiar em mera decodificação ou senha transmitida ao banco.",
+      "section": "5. Integração e segurança: do login ao banco",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Credencial de conexão ao banco e segredo do client OIDC são a mesma credencial e devem ser compartilhados entre aplicações para simplificar a implantação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. São credenciais de sistemas distintos e devem ser protegidas separadamente; cada aplicação deve receber somente os segredos e privilégios de que necessita.",
+      "section": "5. Integração e segurança: do login ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração reduz o impacto potencial de uma falha na aplicação que acessa PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar uma conta técnica com privilégios mínimos e manter suas credenciais protegidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder superusuário à aplicação para que qualquer operação de negócio sempre funcione.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar a senha do banco dentro do access token enviado a cada usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a mesma conta de administrador do Keycloak para autenticar consultas SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar transações e controles de acesso para reduzir erros de configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Privilégio mínimo limita o alcance de operações e de um eventual comprometimento. Segredos do banco não pertencem a tokens de usuário nem à conta administrativa do Keycloak. A aplicação deve receber apenas as permissões e credenciais específicas necessárias ao seu trabalho.",
+      "section": "5. Integração e segurança: do login ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro state pode correlacionar a resposta recebida com a solicitação iniciada pelo client e ajudar a evitar falsificação da solicitação entre sites.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O client usa state para vincular solicitação e resposta e mitigar ataques de falsificação, validando o valor recebido contra o contexto criado.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa falha em chamada protegida e quer separar problemas de autenticação de problemas de banco. Qual diagnóstico começa pela camada correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Localizar a falha no redirecionamento, token, autorização, conexão ou SQL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar primeiro o esquema PostgreSQL, pois qualquer erro após login decorre de tabela ausente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recriar todos os clients do realm antes de verificar a mensagem da API ou do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar validação de tokens e transações ao mesmo tempo para localizar a etapa defeituosa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o banco para H2 em produção e presumir que a falha de autenticação desaparecerá.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar as etapas localiza a camada responsável: client, troca de código, validação, autorização, conexão ou SQL. Mudanças simultâneas em esquema e identidade mascaram a causa.",
+      "section": "5. Integração e segurança: do login ao banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar TLS na comunicação basta para tornar seguro um token com audience incorreta e permissões excessivas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TLS protege o transporte, mas não corrige destinatário, assinatura, expiração ou permissões inadequados; a API ainda precisa validar o token e a autorização.",
+      "section": "5. Integração e segurança: do login ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação que usa pool de conexões, por que transações de negócio devem ser encerradas corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para devolver conexões e encerrar alterações ou recursos pendentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para converter automaticamente o access token em credencial permanente do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para obrigar PostgreSQL e H2 a usarem o mesmo armazenamento em memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para fazer o Keycloak confirmar cada instrução SQL no endpoint de autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para remover toda necessidade de validação de integridade referencial no SGBD.",
+          "correct": false
+        }
+      ],
+      "explanation": "Encerrar transações com commit ou rollback libera recursos e evita conexões ocupadas e estado pendente. O pool não altera tokens, armazenamento ou restrições do banco.",
+      "section": "5. Integração e segurança: do login ao banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna armazena valores financeiros que exigem representação decimal exata. Qual escolha evita a aproximação própria de ponto flutuante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar um tipo decimal de precisão configurada para a escala necessária.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar tipo de ponto flutuante, pois ele representa qualquer decimal com exatidão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar o valor em booleano e codificar os centavos como verdadeiro ou falso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar o valor como UUID para que sua representação binária preserve casas decimais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um índice na coluna, que converte automaticamente números aproximados em exatos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tipos decimais permitem especificar precisão e escala para representar valores exatos conforme a regra do domínio. Ponto flutuante é aproximado; índice, booleano e UUID não corrigem essa característica numérica.",
+      "section": "1. PostgreSQL: um SGBD relacional de uso geral",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer limitar as permissões solicitadas por uma aplicação a um conjunto como leitura de perfil, sem conceder controle administrativo. Qual conceito representa esse recorte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Scope, que delimita permissões solicitadas ou concedidas ao client.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Realm, que é o valor numérico de cada registro em uma tabela protegida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MVCC, que configura quais operações de identidade o usuário pode executar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JDBC, que define escopos OAuth para cada consulta SQL enviada ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Audience, que enumera sempre todas as permissões concedidas ao usuário final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Scope delimita as permissões solicitadas ou concedidas em uma autorização. Audience identifica o destinatário previsto para um token, enquanto realm e MVCC pertencem a conceitos diferentes.",
+      "section": "3. SSO, OAuth 2.0 e OpenID Connect",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe um token decodificável, mas não verifica sua assinatura nem a validade temporal. Qual é a falha central dessa implementação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Decodificar claims não comprova autenticidade nem validade do token apresentado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O access token só pode ser lido pelo navegador que iniciou o login original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A assinatura serve apenas para comprimir os dados e não precisa ser conferida pela API.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A API deve consultar uma chave estrangeira e dispensar a verificação do issuer.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A validade temporal só se aplica ao refresh token, nunca ao access token bearer.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ler ou decodificar claims não demonstra que o token foi assinado por emissor confiável nem que ainda está válido. A API deve validar assinatura, emissor, destinatário, tempo de validade e permissões antes de aceitar a chamada.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual endpoint do Keycloak é usado pelo client para trocar um código de autorização por tokens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Endpoint de token do realm, no caminho protocol/openid-connect/token.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Endpoint UserInfo, que recebe o código e responde com o cadastro sem autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Endpoint well-known, que valida cada código e concede diretamente a chamada da API.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endpoint de logout, que converte o código inicial em senha de acesso ao banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Endpoint de autorização, que é chamado pelo client para concluir a troca em segundo plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "O client troca o authorization code no endpoint de token do realm para obter tokens. O endpoint de autorização conduz a interação do usuário, UserInfo fornece claims e well-known publica metadados.",
+      "section": "4. Keycloak: realms, clients, usuários e tokens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL Documentation — Transactions",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Transações, atomicidade e confirmação ou cancelamento de operações",
+      "url": "https://www.postgresql.org/docs/current/tutorial-transactions.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL Documentation — Data Types",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Tipos de dados, incluindo tipos numéricos, JSON, UUID e outros",
+      "url": "https://www.postgresql.org/docs/current/datatype.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "H2 Database Engine — Features",
+      "publisher": "H2 Group",
+      "reference": "Banco Java, API JDBC, modos embarcado e servidor, memória, arquivo e transações",
+      "url": "https://h2database.com/html/main.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Keycloak Server Administration Guide",
+      "publisher": "Keycloak Project",
+      "reference": "Realms, clients, usuários, papéis e administração do provedor",
+      "url": "https://www.keycloak.org/docs/latest/server_admin/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Securing applications and services with OpenID Connect",
+      "publisher": "Keycloak Project",
+      "reference": "Descoberta well-known e endpoints de autorização, token, UserInfo e logout",
+      "url": "https://www.keycloak.org/securing-apps/oidc-layers",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6749: The OAuth 2.0 Authorization Framework",
+      "publisher": "Internet Engineering Task Force",
+      "reference": "Papéis, autorização delegada, clients, tokens e fluxos OAuth 2.0",
+      "url": "https://www.rfc-editor.org/rfc/rfc6749",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenID Connect Core 1.0",
+      "publisher": "OpenID Foundation",
+      "reference": "Camada de identidade sobre OAuth 2.0, Authorization Code Flow e ID Token",
+      "url": "https://openid.net/specs/openid-connect-core-1_0.html",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

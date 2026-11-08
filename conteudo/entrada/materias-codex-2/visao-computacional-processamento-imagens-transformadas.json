@@ -1,0 +1,1652 @@
+{
+  "id": "informatica.visao-computacional-processamento-imagens-transformadas",
+  "subject": "Informática",
+  "title": "Visão computacional: processamento de imagens e transformadas",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Detecção de bordas em imagens digitais",
+    "Convolução e filtros em visão computacional",
+    "Segmentação de imagens digitais",
+    "Transformada de Fourier em imagens",
+    "Transformadas wavelet em imagens",
+    "Transformada de Hough para linhas e formas",
+    "Snakes e contornos ativos em imagens",
+    "Reconhecimento de objetos por modelos visuais",
+    "Operadores morfológicos em imagens binárias",
+    "Processamento digital de imagens e visão computacional"
+  ],
+  "scope": {
+    "covers": "Fundamentos de convolução e filtros espaciais; detecção de bordas por gradiente e Canny; segmentação por limiar, regiões, watershed e contornos; transformadas de Fourier e wavelets; Hough para linhas e formas; snakes ou contornos ativos; reconhecimento por template matching e descritores; erosão, dilatação, abertura, fechamento e operações morfológicas derivadas.",
+    "excludes": "Treinamento detalhado de redes neurais profundas, calibração de câmeras, reconstrução 3D, codificação de vídeo e implementação específica de bibliotecas."
+  },
+  "theoryTitle": "Da imagem em pixels à forma reconhecida",
+  "chapters": [
+    {
+      "title": "1. Convolução, filtros e bordas",
+      "markdown": "### O problema que este assunto resolve\n\nUma imagem digital pode ser vista como uma função de intensidade amostrada em uma grade. Muitos problemas de visão começam por realçar uma propriedade local: suavizar ruído, destacar transições ou localizar contornos. A **convolução** combina cada vizinhança de pixels com um pequeno núcleo (kernel), produzindo uma nova imagem. Em cada posição, multiplica-se cada valor da vizinhança pelo peso correspondente do núcleo e somam-se os produtos.\n\n> **Siglas e termos deste capítulo**\n> - **Pixel**: amostra de intensidade ou cor em uma posição da imagem.\n> - **Kernel / máscara**: matriz pequena de coeficientes aplicada a uma vizinhança.\n> - **Gradiente**: vetor das derivadas em x e y; aponta para a maior variação local.\n> - **Magnitude**: intensidade da variação, usualmente calculada a partir das componentes do gradiente.\n> - **NMS**: supressão de não máximos, que afina respostas de borda.\n\n### Filtros espaciais e seus efeitos\n\nUm kernel de média ou Gaussiano suaviza variações rápidas e reduz ruído, mas também pode borrar contornos. Um kernel derivativo, como Sobel, estima variações em direções horizontal e vertical. A resposta de Sobel em x é sensível a bordas cuja normal aponta na direção x; a resposta em y tem papel análogo. Combinar as duas permite estimar magnitude e orientação. O Laplaciano usa derivadas de segunda ordem e responde a mudanças em várias direções, mas tende a amplificar ruído, razão pela qual é comum suavizar antes.\n\nA operação chamada convolução matemática inverte o kernel nas duas dimensões antes de aplicá-lo; muitas APIs de visão implementam correlação cruzada sem essa inversão e ainda chamam o mecanismo de filtro/convolução. Para kernels simétricos, como o Gaussiano, a diferença não altera o resultado; para kernels direcionais, a orientação pode mudar. Bordas da imagem exigem uma regra de extensão: preenchimento com zeros, replicação ou espelhamento, por exemplo.\n\n### Detecção de bordas\n\nUma borda corresponde a uma mudança relativamente abrupta de intensidade, não necessariamente à fronteira semântica de um objeto. O detector de Canny organiza a detecção em etapas: suavização Gaussiana para reduzir ruído; cálculo do gradiente; supressão de não máximos na direção do gradiente para obter linhas finas; e limiarização por histerese. Dois limiares classificam respostas fortes como bordas e respostas fracas como candidatas: uma fraca é preservada se estiver conectada a uma forte, evitando descartar segmentos legítimos.\n\nA escolha de escala e limiares altera o resultado: suavização maior elimina mais ruído, mas pode apagar detalhes próximos; limiares mais altos reduzem falsos contornos e podem quebrar bordas fracas. Uma borda é evidência geométrica útil, mas não informa sozinha qual objeto a produziu.\n\n### Como cai na prova\n\n- Confundir suavização com realce de borda: o filtro Gaussiano tende a reduzir altas frequências; Sobel estima derivadas.\n- No Canny, a histerese conecta respostas fracas a fortes; não se trata de aplicar dois filtros independentes sem relação.\n- Sobel fornece componentes direcionais; magnitude e orientação são derivadas delas.\n- Ruído afeta derivadas com força, por isso o pré-suavizamento é relevante."
+    },
+    {
+      "title": "2. Segmentação e operadores morfológicos",
+      "markdown": "### O problema que este assunto resolve\n\n**Segmentar** é atribuir pixels a regiões ou classes, por exemplo objeto e fundo, ou separar células individuais. A saída pode ser uma máscara binária, rótulos de regiões ou uma fronteira. Segmentar não é o mesmo que detectar bordas: bordas podem orientar a divisão, enquanto a segmentação precisa decidir a que região pertence cada pixel.\n\n> **Siglas e termos deste capítulo**\n> - **Limiar (threshold)**: regra que separa intensidades segundo um valor de corte.\n> - **Watershed**: método que interpreta uma imagem como relevo e expande bacias a partir de marcadores.\n> - **Elemento estruturante**: forma pequena que define a vizinhança usada pela morfologia.\n> - **Máscara binária**: imagem cujos pixels indicam presença/ausência da região de interesse.\n\n### Estratégias de segmentação\n\nNo limiar global, cada pixel é comparado com um corte: acima dele recebe uma classe e abaixo, outra. É simples, mas iluminação não uniforme pode exigir limiares locais ou adaptativos. Métodos por região agrupam pixels com propriedades semelhantes, como intensidade, cor ou textura. O crescimento de regiões inicia em sementes e agrega vizinhos que satisfazem um critério.\n\nNo watershed, a imagem de entrada frequentemente é um mapa de elevação (por exemplo, magnitude do gradiente): marcadores em objetos e fundo iniciam “inundações”; as linhas de separação entre bacias formam a segmentação. Sem bons marcadores, mínimos locais podem produzir muitas regiões, o chamado sobre-segmentação. Marcadores e pré-processamento ajudam a controlar o resultado.\n\nContornos ativos representam uma curva que se desloca sob forças internas e externas. Snakes são descritas no capítulo seguinte; métodos de level set e variantes também permitem evolução de fronteiras.\n\n### Morfologia matemática\n\nA morfologia opera sobre formas usando um elemento estruturante. Para foreground binário, **erosão** remove pixels das bordas do objeto: só permanece um ponto se a vizinhança definida pelo elemento estruturante couber no objeto. **Dilatação** acrescenta pixels à região, expandindo-a. A abertura é erosão seguida de dilatação com o mesmo elemento; tende a remover pequenas saliências ou objetos isolados sem aumentar globalmente os objetos remanescentes. O fechamento é dilatação seguida de erosão; tende a preencher pequenas lacunas e unir interrupções estreitas. O efeito concreto depende da forma e do tamanho do elemento estruturante.\n\nA diferença entre dilatação e erosão pode formar gradiente morfológico, destacando contornos; a transformação top-hat compara a imagem com sua abertura e evidencia detalhes claros menores que o elemento; black-hat compara o fechamento com a imagem e evidencia detalhes escuros pequenos. Em imagens em tons de cinza, os operadores usam mínimos ou máximos locais, não apenas lógica binária.\n\n### Como cai na prova\n\n- Abertura = erosão seguida de dilatação; fechamento = dilatação seguida de erosão.\n- Erosão tende a encolher o foreground e dilatação tende a expandi-lo.\n- Elemento estruturante determina que tamanhos e orientações serão afetados.\n- Watershed usa bacias e marcadores; não é simplesmente um limiar de intensidade."
+    },
+    {
+      "title": "3. Fourier, wavelets e transformada de Hough",
+      "markdown": "### O problema que este assunto resolve\n\nA representação espacial mostra valores por posição. Transformadas descrevem a imagem em outra base, revelando padrões que são mais simples de analisar em frequência ou em escala. Elas não inventam informação: reexpressam os dados e permitem selecionar componentes ou reconhecer estruturas.\n\n> **Siglas e termos deste capítulo**\n> - **DFT / FFT**: transformada discreta de Fourier / algoritmo rápido que a calcula.\n> - **Frequência espacial**: taxa de variação da intensidade ao longo da imagem.\n> - **Coeficiente**: peso de uma componente na representação transformada.\n> - **Acumulador**: espaço de parâmetros em que Hough registra votos de evidências.\n\n### Fourier em imagens\n\nA transformada discreta bidimensional de Fourier representa a imagem como soma de componentes senoidais complexas de diferentes frequências e orientações. A componente de frequência zero (DC) corresponde ao nível médio. Variações lentas concentram energia em baixas frequências; detalhes finos, ruído e transições abruptas contribuem a frequências mais altas. A magnitude do espectro indica força das componentes; a fase preserva informação importante sobre o posicionamento e a estrutura.\n\nO deslocamento do espectro coloca a baixa frequência no centro para visualização. Filtrar em frequência significa multiplicar o espectro por uma máscara e aplicar a transformada inversa: um passa-baixas atenua altas frequências e suaviza; um passa-altas atenua baixas frequências e realça mudanças, mas pode amplificar ruído. Uma textura periódica pode aparecer como picos no espectro. A FFT reduz o custo computacional da DFT em tamanhos convenientes, mas não é outra representação conceitual.\n\n### Wavelets: frequência localizada por escala\n\nFourier usa componentes que se estendem globalmente; wavelets usam funções localizadas e permitem analisar simultaneamente escala e posição. Na decomposição discreta bidimensional separável, filtragens passa-baixas e passa-altas em cada eixo geram quatro sub-bandas: **LL** (aproximação, baixa frequência nos dois eixos), **LH**, **HL** e **HH** (detalhes direcionais). A aproximação pode ser novamente decomposta em níveis, criando uma pirâmide de escalas. Convenções de nomeação da direção variam, mas existe uma sub-banda de aproximação e três de detalhe por nível.\n\nEssa localização torna wavelets úteis para representar bordas e detalhes em diferentes escalas e para redução de ruído: coeficientes de detalhe pequenos podem ser limiarizados, com compromisso entre remoção de ruído e preservação de textura. Limiarização forte pode apagar detalhes verdadeiros; wavelets não são sinônimo de Fourier nem garantem invariância a toda translação.\n\n### Transformada de Hough\n\nHough detecta formas parametrizadas a partir de pontos de borda. Para retas, a parametrização polar \u03c1 = x cos \u03b8 + y sin \u03b8 evita a dificuldade da forma y = mx + b para retas verticais. Cada pixel de borda vota nos parâmetros de retas que poderiam atravessá-lo; picos no acumulador indicam candidatos apoiados por muitos pontos. Para círculos, os parâmetros incluem centro e raio; isso aumenta a dimensão e o custo do espaço de busca. A quantização do acumulador controla resolução e custo; bordas espúrias também votam, então limiares e supressão de picos ajudam.\n\n### Como cai na prova\n\n- Fourier descreve frequência global; wavelets localizam conteúdo em escala e posição.\n- A filtragem Fourier é multiplicação no espectro, seguida de transformada inversa.\n- Hough converte evidências de borda em votos no espaço de parâmetros; máximos são hipóteses geométricas.\n- Reta polar representa também linhas verticais sem inclinação infinita."
+    },
+    {
+      "title": "4. Snakes e reconhecimento de objetos por modelos",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de realçar bordas ou regiões, ainda é necessário localizar a forma de interesse. Um **modelo** pode ser uma pequena imagem de referência, um conjunto de descritores locais ou uma forma geométrica parametrizada. Cada técnica tem pressupostos sobre pose, escala, iluminação e deformação.\n\n> **Siglas e termos deste capítulo**\n> - **Snake / contorno ativo**: curva inicializada que evolui para se ajustar a características da imagem.\n> - **Template matching**: comparação deslizante de um recorte de referência com regiões da imagem.\n> - **Keypoint**: ponto local distintivo; descritor resume sua vizinhança.\n> - **Homografia**: transformação projetiva entre planos, estimada a partir de correspondências compatíveis.\n\n### Snakes: curva sob forças concorrentes\n\nUma snake é uma curva representada por pontos ou por uma spline. A energia interna penaliza variações excessivas: o termo de elasticidade favorece curvas curtas e o termo de rigidez favorece suavidade. A energia externa atrai a curva a características da imagem, como gradientes ou linhas. A curva evolui iterativamente buscando reduzir uma energia total.\n\nA inicialização importa: uma snake pode ficar presa em mínimos locais ou não alcançar a borda se começar longe ou se a evidência de contorno for fraca. Parâmetros de suavidade controlam o balanço entre seguir detalhes e manter uma curva regular. Força balão pode expandir ou contrair em regiões sem evidência forte. A snake clássica requer uma curva inicial adequada; não é um classificador de identidade do objeto.\n\n### Reconhecimento por modelos\n\nNo template matching, um recorte modelo desliza pela imagem e uma métrica compara cada janela. O resultado é um mapa de similaridade; conforme a métrica, o melhor ajuste pode ser máximo (correlação/correlação normalizada) ou mínimo (diferença quadrática). A técnica funciona melhor quando aparência e escala são parecidas. Rotação, escala, oclusão e iluminação mudam o padrão e reduzem a correspondência direta. Para várias ocorrências, localizar apenas o máximo global é insuficiente: limiarizar respostas e tratar picos vizinhos duplicados é uma estratégia possível.\n\nModelos baseados em características detectam keypoints e calculam descritores locais. Correspondências entre descritores sugerem que duas imagens contêm a mesma estrutura; testes de consistência geométrica, como estimar homografia com correspondências e rejeitar outliers, reduzem falsas associações. Descritores binários costumam ser comparados por distância de Hamming; descritores vetoriais de valores reais, por distância euclidiana ou outra métrica apropriada.\n\nHough generalizado também reconhece formas sem fórmula simples: uma tabela relaciona orientação local de borda com deslocamentos até um ponto de referência; evidências compatíveis votam por pose do modelo. Isso permanece uma busca por hipóteses geométricas, distinta de uma rede neural treinada para classificar pixels ou caixas.\n\n### Como cai na prova\n\n- Snake combina regularidade interna da curva e atração externa por evidências visuais.\n- Template matching desliza uma referência; não é robusto automaticamente a grandes mudanças de escala ou rotação.\n- Correspondências de descritores precisam de verificação geométrica para descartar falsos pares.\n- A melhor localização em diferença quadrática é o menor valor; em correlação, costuma ser o maior."
+    }
+  ],
+  "summary": "Convoluções aplicam kernels locais; suavização reduz ruído e gradientes destacam transições. Canny combina suavização, gradiente, afinamento por supressão de não máximos e histerese. Segmentação atribui pixels a regiões; watershed usa relevo e marcadores. Morfologia usa elemento estruturante: erosão encolhe, dilatação expande, abertura remove pequenos detalhes e fechamento preenche lacunas. Fourier separa componentes por frequência; wavelets acrescentam localização em escala e posição. Hough acumula votos de pontos de borda em parâmetros de formas. Snakes evoluem curvas com forças internas e externas. Template matching compara janelas com uma referência; descritores locais apoiam reconhecimento sob variações, com validação geométrica.",
+  "flashcards": [
+    {
+      "front": "O que faz um kernel em uma convolução de imagem?",
+      "back": "Combina ponderadamente os pixels de uma vizinhança para gerar a resposta local da imagem filtrada."
+    },
+    {
+      "front": "Qual é o efeito típico de um filtro Gaussiano?",
+      "back": "Suaviza a imagem e reduz ruído de alta frequência, podendo borrar detalhes e bordas."
+    },
+    {
+      "front": "O que estimam Sobel em x e em y?",
+      "back": "Componentes direcionais do gradiente, isto é, variações de intensidade nos eixos da imagem."
+    },
+    {
+      "front": "Quais são as etapas centrais de Canny?",
+      "back": "Suavização, gradiente, supressão de não máximos e limiarização por histerese."
+    },
+    {
+      "front": "O que faz a histerese em Canny?",
+      "back": "Mantém respostas fracas conectadas a respostas fortes, rejeitando fracas isoladas."
+    },
+    {
+      "front": "O que é segmentação?",
+      "back": "Atribuição de pixels a regiões ou classes de interesse, frequentemente por máscara ou rótulos."
+    },
+    {
+      "front": "Como funciona watershed em termos intuitivos?",
+      "back": "Inunda um mapa de relevo a partir de marcadores; fronteiras entre bacias separam regiões."
+    },
+    {
+      "front": "O que define o efeito de um operador morfológico?",
+      "back": "A forma e o tamanho do elemento estruturante, além da imagem de entrada."
+    },
+    {
+      "front": "Qual a ordem da abertura morfológica?",
+      "back": "Erosão seguida de dilatação com o mesmo elemento estruturante."
+    },
+    {
+      "front": "Qual a ordem do fechamento morfológico?",
+      "back": "Dilatação seguida de erosão com o mesmo elemento estruturante."
+    },
+    {
+      "front": "O que representa a componente DC na Fourier?",
+      "back": "A componente de frequência zero, relacionada ao nível médio da imagem."
+    },
+    {
+      "front": "Para que serve uma máscara passa-baixas no espectro?",
+      "back": "Atenua frequências altas e tende a suavizar a imagem após a transformada inversa."
+    },
+    {
+      "front": "Que informação wavelets oferecem além da frequência?",
+      "back": "Localização aproximada do conteúdo em posição e escala."
+    },
+    {
+      "front": "Quais sub-bandas saem de uma decomposição wavelet 2D?",
+      "back": "Uma aproximação LL e três sub-bandas de detalhe direcionais por nível."
+    },
+    {
+      "front": "Como Hough detecta uma reta?",
+      "back": "Pontos de borda votam nas retas possíveis; picos no acumulador indicam retas apoiadas por muitos pontos."
+    },
+    {
+      "front": "Por que a forma polar de Hough é conveniente?",
+      "back": "Representa retas verticais sem exigir inclinação infinita."
+    },
+    {
+      "front": "O que equilibra a energia de uma snake?",
+      "back": "Regularidade interna da curva e atração externa por bordas ou outras características."
+    },
+    {
+      "front": "O que produz template matching?",
+      "back": "Um mapa de similaridade ao deslizar uma imagem modelo pela imagem de busca."
+    },
+    {
+      "front": "Qual extremo indica melhor ajuste por diferença quadrática?",
+      "back": "O menor valor do mapa de comparação."
+    },
+    {
+      "front": "Para que serve validar correspondências por homografia?",
+      "back": "Rejeitar pares de descritores que não obedecem a uma transformação geométrica coerente."
+    }
+  ],
+  "tips": [
+    "Antes de escolher filtro, identifique se a tarefa pede suavização, derivada, segmentação ou forma geométrica.",
+    "Em Canny, associe os dois limiares à histerese e à conectividade das bordas fracas com as fortes.",
+    "Memorize a ordem dos pares morfológicos: abertura remove pequenos objetos claros; fechamento preenche pequenas lacunas escuras.",
+    "Para Fourier, pense em frequências globais; para wavelets, em escala e localização.",
+    "No Hough de retas, acompanhe parâmetros rho e theta; a evidência é um pico de votos, não um pixel isolado.",
+    "Em template matching, verifique qual extremo da métrica é melhor e se o objeto pode mudar de escala ou rotação."
+  ],
+  "traps": [
+    "Trocar abertura por fechamento: a ordem das duas operações é invertida.",
+    "Afirmar que toda borda é limite de objeto; textura e ruído também geram respostas de gradiente.",
+    "Tratar a saída de Fourier como imagem segmentada; ela é uma representação de frequências.",
+    "Supor que wavelet e Fourier têm a mesma localização; wavelets são localizadas em escala e posição.",
+    "Confundir votos Hough com votação de classe; o acumulador representa parâmetros geométricos.",
+    "Supor que template matching tolera automaticamente mudanças de pose, escala e iluminação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como se calcula conceitualmente a resposta de um filtro linear local?",
+      "answer": "Multiplicam-se os valores da vizinhança pelos coeficientes do kernel correspondente e somam-se os produtos."
+    },
+    {
+      "question": "Por que se suaviza antes de calcular derivadas?",
+      "answer": "Derivadas respondem fortemente a variações rápidas, inclusive ruído; a suavização reduz parte dessas variações."
+    },
+    {
+      "question": "Como Canny decide quais respostas fracas manter?",
+      "answer": "Mantém as conectadas a uma resposta forte segundo a limiarização por histerese."
+    },
+    {
+      "question": "Por que marcadores são úteis no watershed?",
+      "answer": "Indicam sementes de regiões, reduzindo a multiplicação descontrolada de bacias por mínimos locais."
+    },
+    {
+      "question": "Como distinguir erosão de abertura?",
+      "answer": "Erosão isolada encolhe objetos; abertura executa erosão e depois dilatação, podendo remover pequenos detalhes sem simplesmente manter o objeto encolhido."
+    },
+    {
+      "question": "Que aspecto da imagem fica explícito no espectro de Fourier?",
+      "answer": "A intensidade das componentes espaciais por frequência e orientação; a fase também carrega estrutura posicional."
+    },
+    {
+      "question": "O que torna wavelets úteis para análise multiescala?",
+      "answer": "A decomposição separa aproximação e detalhes em sub-bandas e pode ser repetida em níveis sucessivos."
+    },
+    {
+      "question": "Como uma reta pode receber muitos votos no espaço de Hough?",
+      "answer": "Cada ponto de borda compatível vota nos parâmetros possíveis; pontos da mesma reta convergem para uma região/pico comum do acumulador."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Convolução, gradiente e bordas",
+      "summary": "Filtro suavizador atenua variações rápidas; Sobel estima derivadas; Canny combina etapas e histerese. Não confundir resposta de borda com identidade de objeto."
+    },
+    {
+      "key": "e2",
+      "title": "Segmentação e watershed",
+      "summary": "Segmentar atribui regiões; watershed inunda um mapa de elevação a partir de marcadores e pode sobre-segmentar sem controle."
+    },
+    {
+      "key": "e3",
+      "title": "Morfologia binária",
+      "summary": "Erosão encolhe, dilatação expande, abertura é erosão-dilatação e fechamento é dilatação-erosão."
+    },
+    {
+      "key": "e4",
+      "title": "Fourier e wavelets",
+      "summary": "Fourier organiza frequências globais; wavelets permitem localização por escala e posição. Filtrar Fourier exige retorno ao domínio espacial."
+    },
+    {
+      "key": "e5",
+      "title": "Modelos geométricos e reconhecimento",
+      "summary": "Hough acumula evidências geométricas; snakes ajustam curvas; template matching compara janelas e descritores precisam de correspondências consistentes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual operação combina um kernel local com os valores de uma vizinhança para produzir cada pixel de saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Convolução ou filtragem linear local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Rotulagem sem comparação dos vizinhos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transformação de perspectiva da câmera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Codificação por entropia dos pixels.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Projeção de pontos em coordenadas tridimensionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A filtragem linear aplica os coeficientes do kernel à vizinhança e soma os produtos. Rotulagem, perspectiva, compressão e projeção 3D são operações de outra natureza.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro Gaussiano aplicado antes de calcular derivadas tende a reforçar ruído de alta frequência e preservar todos os detalhes finos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A suavização Gaussiana tende a reduzir flutuações rápidas que poderiam produzir respostas espúrias nas derivadas, embora possa atenuar detalhes finos e contornos próximos.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação às componentes de Sobel, qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sobel x e y estimam variações de intensidade nos eixos da imagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ambas estimam apenas a média local e removem a orientação da borda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A componente x mede cor absoluta; a y mede somente posição do pixel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As componentes identificam classes semânticas diferentes no objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma componente corrige iluminação e a outra remove compressão JPEG.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sobel aplica máscaras derivativas orientadas aos eixos. As respostas aproximam as variações de intensidade nas direções x e y e podem ser combinadas em magnitude e orientação.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve corretamente o detector de Canny?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suavizar, calcular gradiente, afinar por não máximos e aplicar histerese.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Segmentar por cor, codificar a imagem e aplicar erosão ao histograma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcular Fourier, ampliar o espectro e classificar a fase como objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar dilatação, projeção 3D, limiar único e interpolação bilinear.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajustar uma snake, encontrar descritores e comprimir as bordas detectadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Canny reduz ruído, calcula gradiente, afina máximos locais na direção do gradiente e usa dois limiares com conectividade por histerese. As demais sequências misturam operações sem compor esse detector.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na histerese de Canny, uma resposta abaixo do limiar baixo pode ser aceita somente por estar próxima de outra resposta fraca isolada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A lógica preserva respostas fracas que se conectam a respostas fortes; uma resposta fraca isolada não é resgatada apenas por haver outras fracas próximas.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a supressão de não máximos é usada no Canny?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conserva máximos na direção do gradiente e afina as bordas detectadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para preencher os interiores de todos os objetos detectados pelo histograma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para substituir o cálculo de gradiente por uma média em toda a imagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para fundir as duas imagens de limiar em uma máscara colorida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para converter frequências altas em frequências baixas sem alterar a posição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A supressão compara a magnitude com vizinhos na direção do gradiente e elimina respostas que não são máximos locais, deixando contornos mais finos. Não preenche regiões nem substitui o gradiente.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda resposta forte de um operador de borda corresponde necessariamente ao limite semântico de um objeto real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Textura, sombras, reflexos e ruído também podem criar mudanças locais fortes. O gradiente mede variação de intensidade, não significado semântico.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer realçar mudanças de intensidade em várias direções com um operador derivativo de segunda ordem. Qual escolha corresponde a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Laplaciano, uma segunda derivada aplicado após suavizar ruído.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Filtro de média, que calcula somente a intensidade média local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Abertura morfológica, que calcula uma segunda derivada direcional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hough polar, que suaviza todas as altas frequências da imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Template matching, que estima curvatura por comparação global.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Laplaciano é um operador de segunda derivada e responde a variações em diferentes direções. Como derivadas amplificam ruído, é comum suavizar antes. As demais técnicas têm objetivos distintos.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma borda ideal, o vetor gradiente aponta aproximadamente na direção tangente à linha de borda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O gradiente aponta para a maior variação de intensidade e tende a ser normal, isto é, perpendicular à borda. A direção tangente segue o contorno.",
+      "section": "1. Convolução, filtros e bordas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação favorece limiarização adaptativa em vez de um único limiar global?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Iluminação varia e um único corte classifica mal partes da cena.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A imagem possui apenas uma dimensão espacial e nenhum pixel vizinho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tarefa exige estimar a pose tridimensional de uma câmera calibrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os pixels já têm rótulos e a equipe só quer compactar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O objeto é conhecido apenas por seu descritor binário local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um limiar local pode compensar variações espaciais de iluminação que tornam inadequado um corte único. Pose, compressão e comparação de descritores não são resolvidas por esse motivo.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segmentação atribui pixels a regiões ou classes; a detecção de bordas, isoladamente, apenas evidencia mudanças locais de intensidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma segmentação produz máscaras ou rótulos de região. Um mapa de bordas pode ajudar a construí-la, mas não determina sozinho a classe de cada pixel nem o interior das regiões.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o watershed usa marcadores em uma imagem de elevação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expande bacias de sementes e separa regiões nas suas fronteiras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compara cada janela com um template e escolhe a correlação máxima.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte todos os pixels em coeficientes wavelet e zera a sub-banda LL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Estima uma reta por regressão sem usar pixels de borda ou parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplica erosão até que reste apenas um pixel por componente conexa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interpretação de inundação expande regiões iniciadas nos marcadores sobre o mapa de elevação; as fronteiras entre bacias formam separações. As outras opções descrevem técnicas diferentes.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No watershed, mínimos locais numerosos podem produzir sobre-segmentação, e marcadores ajudam a controlar as regiões que serão inundadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cada mínimo pode iniciar uma bacia, gerando muitas regiões pequenas. Pré-processamento e marcadores de objeto e fundo restringem a interpretação desejada.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma erosão binária é aplicada a um objeto claro sobre fundo escuro. Qual efeito geométrico típico se espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O foreground tende a encolher conforme a vizinhança escolhida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O foreground cresce sempre por uma faixa da largura do kernel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A imagem passa a conter somente a frequência média global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada componente recebe automaticamente uma classe semântica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A curva da borda se ajusta a uma energia elástica contínua.",
+          "correct": false
+        }
+      ],
+      "explanation": "Erosão remove pixels de borda segundo a vizinhança definida pelo elemento estruturante, fazendo o foreground tender a encolher. Expansão caracteriza dilatação; os demais efeitos não são erosão.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A dilatação binária tende a remover pixels do foreground, encolhendo objetos conforme a forma do elemento estruturante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A dilatação faz crescer regiões claras/foreground de acordo com os pontos do elemento estruturante; a erosão é que tende a encolhê-las. Geometria e tamanho do elemento controlam o efeito.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual composição morfológica costuma remover pequenos objetos claros mantendo aproximadamente a forma dos objetos maiores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abertura: erosão seguida de dilatação com o mesmo elemento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fechamento: erosão seguida de outra erosão com elemento maior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gradiente: transformada de Fourier seguida de limiarização global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dilatação: subtração entre imagem e seu espectro deslocado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Watershed: correlação de cada região com uma imagem modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A abertura primeiro erode, removendo detalhes menores que o elemento, e depois dilata o que restou. A sequência preserva aproximadamente a escala dos componentes maiores, embora possa alterar contornos.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fechamento morfológico é uma erosão seguida de dilatação e, por isso, é a escolha usual para preencher pequenas lacunas no foreground.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O fechamento é dilatação seguida de erosão. A dilatação inicial tende a preencher pequenas lacunas e o passo de erosão recupera aproximadamente as dimensões externas; erosão seguida de dilatação é abertura.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que uma equipe altera ao trocar um elemento estruturante quadrado por um alongado na morfologia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A vizinhança e a orientação usadas no crescimento ou remoção local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A convenção de cor RGB para que todo objeto fique segmentado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A frequência de amostragem temporal da sequência de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função de custo da homografia usada para retificar a câmera.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A dimensão do espaço de classes de um classificador supervisionado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O elemento estruturante define a forma da vizinhança usada pela operação. Um elemento alongado pode privilegiar estruturas ou lacunas com orientação correspondente; não altera cor, amostragem temporal ou modelo de câmera.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A transformada de Fourier bidimensional representa uma imagem por componentes de frequência espacial e orientação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A DFT bidimensional expressa a imagem como componentes senoidais complexas com diferentes frequências em cada eixo; a magnitude e a fase do espectro descrevem aspectos distintos da representação.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No espectro de Fourier, qual afirmação caracteriza corretamente frequências espaciais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Variações lentas são baixas frequências; detalhes finos, altas frequências.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Baixas frequências identificam classes; altas frequências guardam apenas coordenadas RGB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Frequência zero registra a localização de todos os contornos do objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fase pode sempre ser descartada sem qualquer perda estrutural.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A magnitude do espectro equivale diretamente a uma máscara binária de objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variações suaves se concentram em baixas frequências, enquanto detalhes finos e transições abruptas contribuem a frequências altas. A frequência zero corresponde ao nível médio, e a fase não é dispensável em geral.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de filtragem em frequência pode ser feita multiplicando o espectro por uma máscara e aplicando a transformada inversa para voltar ao domínio espacial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A máscara atenua ou preserva componentes escolhidas no domínio transformado; a transformada inversa reconstrói uma imagem espacial filtrada.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma textura repetitiva gera picos no espectro, e deseja-se atenuar variações muito rápidas em toda a imagem. Qual procedimento é compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Analisar os picos no espectro e aplicar máscara passa-baixas antes da inversa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar passa-altas e interpretar a imagem resultante como a textura original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar somente a fase e substituir todos os coeficientes por rótulos de watershed.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar os pixels por intensidade e executar Hough sem mapa de bordas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar fechamento morfológico no vetor de frequências sem reconstruir a imagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O espectro permite localizar componentes periódicas; um passa-baixas atenua frequências altas e, após a transformada inversa, produz suavização. Passa-altas tende a realçar mudanças e morfologia opera sobre formas, não cumpre esse papel espectral.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A FFT é uma representação de imagem diferente da DFT e elimina a necessidade de especificar frequências ou recuperar o domínio espacial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. FFT é uma família de algoritmos eficientes para calcular a DFT; não é uma nova representação conceitual. Para obter a imagem filtrada espacial, usa-se a transformada inversa depois de modificar o espectro.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual vantagem distingue wavelets de uma análise puramente global por Fourier?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Localizar conteúdo por escala e posição usando funções wavelet.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantir que qualquer ruído desapareça sem perda de bordas ou textura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter automaticamente cada coeficiente em rótulo semântico de objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar a necessidade de amostragem e quantização dos pixels.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular exclusivamente a frequência zero para todas as sub-bandas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Wavelets são localizadas e organizam detalhes em escalas, oferecendo informação espacial que uma representação senoidal global não localiza da mesma forma. Não garantem remoção sem perdas nem classificam significado.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na decomposição wavelet bidimensional separável, cada nível contém três aproximações e uma única sub-banda de detalhe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. As filtragens passa-baixas e passa-altas nos dois eixos formam LL, LH, HL e HH: uma aproximação e três sub-bandas de detalhe. A notação direcional varia entre convenções.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na redução de ruído por limiarização wavelet, o que ocorre com coeficientes de detalhe pequenos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Podem ser zerados ou encolhidos, reduzindo ruído com risco de apagar detalhes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "São necessariamente convertidos em coeficientes de aproximação sem alteração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "São somados ao canal de cor para estimar a classe do objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "São votados no espaço de parâmetros de retas e viram linhas detectadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "São sempre os únicos coeficientes que descrevem a iluminação média.",
+          "correct": false
+        }
+      ],
+      "explanation": "Coeficientes pequenos de detalhe frequentemente representam ruído e podem ser limiarizados; limiar alto também elimina textura e bordas sutis. A aproximação LL guarda a estrutura de baixa frequência, não os detalhes finos.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Hough polar para retas, pontos de borda votam em pares de distância e ângulo; máximos no acumulador indicam linhas candidatas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cada ponto contribui para os parâmetros de retas que poderiam passar por ele. Pontos colineares reforçam uma região comum do acumulador, cujos picos correspondem a candidatas.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a parametrização polar da reta é útil no Hough?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Representa retas verticais sem recorrer a uma inclinação infinita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remove a necessidade de detectar qualquer pixel de borda na imagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte a reta em círculo e reduz o acumulador a um único valor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Torna a transformada invariável à escala e à iluminação por definição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui os parâmetros geométricos por identificadores de classe treinados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma rho = x cos(theta) + y sin(theta) trata orientações verticais sem a inclinação infinita de y = mx + b. Ainda são necessários pontos de evidência e uma busca no espaço parametrizado.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar a dimensionalidade do espaço de parâmetros de Hough para círculos pode elevar o custo da busca em relação ao caso de retas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma reta pode ser descrita por dois parâmetros; um círculo exige centro e raio, ampliando o acumulador. A quantização, a faixa de raios e a evidência de bordas influenciam custo e precisão.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma snake é apenas uma máscara binária fixa que classifica cada pixel pela intensidade original, sem evoluir sua fronteira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Snake é um contorno ativo que evolui iterativamente sob forças internas de regularidade e forças externas derivadas da imagem. Não é uma classificação estática por intensidade.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que papel exercem as energias internas e externas em uma snake?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Internas regularizam a curva; externas atraem-na às feições visuais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As internas classificam objetos; as externas comprimem os pixels em JPEG.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As internas calculam frequência; as externas estimam o balanço de branco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambas substituem a inicialização por uma caixa delimitadora perfeita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As externas impedem qualquer alteração da curva durante a otimização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A energia interna penaliza comprimento ou curvatura excessivos e favorece suavidade; a externa direciona a curva para bordas, linhas ou outras feições. Inicialização adequada continua importante.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma snake inicializada longe de uma borda fraca pode convergir para uma solução inadequada ou ficar presa em um mínimo local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A evolução depende da inicialização, das evidências externas e do balanço dos parâmetros. Uma curva distante pode não receber força suficiente para alcançar o contorno pretendido.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como funciona o template matching clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desliza uma referência e calcula uma medida para cada janela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Expande bacias por gradiente até que todos os pixels virem bordas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ajusta uma curva sem modelo de aparência ou comparação local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplica erosão e dilatação até construir uma homografia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transforma cada pixel em frequência zero e seleciona o maior raio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Template matching compara repetidamente o template com janelas sobrepostas da imagem e forma um mapa de medidas de similaridade ou erro. Watershed, snakes e morfologia resolvem tarefas diferentes.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar diferença quadrática como métrica de template matching, uma janela com erro maior representa ajuste melhor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A diferença quadrática mede discrepância, portanto o mínimo indica melhor ajuste. Métricas de correlação costumam ser interpretadas ao contrário, com máximo melhor.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca por template encontra um objeto repetido várias vezes. Por que localizar somente o máximo global pode falhar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o máximo global indica só uma posição entre várias correspondências.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque template matching não calcula uma resposta por posição da janela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o template é convertido em elemento estruturante e perde sua aparência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque o máximo global sempre escolhe a região de menor diferença quadrática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque múltiplas ocorrências só podem ser encontradas em imagens Fourier.",
+          "correct": false
+        }
+      ],
+      "explanation": "O mapa contém respostas em várias posições, mas uma busca pelo único máximo global reporta apenas a melhor. Para várias ocorrências, pode-se limiarizar respostas e agrupar ou suprimir picos próximos.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O template matching direto é automaticamente robusto a mudanças grandes de escala, rotação e iluminação porque examina todas as janelas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A comparação deslizante cobre posições, mas o template mantém sua aparência e dimensão, salvo busca explícita em múltiplas escalas ou transformações. Mudanças de pose ou iluminação podem reduzir a correspondência.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em reconhecimento baseado em keypoints, qual é a função de um descritor local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resumir a vizinhança de um ponto para comparar feições entre imagens.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir todos os pixels por coordenadas da câmera sem extração de pontos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Preencher regiões internas com o elemento estruturante escolhido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar o mapa de similaridade em imagem sem coordenadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantir que qualquer par de pontos corresponda ao mesmo objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um descritor codifica propriedades locais em torno de um keypoint para permitir comparação entre imagens. Correspondências podem ser falsas e precisam de filtragem e validação geométrica.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Descritores binários como ORB são frequentemente comparados com distância de Hamming, que conta diferenças entre bits.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distância de Hamming mede quantas posições de bits diferem e é adequada a descritores binários. Descritores de valores reais, como SIFT, são normalmente comparados por métricas como norma L2.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após casar descritores locais entre duas imagens, como reduzir correspondências falsas ao localizar um objeto planar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estimar uma transformação robusta, como homografia, e rejeitar pares incompatíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aceitar todos os pares porque descritores locais não produzem falsos positivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar fechamento na lista de coordenadas até que todos os pares se alinhem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir os pontos por uma média global e descartar a posição relativa entre eles.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter correspondências em coeficientes LL e remover toda a geometria da imagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Correspondências consistentes com uma homografia apoiam a hipótese de que pontos pertencem ao mesmo plano observado sob perspectiva. Um estimador robusto separa outliers; descritores isolados não garantem geometria correta.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma resposta de correlação normalizada para template matching, que localização costuma representar melhor correspondência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um valor alto no mapa de correlação, entre respostas locais distintas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma posição de valor baixo, como ocorre sempre em diferença quadrática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O centro geométrico da imagem, independentemente das respostas calculadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O primeiro pixel de borda encontrado antes de deslizar o template pela cena.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posição com menor magnitude no espectro de Fourier da imagem completa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas de correlação normalizada são maximizadas para obter maior similaridade; diferença quadrática, em contraste, é minimizada. Ao buscar várias ocorrências, é necessário examinar múltiplos picos e não só um extremo global.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um template matching produz normalmente um mapa de resposta espacial, com uma medida em cada posição válida para o template.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cada posição válida do template gera uma medida na matriz de resposta; sem padding, a matriz é menor que a imagem de busca pelo tamanho do template menos um em cada dimensão.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em template matching, para que serve examinar máximos locais além do máximo global?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Achar outras ocorrências além da única janela vencedora global.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter todas as janelas em parâmetros de frequência de Fourier.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer a diferença quadrática preferir valores maiores em cada posição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ajustar a curva de uma snake sem inicializar seu contorno na imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir os descritores binários por rótulos morfológicos de objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Máximos locais bem separados no mapa de similaridade podem corresponder a múltiplas instâncias. Um extremo global sozinho só indica uma localização, e não descreve a qualidade de ocorrências adicionais.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A snake clássica pode ser inicializada por uma curva aproximada e então se desloca iterativamente segundo energias internas e externas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A curva inicial fornece pontos de partida; regularização interna e atração externa alteram sua forma até a evolução convergir ou atingir o critério de parada.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual limitação deve ser considerada ao aplicar um template sem pirâmide de escalas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudança de tamanho reduz a semelhança mesmo para o mesmo objeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A busca passa a ser invariável à rotação por causa do deslocamento da janela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O mapa de resposta deixa de conter informação sobre posições candidatas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença quadrática passa a significar classe semântica do objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A comparação converte automaticamente a aparência em homografia planar.",
+          "correct": false
+        }
+      ],
+      "explanation": "O template clássico tem uma dimensão e orientação definidas. Deslocá-lo cobre posições, mas não torna a comparação invariável à escala ou rotação; busca multiescala ou descritores locais podem ajudar.",
+      "section": "4. Snakes e reconhecimento de objetos por modelos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Hough para retas, o acumulador recebe votos no espaço dos parâmetros a partir dos pixels de borda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cada ponto de borda contribui para os parâmetros das retas que poderiam passar por ele. Pontos colineares reforçam um pico comum no acumulador.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência define a abertura morfológica binária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Erosão seguida de dilatação com o mesmo elemento estruturante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dilatação seguida de erosão, usada para preencher pequenas lacunas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sobel em dois eixos e combinação das magnitudes derivativas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Limiarização de duas classes e rotulagem de regiões conectadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtragem passa-baixas no espectro e transformada inversa espacial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A abertura aplica erosão e depois dilatação usando o mesmo elemento estruturante. A ordem inversa é o fechamento; as outras alternativas descrevem gradientes, limiarização ou filtragem em frequência.",
+      "section": "2. Segmentação e operadores morfológicos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre os efeitos de uma máscara passa-altas no espectro de Fourier, qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atenua as componentes rápidas e preserva somente o nível médio da imagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atenua baixas frequências e tende a realçar mudanças e detalhes rápidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Filtra picos de Hough e separa bacias para localizar linhas na imagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte o espectro em rótulos sem reconstruir a imagem no domínio espacial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usa a fase para eliminar frequências altas durante a operação de convolução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma máscara passa-altas atenua componentes de baixa frequência e preserva ou realça as rápidas; após a inversa, mudanças e detalhes ficam mais evidentes. Passa-baixas tende a suavizar, e Hough e watershed são técnicas distintas.",
+      "section": "3. Fourier, wavelets e transformada de Hough",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OpenCV Tutorials: Image Processing",
+      "publisher": "OpenCV",
+      "reference": "Filtros, suavização, gradientes, Canny, Hough e morfologia",
+      "url": "https://docs.opencv.org/5.0/tutorials/imgproc/table_of_content_imgproc.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenCV: Image Transforms",
+      "publisher": "OpenCV",
+      "reference": "Transformadas de imagem, incluindo Fourier",
+      "url": "https://docs.opencv.org/5.0/py_tutorials/py_imgproc/py_transforms/py_fourier_transform/py_fourier_transform.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scikit-image: Segmentation API",
+      "publisher": "scikit-image",
+      "reference": "Segmentação, active_contour, Chan-Vese e variantes morfológicas",
+      "url": "https://scikit-image.org/docs/stable/api/skimage.segmentation.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scikit-image: Image Segmentation Tutorial",
+      "publisher": "scikit-image",
+      "reference": "Marcadores, mapa de elevação, watershed e regiões",
+      "url": "https://scikit-image.org/docs/stable/user_guide/tutorial_segmentation.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scikit-image: Transform API",
+      "publisher": "scikit-image",
+      "reference": "Transformada de Hough para retas, círculos e elipses",
+      "url": "https://scikit-image.org/docs/stable/api/skimage.transform.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PyWavelets: 2D Multilevel Decompositions",
+      "publisher": "PyWavelets",
+      "reference": "Sub-bandas e decomposição discreta wavelet bidimensional",
+      "url": "https://pywavelets.readthedocs.io/en/latest/ref/2d-decompositions-overview.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenCV: Template Matching",
+      "publisher": "OpenCV",
+      "reference": "Comparação deslizante, mapa de resposta, métricas e múltiplas ocorrências",
+      "url": "https://docs.opencv.org/5.0/py_tutorials/py_imgproc/py_template_matching/py_template_matching.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenCV: Feature Matching with FLANN",
+      "publisher": "OpenCV",
+      "reference": "Descritores locais e comparação de características",
+      "url": "https://docs.opencv.org/4.12.0/d5/d6f/tutorial_feature_flann_matcher.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Snakes: Active Contour Models",
+      "publisher": "International Journal of Computer Vision",
+      "reference": "Kass, Witkin e Terzopoulos; formulação de contornos ativos e energias",
+      "url": "https://doi.org/10.1007/BF00133570",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}
