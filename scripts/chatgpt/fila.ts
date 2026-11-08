@@ -124,12 +124,12 @@ if (cmd === "montar") {
     try { Deno.statSync(`${ROOT}conteudo/entrada/materias-codex-2/${i.nome}.json`); comCodex = true; } catch { /* não começou */ }
     if (comCodex) i.enviado = "pulado (Codex)";
   }
-  // Explicações das questões de prova real (scripts/oficiais/pedidos.ts): 2 de cada 5 pedidos do ChatGPT (era 1/5 até 03/11)
-  // (o Gemini, que só faz QUESTOES, não recebe), até a fila delas acabar.
+  // Explicações das questões de prova real (scripts/oficiais/pedidos.ts): 4 de cada 5 pedidos do ChatGPT (08/11; era 2/5
+  // desde 03/11 e 1/5 antes). O Gemini, que só faz QUESTOES, não recebe. Quando a fila delas acaba, tudo volta a ser questão.
   const FILA_OFICIAIS = `${ROOT}work/oficiais/fila.json`;
   let oficiais: Array<{ pedido: string; enviado: string | null }> = [];
   if (!tipo) try { oficiais = JSON.parse(Deno.readTextFileSync(FILA_OFICIAIS)); } catch { /* sem fila de oficiais */ }
-  const vezOficiais = oficiais.filter((p) => !p.enviado).slice(0, Math.max(1, Math.round(n * 0.4)));
+  const vezOficiais = oficiais.filter((p) => !p.enviado).slice(0, Math.max(1, Math.round(n * 0.8)));
   const sel = livres().slice(0, n - vezOficiais.length);
   const agora = new Date().toLocaleString("pt-BR");
   for (const i of sel) i.enviado = agora;
