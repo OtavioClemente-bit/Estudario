@@ -67,6 +67,24 @@ const CABECALHO_COLADO = /^CEBRASPE\s*[–-][^\n]{0,80}?(?:Edital|Aplicação):\
 const FIM_FRASE = /[.?!;:)\]”"»…]$/;
 // Início de item que não é letra nem número: fórmula (fontes de símbolo saem como glifos fora do latim).
 const INICIO_SIMBOLO = /^[^\sa-zà-úA-ZÀ-Ú0-9.,;:!?)\]}\-–—]/;
+// Início de item que é conta com número ("96 38±1,7 representa..."): número seguido de operador. Só vale para o
+// número logo seguinte ao item anterior (a numeração de linha dos textos não tem operador depois).
+const INICIO_CONTA = /^\d[\d.,]*\s*[±=<>≤≥+×÷−\-/%^]\s*\S/;
+// Item que remete a algo visual que não vem no texto (circuito, esquema, box-plot "a seguir"): fica marcado
+// precisaFigura e o preparar.ts o deixa de fora. Nunca se completa.
+const VISUAL = new RegExp("\\b(quadros?|esquemas?|diagramas?|circuitos?|plantas?|croquis?|box-?plots?|histogramas?|fluxogramas?|organogramas?|" +
+  "mapas?|desenhos?|modelos?|telas?|grafos?|árvores?|matriz|matrizes|planilhas?|fotografias?|cartogramas?|perfis?)\\b(?:\\s+[^\\s.;:]+){0,4}?\\s+" +
+  "(a seguir|seguintes?|abaixo|acima|precedentes?|apresentad[oa]s?|mostrad[oa]s?|representad[oa]s?|esquematizad[oa]s?)\\b", "i");
+const REPRESENTADO = /\b(representad[oa]s?|ilustrad[oa]s?|mostrad[oa]s?|esquematizad[oa]s?|desenhad[oa]s?)\s+(a seguir|abaixo|acima|na (figura|imagem))\b/i;
+// Colunas misturadas pelo pdftotext: frase que acaba e continua em minúscula com o texto da outra coluna
+// ("...foi inferior a 5. de 150 propriedades rurais..."). Abreviações (art., spp., pv.) e código não contam.
+const MISTURA = /(?<!\.|\b(?:art|arts|n|nº|inc|al|p|pp|fl|fls|ex|etc|Dr|Sr|Sra|cf|v|vol|ed|op|cit|Ltda|min|máx|aprox|séc|spp|sp|subsp|pv|var|cv|[A-Za-z]))\.\s+([a-zà-ú]{2,}(?:\s+[a-zà-ú,]+){3})/;
+function misturado(s: string): boolean {
+  const m = s.match(MISTURA);
+  if (!m) return false;
+  const antes = s.slice(Math.max(0, m.index! - 40), m.index!), depois = s.slice(m.index!, m.index! + 80);
+  return !(/a seguir|seguinte|abaixo|:\s*$/.test(antes) || /[{}\/;=<>_|$#\\]|--|\w\(\)/.test(depois));
+}
 const CABECALHO = [/^\|\|.*\|\|$/, /^CESPE\s*\|\s*CEBRASPE/i, /^CEBRASPE\s*[–-]/i, /^CONHECIMENTOS (BÁSICOS|ESPECÍFICOS|GERAIS)\s*$/i, /^Espaço livre$/i, /^-- \d+ --$/];
 const COMANDO = /julgue|assinale|considerando|com base|acerca|a respeito|à luz|tendo em vista|no que (se refere|concerne|diz respeito)|em relação|quanto a/i;
 type Item = { numero: number; base: string; enunciado: string };
@@ -104,7 +122,7 @@ export function lerProva(texto: string, numeros: Set<number>): Item[] {
       const k = linhas[i].search(new RegExp(`(?<=[.?!)”"]\\s)${n + 1}\\s+\\S`));
       if (k < 0) break;
       const resto = linhas[i].slice(k).replace(/^\d+\s+/, "");
-      if (!INICIO_SIMBOLO.test(resto) && !MAIUSC.test(resto)) break;
+      if (!INICIO_SIMBOLO.test(resto) && !MAIUSC.test(resto) && !INICIO_CONTA.test(resto)) break;
       linhas.splice(i + 1, 0, linhas[i].slice(k).trim());
       linhas[i] = linhas[i].slice(0, k).trim();
       i++; n++;
@@ -117,7 +135,7 @@ export function lerProva(texto: string, numeros: Set<number>): Item[] {
     // Prova em duas colunas sai fora de ordem no texto: aceita qualquer número do gabarito ainda não visto,
     // desde que a linha comece como frase (as numerações de linha dos textos continuam frases em minúscula).
     const anterior = itens.length ? itens[itens.length - 1].numero : 0;
-    const comeco = m && (MAIUSC.test(m[2]) && m[2].length > 15 || n === anterior + 1 && INICIO_SIMBOLO.test(m[2]) && m[2].length > 3);
+    const comeco = m && (MAIUSC.test(m[2]) && m[2].length > 15 || n === anterior + 1 && (INICIO_SIMBOLO.test(m[2]) || INICIO_CONTA.test(m[2])) && m[2].length > 3);
     if (m && numeros.has(n) && !vistos.has(n) && comeco) {
       vistos.add(n);
       // Linhas soltas antes deste item: se trazem um comando ("julgue os itens..."), são o novo texto-base;
@@ -150,7 +168,8 @@ export function marcar(itens: Item[], gabarito: Map<number, string>, textoProva:
     gabarito: gabarito.get(it.numero),
     anulado: gabarito.get(it.numero) === "X",
     temFigura: /figura|gráfico|tabela|imagem|ilustra|quadro (a seguir|acima|abaixo)/i.test(it.base + " " + it.enunciado),
-    ...(ruim ? { extracaoRuim: true } : {}),
+    ...(VISUAL.test(it.base + " " + it.enunciado) || REPRESENTADO.test(it.base + " " + it.enunciado) ? { precisaFigura: true } : {}),
+    ...(ruim || misturado(it.enunciado) ? { extracaoRuim: true } : {}),
   }));
 }
 

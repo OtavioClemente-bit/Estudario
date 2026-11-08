@@ -37,6 +37,10 @@ const slug = (banca: string) => norm(banca).replace(/[^a-z0-9]+/g, "-").replace(
 // Alertas que eu conferi e liberei (gabarito oficial certo e norma ainda vigente): work/oficiais/alertas-ok.json.
 let alertasLiberados = new Set<string>();
 try { alertasLiberados = new Set((JSON.parse(Deno.readTextFileSync(`${ROOT}work/oficiais/alertas-ok.json`)) as string[]).map(String)); } catch { /* nenhum */ }
+// Explicações que deixaram de bater com a questão (08/11: provas da Fundatec com dois cadernos de mesma numeração;
+// depois da nova extração parte das explicações era do outro caderno): work/oficiais/explicacoes-bloqueadas.json.
+let bloqueadas = new Set<string>();
+try { bloqueadas = new Set((JSON.parse(Deno.readTextFileSync(`${ROOT}work/oficiais/explicacoes-bloqueadas.json`)) as string[]).map(String)); } catch { /* nenhuma */ }
 const porRecorte = new Map<string, { banca: string; topic: string; questions: Json[] }>();
 const alertas: Json[] = [];
 const contagem = { respostas: 0, aceitas: 0, semMateria: 0, curtas: 0, alerta: 0, desconhecidas: 0 };
@@ -48,6 +52,7 @@ for (const arquivo of arquivos) {
     contagem.respostas++;
     const q = questoes.get(String(it.id));
     if (!q) { contagem.desconhecidas++; continue; }
+    if (bloqueadas.has(String(it.id))) { contagem.alerta++; continue; }
     const escolhida = String(it.materia ?? "").trim().split(/\s/)[0];
     const m = materias.get(escolhida);
     // Basta a matéria existir: os 5 candidatos mudam quando o preparar.ts roda de novo com a biblioteca maior, e a
@@ -84,7 +89,9 @@ for (const arquivo of arquivos) {
 }
 // Trava: se muitas respostas não acham a questão (questoes.jsonl incompleto, ex.: preparado enquanto a coleta
 // regravava as provas), não mexe nos recortes publicados. Em 04/11 isso tiraria metade das provas do app.
-if (contagem.desconhecidas > Math.max(50, contagem.respostas * 0.02)) {
+// 08/11: o preparar.ts agora grava o arquivo inteiro de uma vez e filtra de propósito questões com figura, símbolo
+// ilegível ou caderno duplicado (~2.500 respostas ficam sem questão). A trava só dispara se o arquivo encolheu muito.
+if (contagem.desconhecidas > Math.max(50, contagem.respostas * 0.02) && questoes.size < 100_000) {
   console.error(`questoes.jsonl incompleto (${contagem.desconhecidas} respostas sem questão): recortes-oficiais mantidos como estão; rode o preparar.ts de novo com a coleta parada.`);
   console.log(contagem);
   Deno.exit(0);

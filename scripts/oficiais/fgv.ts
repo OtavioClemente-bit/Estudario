@@ -3,6 +3,7 @@
 // cada prova com o bloco certo do gabarito. Não escreve nem altera questão nenhuma. Respeita o robots.txt da FGV
 // (só bloqueia busca/admin) e baixa devagar. Saída em work/provas-oficiais/fgv/<slug>/ (fora do git).
 //   deno run -A scripts/oficiais/fgv.ts trt16 [outro_slug ...]
+//   deno run -A scripts/oficiais/fgv.ts --reprocessar [destino]   (refaz a extração dos PDFs já baixados, sem rede)
 //   deno run -A scripts/oficiais/fgv.ts --todos     (concursos da FGV dos editais que têm link /concursos/<slug>)
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const SAIDA = `${ROOT}work/provas-oficiais/fgv`;
@@ -75,10 +76,23 @@ function lerProva(t: string, total: number) {
     const partes = q.bruto.split(/\s*\(([A-E])\)\s+/);
     // partes = [enunciado, "A", textoA, "B", textoB, ...]
     const alternativas: string[] = [];
-    for (let k = 1; k < partes.length; k += 2) alternativas.push((partes[k + 1] ?? "").replace(/\s+/g, " ").trim());
+    for (let k = 1; k < partes.length; k += 2) alternativas.push(partes[k + 1] ?? "");
+    // Depois da (E) vêm o título da próxima seção e o texto-base das questões seguintes ("Língua Inglesa / READ THE
+    // TEXT..."): a E acaba na primeira quebra de linha depois de fim de frase quando o resto é título curto ou longo.
+    if (alternativas.length === 5) alternativas[4] = cortarE(alternativas[4]);
     const letras = partes.filter((_, k) => k % 2 === 1).join("");
-    return { numero: q.numero, enunciado: partes[0].replace(/\s+/g, " ").trim(), alternativas, ok: letras === "ABCDE" };
+    return { numero: q.numero, enunciado: partes[0].replace(/\s+/g, " ").trim(), alternativas: alternativas.map((a) => a.replace(/\s+/g, " ").trim()), ok: letras === "ABCDE" };
   });
+}
+function cortarE(e: string): string {
+  const ls = e.split("\n");
+  for (let k = 1; k < ls.length; k++) {
+    const antes = ls.slice(0, k).join(" ").trim(), resto = ls.slice(k).join("\n").trim(), l1 = ls[k].trim();
+    if (!/[.;!?…]["”)]?$/.test(antes)) continue;
+    const titulo = l1.length <= 60 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(l1) && !/[.;:!?]$/.test(l1);
+    if (titulo || resto.length >= 150) return ls.slice(0, k).join("\n");
+  }
+  return e;
 }
 
 // casa a prova com o bloco do gabarito pelo cabeçalho da capa (cargo + especialidade)
@@ -105,6 +119,38 @@ function casar(capa: string, blocos: { titulo: string }[]) {
   return ok[0].i;
 }
 
+const marcar = (q: Json, resp: Map<number, string>): Json => ({ ...q, gabarito: resp.get(q.numero), anulada: !/^[A-E]$/.test(resp.get(q.numero) ?? ""), temFigura: /figura|gráfico|tabela|imagem|foto|ilustra/i.test(q.enunciado) });
+
+// --reprocessar [destino]: refaz a extração dos PDFs já baixados (sem rede), com o gabarito local e o mesmo bloco
+// (título "prova" gravado). Número, arquivo e concurso continuam os mesmos, então os ids não mudam.
+function reprocessar(destino = SAIDA) {
+  let provas = 0, antes = 0, depois = 0;
+  for (const d of Deno.readDirSync(SAIDA)) {
+    if (!d.isDirectory) continue;
+    const dir = `${SAIDA}/${d.name}`;
+    let blocos: { titulo: string; resp: Map<number, string> }[];
+    try { blocos = lerGabarito(texto(`${dir}/_gabarito_definitivo.pdf`, true)); } catch { continue; }
+    for (const f of Deno.readDirSync(dir)) {
+      if (!f.name.endsWith(".json") || f.name.startsWith("_")) continue;
+      let reg: Json; try { reg = JSON.parse(Deno.readTextFileSync(`${dir}/${f.name}`)); } catch { continue; }
+      const b = blocos.filter((x) => x.titulo === reg.prova);
+      if (b.length !== 1) continue;
+      try { Deno.statSync(`${dir}/${reg.arquivo}`); } catch { continue; }
+      const qs = lerProva(texto(`${dir}/${reg.arquivo}`, false), b[0].resp.size).map((q) => marcar(q, b[0].resp));
+      antes += (reg.questoes ?? []).length; depois += qs.length; provas++;
+      reg.questoes = qs; reg.extraidas = qs.length; reg.completas = qs.filter((q) => q.ok).length;
+      Deno.mkdirSync(`${destino}/${d.name}`, { recursive: true });
+      Deno.writeTextFileSync(`${destino}/${d.name}/${f.name}`, JSON.stringify(reg, null, 1));
+    }
+  }
+  return { provas, antes, depois };
+}
+if (Deno.args.includes("--reprocessar")) {
+  const destino = Deno.args.filter((a) => !a.startsWith("--"))[0];
+  console.log(reprocessar(destino ? destino.replace(/\\/g, "/") : undefined));
+  Deno.exit(0);
+}
+
 async function concurso(slug: string): Promise<string> {
   const r = await fetch(`${SITE}/concursos/${slug}`, { headers: HEADERS });
   if (!r.ok) return `${slug}: página ${r.status}`;
@@ -128,7 +174,7 @@ async function concurso(slug: string): Promise<string> {
     if (b < 0) { avisos.push(`${nome}: não achei o bloco do gabarito com certeza`); continue; }
     const resp = (blocos[b] as Json).resp as Map<number, string>;
     const qs = lerProva(t, resp.size);
-    const saida = qs.map((q) => ({ ...q, gabarito: resp.get(q.numero), anulada: !/^[A-E]$/.test(resp.get(q.numero) ?? ""), temFigura: /figura|gráfico|tabela|imagem|foto|ilustra/i.test(q.enunciado) }));
+    const saida = qs.map((q) => marcar(q, resp));
     Deno.writeTextFileSync(`${dir}/${nome.replace(/\.pdf$/i, "")}.json`, JSON.stringify({
       banca: "FGV", concurso: slug, ano: Number(capa.match(/20\d\d/)?.[0]) || null, prova: blocos[b].titulo, arquivo: nome, url: u, gabaritoUrl: gab,
       questoesNoGabarito: resp.size, extraidas: saida.length, completas: saida.filter((q) => q.ok).length, questoes: saida,

@@ -73,7 +73,10 @@ function candidatos(text: string, contexto: string, k = 5): Array<{ id: string; 
 const walk = (d: string): string[] => [...Deno.readDirSync(d)].flatMap((e) => e.isDirectory ? walk(`${d}/${e.name}`) : e.name.endsWith(".json") ? [`${d}/${e.name}`] : []);
 // Questão que remete a um texto, gráfico ou figura que a extração não trouxe.
 const PRECISA_TEXTO = /\b(texto|trecho|l\.\s*\d|linhas?\s+\d|par[áa]grafo|charge|tirinha|gr[áa]fico|tabela|figura|imagem|quadro|mapa|fragmento)\b/i;
-const anoDe = (j: Json) => Number(j.ano) || Number(String(`${j.concurso} ${j.url} ${j.gabaritoUrl}`).match(/(?:19|20)\d\d/g)?.find((a) => +a >= 2000 && +a <= 2026)) || null;
+// Símbolo que o pdftotext não decodificou (fonte de fórmula): "������", "ܲሺ‫ܣ‬ሻ", "75 " (Ω perdido). Marcador de lista
+// em fonte de símbolo (no começo da linha ou depois de ":" / ";") não conta.
+const ILEGIVEL = /�|[܀-ࣿሀ-᎟฀-࿿‪-‮]|(?<![:;.!?]\s*|^\s*)[-]/;
+const anoDe =(j: Json) => Number(j.ano) || Number(String(`${j.concurso} ${j.url} ${j.gabaritoUrl}`).match(/(?:19|20)\d\d/g)?.find((a) => +a >= 2000 && +a <= 2026)) || null;
 Deno.mkdirSync(SAIDA, { recursive: true });
 // Grava ao lado e troca no fim: durante os minutos de preparo o questoes.jsonl antigo continua inteiro (08/11: a
 // conferência de alertas e o montar.ts liam o arquivo pela metade enquanto a coleta o refazia).
@@ -81,6 +84,8 @@ const out = await Deno.open(`${SAIDA}/questoes.jsonl.novo`, { write: true, creat
 const enc = new TextEncoder();
 const fora: Record<string, number> = {};
 let total = 0, ok = 0, firmes = 0;
+// Mesmo id duas vezes (PDF com dois cadernos de numeração igual): fica só a primeira.
+const vistos = new Set<string>();
 for (const banca of ["cebraspe", "fgv", "fundatec", "cesgranrio", "aocp"]) {
   for (const arquivo of walk(`${PROVAS}/${banca}`)) {
     let j: Json; try { j = JSON.parse(Deno.readTextFileSync(arquivo)); } catch { continue; }
@@ -89,9 +94,12 @@ for (const banca of ["cebraspe", "fgv", "fundatec", "cesgranrio", "aocp"]) {
       total++;
       const n = (q.alternativas ?? []).length;
       const base = String(q.base ?? "");
-      const motivo = q.anulado || q.anulada ? "anulada" : q.temFigura ? "figura" : q.extracaoRuim ? "extração embaralhada" : !q.gabarito ? "sem gabarito" : !ano ? "sem ano"
+      const id = `${banca}:${j.concurso}:${j.arquivo}:${q.numero}`;
+      const motivo = vistos.has(id) ? "id repetido" : q.anulado || q.anulada ? "anulada" : q.temFigura || q.precisaFigura ? "figura" : q.extracaoRuim ? "extração embaralhada"
+        : ILEGIVEL.test(`${base} ${q.enunciado ?? ""} ${(q.alternativas ?? []).join(" ")}`) ? "símbolo ilegível" : !q.gabarito ? "sem gabarito" : !ano ? "sem ano"
         : n !== 0 && n !== 5 ? `${n} alternativas` : q.precisaTexto || (PRECISA_TEXTO.test(q.enunciado ?? "") && base.length < 400) ? "depende de texto"
         : n === 0 && !/^[CE]$/.test(q.gabarito) ? "gabarito C/E inválido" : n === 5 && !/^[A-E]$/.test(q.gabarito) ? "gabarito inválido" : null;
+      vistos.add(id);
       if (motivo) { fora[motivo] = (fora[motivo] ?? 0) + 1; continue; }
       const texto = `${base.length < 600 ? base : ""} ${q.enunciado} ${(q.alternativas ?? []).join(" ")}`;
       const cands = candidatos(texto, `${j.nomeConcurso ?? ""} ${j.concurso} ${j.cargo ?? ""} ${j.prova ?? ""} ${j.url}`);
@@ -100,7 +108,7 @@ for (const banca of ["cebraspe", "fgv", "fundatec", "cesgranrio", "aocp"]) {
       if (firme) firmes++;
       ok++;
       await out.write(enc.encode(JSON.stringify({
-        id: `${banca}:${j.concurso}:${j.arquivo}:${q.numero}`, banca: j.banca, concurso: j.nomeConcurso ?? j.concurso, cargo: j.cargo ?? j.prova ?? null,
+        id, banca: j.banca, concurso: j.nomeConcurso ?? j.concurso, cargo: j.cargo ?? j.prova ?? null,
         ano, url: j.url, numero: q.numero, base: base.length < 2000 ? base : base.slice(0, 2000), enunciado: q.enunciado,
         alternativas: q.alternativas ?? [], gabarito: q.gabarito, cands, firme,
       }) + "\n"));

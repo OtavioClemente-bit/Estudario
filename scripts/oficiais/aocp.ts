@@ -6,6 +6,7 @@
 // genérico e 2-3 s entre downloads. Saída em work/provas-oficiais/aocp/<slug>/ (fora do git).
 //   deno run -A scripts/oficiais/aocp.ts pmpe2023 [outro_slug ...]    (slug = campo "edital" da API, ex.: pmdf23chos)
 //   deno run -A scripts/oficiais/aocp.ts --catalogo                    (todos os concursos do portal, pula os já baixados)
+//   deno run -A scripts/oficiais/aocp.ts --reprocessar [destino]           (refaz a extração dos PDFs já baixados, sem rede)
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const SAIDA = `${ROOT}work/provas-oficiais/aocp`;
 const API = "https://link.institutoaocp.org.br/api/concursos";
@@ -94,7 +95,8 @@ function lerProva(t: string, total: number) {
     let sobra = "";
     const iE = alt.findIndex((l) => /^\(E\)/.test(l));
     if (iE >= 0) {
-      let fim = alt.findIndex((l, k) => k > iE && l === "");
+      // fim da (E): linha em branco ou título "TEXT 2"/"Texto 3" do texto-base seguinte, quando vem colado sem linha em branco
+      let fim = alt.findIndex((l, k) => k > iE && (l === "" || /^TEXT[O]?\s*([IVX]+|\d+)?\s*$/i.test(l)));
       if (fim < 0) fim = alt.length;
       const resto = alt.slice(fim).join(" ").replace(/\s+/g, " ").trim();
       if (resto.length >= 150 && idx < blocos.length - 1) { sobra = alt.slice(fim).filter(Boolean).join("\n"); alt = alt.slice(0, fim); }
@@ -107,6 +109,8 @@ function lerProva(t: string, total: number) {
     const antes = b.antes.filter(Boolean).join("\n").trim();
     if (antes.length >= 150) { base = antes; corridos = 0; }
     const q: Json = { numero: b.numero, enunciado: enun, alternativas, ok: letras === "ABCDE" && alternativas.every(Boolean) };
+    // fração desmontada pelo PDF: o denominador sobra no fim da alternativa ("(0, 16). 3")
+    if (alternativas.some((a) => /[.)]\s+\d{1,3}$/.test(a))) q.extracaoRuim = true;
     if (base && corridos < 10) { q.base = base; corridos++; }
     qs.push(q);
     if (sobra.length >= 150) { base = sobra; corridos = 0; }
@@ -173,6 +177,32 @@ async function concurso(slug: string, lista: Json[]): Promise<string> {
   return `${slug} (${String(c.nome).trim()}): ${ok} de ${lc.length} cargos, ${itens} questões completas` + (avisos.length ? "\n   " + avisos.join("\n   ") : "");
 }
 
+// --reprocessar [destino]: refaz a extração dos PDFs já baixados (sem rede). O gabarito do AOCP vem da página do portal
+// (não fica arquivo local): usa o que já está gravado em cada questão. Número, arquivo e concurso não mudam (ids iguais).
+if (Deno.args.includes("--reprocessar")) {
+  const destino = (Deno.args.filter((a) => !a.startsWith("--"))[0] ?? SAIDA).replace(/\\/g, "/");
+  let provas = 0, antes = 0, depois = 0;
+  for (const d of Deno.readDirSync(SAIDA)) {
+    if (!d.isDirectory) continue;
+    for (const f of Deno.readDirSync(`${SAIDA}/${d.name}`)) {
+      if (!f.name.endsWith(".json") || f.name.startsWith("_")) continue;
+      let reg: Json; try { reg = JSON.parse(Deno.readTextFileSync(`${SAIDA}/${d.name}/${f.name}`)); } catch { continue; }
+      const pdf = `${SAIDA}/${d.name}/${reg.arquivo}`;
+      try { Deno.statSync(pdf); } catch { continue; }
+      const gab = new Map<number, string>((reg.questoes ?? []).filter((q: Json) => q.gabarito).map((q: Json) => [q.numero, q.gabarito]));
+      const qs = lerProva(texto(pdf), Number(reg.questoesNoGabarito) || gab.size).map((q): Json => {
+        const g = gab.get(q.numero);
+        return { ...q, gabarito: g, anulada: !/^[A-E]$/.test(g ?? ""), temFigura: FIGURA.test(q.enunciado) || q.alternativas.some((a: string) => FIGURA.test(a)) };
+      });
+      antes += (reg.questoes ?? []).length; depois += qs.length; provas++;
+      reg.questoes = qs; reg.extraidas = qs.length; reg.completas = qs.filter((q) => q.ok).length;
+      Deno.mkdirSync(`${destino}/${d.name}`, { recursive: true });
+      Deno.writeTextFileSync(`${destino}/${d.name}/${f.name}`, JSON.stringify(reg, null, 1));
+    }
+  }
+  console.log({ provas, antes, depois });
+  Deno.exit(0);
+}
 const args = Deno.args.filter((a) => !a.startsWith("--"));
 if (!args.length && !Deno.args.includes("--catalogo")) { console.log("uso: deno run -A scripts/oficiais/aocp.ts pmpe2023 | --catalogo"); Deno.exit(1); }
 const lista = await listaConcursos();
