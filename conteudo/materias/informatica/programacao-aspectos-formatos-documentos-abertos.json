@@ -1,0 +1,1956 @@
+{
+  "id": "informatica.programacao-aspectos-formatos-documentos-abertos",
+  "subject": "Informática",
+  "title": "Programação orientada a aspectos e formatos abertos de documentos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programação orientada a aspectos e NBR ISO/IEC 26300/ISO 32000-1:2008",
+    "Programação orientada a aspectos",
+    "Aspect-oriented programming e aspectos",
+    "Aspectos, advice, join point e pointcut",
+    "Tecelagem de aspectos em software",
+    "NBR ISO/IEC 26300 OpenDocument",
+    "ISO/IEC 26300 formato OpenDocument ODF",
+    "Formato aberto de documentos de escritório ODF",
+    "ISO 32000-1:2008 formato PDF 1.7",
+    "Portable Document Format conforme ISO 32000",
+    "OpenDocument e Portable Document Format",
+    "Formatos abertos para documentos digitais"
+  ],
+  "scope": {
+    "covers": "Fundamentos de programação orientada a aspectos: preocupação transversal, aspecto, join point, pointcut, advice, weaving e momentos de tecelagem; escopo técnico da NBR ISO/IEC 26300 / ISO/IEC 26300:2006 para OpenDocument, estrutura XML e pacote ODF; escopo da ISO 32000-1:2008 (PDF 1.7), objetivos, objetos e recursos centrais, leitores e produtores conformes, e diferenças entre ODF editável e PDF voltado à apresentação e troca previsível.",
+    "excludes": "Sintaxe específica de AspectJ ou de uma linguagem de programação, detalhes integrais de esquemas XML, perfis PDF/A e PDF/UA, versões posteriores de PDF, e alegações de que um formato garante por si só acessibilidade, preservação ou interoperabilidade perfeita."
+  },
+  "theoryTitle": "Aspectos no software e formatos abertos de documentos",
+  "chapters": [
+    {
+      "title": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma aplicação, autenticação, registro de operações, controle de transação e tratamento de erros podem aparecer em muitas partes do código. Quando cada módulo repete essas tarefas, uma alteração de política exige encontrar e modificar vários lugares, e as implementações acabam divergindo. A **programação orientada a aspectos (POA; AOP em inglês)** organiza certos comportamentos transversais em unidades próprias chamadas **aspectos**, para depois combiná-los com o código principal.\n\nA POA complementa a orientação a objetos. A orientação a objetos agrupa dados e operações por entidades e responsabilidades; a POA oferece uma forma de modularizar interesses que atravessam várias classes. Um aspecto de auditoria pode, por exemplo, registrar chamadas a operações selecionadas sem inserir a mesma chamada manualmente em cada método.\n\n> **Siglas e termos deste capítulo**\n> - **Preocupação (concern)**: responsabilidade ou requisito que o sistema precisa atender.\n> - **Preocupação transversal**: responsabilidade que afeta módulos distintos, como segurança ou logging.\n> - **Aspecto (aspect)**: módulo que reúne implementação e regras de aplicação de uma preocupação transversal.\n> - **Join point**: ponto bem definido da execução ou estrutura do programa onde um comportamento adicional pode ser associado.\n> - **Weaving (tecelagem)**: combinação do código-base com os aspectos.\n\n### Elementos que a prova costuma misturar\n\nUm **join point** é um ponto possível de interceptação, como a execução ou chamada de um método em uma tecnologia que ofereça esse ponto. Um **pointcut** seleciona um conjunto desses pontos, por exemplo execuções de métodos de um serviço. Um **advice** é a ação a executar nos pontos selecionados, como registrar início e duração da operação. O **aspecto** agrupa essas regras e sua implementação.\n\n| Elemento | Pergunta que responde | Exemplo de auditoria |\n| --- | --- | --- |\n| Join point | Onde é possível intervir? | Execução de um método de transferência |\n| Pointcut | Quais pontos serão selecionados? | Métodos públicos do serviço bancário |\n| Advice | O que será executado? | Registrar usuário e resultado |\n| Aspecto | Qual módulo organiza essa regra? | Módulo de auditoria |\n| Weaving | Como o comportamento se combina ao programa? | Inserção ou associação do advice |\n\n### Benefício e custo de desenho\n\nA modularização reduz duplicação e centraliza uma política. Isso não torna o comportamento automaticamente visível: uma chamada pode acionar lógica que não aparece no corpo da classe. Pointcuts amplos podem atingir operações indevidas; regras estreitas podem deixar operações sem proteção. Por isso, aspectos exigem nomes, escopo e testes claros. POA também não é sinônimo de herança, de simplesmente criar uma classe utilitária, nem de orientação a objetos.\n\n### Como cai na prova\n\n- Se a questão pergunta onde um comportamento pode ocorrer, pense em **join point**; se pergunta como selecionar vários desses locais, pense em **pointcut**.\n- Se pergunta qual comportamento será executado, é o **advice**; a unidade que o organiza com os pontos de aplicação é o **aspecto**.\n- A ideia-chave é modularizar responsabilidades transversais, sem afirmar que a técnica substitui classes ou elimina a necessidade de verificar efeitos indiretos."
+    },
+    {
+      "title": "2. Seleção, advice e tecelagem",
+      "markdown": "### O problema que este assunto resolve\n\nSeparar uma preocupação transversal em um aspecto só ajuda se o sistema souber **quais pontos** recebem a regra e **quando** ela é incorporada. Pointcuts descrevem a seleção; advice descreve a ação e sua relação temporal com o ponto; o mecanismo de weaving liga essas peças ao programa.\n\n> **Siglas e termos deste capítulo**\n> - **Advice**: comportamento complementar associado a pontos selecionados.\n> - **Before**: advice executado antes do ponto de execução.\n> - **After**: advice executado após o ponto, com variações conforme o resultado e a tecnologia.\n> - **Around**: advice que envolve a execução e pode controlar se e quando ela prossegue.\n> - **Tecelagem em compilação, carga ou execução**: momentos possíveis para integrar ou aplicar o aspecto, conforme a implementação.\n> - **Código-base**: lógica principal do sistema à qual o aspecto se associa.\n\n### Before, after e around\n\nConsidere uma função de serviço. Um advice **before** pode validar um contexto antes dela. Um advice **after** pode liberar um recurso após a chamada, inclusive em caminhos de falha conforme a semântica disponível. Um advice **around** envolve a chamada: pode executar algo antes e depois, inspecionar o resultado ou decidir não prosseguir. A nomenclatura e os detalhes variam por linguagem e framework, portanto não se deve transferir automaticamente uma regra de uma tecnologia para todas.\n\nO **pointcut** não é a ação; é a expressão de seleção. O **advice** não é o conjunto de locais; é o comportamento associado. O aspecto costuma manter ambos relacionados. Por exemplo, selecionar operações de repositório é pointcut; medir o tempo é advice; o aspecto de monitoramento agrupa a seleção e a medição.\n\n### Em que momento acontece o weaving?\n\nA tecelagem pode ocorrer durante a compilação, quando o artefato compilado já incorpora a integração; durante a carga de classes, quando um agente ou carregador transforma classes; ou em tempo de execução, frequentemente por proxies ou mecanismos de interceptação. Essas escolhas afetam depuração, instrumentação e quais pontos podem ser interceptados. Um proxy, por exemplo, pode interceptar chamadas que passam por ele, mas não necessariamente toda chamada interna feita diretamente por `this`, conforme o desenho do framework.\n\n### Riscos práticos e revisão\n\nUm pointcut como “todos os métodos públicos” pode capturar operações administrativas além das pretendidas. Um filtro por pacote pode parar de selecionar métodos após uma reorganização de código. Revisões devem verificar os pontos cobertos, o fluxo quando o advice falha e a possibilidade de uma ação around suprimir a operação original. Logging não deve registrar segredos só porque foi centralizado em um aspecto.\n\n### Como cai na prova\n\n- Não confunda o **momento da tecelagem** com o tipo de advice: um descreve quando o aspecto se integra, o outro o comportamento relativo ao join point.\n- Around pode envolver e controlar a execução; before e after descrevem posições relativas à chamada.\n- A POA facilita centralizar uma preocupação, mas pointcut incorreto pode ampliar ou reduzir silenciosamente a proteção."
+    },
+    {
+      "title": "3. OpenDocument: esquema XML e pacote de escritório",
+      "markdown": "### O problema que este assunto resolve\n\nAplicativos de escritório precisam armazenar documentos de texto, planilhas, apresentações, desenhos e outros conteúdos com estrutura interpretável por programas diferentes. A família **OpenDocument Format (ODF)** define um formato digital baseado em XML, independente de aplicação e plataforma, com semântica e estruturas para documentos de escritório. A ISO/IEC 26300:2006 corresponde à versão 1.0 do OpenDocument; a ISO posteriormente publicou a série ISO/IEC 26300-1, -2 e -3:2015 correspondente à versão 1.2. O edital cita a designação 26300: o núcleo cobrado é reconhecer ODF e sua finalidade.\n\n> **Siglas e termos deste capítulo**\n> - **ODF**: Open Document Format for Office Applications, formato aberto de documentos de escritório.\n> - **XML**: linguagem de marcação extensível usada para representar dados estruturados.\n> - **XSLT**: linguagem para transformar documentos XML.\n> - **Pacote ODF**: contêiner que reúne partes XML e recursos binários associados.\n> - **MIME type**: identificador textual do tipo de mídia, como o tipo de documento de texto ODF.\n> - **Manifesto**: arquivo que enumera entradas do pacote e seus tipos de mídia e metadados relevantes.\n\n### O que a norma cobre\n\nA ISO/IEC 26300 define esquema XML e semântica adequados a documentos de texto, planilhas, gráficos e documentos gráficos como desenhos e apresentações, sem se limitar a esses exemplos. O padrão é concebido para permitir transformação por XSLT e processamento com ferramentas baseadas em XML. Na organização da versão 1.2 da especificação OASIS, a Parte 1 trata do esquema e da semântica, a Parte 2 da linguagem de fórmulas, e a Parte 3 do empacotamento. Isso ajuda a entender as funções, sem confundir o identificador de uma versão ISO com a estrutura interna de uma única parte.\n\n### Arquivos dentro do pacote\n\nUm pacote ODF pode conter documentos XML separados: `content.xml` guarda o conteúdo do documento e estilos automáticos; `styles.xml` reúne estilos nomeados e definições relacionadas; `meta.xml` guarda metadados; `settings.xml` guarda configurações. Também pode haver imagens, objetos incorporados e outros recursos. O manifesto `META-INF/manifest.xml` lista os arquivos e tipos de mídia. No empacotamento definido para ODF 1.2, quando existe um arquivo `mimetype`, ele contém o tipo MIME do documento; deve ser a primeira entrada ZIP e não deve ser comprimido. Esses pormenores descrevem o pacote ODF; não são propriedades de PDF.\n\n### Interoperabilidade não é promessa de conversão perfeita\n\nUm formato aberto documentado favorece implementação por fornecedores independentes e acesso às estruturas com ferramentas XML. Mesmo assim, aplicativos podem divergir na implementação, em recursos opcionais ou em extensões próprias. A abertura do padrão não garante que qualquer programa represente todos os recursos de outro sem perdas, nem garante acessibilidade por si só.\n\n### Como cai na prova\n\n- Associe NBR ISO/IEC 26300 a **OpenDocument**, formato de escritório baseado em XML.\n- `content.xml`, `styles.xml`, `meta.xml`, `settings.xml`, manifesto e `mimetype` pertencem à ideia de pacote ODF.\n- A norma define formato e semântica; não obriga que um único aplicativo seja usado nem promete conversão sem perdas."
+    },
+    {
+      "title": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "markdown": "### O problema que este assunto resolve\n\nA **ISO 32000-1:2008** especifica o formato PDF 1.7 para representar documentos eletrônicos e permitir que sejam trocados e visualizados independentemente do ambiente em que foram criados, exibidos ou impressos. O padrão é dirigido a software que cria arquivos PDF conformes (writers), lê e interpreta arquivos para exibição e interação (readers) e produtos que leem e/ou escrevem PDF para outras finalidades. O texto não determina um sistema operacional ou hardware obrigatório.\n\n> **Siglas e termos deste capítulo**\n> - **PDF**: Portable Document Format, formato portátil de documentos.\n> - **Writer conforme**: software que cria arquivos que atendem aos requisitos do padrão.\n> - **Reader conforme**: software que lê arquivos e interpreta seu conteúdo para exibição e interação.\n> - **Produto conforme**: produto que lê e/ou escreve PDF para outros propósitos.\n> - **Objeto indireto**: referência a outro objeto PDF por identificador, permitindo compor estruturas.\n> - **Fluxo (stream)**: sequência de bytes usada, por exemplo, para conteúdo de página, imagem ou dados codificados.\n\n### Modelo de representação\n\nPDF descreve texto, gráficos e imagens com um modelo de imagem independente do dispositivo e da resolução. Um arquivo organiza objetos e referências entre eles; entre as estruturas usuais estão catálogo do documento, árvore de páginas, recursos, conteúdo das páginas, fontes, imagens, anotações e campos de formulário. A tabela de referências cruzadas (ou fluxo de referências cruzadas nas formas mais recentes da família) permite localizar objetos; o trailer aponta para informações de partida, incluindo a referência ao catálogo. O visualizador interpreta essas estruturas para renderizar páginas e oferecer interações.\n\nPDF pode conter ligações, anotações, formulários, metadados, fontes incorporadas, transparência e recursos de segurança. A existência do recurso na especificação não significa que todo arquivo o use, que todo leitor o implemente do mesmo modo, ou que um documento esteja automaticamente acessível. A acessibilidade depende também da estrutura lógica, ordem de leitura, textos alternativos e marcação adequadas, além do suporte do leitor.\n\n### Limites expressos da ISO 32000-1\n\nO padrão define a representação PDF, não os processos específicos para converter papel ou outros documentos eletrônicos para PDF; não fixa projeto técnico, interface ou detalhes de implementação/renderização; não define meios físicos de armazenamento; não estabelece métodos de validação da conformidade de arquivos ou leitores; e não exige hardware ou sistema operacional. Portanto, “PDF conforme” e “ferramenta que valida conformidade” são assuntos relacionados, mas a norma não prescreve um validador específico.\n\n### ODF e PDF atendem a usos relacionados, porém diferentes\n\n| Aspecto | ODF (ISO/IEC 26300) | PDF 1.7 (ISO 32000-1:2008) |\n| --- | --- | --- |\n| Foco | Documento estruturado e editável em aplicações de escritório | Representação previsível para troca, visualização e impressão |\n| Base destacada | Esquema e semântica XML; pacote com partes e recursos | Modelo de imagem e objetos PDF referenciados |\n| Exemplo | Texto, planilha, apresentação, desenho | Páginas com texto, gráficos, imagens e anotações |\n| Consequência | Conteúdo estruturado favorece edição e transformação | Apresentação tende a manter composição entre ambientes |\n\n### Como cai na prova\n\n- ISO 32000-1:2008 = **PDF 1.7**, representação de documento para troca e visualização entre ambientes.\n- A norma se dirige a produtores, leitores e produtos conformes; não prescreve hardware ou interface.\n- ODF enfatiza estrutura XML editável; PDF enfatiza representação e apresentação. Ambos são especificações abertas, mas cumprem papéis técnicos distintos."
+    }
+  ],
+  "summary": "A programação orientada a aspectos modulariza preocupações transversais. Join points são pontos possíveis de associação, pointcuts selecionam esses pontos, advice define o comportamento e weaving combina aspecto e programa. ISO/IEC 26300 trata do OpenDocument, formato de escritório baseado em XML, incluindo esquema e pacote com conteúdo, estilos, metadados, configurações, manifesto e tipo MIME. ISO 32000-1:2008 especifica PDF 1.7 para representação, troca e visualização independente do ambiente; abrange writers, readers e produtos conformes, mas não fixa hardware, sistema operacional, interface, processo de conversão nem método de validação. ODF favorece estrutura editável; PDF favorece apresentação previsível.",
+  "flashcards": [
+    {
+      "front": "Qual problema a programação orientada a aspectos procura modularizar?",
+      "back": "Preocupações transversais que atravessam vários módulos, como auditoria, segurança, transações e logging."
+    },
+    {
+      "front": "O que é um join point?",
+      "back": "Ponto definido da execução ou estrutura do programa ao qual um comportamento complementar pode ser associado."
+    },
+    {
+      "front": "O que faz um pointcut?",
+      "back": "Seleciona um conjunto de join points onde um advice pode ser aplicado."
+    },
+    {
+      "front": "O que é advice?",
+      "back": "A ação complementar que será executada em relação aos join points selecionados."
+    },
+    {
+      "front": "O que é um aspecto?",
+      "back": "Módulo que reúne a implementação e as regras de aplicação de uma preocupação transversal."
+    },
+    {
+      "front": "O que significa weaving?",
+      "back": "Combinar ou associar os aspectos ao código-base por um mecanismo da linguagem ou ferramenta."
+    },
+    {
+      "front": "Quais são três momentos possíveis de weaving?",
+      "back": "Compilação, carregamento de classes e execução, conforme a tecnologia adotada."
+    },
+    {
+      "front": "Qual a diferença entre pointcut e advice?",
+      "back": "Pointcut escolhe onde; advice define o que fazer nesses pontos."
+    },
+    {
+      "front": "O que pode fazer um advice around?",
+      "back": "Envolver a chamada e controlar se e quando a operação original prossegue."
+    },
+    {
+      "front": "A POA substitui a orientação a objetos?",
+      "back": "Não. Ela complementa a orientação a objetos ao modularizar interesses que atravessam classes."
+    },
+    {
+      "front": "A que formato se refere ISO/IEC 26300?",
+      "back": "OpenDocument Format (ODF), formato aberto baseado em XML para documentos de escritório."
+    },
+    {
+      "front": "Que tipos de conteúdo de escritório ODF abrange?",
+      "back": "Texto, planilhas, gráficos, desenhos e apresentações, entre outros documentos de escritório."
+    },
+    {
+      "front": "Qual papel geral de content.xml em um pacote ODF?",
+      "back": "Armazena o conteúdo do documento e estilos automáticos."
+    },
+    {
+      "front": "Qual papel geral de META-INF/manifest.xml?",
+      "back": "Lista as entradas do pacote e informações como seus tipos de mídia."
+    },
+    {
+      "front": "Como deve ser armazenado o arquivo mimetype no pacote ODF 1.2?",
+      "back": "Como primeira entrada ZIP, sem compressão, contendo o tipo MIME associado ao documento."
+    },
+    {
+      "front": "A abertura do formato garante conversão sem perdas entre programas?",
+      "back": "Não. Implementações podem diferir e recursos ou extensões podem não ser reproduzidos igualmente."
+    },
+    {
+      "front": "A que versão PDF corresponde ISO 32000-1:2008?",
+      "back": "PDF 1.7."
+    },
+    {
+      "front": "Qual objetivo central declara ISO 32000-1:2008?",
+      "back": "Representar documentos eletrônicos para troca e visualização independente do ambiente de criação, exibição ou impressão."
+    },
+    {
+      "front": "Quem são os principais produtos conformes considerados pela ISO 32000-1?",
+      "back": "Writers que criam PDFs, readers que leem e interpretam PDFs, e produtos que leem e/ou escrevem PDF para outros propósitos."
+    },
+    {
+      "front": "A ISO 32000-1 prescreve hardware ou sistema operacional?",
+      "back": "Não; declara que esses requisitos não são especificados pelo padrão."
+    }
+  ],
+  "tips": [
+    "Memorize a tríade da POA: pointcut escolhe os pontos, advice descreve a ação, aspecto organiza ambos.",
+    "Weaving é integração do aspecto ao programa; pode ocorrer em etapas diferentes conforme a tecnologia.",
+    "Associe 26300 a OpenDocument e XML; pacote ODF separa conteúdo, estilos, metadados e configurações.",
+    "No pacote ODF, manifesto cataloga entradas; mimetype identifica o tipo geral do documento.",
+    "Associe ISO 32000-1:2008 a PDF 1.7 e à troca/visualização independente do ambiente.",
+    "ODF privilegia estrutura e edição; PDF representa páginas para troca e apresentação previsível."
+  ],
+  "traps": [
+    "Trocar pointcut (seleção) por advice (comportamento).",
+    "Afirmar que POA elimina classes ou é apenas herança com outro nome.",
+    "Confundir arquivo mimetype e manifesto, que têm funções distintas no pacote ODF.",
+    "Tratar ISO/IEC 26300 como especificação de PDF; ela se refere a OpenDocument.",
+    "Afirmar que ISO 32000-1 fixa conversão, interface, hardware ou validação de conformidade.",
+    "Concluir que um PDF é acessível ou que formatos abertos garantem fidelidade perfeita sem avaliar arquivo, ferramenta e conteúdo."
+  ],
+  "activeRecall": [
+    {
+      "question": "Defina preocupação transversal e dê dois exemplos.",
+      "answer": "É responsabilidade que atravessa módulos distintos. Auditoria, autenticação, logging e controle de transação são exemplos."
+    },
+    {
+      "question": "Diferencie join point, pointcut, advice e aspecto.",
+      "answer": "Join point é o local possível de associação; pointcut seleciona locais; advice é a ação; aspecto organiza seleção e ação."
+    },
+    {
+      "question": "Explique a finalidade de weaving.",
+      "answer": "Combinar ou associar os aspectos com o código-base para que a preocupação transversal seja aplicada nos pontos selecionados."
+    },
+    {
+      "question": "Compare before, after e around.",
+      "answer": "Before executa antes; after executa depois conforme as semânticas da tecnologia; around envolve a chamada e pode controlar seu prosseguimento."
+    },
+    {
+      "question": "O que especifica a ISO/IEC 26300?",
+      "answer": "OpenDocument, formato digital baseado em XML com esquema e semântica para documentos de escritório como textos, planilhas, gráficos, desenhos e apresentações."
+    },
+    {
+      "question": "Que partes reconhecíveis compõem um pacote ODF?",
+      "answer": "Pode incluir content.xml, styles.xml, meta.xml, settings.xml, manifesto META-INF/manifest.xml, mimetype e recursos como imagens."
+    },
+    {
+      "question": "O que fixa ISO 32000-1:2008 e quem usa a especificação?",
+      "answer": "Fixa PDF 1.7 para representar documentos eletrônicos. Orienta software produtor, leitor e produtos que leem ou escrevem PDF."
+    },
+    {
+      "question": "Cite três coisas que ISO 32000-1 não especifica.",
+      "answer": "Não define processos específicos de conversão, detalhes de implementação/interface, meios físicos de armazenamento, métodos de validação de arquivos ou leitores, hardware nem sistema operacional."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Pointcut, advice e join point trocados",
+      "summary": "Join point é o local; pointcut seleciona locais; advice define a ação; aspecto organiza a preocupação transversal."
+    },
+    {
+      "key": "e2",
+      "title": "Weaving confundido com advice",
+      "summary": "Weaving é o mecanismo ou momento de integração do aspecto, não o comportamento executado antes, depois ou ao redor do ponto."
+    },
+    {
+      "key": "e3",
+      "title": "ODF confundido com PDF",
+      "summary": "ISO/IEC 26300 trata do OpenDocument XML e pacote de escritório; ISO 32000-1:2008 trata de PDF 1.7."
+    },
+    {
+      "key": "e4",
+      "title": "Arquivos do pacote ODF com função trocada",
+      "summary": "content.xml contém conteúdo e estilos automáticos; manifesto cataloga arquivos; mimetype informa o tipo de mídia."
+    },
+    {
+      "key": "e5",
+      "title": "Alcance excessivo atribuído a PDF ou formato aberto",
+      "summary": "A norma de formato não garante acessibilidade, conversão sem perdas, validação, hardware ou suporte idêntico por qualquer leitor."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um sistema, autenticação e auditoria repetem lógica em diversos serviços. Qual é a motivação mais diretamente relacionada à programação orientada a aspectos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupar responsabilidades transversais em módulos que se associam a vários pontos do código.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir classes por procedimentos globais para evitar chamadas entre objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar todos os serviços em um único objeto para compartilhar variáveis internas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter cada regra de negócio em uma hierarquia de classes derivadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover a execução dos serviços para outro computador e distribuir chamadas sem reorganizar as regras repetidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A POA organiza preocupações que atravessam módulos, como auditoria ou autenticação, e associa sua lógica a pontos selecionados. As demais opções descrevem centralização monolítica, herança ou distribuição e não resolvem a transversalidade por si mesmas.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implementação de POA, qual termo designa um ponto definido da execução que pode receber um comportamento complementar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um advice que declara a seleção de todos os pacotes da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um aspecto que corresponde a uma instrução de configuração externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um join point que pode representar a execução de um método.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um pointcut que contém o código original de cada serviço selecionado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um weaving que representa a responsabilidade de negócio da classe.",
+          "correct": false
+        }
+      ],
+      "explanation": "Join point é o local definido em que a tecnologia permite associar comportamento adicional. Pointcut seleciona join points, advice é o comportamento, aspecto agrupa essas regras e weaving as combina com o programa.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aspecto deve aplicar registro de auditoria somente a métodos públicos de um serviço. Qual elemento descreve essa seleção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O advice que escreve o evento de auditoria no destino configurado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O pointcut que seleciona os métodos públicos do serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O join point que implementa o formato do evento persistido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O weaving que define o significado de cada regra de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classe-base que passa a armazenar os registros de todas as chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pointcut expressa quais join points serão selecionados. A ação de registrar é advice; o aspecto reúne seleção e ação; weaving integra o comportamento ao programa.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao advice em uma regra de auditoria orientada a aspectos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O local potencial de execução em que o sistema aceita uma interceptação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A expressão que escolhe classes e métodos que serão interceptados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O componente que agrupa vários objetos do modelo de domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ação complementar executada nos pontos selecionados, como registrar a chamada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A transformação que converte o código-fonte em linguagem de máquina.",
+          "correct": false
+        }
+      ],
+      "explanation": "Advice é o comportamento adicional associado aos pontos selecionados, como registrar uma chamada. O ponto potencial é o join point e a expressão de seleção é o pointcut.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta corretamente a relação entre orientação a objetos e orientação a aspectos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A orientação a aspectos elimina objetos e concentra o estado em funções globais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A orientação a objetos serve apenas para interface, enquanto aspectos guardam todos os dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aspectos transformam automaticamente toda chamada em uma operação distribuída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As duas abordagens são incompatíveis e não podem participar do mesmo sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aspectos complementam objetos ao modularizar regras que atravessam várias classes.",
+          "correct": true
+        }
+      ],
+      "explanation": "POA complementa a orientação a objetos: classes continuam organizando dados e responsabilidades, enquanto aspectos podem centralizar certos interesses transversais. Ela não implica distribuição nem substituição integral de objetos.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual técnica é mais apropriada para reduzir chamadas de auditoria duplicadas em vários serviços sem mover o sistema para arquitetura distribuída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar a mesma rotina para cada método e mantê-la por revisão manual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma tabela extra e tratar sua leitura como interceptação automática em todos os serviços chamados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir aspecto, selecionar pontos de serviço e associar a rotina de auditoria.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Reescrever todos os serviços como subclasses de uma classe de registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Separar os serviços em processos distintos e enviar mensagens de auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um aspecto pode centralizar a rotina transversal e aplicá-la a join points selecionados. Duplicação manual mantém o problema; subclasses e processos distribuídos não são necessários para esse propósito.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual risco de manutenção pode decorrer de pointcut que seleciona todos os métodos públicos de muitos pacotes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O advice deixa de poder executar código antes dos métodos selecionados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A seleção pode alcançar operações não pretendidas e ocultar efeitos indiretos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O weaving passa a ocorrer necessariamente apenas durante a compilação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A classe original perde sua declaração de interface em todos os ambientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação deixa de conseguir declarar classes orientadas a objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um pointcut amplo pode interceptar mais operações do que o previsto, produzindo efeitos que não ficam visíveis no corpo da classe. A escolha do pointcut não determina sozinha o momento de weaving nem elimina classes e interfaces.",
+      "section": "2. Seleção, advice e tecelagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão escolhe execuções de métodos de um repositório, e uma rotina mede sua duração. Como se classificam essas duas partes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A expressão é advice, e a rotina de medição constitui o join point.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A expressão é aspecto, e a rotina constitui o mecanismo de weaving.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A expressão é join point, e a rotina de medição constitui pointcut.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A expressão é pointcut, e a rotina de medição constitui advice.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A expressão é weaving, e a rotina de medição constitui orientação a objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expressão de seleção é o pointcut; a rotina complementar que mede duração é o advice. Join point é cada local potencial selecionado, e o aspecto pode agrupar essas partes.",
+      "section": "2. Seleção, advice e tecelagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um advice around pode envolver a execução de uma operação e decidir se a chamada original prossegue.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Around envolve a chamada; conforme a tecnologia, pode executar lógica antes e depois e controlar se a operação original será chamada.",
+      "section": "2. Seleção, advice e tecelagem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O pointcut corresponde ao comportamento de auditoria que é executado depois de uma chamada selecionada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Pointcut seleciona join points; o comportamento executado é advice. Um advice after pode executar depois da chamada conforme as regras da tecnologia.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A programação orientada a aspectos pode centralizar uma preocupação transversal sem exigir que cada classe repita sua implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um aspecto pode organizar a lógica transversal e ser associado por pointcuts aos locais desejados. Ainda é necessário revisar a abrangência dessa seleção.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O advice before descreve um comportamento executado antes do ponto de execução associado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Before caracteriza a posição temporal anterior ao join point, conforme a semântica da tecnologia de aspectos empregada.",
+      "section": "2. Seleção, advice e tecelagem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Weaving é o nome da expressão usada para escolher a lista de métodos que receberá um advice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A expressão que escolhe pontos é pointcut. Weaving é a combinação ou associação do aspecto ao programa, que pode ocorrer em diferentes momentos de implementação.",
+      "section": "2. Seleção, advice e tecelagem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pointcut muito amplo pode selecionar operações alheias à preocupação pretendida e produzir efeitos indiretos difíceis de localizar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como o comportamento pode ser associado sem estar visível no corpo de cada classe, uma seleção abrangente exige revisão cuidadosa para evitar interceptações inesperadas.",
+      "section": "2. Seleção, advice e tecelagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A tecelagem de aspectos só pode ocorrer durante a compilação e nunca durante carga de classes ou execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Conforme a linguagem e a ferramenta, a integração pode ocorrer em compilação, carregamento de classes ou execução. A alternativa transforma uma possibilidade em regra exclusiva.",
+      "section": "2. Seleção, advice e tecelagem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ISO/IEC 26300 associa-se ao OpenDocument, um formato baseado em XML para documentos de escritório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A norma descreve esquema XML e semântica para documentos de escritório, incluindo textos, planilhas, gráficos, desenhos e apresentações.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ODF limita-se a documentos de texto e não contempla planilhas, gráficos, desenhos ou apresentações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O escopo inclui texto, planilhas, gráficos e documentos gráficos como desenhos e apresentações, sem se restringir a esses tipos.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em pacote ODF 1.2, content.xml pode guardar o conteúdo do documento e os estilos automáticos usados nele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação descreve content.xml como o arquivo que contém o conteúdo do documento e os estilos automáticos; estilos nomeados podem ser mantidos em styles.xml.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O manifesto META-INF/manifest.xml serve para identificar os arquivos do pacote e registrar tipos de mídia associados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O manifesto lista arquivos do pacote e fornece metadados como o tipo de mídia de suas entradas; isso não é a mesma função do arquivo mimetype.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No empacotamento ODF 1.2, a entrada mimetype deve aparecer primeiro no ZIP e ser armazenada sem compressão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação de pacote determina que mimetype seja a primeira entrada ZIP, não comprimida e sem campo extra em seu cabeçalho.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um formato documentado e aberto garante que todo aplicativo converterá qualquer documento sem perder recursos ou apresentação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um padrão aberto favorece implementação independente, mas diferenças de suporte, recursos opcionais e extensões podem afetar a fidelidade da conversão entre aplicativos.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ISO 32000-1:2008 corresponde a PDF 1.7 e busca permitir troca e visualização do documento entre ambientes distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O escopo declarado é representar documentos eletrônicos para troca e visualização independentemente dos ambientes de criação, exibição ou impressão.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ISO 32000-1 determina o hardware e o sistema operacional mínimos que cada leitor PDF conforme deve usar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A norma declara que não exige hardware nem sistema operacional específicos. Ela define a representação PDF e considera software produtor, leitor e outros produtos conformes, deixando a escolha da plataforma de execução fora dos requisitos do formato.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um leitor conforme interpreta um arquivo PDF existente para exibição e interação com seu conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O padrão contempla leitores que leem arquivos existentes e interpretam seus conteúdos para exibição e interação, além de produtores e outros produtos.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ISO 32000-1 prescreve o processo específico pelo qual cada documento em papel deve ser digitalizado e convertido em PDF.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A norma especifica a representação PDF e declara que não define processos específicos de conversão de documentos em papel ou de outros formatos eletrônicos.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual padrão se relaciona a um documento de escritório estruturado em XML para edição e transformação por ferramentas XML?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ISO 32000-1, que descreve o formato PDF de representação de páginas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ISO/IEC 26300, que define o OpenDocument para aplicações de escritório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um pointcut de POA, que seleciona operações de leitura de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um advice around, que serializa os dados em qualquer formato binário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um manifesto de arquivo, que por si só padroniza conteúdo e semântica XML.",
+          "correct": false
+        }
+      ],
+      "explanation": "ISO/IEC 26300 corresponde ao OpenDocument, formato XML para documentos de escritório. ISO 32000-1 define PDF, enquanto pointcuts, advice e manifestos são conceitos de outras camadas.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve adequadamente o foco técnico do ODF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Representar somente imagem de página, sem estruturas de texto ou planilha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir um leitor gráfico obrigatório para todas as plataformas de escritório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Especificar a conversão de cada formato legado diretamente para impressão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Padronizar documentos XML e suas semânticas para aplicações de escritório.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Armazenar exclusivamente arquivos de texto simples sem estilos ou recursos.",
+          "correct": false
+        }
+      ],
+      "explanation": "ODF define estruturas XML e semânticas de documentos de escritório. Não se limita a imagens de página ou texto simples e não determina um leitor obrigatório nem todos os processos de conversão.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que componente do pacote ODF informa a lista de entradas e seus tipos de mídia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "content.xml, que contém sozinho o inventário de todos os arquivos incluídos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "styles.xml, que declara o formato MIME global de todas as entradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "META-INF/manifest.xml, que cataloga os arquivos e dados associados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "settings.xml, que substitui os recursos binários por instruções de interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um pointcut, que detecta nomes de arquivos dentro do contêiner ZIP.",
+          "correct": false
+        }
+      ],
+      "explanation": "O manifesto META-INF/manifest.xml cataloga as entradas do pacote e fornece tipos de mídia e metadados relacionados. content.xml e styles.xml guardam conteúdo e estilos, respectivamente.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa sobre content.xml e styles.xml em um pacote ODF é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "content.xml guarda conteúdo e estilos automáticos; styles.xml reúne estilos definidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "content.xml guarda apenas a lista de mídia; styles.xml guarda o índice ZIP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "content.xml é sempre uma imagem de página; styles.xml define o tamanho do papel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "content.xml contém somente metadados; styles.xml armazena preferências do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "content.xml é usado apenas por PDF; styles.xml identifica formulários PDF interativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na organização de pacote ODF, content.xml guarda conteúdo e estilos automáticos, enquanto styles.xml contém estilos nomeados e definições associadas. Manifesto e configurações têm arquivos próprios.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No pacote ODF 1.2, como deve ser armazenada a entrada mimetype quando presente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como última entrada ZIP, comprimida junto com o manifesto XML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dentro de content.xml, codificada como atributo do elemento office:body.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como arquivo oculto sob META-INF, depois da lista de recursos binários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como primeira entrada ZIP, sem compressão e contendo o tipo MIME.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Como tabela separada de checksums, sem relação com o tipo documental.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação de pacote ODF exige que mimetype seja a primeira entrada ZIP, não comprimida e com o tipo MIME do documento. Manifesto e content.xml cumprem funções distintas.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa editar planilhas e textos com estruturas reconhecíveis por processadores XML. Qual escolha corresponde melhor a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar ISO 32000-1 como esquema XML editável para todos os documentos de escritório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adotar apenas imagens rasterizadas, que preservam fórmulas e estilos semânticos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher ISO/IEC 26300 e estruturas OpenDocument para os documentos de escritório.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar um advice de POA como contêiner interoperável de arquivos de escritório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter cada planilha em PDF e confiar que a conversão manterá fórmulas editáveis em outros aplicativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "ISO/IEC 26300 especifica OpenDocument, formato XML para documentos de escritório. PDF é adequado à representação e visualização, mas não substitui a estrutura editável de uma planilha ODF.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão é tecnicamente adequada sobre interoperabilidade de documentos ODF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um arquivo padronizado impede que aplicativos implementem recursos distintos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A estrutura aberta ajuda implementações independentes, mas não promete fidelidade perfeita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A extensão do arquivo obriga todos os programas a compartilhar o mesmo código-fonte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença de XML garante que qualquer leitor reconheça toda extensão proprietária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conversão entre versões preserva necessariamente macros, fórmulas e aparência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação pública e estruturada favorece implementações independentes e processamento XML. Diferenças de suporte, versões e extensões ainda podem alterar a fidelidade entre programas.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão deseja trocar documentos mantendo composição visual previsível em diferentes sistemas de exibição e impressão. Qual padrão corresponde diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ISO 32000-1:2008, que especifica PDF 1.7 para representar documentos eletrônicos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ISO/IEC 26300, que define apenas mensagens de auditoria para aplicações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um pointcut, que seleciona a impressora usada por cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um manifesto ODF, que transforma todo documento em uma página PDF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um advice after, que define a representação visual entre plataformas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ISO 32000-1:2008 especifica PDF 1.7 e tem como objetivo facilitar troca e visualização independentemente do ambiente de criação, exibição ou impressão.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre edição e designação padronizada está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PDF 1.7 corresponde à ISO/IEC 26300 e ao pacote de escritório XML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OpenDocument corresponde à ISO 32000-1 e ao modelo de imagem PDF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PDF 1.7 corresponde à ISO 32000-1:2008.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "OpenDocument corresponde à ISO 32000-1:2008 e ao formato PDF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PDF 1.7 corresponde a um advice, sem norma de formato documental.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ISO 32000-1:2008 especifica PDF 1.7; a ISO/IEC 26300 é a família associada ao OpenDocument. A distinção evita trocar um formato voltado à representação de páginas com o formato XML de documentos de escritório.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que categoria de software a ISO 32000-1 chama de reader conforme?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Programa que valida e corrige automaticamente todo arquivo PDF recebido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicativo que converte papel em PDF, valida a estrutura resultante e define as regras de exibição para leitores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Serviço que armazena cópias físicas dos documentos de escritório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Software que lê PDFs existentes e interpreta o conteúdo para exibição e interação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Editor que só cria documentos ODF e não pode interpretar arquivos PDF.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reader conforme é o software que lê arquivos PDF existentes e interpreta seus conteúdos para exibição e interação. O padrão não impõe um validador ou processo de digitalização específico.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura PDF organiza as páginas do documento em uma hierarquia navegável pelo leitor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A árvore de páginas, alcançada a partir da estrutura principal do documento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O arquivo styles.xml, que lista as folhas visuais do pacote PDF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O pointcut do documento, que seleciona páginas para renderização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O manifesto ODF, que contém os objetos e referências de toda página PDF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O advice around, que ordena os objetos gráficos antes da impressão.",
+          "correct": false
+        }
+      ],
+      "explanation": "PDF organiza páginas por uma árvore de páginas, referenciada na estrutura do documento. Arquivos XML do ODF e conceitos de POA não fazem parte dessa organização PDF.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe afirma que adotar PDF conforme ISO 32000-1 torna qualquer documento automaticamente acessível a leitor de tela. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta, pois todo PDF inclui ordem lógica, texto alternativo e rótulos por padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correta, desde que o arquivo tenha sido criado por um writer conforme.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreta, pois acessibilidade depende também da estrutura e marcação do arquivo e do leitor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incorreta, pois a especificação PDF proíbe texto alternativo e formulários acessíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta, porque o arquivo mimetype instrui o leitor de tela sobre a ordem de leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "PDF oferece recursos que podem apoiar acessibilidade, mas sua presença e qualidade dependem de como o documento foi produzido e da capacidade do leitor. A norma de formato, sozinha, não garante acessibilidade de cada arquivo.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual item está fora do escopo declarado da ISO 32000-1:2008?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir a forma digital PDF para representar documentos eletrônicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Oferecer base para software que cria ou lê arquivos PDF conformes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descrever troca e visualização sem dependência do ambiente de criação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fixar um sistema operacional obrigatório para todos os leitores conformes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Abranger produtos PDF que leem ou escrevem arquivos para outros fins.",
+          "correct": false
+        }
+      ],
+      "explanation": "A norma declara que não exige hardware nem sistema operacional. Representação PDF, produtores, leitores e produtos conformes fazem parte do âmbito descrito.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre ODF e PDF está correta para escolher um formato de trabalho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ODF estrutura documentos de escritório em XML; PDF representa páginas para troca e visualização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ODF privilegia a exibição final estável, enquanto PDF preserva a estrutura editável e as fórmulas do documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ODF e PDF são nomes distintos para o mesmo esquema XML de conteúdo e estilos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PDF serve apenas para imagens; ODF serve apenas para formulários eletrônicos preenchíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PDF exige editor de escritório; ODF exige leitor que renderize páginas fixas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ODF estrutura conteúdo de escritório em XML, favorecendo edição e transformação. PDF padroniza representação para troca e visualização. Nenhuma das duas especificações é apenas um subtipo da outra.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na especificação PDF, qual descrição explica o papel geral das referências cruzadas e do trailer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardam os estilos de parágrafo e os dados de edição do pacote OpenDocument.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relacionam conteúdo XML e fórmulas de planilha dentro do corpo do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenam somente as imagens já renderizadas de cada página PDF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definem o MIME type e listam todos os arquivos internos do documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajudam a localizar objetos PDF e a iniciar a leitura pela estrutura do documento.",
+          "correct": true
+        }
+      ],
+      "explanation": "A tabela ou fluxo de referências cruzadas permite localizar objetos PDF, e o trailer fornece informações usadas para iniciar a leitura, como a referência ao catálogo. Isso não equivale ao manifesto de um pacote ODF.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso do modelo de PDF permite descrever texto e gráficos de forma independente do dispositivo e da resolução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo de imagem PDF, que descreve a aparência sem fixar um dispositivo específico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O manifesto ODF, que converte cada elemento XML em pontos de impressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O advice around, que recalcula a resolução conforme a impressora escolhida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pointcut gráfico, que seleciona objetos de tela durante a execução do leitor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arquivo settings.xml, que define a resolução física de todo leitor PDF.",
+          "correct": false
+        }
+      ],
+      "explanation": "PDF utiliza um modelo de imagem que descreve texto e gráficos de forma independente do dispositivo e da resolução. Isso contribui para a apresentação entre ambientes, sem tornar manifestos ODF ou aspectos de software componentes do PDF.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um pacote ODF, qual distinção entre meta.xml e settings.xml é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "meta.xml declara o tipo MIME; settings.xml mantém o inventário de objetos PDF.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "meta.xml guarda metadados do documento; settings.xml guarda configurações da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "meta.xml contém estilos de página; settings.xml contém o texto principal editável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "meta.xml é o manifesto do ZIP; settings.xml identifica a versão do PDF incorporado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "meta.xml guarda fórmulas; settings.xml substitui content.xml em documentos de texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "No pacote ODF, meta.xml contém metadados do documento e settings.xml mantém configurações relacionadas à aplicação. O conteúdo principal e os estilos ficam em arquivos separados, como content.xml e styles.xml.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que afirmação sobre a ISO/IEC 26300:2006 e a série publicada posteriormente está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A edição de 2006 especifica PDF 1.7 e foi substituída por OpenDocument XML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A designação de 2015 se refere à serialização de objetos e páginas PDF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A edição de 2006 especifica PDF 1.7, enquanto a série 2015 padroniza leitores PDF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ISO/IEC 26300:2006 descreve somente fórmulas e exclui textos e apresentações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ISO/IEC 26300:2006 trata da versão 1.0 do ODF; a série 2015 define ODF 1.2.",
+          "correct": true
+        }
+      ],
+      "explanation": "O catálogo ISO identifica ISO/IEC 26300:2006 como OpenDocument versão 1.0 e registra a série ISO/IEC 26300-1, -2 e -3:2015 como versão 1.2. Ambas permanecem no domínio do formato aberto de documentos de escritório.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que interpretação corresponde à separação de responsabilidades em um aspecto de monitoramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O join point mede o tempo; o advice seleciona métodos; o pointcut organiza o aspecto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O weaving seleciona classes; o aspecto é o local de execução; advice é a compilação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O advice escolhe os métodos, e o pointcut registra os valores de duração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O aspecto descreve a classe-base; o join point contém a política transversal completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pointcut seleciona os pontos; advice mede a duração; o aspecto organiza a regra.",
+          "correct": true
+        }
+      ],
+      "explanation": "Pointcut seleciona join points, advice fornece a ação de medir e o aspecto reúne a regra transversal. O weaving associa essa lógica ao código-base.",
+      "section": "1. Programação orientada a aspectos: separar preocupações transversais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um leitor PDF, qual item é definido pela especificação do formato, e não por uma escolha obrigatória de interface?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O estilo visual obrigatório dos botões e menus de todos os leitores conformes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posição fixa dos controles de zoom em cada sistema operacional suportado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O processo de conversão de papel em documentos eletrônicos acessíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O fluxo de trabalho institucional usado para converter documentos em papel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo de representação dos documentos eletrônicos no formato PDF.",
+          "correct": true
+        }
+      ],
+      "explanation": "A ISO 32000-1 especifica o formato de representação PDF. Ela não define a interface dos leitores, um fluxo obrigatório de conversão de papel nem hardware ou resolução mínima.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica torna o pacote ODF útil para ferramentas genéricas de transformação documental?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pacote oculta o conteúdo e permite lê-lo somente pela interface original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conteúdo estruturado em XML pode ser processado por ferramentas como XSLT.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O manifesto substitui os dados e contém uma imagem final de cada página.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O formato exige a execução de um advice antes de abrir cada arquivo XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As configurações de um aplicativo definem todo o significado do documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "ODF usa estruturas XML e foi concebido para processamento por XSLT e ferramentas baseadas em XML. O manifesto cataloga arquivos, mas não substitui o conteúdo nem exige um aplicativo específico.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a ISO 32000-1 distingue writer conforme, reader conforme e produto conforme?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para exigir que cada aplicação crie, leia e valide todos os recursos PDF.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para diferenciar funções de criação, leitura/interpretação e outros usos de PDF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para separar documentos editáveis ODF dos manifests de arquivos de escritório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para declarar que os três termos significam o mesmo tipo de impressora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para descrever papéis distintos de software que produz, interpreta ou usa PDF.",
+          "correct": true
+        }
+      ],
+      "explanation": "A norma contempla escritores que criam PDFs, leitores que interpretam conteúdo para exibição e interação, e produtos que leem ou escrevem PDF para outras finalidades. As categorias descrevem papéis, não exigem que cada programa implemente todos eles.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A especificação ODF 1.2 coloca esquema e semântica, linguagem de fórmulas e empacotamento todos na mesma parte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A afirmação é verdadeira: a Parte 1 trata de esquema e semântica, a Parte 2 da linguagem de fórmulas e a Parte 3 do empacotamento. A divisão deixa explícito que essas responsabilidades são diferentes.",
+      "section": "3. OpenDocument: esquema XML e pacote de escritório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ISO 32000-1 especifica métodos obrigatórios para validar a conformidade de todo arquivo PDF e de todo leitor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A norma define a representação PDF, mas declara que não especifica métodos para validar a conformidade dos arquivos ou dos leitores. Uma ferramenta de validação pode seguir critérios adicionais, mas não é determinada por essa edição.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ISO 32000-1:2008 define o formato PDF, mas deixa de especificar processos concretos de conversão de documentos de papel para PDF.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A frase respeita o escopo da norma: ela define a representação PDF, porém declara que não especifica processos concretos de conversão de documentos em papel ou de outros formatos para PDF.",
+      "section": "4. ISO 32000-1:2008: PDF 1.7 e representação de documentos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "ISO/IEC 26300:2006 — Open Document Format for Office Applications (OpenDocument) v1.0",
+      "publisher": "International Organization for Standardization",
+      "reference": "Escopo oficial: esquema XML, semântica e tipos de documentos ODF; edição citada no item de edital.",
+      "url": "https://www.iso.org/standard/43485.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ISO/IEC 26300-1:2015 — OpenDocument v1.2, Part 1: OpenDocument Schema",
+      "publisher": "International Organization for Standardization",
+      "reference": "Confirma a evolução da edição 2006 e o escopo atual do esquema XML OpenDocument.",
+      "url": "https://www.iso.org/standard/66363.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Open Document Format for Office Applications (OpenDocument) Version 1.2",
+      "publisher": "OASIS Open",
+      "reference": "Texto da especificação: escopo XML, partes sobre esquema, fórmulas e pacote.",
+      "url": "https://docs.oasis-open.org/office/v1.2/OpenDocument-v1.2.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenDocument Version 1.2 — Part 3: Packages",
+      "publisher": "OASIS Open",
+      "reference": "Manifesto, entradas de pacote, MIME type e posição/armazenamento de mimetype no ZIP.",
+      "url": "https://docs.oasis-open.org/office/v1.2/os/OpenDocument-v1.2-os-part3.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ISO 32000-1:2008 — Document management — Portable document format — Part 1: PDF 1.7",
+      "publisher": "International Organization for Standardization",
+      "reference": "Escopo, objetivos, leitores e produtores conformes, limitações e situação da edição.",
+      "url": "https://www.iso.org/standard/51502.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PDF 32000-1:2008 (cópia aprovada da norma ISO)",
+      "publisher": "Adobe Systems",
+      "reference": "Texto técnico integral permitido pela ISO: estrutura do PDF 1.7, objetos, páginas, leitores e produtores.",
+      "url": "https://opensource.adobe.com/dc-acrobat-sdk-docs/standards/pdfstandards/pdf/PDF32000_2008.pdf",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}
