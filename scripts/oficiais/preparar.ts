@@ -4,8 +4,9 @@
 // Não escreve nem altera questão: só filtra, classifica e grava work/oficiais/questoes.jsonl.
 //   deno run -A scripts/oficiais/preparar.ts
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const PROVAS = `${ROOT}work/provas-oficiais`;
-const SAIDA = `${ROOT}work/oficiais`;
+// PROVAS_OFICIAIS / SAIDA_OFICIAIS: outras pastas, para testar uma extração nova sem tocar no questoes.jsonl de verdade.
+const PROVAS = Deno.env.get("PROVAS_OFICIAIS") ?? `${ROOT}work/provas-oficiais`;
+const SAIDA = Deno.env.get("SAIDA_OFICIAIS") ?? `${ROOT}work/oficiais`;
 type Json = Record<string, any>;
 
 const STOP = new Set(("a o as os de da do das dos e em no na nos nas um uma uns umas por para pelo pela pelos pelas com sem que se ao aos " +
@@ -88,7 +89,7 @@ for (const banca of ["cebraspe", "fgv", "fundatec", "cesgranrio", "aocp"]) {
       total++;
       const n = (q.alternativas ?? []).length;
       const base = String(q.base ?? "");
-      const motivo = q.anulado || q.anulada ? "anulada" : q.temFigura ? "figura" : !q.gabarito ? "sem gabarito" : !ano ? "sem ano"
+      const motivo = q.anulado || q.anulada ? "anulada" : q.temFigura ? "figura" : q.extracaoRuim ? "extração embaralhada" : !q.gabarito ? "sem gabarito" : !ano ? "sem ano"
         : n !== 0 && n !== 5 ? `${n} alternativas` : q.precisaTexto || (PRECISA_TEXTO.test(q.enunciado ?? "") && base.length < 400) ? "depende de texto"
         : n === 0 && !/^[CE]$/.test(q.gabarito) ? "gabarito C/E inválido" : n === 5 && !/^[A-E]$/.test(q.gabarito) ? "gabarito inválido" : null;
       if (motivo) { fora[motivo] = (fora[motivo] ?? 0) + 1; continue; }
