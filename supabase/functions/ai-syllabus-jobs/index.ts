@@ -1,3 +1,4 @@
+import { overSavedEditais, type SavedEditais, savedEditaisChecker } from "../_shared/saved-editais.ts";
 import { withCors } from "../_shared/cors.ts";
 import { checkEditalText } from "../_shared/edital-guard.ts";
 import {
@@ -86,6 +87,8 @@ export interface AiSyllabusJobsDependencies {
   planMaterialsToday?: (userId: string) => Promise<number>;
   /** Simulados do plano (só biblioteca, sem cota) pedidos nos últimos 7 dias. */
   planSimulationsThisWeek?: (userId: string) => Promise<number>;
+  /** Editais salvos na conta e o limite do plano (contados no servidor). Ausente = não confere (testes). */
+  savedEditais?: (userId: string, tier: string) => Promise<SavedEditais | null>;
 }
 
 export interface NetworkQuota {
@@ -569,6 +572,11 @@ async function createTextJob(
     } else if (feature === "SIMULATION_GENERATION" && rules.tier === "FREE" && (input as { mode?: string }).mode !== "DIAGNOSTIC") {
       return safeError("PLAN_FEATURE_LOCKED", 403);
     }
+    // Limite de editais salvos: conferido aqui, contando a cópia da nuvem (o app e o site só avisam).
+    if (dependencies.savedEditais) {
+      const saved = await dependencies.savedEditais(user.userId, rules.tier).catch(() => null);
+      if (overSavedEditais(saved)) return safeError("SAVED_EDITAIS_LIMIT", 403);
+    }
     // Plano por IA é dos planos pagos: o Grátis monta o plano no próprio app, sem IA.
     if (feature === "PLAN_GENERATION" && rules.tier === "FREE") return safeError("PLAN_FEATURE_LOCKED", 403);
     if (feature === "CONTENT_GENERATION" && rules.tier === "FREE" && dependencies.freeAllowance) {
@@ -881,6 +889,7 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
     webGuard: turnstileGuard(Deno.env.get("TURNSTILE_SECRET_KEY")?.trim()),
     freeAllowance: new SupabaseFreeAllowance(supabaseUrl, serviceRoleKey),
     planMaterialsToday: (userId) => planMaterialsToday(supabaseUrl, serviceRoleKey, userId),
+    savedEditais: savedEditaisChecker(supabaseUrl, serviceRoleKey),
     planSimulationsThisWeek: async (userId) => {
       const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
       const response = await fetch(

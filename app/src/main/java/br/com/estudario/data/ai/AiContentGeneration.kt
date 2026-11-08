@@ -159,6 +159,7 @@ class AiContentGenerator(
             "FREE_EXTRA_LIMIT" -> FREE_EXTRAS_ENDED_MESSAGE
             "FREE_ADVANCE_NEEDS_AD" -> FREE_ADVANCE_AD_MESSAGE
             "FREE_PLAN_DAY_LIMIT" -> FREE_PLAN_DAY_DONE_MESSAGE
+            "SAVED_EDITAIS_LIMIT" -> "Você tem mais editais salvos do que o seu plano permite. Remova algum em Meus concursos (ou assine um plano maior) para voltar a gerar."
             "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
             "DEVICE_QUOTA_EXHAUSTED" -> DEVICE_QUOTA_MESSAGE
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."

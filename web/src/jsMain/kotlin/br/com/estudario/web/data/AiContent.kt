@@ -165,7 +165,7 @@ object AiContent {
             "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
             "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."
             "TOPIC_BATCH_LIMIT" -> "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais: o lote extra é do seu plano pago."
-            "PLAN_FEATURE_LOCKED", "PLAN_AI_MATERIAL_LIMIT", "FREE_EXTRA_LIMIT", "FREE_ADVANCE_NEEDS_AD", "FREE_PLAN_DAY_LIMIT" -> AiJobs.message(code)
+            "PLAN_FEATURE_LOCKED", "SAVED_EDITAIS_LIMIT", "PLAN_AI_MATERIAL_LIMIT", "FREE_EXTRA_LIMIT", "FREE_ADVANCE_NEEDS_AD", "FREE_PLAN_DAY_LIMIT" -> AiJobs.message(code)
             "DEVICE_QUOTA_EXHAUSTED" -> "O saldo grátis de gerações já foi usado neste navegador ou nesta rede."
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."
             "TURNSTILE_FAILED", "TURNSTILE_UNAVAILABLE" -> "A verificação de segurança não passou. Recarregue a página e tente de novo."
