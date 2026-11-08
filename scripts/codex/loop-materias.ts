@@ -11,7 +11,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (m: string) => {
   const l = `[${new Date().toLocaleString("pt-BR")}] ${m}`;
   console.log(l);
-  Deno.writeTextFileSync(LOG, l + "\n", { append: true });
+  // 08/11: várias contas e dezenas de trabalhadores gravam o mesmo log e o mesmo registro de falhas; quando o Windows
+  // recusava a escrita (arquivo em uso), a exceção derrubava o processo inteiro a cada ~2 min. Gravar nunca derruba.
+  for (let t = 0; t < 5; t++) { try { Deno.writeTextFileSync(LOG, l + "\n", { append: true }); break; } catch { /* em uso: tenta de novo */ } }
 };
 type Json = Record<string, any>;
 const ler = (p: string) => JSON.parse(Deno.readTextFileSync(p).replace(/^﻿/, ""));
@@ -64,7 +66,7 @@ const falhas = new Map<string, number>();
 const contarFalha = (id: string) => {
   falhas.set(id, (falhas.get(id) ?? 0) + 1);
   total[id] = (total[id] ?? 0) + 1;
-  Deno.writeTextFileSync(FALHAS, JSON.stringify(total, null, 1));
+  for (let t = 0; t < 5; t++) { try { Deno.writeTextFileSync(FALHAS, JSON.stringify(total, null, 1)); break; } catch { /* em uso: tenta de novo */ } }
 };
 // O conferidor só roda de novo quando o rascunho muda: com mais de mil rascunhos, conferir todos a cada escolha
 // deixava cada trabalhador minutos parado antes de começar (02/11).
@@ -99,9 +101,13 @@ async function trabalhador(n: number) {
   // matéria: três partes, uma por conta ("reversa", "meio" e "terco";
   const metade = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 3;
   // os dois primeiros são os nomes que os .cmd das contas 2 e 3 já usavam). A conta 1 decide itens e também escreve.
-  if (Deno.env.get("CODEX_ORDEM") === "reversa") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 0));
-  if (Deno.env.get("CODEX_ORDEM") === "meio") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 1));
-  if (Deno.env.get("CODEX_ORDEM") === "terco") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 2));
+  // CODEX_PARTES (ex.: "0,2") escolhe as partes direto e vale mais que CODEX_ORDEM: com a conta 1 sem limite até
+  // 13/11, as contas 2 e 3 dividem também a parte dela (08/11). Tirar dos .cmd quando a conta 1 voltar.
+  const partes = Deno.env.get("CODEX_PARTES");
+  if (partes) { const s = new Set(partes.split(",").map(Number)); fila.splice(0, fila.length, ...fila.filter((p) => s.has(metade(p.id)))); }
+  else if (Deno.env.get("CODEX_ORDEM") === "reversa") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 0));
+  if (!partes && Deno.env.get("CODEX_ORDEM") === "meio") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 1));
+  if (!partes && Deno.env.get("CODEX_ORDEM") === "terco") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 2));
   if (!fixo && !fila.length) { log(`[${n}] nada mais a pegar`); break; }
   const alvo: { id: string; itens: string[] } = fixo ?? fila[0];
   fixo = null;

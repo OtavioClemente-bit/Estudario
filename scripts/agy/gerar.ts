@@ -500,7 +500,9 @@ while (true) {
   // Alterna: um lote ampliando recorte existente, o seguinte criando recorte novo (se uma fila acabar, usa a outra).
   const f = montarFilas();
   estado.vez = estado.vez === "novo" ? "ampliar" : "novo";
-  const ordem = estado.vez === "novo" ? [f.novos, f.ampliar] : [f.ampliar, f.novos];
+  // 08/11 (pedido do dono): o gerador principal só cria recortes novos (primeiro os que liberam questões de prova
+  // real); o da API só amplia recortes existentes. Se a fila de um acabar, ele usa a outra.
+  const ordem = MODO_API ? [f.ampliar, f.novos] : [f.novos, f.ampliar];
   const fila = ordem[0].length ? ordem[0] : ordem[1];
   if (!fila.length) { log("fila vazia; esperando 1 hora"); await sleep(3_600_000); continue; }
   try {
