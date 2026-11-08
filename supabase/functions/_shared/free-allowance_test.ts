@@ -90,6 +90,7 @@ Deno.test("anúncio premiado: só o bloco do Estudário vira crédito", () => {
 Deno.test("questões do dia do plano não contam como matéria", () => {
   assertEquals(bringsTheory(["QUESTIONS"]), false);
   assertEquals(bringsTheory(["THEORY", "QUESTIONS"]), true);
+  assertEquals(bringsTheory(["SUMMARY", "QUICK_REVIEW", "QUESTIONS"]), true);
   assertEquals(bringsTheory(undefined), true);
   const now = new Date("2026-11-05T15:00:00Z");
   const usage = usageFrom([

@@ -121,7 +121,10 @@ export async function syncSubscription(token: string, userId: string, purchaseTo
   const sub = await fetchSubscription(token, purchaseToken);
   if (!sub) return null;
   const line = sub.lineItems?.[0];
-  const productId = line?.productId ?? fallbackProduct;
+  // O produto vem só do Google: o que o aparelho diz nunca decide o plano (um token barato não vira Pro).
+  void fallbackProduct;
+  const productId = line?.productId;
+  if (!productId) return "UNKNOWN_PRODUCT";
   const tier = await tierForProduct(productId);
   if (!tier) return "UNKNOWN_PRODUCT";
   const state = (sub.subscriptionState ?? "").replace(/^SUBSCRIPTION_STATE_/, "") || "UNKNOWN";

@@ -58,6 +58,8 @@ export interface RefreshDeps {
   lookup(aliases: string[], boardNorm: string, roleNorm: string): Promise<LookupRow | null>;
   generalNote(topicId: string): Promise<{ note: Json | null; path: string | null }>;
   file(path: string | null): Promise<Json | null>;
+  /** Assinatura da marca para a conta que pede (só no servidor; nos testes fica sem). */
+  sign?: (topicId: string) => Promise<string>;
 }
 
 export type RefreshResult =
@@ -152,13 +154,20 @@ export async function refreshItem(item: RefreshItem, deps: RefreshDeps, builds: 
     notePath = general.path;
     note = general.note;
   }
-  const stamp = stampOf(row, notePath);
-  if (item.stamp === stamp) return { id: item.id, status: "same", stamp };
+  const plainStamp = stampOf(row, notePath);
+  // A marca que volta para o aparelho é assinada pelo servidor para esta conta e este tópico
+  // ("base~assinatura"). Só ela prova que a pessoa já recebeu a matéria; marca sem assinatura
+  // (aparelhos antigos) ou forjada precisa passar pela conferência dos capítulos, como matéria sem marca.
+  const [sentBase, sentSig] = (item.stamp ?? "").split("~");
+  const signature = deps.sign ? await deps.sign(row.topic_id) : null;
+  const stamp = signature ? `${plainStamp}~${signature}` : plainStamp;
+  const trusted = !!item.stamp && (signature ? sentSig === signature : true);
+  if (sentBase === plainStamp) return { id: item.id, status: "same", stamp };
   if (builds.left <= 0) return { id: item.id, status: "later" };
   builds.left--;
   const material = row.material ?? await deps.file(row.material_path);
   if (!material) return { id: item.id, status: "later" };
-  if (!item.stamp && !looksLikeLibrary(item.chapterTitles, material)) return { id: item.id, status: "skip" };
+  if (!trusted && !looksLikeLibrary(item.chapterTitles, material)) return { id: item.id, status: "skip" };
   note = note ?? await deps.file(notePath);
   const focus = row.focus ?? inferFocus(material, item.topicPath[item.topicPath.length - 1], row.topic_id);
   const options: ContentGenerationOptions = {
@@ -217,8 +226,9 @@ export function serviceDeps(url: string, key: string): RefreshDeps {
 
 async function handle(request: Request): Promise<Response> {
   if (request.method !== "POST") return json({ error: { code: "METHOD_NOT_ALLOWED" } }, 405);
+  let userId: string;
   try {
-    await authenticateSupabaseRequest(request);
+    userId = (await authenticateSupabaseRequest(request)).userId;
   } catch (error) {
     return json({ error: { code: error instanceof AuthError ? error.code : "AUTH_UNAVAILABLE" } }, error instanceof AuthError ? error.status : 503);
   }
@@ -227,6 +237,11 @@ async function handle(request: Request): Promise<Response> {
   const url = Deno.env.get("SUPABASE_URL")?.trim().replace(/\/$/, ""), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   if (!url || !key) return json({ error: { code: "UNAVAILABLE" } }, 503);
   const deps = serviceDeps(url, key);
+  const hmacKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(`library-refresh-stamp|${key}`), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  deps.sign = async (topicId: string) => {
+    const mac = new Uint8Array(await crypto.subtle.sign("HMAC", hmacKey, new TextEncoder().encode(`${userId}|${topicId}`)));
+    return [...mac.slice(0, 12)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  };
   const builds = { left: MAX_BUILDS };
   const results: RefreshResult[] = [];
   for (const item of items) results.push(await refreshItem(item, deps, builds).catch(() => ({ id: item.id, status: "later" as const })));

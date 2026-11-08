@@ -61,3 +61,18 @@ Deno.test("casamento de questões: enunciado igual, com assertivas quebradas ou 
   assertEquals(matchQuestions(["Julgue os itens a seguir sobre o uso do acento grave indicativo de crase em expressões adverbiais (versão corrigida)."], pool).length, 1);
   assertEquals(matchQuestions(["Outra coisa totalmente diferente sobre regência verbal e nominal no texto."], pool).length, 0);
 });
+
+Deno.test("segurança: marca forjada sem os capítulos não leva a matéria; assinada leva", async () => {
+  const { d } = deps();
+  d.sign = async (topic) => `sig-${topic}`;
+  const forged = await refreshItem({ ...base, stamp: "x", chapterTitles: [] }, d, { left: 5 });
+  assertEquals(forged.status, "skip");
+  const wrongSig = await refreshItem({ ...base, stamp: "3.antigo~outra", chapterTitles: [] }, d, { left: 5 });
+  assertEquals(wrongSig.status, "skip");
+  const signed = await refreshItem({ ...base, stamp: "3.antigo~sig-portugues.crase", chapterTitles: [] }, d, { left: 5 });
+  assertEquals(signed.status, "update");
+  if (signed.status === "update") assert(signed.stamp.endsWith("~sig-portugues.crase"));
+  // Aparelho antigo, marca sem assinatura mas com os capítulos da matéria: continua atualizando.
+  const legacy = await refreshItem({ ...base, stamp: "3.antigo" }, d, { left: 5 });
+  assertEquals(legacy.status, "update");
+});

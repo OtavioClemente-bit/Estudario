@@ -81,7 +81,9 @@ interface JobRow { created_at: string; purpose?: unknown; ad_credit?: unknown; w
  */
 export function bringsTheory(blocks: unknown): boolean {
   if (!Array.isArray(blocks)) return true;
-  return blocks.includes("THEORY");
+  // Só o pedido de questões puro fica de fora. Resumo, cartões, dicas e memorização também são matéria:
+  // antes bastava tirar "THEORY" da lista para pegar o resto sem contar no limite.
+  return !(blocks.length === 1 && blocks[0] === "QUESTIONS");
 }
 /** Meia-noite de Brasília do dia (AAAA-MM-DD), em ISO. */
 export function cycleStartIso(day: string): string {
