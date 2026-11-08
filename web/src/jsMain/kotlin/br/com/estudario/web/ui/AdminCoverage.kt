@@ -39,11 +39,10 @@ private class Missing(val subject: String, val topic: String)
  * pedido" monta a lista para pedir as matérias em lote.
  */
 @Composable
-fun AdminCoverageScreen() {
-    if (!isOwner()) {
-        Card { Empty("lock", "Página restrita", "Esta página é só da equipe do Estudário.") }
-        return
-    }
+fun AdminCoverageScreen() = TeamGate { CoverageContent() }
+
+@Composable
+private fun CoverageContent() {
     var entries by remember { mutableStateOf<List<CatalogEntry>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }

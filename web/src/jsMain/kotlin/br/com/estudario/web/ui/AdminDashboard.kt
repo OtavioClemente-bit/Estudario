@@ -155,12 +155,12 @@ internal fun TeamDashboard() {
         TdList("warning", "Matérias sem ligação", "Publicadas, mas nenhum tópico de edital aponta para elas: ligue a um tópico (apelido) ou revise o nome.", "#FF8A3D", unl.a("items"),
             rowTitle = { it.s("title") }, rowSub = { "${it.s("subject")} · ${it.n("questions")} questões · ${it.s("id")}" }, rowCopy = { it.s("id") + " · " + it.s("subject") + " › " + it.s("title") }, total = unl.n("count"))
         TdList("lock", "Editais sem nenhuma matéria", "Nenhum tópico destes editais tem matéria pronta ainda: os maiores primeiro.", "#FF5A7A", d.a("catalogZero"),
-            rowTitle = { "${it.s("name")} · ${it.s("role")}" }, rowSub = { listOf(it.s("board"), "${it.n("topics")} tópicos").filter { s -> s.isNotBlank() }.joinToString(" · ") }, rowCopy = { "${it.s("name")} · ${it.s("role")} (${it.n("topics")} tópicos)" }, total = cat.n("zero"))
-        TdList("chart", "Editais com menos cobertura", "Já têm alguma matéria, mas faltam muitos tópicos.", "#FFC94D", d.a("catalogLeast"),
-            rowTitle = { "${it.s("name")} · ${it.s("role")}" }, rowSub = { "${pct(it.n("ready"), it.n("topics"))}% · ${it.n("ready")} de ${it.n("topics")} tópicos" + it.s("board").let { b -> if (b.isBlank()) "" else " · $b" } },
+            rowTitle = { editalName(it) }, rowSub = { listOf(it.s("board"), "${it.n("topics")} tópicos").filter { s -> s.isNotBlank() }.joinToString(" · ") }, rowCopy = { "${it.s("name")} · ${it.s("role")} (${it.n("topics")} tópicos)" }, total = cat.n("zero"))
+        TdList("bar_chart", "Editais com menos cobertura", "Já têm alguma matéria, mas faltam muitos tópicos.", "#FFC94D", d.a("catalogLeast"),
+            rowTitle = { editalName(it) }, rowSub = { "${pct(it.n("ready"), it.n("topics"))}% · ${it.n("ready")} de ${it.n("topics")} tópicos" + it.s("board").let { b -> if (b.isBlank()) "" else " · $b" } },
             meter = { pct(it.n("ready"), it.n("topics")) }, rowCopy = { "${it.s("name")} · ${it.s("role")}: ${it.n("ready")}/${it.n("topics")}" })
         TdList("search", "O que as pessoas pedem e não tem", "Tópicos pedidos que não acharam matéria na biblioteca, dos mais pedidos para os menos.", "#22D3EE", misses.a("top"),
-            rowTitle = { it.s("topic") }, rowSub = { "${it.s("subject")}${it.s("board").let { b -> if (b.isBlank()) "" else " · $b" }} · ${it.n("requests")} pedidos" }, rowCopy = { "${it.s("subject")} › ${it.s("topic")}" }, total = misses.n("count"))
+            rowTitle = { it.s("topic") }, rowSub = { "${it.s("subject")}${it.s("board").let { b -> if (b.isBlank()) "" else " · $b" }} · ${it.n("requests")} ${if (it.n("requests") == 1L) "pedido" else "pedidos"}" }, rowCopy = { "${it.s("subject")} › ${it.s("topic")}" }, total = misses.n("count"))
         TdList("library_books", "Matérias por área", "Quantas matérias, questões e usos em cada matéria-mãe.", "#A78BFF", d.a("bySubject"),
             rowTitle = { it.s("subject") }, rowSub = { "${it.n("materias")} matérias · ${fmtN(it.n("questions"))} questões · ${fmtN(it.n("hits"))} usos" },
             meter = { val max = d.a("bySubject").maxOfOrNull { x -> x.n("materias") } ?: 1L; pct(it.n("materias"), max) }, rowCopy = { "${it.s("subject")}: ${it.n("materias")} matérias" })
@@ -253,6 +253,14 @@ private fun TdList(
             }
         }
     }
+}
+
+/** Nome do edital sem repetir o cargo quando ele já está no nome ("UFCA Professor… · Professor…"). */
+private fun editalName(o: JsonObject): String {
+    val name = o.s("name").trim(); val role = o.s("role").trim()
+    if (role.isBlank()) return name
+    val head = role.substringBefore(" – ").substringBefore(" - ").trim()
+    return if (head.length >= 6 && name.contains(head, ignoreCase = true)) "${name.replace(head, "", ignoreCase = true).split(' ').filter { it.isNotBlank() }.joinToString(" ")} · $role".trim(' ', '·') else "$name · $role"
 }
 
 private fun featureName(k: String): String = when (k) {

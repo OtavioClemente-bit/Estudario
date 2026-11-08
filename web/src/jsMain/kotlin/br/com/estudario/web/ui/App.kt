@@ -295,7 +295,9 @@ private fun SidebarContent(section: Route) {
         }
         Icon("chevron_right", extraClass = "faint")
     }
-    // A seção Equipe (reportes) só aparece para a conta do administrador.
+    // A seção Equipe só aparece depois que o servidor confirmar que a conta é da equipe (TeamAccess).
+    val teamUser = Store.session?.userId
+    androidx.compose.runtime.LaunchedEffect(teamUser) { if (teamUser != null) TeamAccess.check() }
     val sections = if (isOwner()) menu + NavSection("Equipe", listOf(NavEntry(Route.AdminReports, "Reportes", "flag"), NavEntry(Route.AdminCoverage, "Cobertura", "library_books"))) else menu
     Nav({ attr("aria-label", "Menu") }) {
         sections.forEach { group ->

@@ -27,10 +27,44 @@ import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
 
-/** A conta do dono do Estudário: só ela vê a página de reportes (o banco confere de novo). */
-const val OWNER_USER_ID = "1f75cd98-6341-4cc2-b606-e8ecd53a6c8a"
+/**
+ * Acesso da equipe. Quem decide é o servidor: a lista app_admins, que nenhuma conta comum lê nem
+ * altera, conferida pela função is_app_admin com o login de quem pede. O site só pergunta e guarda a
+ * resposta na memória (nada no navegador para mudar). Mesmo que alguém force a tela, cada consulta da
+ * equipe (painel, contas, reportes, recortes) confere de novo no banco e recusa quem não é da equipe.
+ */
+object TeamAccess {
+    /** null: ainda não perguntou; true/false: a resposta do servidor para a conta logada. */
+    var verified by mutableStateOf<Boolean?>(null)
+        private set
+    private var checkedFor: String? = null
 
-fun isOwner(): Boolean = !Store.demo && Store.session?.userId == OWNER_USER_ID
+    suspend fun check() {
+        val user = Store.session?.userId
+        if (Store.demo || user == null) { verified = false; checkedFor = user; return }
+        if (checkedFor == user && verified != null) return
+        checkedFor = user
+        val (code, body) = runCatching { rpc("is_app_admin", "{}") }.getOrDefault(0 to "")
+        verified = code in 200..299 && body.trim() == "true"
+    }
+}
+
+fun isOwner(): Boolean = !Store.demo && TeamAccess.verified == true
+
+/**
+ * Porta das telas da equipe: só desenha o conteúdo depois que o servidor confirmar a conta. Quem não é
+ * da equipe volta para o Início, sem ver nem o esqueleto da página.
+ */
+@Composable
+fun TeamGate(content: @Composable () -> Unit) {
+    val user = Store.session?.userId
+    LaunchedEffect(user) { TeamAccess.check() }
+    when (TeamAccess.verified) {
+        true -> content()
+        false -> LaunchedEffect(Unit) { br.com.estudario.web.Router.go(br.com.estudario.web.Route.Home) }
+        null -> CenterMessage { Folha("thinking", 64); Text("Conferindo o acesso…") }
+    }
+}
 
 private class ReportRow(
     val id: Long, val kind: String, val reason: String, val competition: String?, val topic: String?,
@@ -45,7 +79,7 @@ private val reasonLabel = mapOf(
     "OFF_TOPIC" to "Fora do tópico", "GENERIC" to "Muito genérico", "OTHER" to "Outro",
 )
 
-private suspend fun rpc(name: String, body: String): Pair<Int, String> {
+internal suspend fun rpc(name: String, body: String): Pair<Int, String> {
     val token = Auth.accessToken() ?: return 401 to ""
     val response = httpRequest(
         "POST", "${WebConfig.SUPABASE_URL}/rest/v1/rpc/$name",
@@ -67,11 +101,10 @@ private fun when_(iso: String): String = if (iso.length < 16) iso else "${iso.su
 
 /** Os reportes de erro e os comentários que chegam do app e do site, para conferir e marcar. */
 @Composable
-fun AdminReportsScreen() {
-    if (!isOwner()) {
-        Card { Empty("lock", "Página restrita", "Esta página é só da equipe do Estudário.") }
-        return
-    }
+fun AdminReportsScreen() = TeamGate { ReportsContent() }
+
+@Composable
+private fun ReportsContent() {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf("OPEN") }
     var type by remember { mutableStateOf("ALL") }
