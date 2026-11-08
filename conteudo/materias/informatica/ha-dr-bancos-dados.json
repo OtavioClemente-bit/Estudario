@@ -1,0 +1,2107 @@
+{
+  "id": "informatica.ha-dr-bancos-dados",
+  "subject": "Informática",
+  "title": "Alta disponibilidade e recuperação de desastres em bancos de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "HA e DR para bancos de dados",
+    "Alta disponibilidade de banco de dados",
+    "Recuperação de desastres em bancos",
+    "Estratégias HA DR para soluções de banco de dados",
+    "Configuração de HA e DR de bancos de dados",
+    "Replicação síncrona e assíncrona de banco",
+    "Failover de banco de dados",
+    "Standby e réplica de banco de dados",
+    "Continuidade de banco de dados",
+    "Disaster recovery de banco de dados"
+  ],
+  "scope": {
+    "covers": "Estratégias e configuração de alta disponibilidade (HA) e recuperação de desastres (DR) para bancos de dados: RTO e RPO, domínios de falha, redundância, replicação síncrona e assíncrona, standby, failover e failback, quorum e split brain, backup e recuperação pontual, testes, monitoramento e exemplos oficiais de PostgreSQL, SQL Server Always On, Amazon RDS Multi-AZ e Cloud SQL regional.",
+    "excludes": "Comandos completos de instalação de produtos, dimensionamento de infraestrutura, comparação comercial de provedores, recuperação forense e procedimentos específicos de cada versão não descritos nas fontes citadas."
+  },
+  "theoryTitle": "Estratégias e configuração de HA/DR para bancos de dados",
+  "chapters": [
+    {
+      "title": "1. Objetivos de continuidade",
+      "markdown": "### O problema que este assunto resolve\n\nUm banco pode parar por defeito de disco, servidor, rede, zona de nuvem, erro operacional ou corrupção lógica. Alta disponibilidade (HA) reduz interrupções diante de falhas previstas no desenho; recuperação de desastres (DR) prepara a retomada quando o evento ultrapassa esse desenho, como a perda de um local ou região. Os termos se sobrepõem, mas não são sinônimos: um standby na mesma região pode cobrir falha de zona sem cobrir a perda regional.\n\n> **Siglas e termos deste capítulo**\n> - **HA**: alta disponibilidade; desenho para manter ou restaurar rapidamente o serviço diante de falhas.\n> - **DR**: recuperação de desastres; procedimentos e recursos para reconstruir ou retomar o serviço após evento grave.\n> - **RTO**: Recovery Time Objective, tempo máximo tolerado para recuperar o serviço.\n> - **RPO**: Recovery Point Objective, quanto de dados medido no tempo se aceita perder.\n> - **Failover**: transferência do papel de serviço primário para um destino alternativo.\n> - **Failback**: retorno planejado ao local ou nó preferido depois da estabilização.\n\n### Metas antes de escolher a arquitetura\n\nRTO e RPO são requisitos do negócio, não promessas automáticas da ferramenta. Se a aplicação tolera perder alguns minutos de alterações, um backup com recuperação pontual pode atender ao RPO, mas geralmente exige restaurar e validar uma instância, elevando o RTO. Um standby já atualizado e promovível tende a reduzir o RTO; replicação síncrona pode reduzir a perda de transações confirmadas, porém acrescenta espera de rede ao commit.\n\n| Alternativa | Recuperação típica | Dados recentes | Custo e cuidado\n| --- | --- | --- |\n| Backup e restauração | Restaurar recursos e validar | Depende da frequência e do ponto restaurável | RTO maior; testar restauração\n| Réplica assíncrona | Promover réplica e redirecionar clientes | Pode haver atraso e perda do que não chegou | Boa para distância; monitorar lag\n| Standby síncrono | Troca para cópia sincronizada | Menor risco de perder commits reconhecidos pela réplica | Latência de gravação e dependência de saúde/quorum\n\n### A estratégia começa pelo domínio de falha\n\nDuas cópias no mesmo host compartilham falha de hardware; duas máquinas na mesma zona podem compartilhar energia e rede; duas zonas na mesma região protegem melhor contra falha zonal; regiões distintas tratam eventos regionais, mas aumentam distância, custo e complexidade. Também é preciso separar credenciais, rede, armazenamento de backup e plano operacional: uma cópia que depende do mesmo ponto destruído não é recuperação independente.\n\nReplicação não é backup. Ela mantém outra cópia atualizada e pode propagar exclusões, corrupção ou comandos maliciosos. Backup retido e protegido permite voltar a um estado anterior. Um plano robusto combina as técnicas conforme impacto e requisito.\n\n### Como cai na prova\n\n- RTO pergunta “quanto tempo até o serviço voltar”; RPO pergunta “até que ponto no tempo os dados precisam ser recuperáveis”.\n- Réplica síncrona, assíncrona, backup restaurável e redundância de aplicação resolvem riscos diferentes.\n- “Multi-AZ resolve perda de região” é generalização incorreta: o alcance depende do produto e do desenho."
+    },
+    {
+      "title": "2. Replicação e failover",
+      "markdown": "### O problema que este assunto resolve\n\nUma réplica só ajuda se receber alterações, puder assumir o papel correto e for alcançável pelos clientes. A equipe precisa definir como o dado viaja, quem autoriza a promoção e como impedir dois primários gravando ao mesmo tempo.\n\n> **Siglas e termos deste capítulo**\n> - **Primário**: nó que normalmente aceita gravações.\n> - **Standby/ secundário**: nó que recebe alterações do primário e pode ter papel de leitura ou espera.\n> - **WAL**: write-ahead log, registro de alterações usado pelo PostgreSQL para recuperação e replicação.\n> - **Lag**: atraso entre o estado do primário e o estado recebido ou aplicado na réplica.\n> - **Quorum**: maioria de votos necessária, em determinados clusters, para decidir que o conjunto pode operar.\n> - **Split brain**: situação em que partições da arquitetura aceitam gravações como se fossem primárias independentes.\n\n### Síncrona ou assíncrona\n\nNa replicação síncrona, o primário espera uma confirmação definida do standby antes de concluir o commit ao cliente. Isso pode proteger transações confirmadas pela cópia, desde que a configuração e o estado de sincronização exijam essa confirmação; o preço é latência maior e possível impacto quando a rede ou o standby ficam lentos. Não conclua que “síncrona” elimina todo cenário de perda: falhas simultâneas, configuração de confirmação e comportamento do produto importam.\n\nNa assíncrona, o primário confirma sem esperar o standby persistir cada alteração. A aplicação sofre menos a latência da distância, mas um desastre antes da chegada do log pode perder transações recentes. O lag pode crescer sob rede lenta, sobrecarga ou réplica incapaz de aplicar alterações.\n\nUm standby *warm* está pronto para assumir, mas não atende consultas de usuários até promoção; um standby *hot* pode aceitar consultas somente de leitura. Réplica de leitura e standby de HA podem ter semânticas diferentes, mesmo quando ambos recebem dados. Não envie gravações para uma réplica somente de leitura.\n\n### Promoção segura\n\nFailover automático exige detecção, decisão e redirecionamento. Em SQL Server Always On, a troca automática depende de modo síncrono, réplica sincronizada e quorum do WSFC; modo assíncrono suporta failover forçado manual, com possível perda. No PostgreSQL, o standby acompanha WAL e é promovido, por exemplo, por `pg_ctl promote` ou `pg_promote()`. A ferramenta de orquestração precisa impedir que o antigo primário volte a aceitar gravações sem reintegração controlada.\n\nQuorum reduz decisões conflitantes em cluster, mas não substitui plano para cliente, DNS, pool de conexões, credenciais, jobs e dependências. Uma instância promovida que não recebe tráfego não restabelece o serviço.\n\n### Como cai na prova\n\n- A replicação assíncrona não garante que toda transação confirmada no primário chegou ao standby.\n- “Automático” depende das pré-condições documentadas, e não significa failover em qualquer falha.\n- Failover forçado pode privilegiar disponibilidade imediata sobre consistência dos últimos dados."
+    },
+    {
+      "title": "3. Configuração e operação",
+      "markdown": "### O problema que este assunto resolve\n\nCriar uma segunda máquina não configura HA. Ela precisa ser inicializada a partir de uma base consistente, autenticada, conectada ao fluxo de alterações e monitorada; também deve ter recursos para cumprir seu papel após promoção.\n\n> **Siglas e termos deste capítulo**\n> - **Base backup**: cópia inicial consistente usada para preparar um standby PostgreSQL.\n> - **`pg_hba.conf`**: regras de autenticação de conexões PostgreSQL.\n> - **`primary_conninfo`**: conexão configurada no standby para localizar o primário PostgreSQL.\n> - **Replication slot**: mecanismo que impede remover WAL ainda necessário a um standby.\n> - **DNS/endpoint**: nome ou endereço pelo qual a aplicação encontra o banco.\n> - **Runbook**: roteiro operacional aprovado para executar e verificar uma ação.\n\n### Exemplo concreto: standby PostgreSQL\n\nA documentação oficial descreve configurar autenticação de replicação no primário, reservar capacidade de emissores WAL e, quando usados, slots de replicação. O standby é preparado restaurando um base backup; cria-se `standby.signal`, configura-se a recuperação do arquivo WAL e, para streaming, `primary_conninfo`. O primário precisa aceitar a conexão de replicação em `pg_hba.conf`; recomenda-se usuário dedicado com permissões `REPLICATION` e `LOGIN`, em vez de superusuário.\n\nStreaming replication PostgreSQL é assíncrona por padrão. Para evitar que WAL necessário desapareça enquanto o standby está desconectado, podem-se dimensionar `wal_keep_size`, usar slot de replicação ou arquivar WAL. Slot pode reter WAL enquanto o consumidor não avança, então monitore espaço em disco. Em topologia com vários standbys, a documentação recomenda `recovery_target_timeline = 'latest'` para acompanhar a nova linha temporal após failover.\n\nMonitore envio, recebimento e replay de WAL. No PostgreSQL, `pg_stat_replication`, `pg_stat_wal_receiver` e posições LSN ajudam a separar atraso de geração, transporte e aplicação. Um grande intervalo de replay pode indicar que o standby recebe mais rápido do que consegue aplicar. Faça a credencial de replicação restrita e proteja o canal, pois o fluxo WAL pode expor informação privilegiada.\n\n### Serviços gerenciados e clientes\n\nNo Amazon RDS Multi-AZ de instância, o serviço mantém standby em outra zona e pode alternar automaticamente diante de determinadas falhas de infraestrutura. O endpoint continua sendo a referência para clientes, que devem reconectar e resolver DNS corretamente. Essa implantação de instância não é, por si só, proteção contra perda de região. Read replica é outro recurso: pode servir leituras e, em alguns cenários, ser promovida; não a confunda com o standby Multi-AZ, que não atende tráfego de leitura.\n\nNo Cloud SQL, a configuração regional mantém zonas primária e secundária; diante de falha, o serviço pode subir a instância na zona secundária com o mesmo IP. Uma instância zonal não tem a mesma proteção automática contra interrupção de zona; a recuperação pode exigir restauração pontual ou promoção de réplica. Em qualquer serviço, confirme edição, mecanismo e comportamento documentado antes de prometer RTO ou RPO.\n\n### Como cai na prova\n\n- Configuração requer inicialização consistente, transporte de logs, autenticação, retenção de logs e observabilidade.\n- O ponto de conexão da aplicação e a política de reconexão fazem parte da recuperação.\n- Réplica de leitura, standby gerenciado e backup têm funções diferentes."
+    },
+    {
+      "title": "4. DR e backups",
+      "markdown": "### O problema que este assunto resolve\n\nUma replicação rápida pode reproduzir um erro humano; uma cópia de backup nunca testada pode não restaurar; um procedimento que depende de uma pessoa específica pode falhar durante a crise. DR combina cópias independentes, sequência operacional e exercícios.\n\n> **Siglas e termos deste capítulo**\n> - **PITR**: point-in-time recovery, restauração para um instante recuperável.\n> - **Snapshot**: imagem de dados em determinado momento, conforme consistência e semântica do serviço.\n> - **Retenção**: período durante o qual backups ou logs permanecem disponíveis.\n> - **Failback**: retorno controlado ao ambiente preferencial, depois da análise e sincronização.\n> - **Runbook de DR**: passos, responsáveis, critérios de decisão, validações e comunicação para a recuperação.\n> - **Teste de restauração**: exercício que comprova que backup, acesso, procedimento e aplicação funcionam.\n\n### Cópias recuperáveis e abrangência\n\nBackups completos, incrementais ou snapshots podem ser combinados com logs para recuperação pontual. Defina retenção, cópia fora do domínio de falha, criptografia, controle de acesso e proteção contra exclusão. Para proteger contra corrupção lógica, mantenha pontos históricos suficientes e verifique se a janela de restauração atende o RPO. A replicação contínua não substitui essa história.\n\nA orientação AWS distingue DR próximo, em outra zona da mesma região, e DR distante, entre regiões. Multi-AZ do RDS fornece replicação síncrona em outra zona e promoção gerenciada para determinadas falhas zonais, mas não protege contra falha regional. Backups gerenciados podem ser restaurados em outra região; snapshots replicados entre regiões e read replicas também podem apoiar DR, porém exigem restauração ou promoção conforme a estratégia.\n\n### Procedimento que se testa\n\nUm runbook identifica o incidente, autoriza a decisão de failover, cerca ou isola o primário antigo, promove o destino, atualiza endpoint ou roteamento, valida consistência e funcionalidade da aplicação, e registra o que ainda precisa ser reconciliado. Para recuperação por backup, inclui selecionar ponto de restauração, criar instância, aplicar configurações, validar dados e liberar tráfego. Defina também como reconstituir a redundância e como fazer failback sem duas fontes de gravação.\n\nExercícios devem medir o tempo real e registrar falhas: credenciais vencidas, dependências não replicadas, permissões, certificados, DNS em cache, aplicação que não reconecta, capacidade insuficiente e backups incompletos. Acompanhe idade do último backup válido, lag de réplica, estado de sincronização, espaço de WAL, falhas de cópia e resultados de restauração.\n\n### Como cai na prova\n\n- Backup restaura estados anteriores; réplica acelera disponibilidade, mas pode copiar dano lógico.\n- DR distante ajuda contra evento regional, mas aumenta latência e exige planejar promoção e roteamento.\n- Só um exercício de restauração confirma se o procedimento e a cópia são utilizáveis."
+    }
+  ],
+  "summary": "HA reduz interrupções com redundância, replicação e failover; DR permite recuperar o banco diante de eventos mais amplos, usando réplicas, backups e procedimentos testados. RTO mede o tempo tolerado para voltar; RPO mede a perda de dados tolerada. Replicação síncrona espera confirmação e tende a reduzir perda de commits reconhecidos, com custo de latência. Replicação assíncrona tolera distância e pode perder alterações ainda não copiadas. PostgreSQL usa WAL para streaming e standby; RDS Multi-AZ e Cloud SQL regional oferecem comportamentos gerenciados delimitados pelo produto. Configure autenticação, retenção de logs, endpoints, monitoramento, backups fora do domínio de falha, testes de restauração e runbooks de failover e failback.",
+  "flashcards": [
+    {
+      "front": "O que mede RTO?",
+      "back": "Tempo máximo tolerado para restabelecer o serviço."
+    },
+    {
+      "front": "O que mede RPO?",
+      "back": "Ponto temporal até o qual os dados precisam ser recuperáveis; representa a perda tolerada."
+    },
+    {
+      "front": "O que é failover?",
+      "back": "Transferência do serviço primário para um destino alternativo."
+    },
+    {
+      "front": "O que é failback?",
+      "back": "Retorno planejado ao ambiente preferencial após a estabilização."
+    },
+    {
+      "front": "Qual é o custo típico do commit síncrono?",
+      "back": "Maior latência, pois há espera por confirmação do standby."
+    },
+    {
+      "front": "Qual risco acompanha replicação assíncrona?",
+      "back": "Perder alterações recentes que ainda não chegaram ao standby."
+    },
+    {
+      "front": "O que significa lag de réplica?",
+      "back": "Atraso entre alterações no primário e seu recebimento ou aplicação na réplica."
+    },
+    {
+      "front": "Replicação substitui backup?",
+      "back": "Não; pode propagar exclusão ou corrupção. Backup preserva pontos históricos."
+    },
+    {
+      "front": "O que distingue standby hot de warm?",
+      "back": "Hot aceita leituras enquanto standby; warm aguarda promoção para atender conexões."
+    },
+    {
+      "front": "Para que serve quorum?",
+      "back": "Permite que um cluster decida operação com maioria de votos e reduz decisões conflitantes."
+    },
+    {
+      "front": "O que é split brain?",
+      "back": "Dois lados aceitam gravações como primários independentes."
+    },
+    {
+      "front": "Qual é o log de replicação do PostgreSQL?",
+      "back": "WAL, write-ahead log."
+    },
+    {
+      "front": "Qual arquivo habilita modo standby no PostgreSQL atual?",
+      "back": "A presença de `standby.signal` no diretório de dados."
+    },
+    {
+      "front": "Qual parâmetro identifica a conexão streaming do standby PostgreSQL?",
+      "back": "`primary_conninfo`."
+    },
+    {
+      "front": "Qual papel tem `pg_hba.conf` na replicação?",
+      "back": "Autorizar a conexão de replicação segundo origem, usuário e método de autenticação."
+    },
+    {
+      "front": "O que replication slot protege?",
+      "back": "Evita remover WAL que um standby ainda precisa receber."
+    },
+    {
+      "front": "Qual risco exige monitorar slots?",
+      "back": "WAL pode ser retido e consumir espaço se o consumidor parar de avançar."
+    },
+    {
+      "front": "Como promover standby PostgreSQL?",
+      "back": "Por exemplo, com `pg_ctl promote` ou `pg_promote()`."
+    },
+    {
+      "front": "O que é PITR?",
+      "back": "Recuperação pontual para um instante coberto por backup e logs disponíveis."
+    },
+    {
+      "front": "RDS Multi-AZ protege contra quê?",
+      "back": "Entre outros eventos, falha de zona com standby em outra zona na mesma região."
+    },
+    {
+      "front": "RDS Multi-AZ de instância é backup?",
+      "back": "Não; é uma arquitetura de HA com standby, distinta de backup restaurável."
+    },
+    {
+      "front": "Uma read replica RDS pode atender leituras?",
+      "back": "Sim, conforme mecanismo e configuração; standby Multi-AZ não atende leituras de usuário."
+    },
+    {
+      "front": "Qual pré-condição SQL Server para failover automático?",
+      "back": "Réplica síncrona e sincronizada, modo de failover automático configurado e quorum WSFC."
+    },
+    {
+      "front": "O que permite failover forçado assíncrono?",
+      "back": "Retomar disponibilidade quando o primário não volta, aceitando possível perda de dados."
+    },
+    {
+      "front": "O que Cloud SQL regional faz em falha?",
+      "back": "Pode iniciar a instância na zona secundária, mantendo o mesmo IP, conforme documentação do serviço."
+    },
+    {
+      "front": "O que pode ser necessário numa instância Cloud SQL zonal após perda da zona?",
+      "back": "Restauração pontual ou promoção manual de read replica."
+    },
+    {
+      "front": "Por que usar cópia de backup fora da região?",
+      "back": "Para recuperar dados quando a região primária fica indisponível."
+    },
+    {
+      "front": "O que o teste de restauração comprova?",
+      "back": "Que cópia, acesso, procedimento e validação da aplicação são utilizáveis."
+    },
+    {
+      "front": "O que o runbook deve definir?",
+      "back": "Responsáveis, critérios, isolamento, promoção, roteamento, validação e retorno à redundância."
+    },
+    {
+      "front": "Por que testar reconexão da aplicação?",
+      "back": "Porque promover o banco não garante que clientes, DNS e pools de conexão retomem o serviço."
+    }
+  ],
+  "tips": [
+    "Associe RTO a duração da interrupção e RPO ao ponto recuperável dos dados.",
+    "Ao comparar réplica síncrona e assíncrona, cite proteção de commit e latência.",
+    "Leia a topologia: outra zona e outra região cobrem domínios de falha diferentes.",
+    "Separe standby que não atende leitura de read replica que pode atender consultas.",
+    "Em PostgreSQL, pense em base backup, standby.signal, WAL, autenticação e monitoramento.",
+    "Trate teste de restauração e reconexão da aplicação como parte da estratégia, não como detalhe."
+  ],
+  "traps": [
+    "Confundir alta disponibilidade local com recuperação regional.",
+    "Afirmar que uma réplica assíncrona nunca perde transações recentes.",
+    "Tratar replicação como backup imutável contra exclusão ou corrupção.",
+    "Supor que failover automático funciona sem sincronização ou quorum quando estes são exigidos.",
+    "Confundir read replica com standby Multi-AZ e atribuir leitura ao standby sem suporte.",
+    "Achar que promover o banco, sozinho, muda endpoint, reconecta clientes e recupera dependências."
+  ],
+  "activeRecall": [
+    "Explique RTO e RPO usando um exemplo de banco transacional.",
+    "Compare o impacto de síncrona e assíncrona em latência e perda potencial.",
+    "Desenhe os domínios de falha de dois nós na mesma zona, em zonas distintas e em regiões distintas.",
+    "Descreva por que uma réplica pode copiar uma exclusão acidental.",
+    "Liste etapas de preparação de standby PostgreSQL com streaming WAL.",
+    "Explique como replication slot ajuda e qual risco operacional cria.",
+    "Cite as condições do SQL Server Always On para failover automático.",
+    "Escreva um roteiro desde detecção de falha até validação de aplicação e restauração da redundância."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre RTO e RPO",
+      "summary": "RTO trata do tempo para recuperar o serviço; RPO trata de dados e ponto no tempo recuperável.",
+      "description": "RTO trata do tempo para recuperar o serviço; RPO trata de dados e ponto no tempo recuperável."
+    },
+    {
+      "key": "e2",
+      "title": "Réplica confundida com backup",
+      "summary": "Replicação acompanha o primário e pode carregar dados corrompidos; backup retido permite voltar a um ponto anterior.",
+      "description": "Replicação acompanha o primário e pode carregar dados corrompidos; backup retido permite voltar a um ponto anterior."
+    },
+    {
+      "key": "e3",
+      "title": "Failover presumido como automático",
+      "summary": "Promoção automática depende de modo, sincronização, quorum e integração com o cliente conforme a tecnologia.",
+      "description": "Promoção automática depende de modo, sincronização, quorum e integração com o cliente conforme a tecnologia."
+    },
+    {
+      "key": "e4",
+      "title": "Escopo de falha ignorado",
+      "summary": "Redundância entre zonas não implica proteção contra perda de região ou de todo o provedor.",
+      "description": "Redundância entre zonas não implica proteção contra perda de região ou de todo o provedor."
+    },
+    {
+      "key": "e5",
+      "title": "Replicação sem operação",
+      "summary": "Sem monitorar lag, autenticação, conexão, WAL, endpoints e restauração, a cópia pode não cumprir o objetivo.",
+      "description": "Sem monitorar lag, autenticação, conexão, WAL, endpoints e restauração, a cópia pode não cumprir o objetivo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O RTO define o tempo máximo tolerado para restabelecer o serviço de banco após uma interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RTO é o objetivo de tempo de recuperação. Ele orienta a arquitetura e o procedimento necessário para voltar a atender; não mede quantos dados podem ser perdidos.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização aceita no máximo cinco minutos de dados perdidos em um desastre; esse limite descreve seu RTO.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O limite de dados que se aceita perder corresponde ao RPO. RTO seria o tempo máximo tolerado para recuperar o serviço.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica assíncrona pode estar atrasada no instante da falha, deixando transações confirmadas no primário ausentes após a promoção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No modo assíncrono, o primário não aguarda a persistência de cada alteração no secundário. Se a falha ocorrer antes da chegada do log, pode haver perda recente.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação síncrona elimina todo risco de perda de dados em qualquer falha, independentemente da política de confirmação e do estado das réplicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A proteção depende do que a configuração espera como confirmação e do estado da réplica. Falhas simultâneas e escolhas de failover também importam; não existe garantia universal sem considerar o desenho.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia continuamente replicada pode propagar uma exclusão acidental, razão pela qual não substitui backups históricos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Replicação mantém uma cópia atualizada, inclusive de alterações indesejadas que sejam replicadas. Backups retidos oferecem pontos anteriores para recuperação.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois servidores em zonas diferentes da mesma região oferecem, por definição, recuperação contra a indisponibilidade de toda a região.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Zonas diferentes protegem contra certos eventos zonais, mas podem pertencer à mesma região. A perda regional requer estratégia de DR que alcance outra região ou domínio independente.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PostgreSQL, streaming replication é assíncrona por padrão, e o atraso pode ser acompanhado por posições de WAL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação PostgreSQL descreve streaming como assíncrona por padrão. Comparar posições de geração, envio, recebimento e replay ajuda a localizar o lag.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, um replication slot faz o primário descartar imediatamente WAL que o standby ainda não recebeu, liberando espaço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O slot impede que WAL ainda necessário seja removido. Se o standby deixar de avançar, essa retenção pode consumir espaço, motivo para monitorar slots e armazenamento.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server Always On, o failover automático exige, entre outras condições, réplica sincronizada e quorum do cluster WSFC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação da Microsoft condiciona a troca automática à réplica sincronizada e ao quorum do WSFC, além da configuração síncrona e de failover automático.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server Always On, uma réplica assíncrona sincronizada permite failover automático sem risco de perda, desde que esteja geograficamente próxima.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Modo assíncrono não oferece a condição de sincronização exigida para failover automático descrita pela Microsoft. O failover forçado pode perder logs ainda não enviados.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Amazon RDS Multi-AZ de instância mantém standby em outra zona e pode alternar automaticamente diante de falhas cobertas pelo serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação RDS descreve troca automática para standby em outra Availability Zone quando condições de falha cobertas são detectadas.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O standby de uma implantação Amazon RDS Multi-AZ de instância atende consultas de leitura dos usuários do mesmo modo que uma read replica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação distingue standby Multi-AZ de read replica: o standby não atende tráfego de leitura, enquanto read replica pode ser acessada para leituras conforme o mecanismo.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância regional do Cloud SQL pode iniciar na zona secundária após falha e conservar o mesmo endereço IP, segundo a documentação do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A disponibilidade regional do Cloud SQL mantém zonas primária e secundária; a documentação informa que a instância pode subir na zona secundária com o mesmo IP.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância zonal do Cloud SQL é recuperada automaticamente de qualquer indisponibilidade de zona, sem restauração ou promoção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação diferencia falha de host e interrupção de zona: a instância zonal não é recuperada automaticamente de uma interrupção zonal; pode ser necessário PITR ou promover read replica.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testar a restauração permite verificar se backup, credenciais, procedimento e validação da aplicação funcionam em conjunto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A existência de arquivos de backup não comprova que eles podem ser restaurados nem que a aplicação consegue operar com a instância recuperada. O exercício revela lacunas concretas.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de promover um standby, o failback deve ser feito sem verificar a posição dos dados, pois o nó antigo sempre contém a cópia mais atual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O primário antigo pode estar desatualizado ou divergir. É necessário reintegrá-lo de forma controlada, sincronizar dados e evitar dois primários aceitando gravações antes do retorno.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe tolera até dez minutos para retomar o sistema, mas exige recuperar gravações até no máximo um minuto antes da falha. Como devem ser interpretados esses limites?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dez minutos são o RPO; um minuto é o RTO do banco e da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dez minutos são o RTO; um minuto é o RPO dos dados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ambos são RTO, pois descrevem a duração da indisponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos são RPO, pois descrevem a recuperação após a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dez minutos são o lag; um minuto é o quorum requerido.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTO é o tempo máximo para recuperar o serviço; RPO define até que ponto no tempo os dados precisam estar recuperáveis. Assim, o limite de retomada é RTO e a janela de dados é RPO.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação grava em banco e exige que cada commit reconhecido esteja persistido em standby local antes da confirmação ao cliente. Qual modo atende melhor, aceitando mais latência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação síncrona, condicionada à confirmação configurada do standby.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicação assíncrona, com promoção automática em toda interrupção e confirmação sem aguardar o standby.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Snapshot semanal, sem transporte de logs entre as gravações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cache de leitura, que confirma gravações antes do banco primário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Backup pontual, que transmite cada commit ao cliente de forma síncrona.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na replicação síncrona o primário aguarda a confirmação definida do secundário antes de concluir o commit. Essa proteção acrescenta latência e depende da configuração efetiva e do estado sincronizado.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco precisa atender leituras perto de usuários distantes; a equipe aceita alguns segundos de atraso e quer evitar que cada commit aguarde a réplica remota. Qual desenho é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Standby síncrono distante, usado como único destino de leitura sem medir latência de rede ou de gravação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Réplica assíncrona de leitura, com lag monitorado e consistência eventual aceita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Failover forçado em cada consulta para reduzir o tempo de resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup completo após cada consulta, consultado como réplica ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quorum de clientes, que replica resultados sem armazenar alterações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma réplica assíncrona pode servir leituras com menor impacto da distância sobre o commit, mas os resultados podem estar atrasados. A equipe precisa aceitar e monitorar essa latência de dados.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interrupção regional pode destruir a zona primária e sua zona de standby. Qual medida acrescenta um destino de recuperação fora desse domínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar outro standby na mesma zona, com os mesmos cabos e armazenamento e sujeito ao mesmo evento regional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar apenas o endpoint primário em uma segunda conta administrativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter backup ou réplica em outra região e ensaiar sua restauração ou promoção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o tamanho do servidor primário dentro da zona afetada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar cache local, que conserva todos os dados e logs do banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um destino em outra região amplia a proteção para falhas regionais. O plano deve incluir retenção independente e os passos necessários para restaurar ou promover e direcionar clientes.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma atualização, dados foram corrompidos logicamente e a corrupção já se propagou para a réplica. Qual recurso oferece caminho para recuperar estado anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Promover a réplica atual, que contém as mesmas alterações propagadas e não preserva um estado histórico separado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Restaurar backup histórico ou PITR para um ponto anterior à corrupção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a frequência de commits no primário corrompido, para replicar o estado danificado mais depressa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o DNS para o mesmo primário, sem restaurar dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Esperar o lag zerar, pois a réplica remove alterações já aplicadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação acompanha alterações e pode propagar corrupção lógica. Backup histórico ou recuperação pontual pode fornecer um estado anterior, se a retenção e os logs cobrirem o instante desejado.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve a preparação básica de um standby PostgreSQL com streaming replication?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Preparar base backup e autenticação no primário, com standby.signal e primary_conninfo configurados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar somente o arquivo postgresql.conf e conectar como usuário sem privilégio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar WAL, criar tabela de histórico e usar somente consultas de leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar pg_promote no primário e remover todas as regras de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar DNS secundário e presumir que o diretório de dados será replicado automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação PostgreSQL descreve preparar o standby com base backup, criar standby.signal e configurar a conexão primary_conninfo; o primário deve autorizar a conexão de replicação e manter a configuração necessária de WAL.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão de standby PostgreSQL é permitida a qualquer host e usa a conta superusuária compartilhada pela equipe. Qual ajuste melhora o desenho de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir a origem no pg_hba.conf e autenticar o standby com uma conta dedicada de replicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover pg_hba.conf e confiar que o fluxo WAL oculta credenciais e restringe acessos por conta própria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar somente a conta da aplicação, que precisa de permissão para alterar dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir todo endereço de rede e trocar a senha após cada promoção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar autenticação no primário, já que o standby só recebe alterações.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação recomenda uma conta dedicada com REPLICATION e LOGIN e uma regra de autenticação que restrinja origem e usuário. O fluxo WAL pode expor informação privilegiada e deve ser protegido.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O standby PostgreSQL desconectou por horas e, ao retornar, não encontra segmentos WAL que já foram reciclados no primário. O que pode evitar essa situação em desenho futuro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar apenas o cache de consultas no standby, sem retenção de WAL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar slot de replicação ou retenção/arquivamento dimensionados para o atraso esperado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desligar a recuperação contínua e apagar standby.signal após cada reinício planejado do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir max_wal_senders para que o primário guarde cada arquivo por mais tempo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar índice nos dados primários, substituindo os segmentos de log ausentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Slots, wal_keep_size ou arquivamento podem preservar segmentos necessários. Se os WAL requeridos já foram removidos, a documentação alerta que o standby pode precisar ser reinicializado a partir de novo base backup.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server Always On, quando pode ocorrer failover automático segundo os requisitos da documentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando uma réplica assíncrona está distante, mesmo sem quorum do cluster ou sincronização dos bancos envolvidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando modo síncrono e failover automático estão configurados e a réplica sincronizada tem quorum WSFC.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quando qualquer secundário de leitura recebe uma consulta do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando o backup completo termina, pois isso confirma o quorum do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando o modo de confirmação é configuração somente e não há dados replicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Microsoft exige configuração síncrona com failover automático entre as réplicas e, no momento da troca, secundário sincronizado e quorum WSFC. A configuração somente não contém dados de usuário.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O primário SQL Server está indisponível por período prolongado e resta apenas secundário assíncrono. A equipe prioriza voltar a atender e aceita possível perda. Qual decisão corresponde ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Failover forçado manual, avaliando que logs ainda não enviados podem ser perdidos no novo primário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Failover automático sem condições, pois modo assíncrono garante sincronização integral de cada commit reconhecido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aguardar que o secundário assíncrono confirme commits que nunca recebeu.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar failback para o primário indisponível antes de promover o secundário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar quorum no cliente, substituindo logs de transação ausentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Microsoft descreve failover forçado como último recurso para réplica assíncrona quando a disponibilidade imediata supera o risco de perda. Transações cujos logs ainda não chegaram podem faltar no novo primário.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A arquitetura tem dois primários após uma partição de rede, e clientes gravam em ambos. Qual risco está ocorrendo e qual controle deve ser previsto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lag de leitura; ampliar o cache elimina a divergência de gravações que surgem durante uma partição prolongada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Split brain; usar decisão de quorum e cercamento para impedir primário concorrente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PITR; reduzir retenção de backup impede clientes de acessar os dois nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Failback; renomear o endpoint torna as gravações serializadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Standby hot; bloquear consultas de leitura evita conflito de escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Split brain é a aceitação de gravações por lados que se consideram primários. Quorum e mecanismos de isolamento ou fencing devem impedir que a partição antiga continue gravando após a decisão de promoção.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco PostgreSQL tem atraso entre WAL enviado pelo primário e WAL recebido pelo standby. Que observação ajuda a distinguir problema de rede ou carga no standby?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar posições LSN e estados em pg_stat_replication e pg_stat_wal_receiver.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Consultar apenas o número de tabelas do catálogo do primário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir o tamanho do DNS e inferir a velocidade de replay pelos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar o checksum de backup, que informa o WAL aplicado em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contar conexões HTTP da aplicação, sem observar os processos de replicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação PostgreSQL recomenda acompanhar posições WAL e vistas de estado. Diferença entre envio e recebimento pode indicar rede ou carga do standby; diferença entre recebimento e replay indica atraso de aplicação.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação é mais adequada para DR contra perda de região e recuperação de corrupção lógica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente standby síncrono na mesma zona, sem qualquer histórico de backup ou cópia em domínio independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cópias recuperáveis em outra região e backups históricos/PITR com restaurações testadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma read replica na mesma instância, com retenção desativada para economizar espaço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endpoint alternativo na mesma rede, sem cópia de dados ou logs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quorum de aplicação, que reconstrói tabelas apagadas sem cópia anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cópia em outra região trata a perda regional; backups históricos ou PITR podem recuperar estado anterior à corrupção propagada. Restaurações de ensaio verificam se o plano atende os objetivos.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe backup para cumprir um RPO curto, mas a restauração manual leva horas. Qual conclusão é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O RPO atendido implica automaticamente que o RTO também será curto, ainda que a restauração manual dure horas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A frequência e os logs influenciam RPO; tempo de restauração pode deixar RTO alto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PITR elimina a necessidade de provisionar e validar o banco restaurado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTO e RPO são duas formas de medir apenas o atraso de réplica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Backup é uma forma de failover síncrono que não requer procedimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO e RTO são objetivos distintos. Backups frequentes e logs podem melhorar o ponto recuperável, mas provisionamento, restauração, validação e redirecionamento ainda podem demorar.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cuidado é coerente ao planejar failback para o ambiente primário original?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Liberar gravações nos dois ambientes enquanto os dados convergem espontaneamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sincronizar e validar o nó antigo, controlar a troca e evitar primários concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar logs do destino promovido para não afetar o nó antigo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Restaurar o endpoint antigo antes de verificar qual cópia contém os commits recentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar failover forçado em toda réplica para garantir ordem de transações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O antigo primário pode estar atrasado ou divergente. O retorno deve ser planejado após reintegração e validação, com uma única fonte de gravação para evitar conflito e perda.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma simulação, o banco standby foi promovido, mas a aplicação manteve conexões antigas e não voltou a operar. Que etapa faltou considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Roteamento, resolução do endpoint e reconexão dos clientes após a promoção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criação de mais índices nas tabelas antes de qualquer autenticação, para acelerar o estabelecimento das conexões antigas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remoção do histórico de backup para liberar o nome do endpoint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conversão da replicação em ETL para que o pool receba conexões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumento do RPO da aplicação, que atualiza automaticamente as conexões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Failover do banco não garante que a aplicação redirecione tráfego. DNS, endpoint, pools de conexão, timeouts e retentativas precisam estar previstos e testados.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a diferença funcional entre standby Multi-AZ e read replica no Amazon RDS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são sempre acessíveis para gravação de usuário e têm a mesma finalidade, inclusive quando o primário está disponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O standby sustenta HA e não atende leitura; read replica pode receber consultas de leitura.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Read replica é backup imutável e não pode ser promovida em nenhum cenário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Standby aceita consultas e replica de forma independente de qualquer primário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Multi-AZ replica só snapshots e nunca participa de failover gerenciado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação RDS diferencia o standby Multi-AZ, usado para disponibilidade e sem acesso de usuário, das read replicas, acessíveis para consultas e que podem ser promovidas em determinados cenários.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer proteger RDS de falha regional e automatizar retenção de cópias. Qual entendimento da estratégia é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Multi-AZ na mesma região cobre automaticamente qualquer falha regional e restaura backups, sem precisar de cópia fora da região.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Backup ou snapshot copiado entre regiões pode apoiar DR, mas a restauração e promoção podem exigir ação operacional.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Standby Multi-AZ é sempre implantado em outra região e aceita leitura contínua.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Read replica substitui política de retenção e impede exclusões propagadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PITR transporta a aplicação e suas credenciais para outra região sem configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "As orientações AWS distinguem near DR Multi-AZ de far DR entre regiões. Backups e snapshots replicados podem ser restaurados em outra região, mas estratégias ativas-passivas exigem iniciar restauração ou promoção conforme o desenho.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao monitorar uma réplica PostgreSQL, qual sinal fornece evidência direta de que ela pode não estar pronta para cumprir o RPO?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lag crescente entre WAL gerado no primário e WAL recebido ou aplicado no standby.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Número estável de usuários cadastrados na tabela de aplicação, que demonstra quantas alterações do primário já chegaram ao standby.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nome do arquivo de backup contendo a data de criação do schema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uso de DNS com nome curto em vez de nome totalmente qualificado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quantidade de índices secundários sem relação com gravação ou rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lag mede o descompasso de replicação. Se aumenta, o standby pode estar sem alterações recentes e uma promoção pode ultrapassar o RPO previsto; investigar geração, transporte, recebimento e replay localiza a causa.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica assíncrona em região distante é adequada quando qual combinação de requisito e risco é aceita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nenhuma latência de rede e garantia de zero perda em qualquer interrupção regional ou de servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Menor espera de commit pela distância e aceitação de possível lag e perda recente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Leitura e gravação simultânea garantida nos dois lados sem reconciliação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recuperação instantânea sem promoção, rede, backup ou configuração de cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Imunidade a corrupção lógica porque alterações não chegam ao secundário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação assíncrona evita esperar confirmação remota em cada commit e é útil em distâncias maiores. Em contrapartida, o standby pode ficar atrasado e o failover pode perder alterações ainda não recebidas.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação deve ser acompanhada para verificar que uma política de backup realmente atende à recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a existência de um nome de arquivo no inventário do repositório e a data do diretório de cópias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Idade do último backup válido, retenção, ponto recuperável e resultados de restauração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas o tempo médio de consulta no primário em horário comercial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número de réplicas, mesmo que todas compartilhem a mesma falha regional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cor do painel operacional e total de usuários conectados ao banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política deve demonstrar que há cópia válida e ponto dentro do RPO, e os ensaios devem provar que a restauração conclui dentro do RTO. Arquivo presente não comprova recuperabilidade.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização exige HA para manutenção planejada, além de DR contra desastre regional. Qual desenho reconhece melhor que são problemas distintos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar apenas backup diário na mesma zona para failover instantâneo e regional, sem ensaiar a restauração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Combinar redundância local ou entre zonas com cópia recuperável ou réplica em outra região.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar duas aplicações, mas manter banco e backups no mesmo servidor físico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar somente read replica para manutenção, corrupção lógica e perda de região.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar timeout dos clientes e considerar a manutenção como recuperação concluída.",
+          "correct": false
+        }
+      ],
+      "explanation": "HA para falhas comuns ou manutenção e DR regional têm domínios e tempos diferentes. Redundância próxima pode acelerar troca local; cópia em outra região e procedimento de restauração/promoção cobrem desastre mais amplo.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência operacional é mais segura quando há suspeita de perda do primário e promoção de standby?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Promover todos os nós, liberar gravações em paralelo e escolher depois a cópia vencedora entre versões divergentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confirmar incidente, isolar primário antigo, avaliar sincronização, promover destino e validar dados e clientes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alterar DNS primeiro, mesmo sem confirmar qual nó aceita gravações, e apagar logs de recuperação ainda necessários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Esperar o primário antigo voltar, ignorando impacto no RTO e no estado dos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar autenticação no cluster e restaurar o backup mais antigo disponível, sem verificar seu ponto no tempo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sequência reduz risco de split brain: confirmar e isolar o primário anterior, escolher o destino conforme estado e política, promover, redirecionar e verificar consistência e aplicação. O runbook também deve recuperar redundância depois.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PostgreSQL com vários standbys, que configuração ajuda o standby a acompanhar a nova timeline criada por um failover?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir recovery_target_timeline como latest para seguir a timeline atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir primary_conninfo vazio em todos os standbys após a primeira cópia consistente dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover standby.signal para manter os nós em recuperação permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar WAL archive para impedir que timelines sejam registradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente cache de leitura, que ordena as timelines por horário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação PostgreSQL recomenda `recovery_target_timeline = 'latest'` em cenários com múltiplos standbys de HA, para que sigam a mudança de timeline após failover.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução gerenciada anuncia failover automático. O que ainda precisa ser validado pela equipe da aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconexão, resolução do endpoint, timeouts e comportamento de operações em andamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas se os nomes das tabelas têm letras maiúsculas no schema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente se o standby consegue escrever antes de qualquer promoção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que cada consulta de leitura force nova eleição de quorum no cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que o banco nunca precise de backup porque o serviço alterna nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serviço gerencia parte da troca, mas clientes precisam tolerar reconexão e retomar operações com segurança. Failover não elimina backup nem garante que toda operação em curso será repetida automaticamente.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa standby hot para relatórios, mas os relatórios não podem mostrar valores antigos. Qual decisão técnica deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A latência de replay pode tornar a leitura secundária obsoleta; medir lag ou consultar o primário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Standby hot sempre lê dados futuros que ainda não foram confirmados no primário, sem atraso de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quorum garante que qualquer réplica de leitura nunca tenha atraso de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um backup PITR torna automaticamente todas as consultas consistentes em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a retenção de snapshots elimina o atraso de WAL da réplica e torna a leitura síncrona.",
+          "correct": false
+        }
+      ],
+      "explanation": "Secundários de leitura podem apresentar atraso entre recebimento e aplicação do log. Se a consulta exige atualidade estrita, monitore esse atraso e considere executar a leitura no primário, conforme a tecnologia.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma falha, um primário SQL Server síncrono não está mais disponível e a réplica sincronizada também caiu; outra réplica assíncrona permanece acessível. Qual afirmação é segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica assíncrona pode ser forçada a primário, mas pode faltar log recente ainda não enviado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A réplica assíncrona tem garantia de todos os commits porque existia uma réplica síncrona.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O quorum converte automaticamente o modo assíncrono em síncrono sem atraso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não há forma de recuperar serviço enquanto qualquer primário antigo existir.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Failback automático recupera os dados que nunca foram transmitidos à réplica.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo assíncrono não aguarda confirmação remota e pode estar atrasado. A promoção forçada pode restaurar disponibilidade, mas transações cujo log não foi transmitido podem faltar.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time quer evitar que um único incidente de credenciais apague banco e todas as cópias de recuperação. Que medida acrescenta independência operacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar cópias com controle de acesso e proteção contra exclusão separados do ambiente primário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dar à conta de aplicação permissão para apagar backups e snapshots sem auditoria ou retenção independente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter todos os backups no mesmo volume gravável pelo primário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicar exclusões para uma região e apagar os pontos anteriores imediatamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o mesmo administrador e a mesma credencial estática em todos os ambientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cópias fora do domínio operacional do primário e controles de acesso separados reduzem risco de exclusão conjunta. A política também precisa de retenção e ensaios de restauração.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração PostgreSQL, qual é a função principal de `primary_conninfo` no standby?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Informar os detalhes de conexão usados para alcançar o primário e iniciar streaming.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher o instante do backup que sempre será restaurado no primário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir o endereço IP que a aplicação usará após qualquer failover.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar a lista de tabelas que podem ser consultadas em modo hot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar a compactação automática de snapshots entre duas regiões.",
+          "correct": false
+        }
+      ],
+      "explanation": "O standby usa `primary_conninfo` para localizar e autenticar a conexão ao primário PostgreSQL. O parâmetro não escolhe backup nem configura, por si só, endpoint de aplicação.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre uma configuração regional do Cloud SQL e uma instância zonal está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Regional usa zona primária e secundária; zonal pode exigir recuperação manual após indisponibilidade da zona.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Zonal é sempre replicada entre regiões; regional mantém uma única zona sem failover.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas aceitam escrita simultânea nas zonas sem promoção nem controle de estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Regional depende exclusivamente de backup semanal e não mantém instância secundária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Zonal não pode ser restaurada, e regional não pode manter o mesmo IP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Google define a configuração HA como regional, com zona primária e secundária. Instância zonal não é recuperada automaticamente de interrupção de zona e pode exigir PITR ou promoção de réplica.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência operacional pode ocorrer ao habilitar um replication slot PostgreSQL sem monitoramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "WAL necessário pode ficar retido enquanto o standby não avança, consumindo armazenamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O primário deixa de gravar WAL e passa a confirmar todas as transações sem log.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O slot transforma a replicação assíncrona em síncrona sem alterar parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O slot remove automaticamente backups que não foram restaurados no standby.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A autenticação de replicação fica dispensada, pois o slot identifica o usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Slots evitam descartar WAL ainda necessário ao standby. Se ele não consumir os segmentos, o primário pode retê-los; por isso é necessário acompanhar atraso e espaço em disco.",
+      "section": "3. Configuração e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco de pagamentos precisa de RTO baixo e RPO baixo em falha de zona, mas também de proteção contra perda regional. Qual escolha equilibra objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HA síncrona entre zonas para falha local, mais backup ou DR entre regiões testado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente réplicas locais assíncronas e nenhuma cópia histórica fora da região.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente snapshots semanais, usados como failover automático em segundos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um servidor maior na zona primária, sem standby nem plano de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Réplicas de leitura na mesma zona, que também resolvem perda de toda a região.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma camada HA entre zonas atende a retomada rápida diante de falha local; uma estratégia de DR independente, como cópia em outra região e runbook testado, amplia a proteção para eventos regionais. Os RTO/RPO devem ser comprovados em exercício.",
+      "section": "1. Objetivos de continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual item NÃO deve ser omitido do runbook de recuperação de banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Critério de promoção, responsáveis, redirecionamento e validação de dados e aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente a marca do servidor, sem contatos, comandos ou critérios de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A instrução para promover todo nó disponível e resolver conflitos depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O passo para apagar logs antes de confirmar a cópia recuperada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A recomendação para evitar exercícios porque eles consomem recursos de produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um runbook útil indica decisão e responsáveis, proteção contra primários concorrentes, promoção, roteamento, validação e recuperação da redundância. Ele precisa ser exercitado para revelar passos ausentes.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre backup e réplica está correta para uma exclusão acidental replicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica pode receber a exclusão; backup histórico pode preservar estado anterior recuperável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A réplica ignora comandos válidos e o backup os aplica em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backup sempre atende leitura transacional e réplica nunca pode ser promovida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos são cópias imutáveis por definição e têm idêntica finalidade operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Réplica exclui apenas dados antigos e backup mantém só a última transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma réplica acompanha alterações e pode reproduzir exclusões. Backup com retenção adequada permite recuperar um ponto anterior, embora exija restauração e validação.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma estratégia com primário e standby, qual fator pode ampliar o lag da réplica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rede lenta, primário muito carregado ou standby com capacidade insuficiente para aplicar logs.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A existência de uma política de retenção de backup testada em outra região.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A documentação dos responsáveis pelo procedimento de failback.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A validação do DNS feita depois da promoção do standby.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de autenticação dedicada com permissão restrita de replicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atraso pode aumentar quando o primário gera logs rapidamente, a rede não os transporta ou o standby não os aplica com rapidez. Monitorar estágios ajuda a identificar o gargalo.",
+      "section": "2. Replicação e failover",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma organização deve medir um exercício de DR, além de confirmar que a instância subiu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para verificar tempos reais, integridade, dependências, acesso e retomada pela aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para substituir a configuração de replicação por uma lista de horários de teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para provar que DNS, credenciais e dados nunca precisarão ser revisados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para remover os backups antigos assim que a instância iniciar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para inferir que toda falha futura terá o mesmo tempo e a mesma causa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exercícios com medição mostram se RTO e RPO são atingidos e revelam problemas de credenciais, capacidade, dependências e validação. Um único teste não prova que todos os eventos futuros serão idênticos.",
+      "section": "4. DR e backups",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Log-Shipping Standby Servers",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Configuração do standby, WAL streaming, autenticação, monitoramento, replication slots e replicação síncrona",
+      "url": "https://www.postgresql.org/docs/current/warm-standby.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server Always On — Availability Modes",
+      "publisher": "Microsoft Learn",
+      "reference": "Modos síncrono e assíncrono, condições de failover, sincronização e quorum WSFC",
+      "url": "https://learn.microsoft.com/en-us/sql/database-engine/availability-groups/windows/availability-modes-always-on-availability-groups?view=sql-server-ver17",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Failing over a Multi-AZ DB instance for Amazon RDS",
+      "publisher": "Amazon Web Services",
+      "reference": "Alternância para standby em outra Availability Zone e eventos que podem disparar failover",
+      "url": "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.Failover.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DR sites and common Amazon RDS DR strategies",
+      "publisher": "AWS Prescriptive Guidance",
+      "reference": "Near DR entre zonas, far DR entre regiões, Multi-AZ, backups, PITR e snapshots",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/dr-standard-edition-amazon-rds/sites-strategies.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Availability in Cloud SQL",
+      "publisher": "Google Cloud Documentation",
+      "reference": "Disponibilidade regional, zona secundária, instância zonal e recuperação pontual ou por read replica",
+      "url": "https://docs.cloud.google.com/sql/docs/availability",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}
