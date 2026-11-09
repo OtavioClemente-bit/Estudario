@@ -1,0 +1,2030 @@
+{
+  "id": "informatica.equipamentos-segmentacao-seguranca-redes",
+  "subject": "Informática",
+  "title": "Equipamentos, segmentação e segurança de redes",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Equipamentos de rede, segmentação e segurança",
+    "Equipamentos de rede e segurança de redes",
+    "Segmentação e segurança em redes de computadores",
+    "VPN, NAC e monitoramento de redes",
+    "Diagnóstico de redes e equipamentos de comunicação",
+    "Switches, roteadores, firewalls e redes",
+    "Virtual LANs, roteamento e controle de acesso",
+    "Controle de acesso à rede por NAC e 802.1X",
+    "Monitoramento e diagnóstico de infraestrutura de rede",
+    "Equipamentos de rede, segmentação, VPN, NAC, monitoramento e diagnóstico"
+  ],
+  "scope": {
+    "covers": "Funções e operação de repetidores, hubs, switches, roteadores, pontos de acesso, firewalls, proxies e balanceadores; domínios de colisão e broadcast; VLAN 802.1Q, portas de acesso e trunk, roteamento entre VLANs, sub-redes, ACL e microsegmentação; VPN de acesso remoto e site a site, IPsec e conceitos de túnel e criptografia; NAC, 802.1X, supplicant, autenticador, servidor RADIUS, autenticação, autorização e postura; monitoramento por SNMP, syslog, telemetria, métricas, eventos e alertas; diagnóstico por camadas com ping, traceroute, arp, ipconfig/ifconfig, nslookup/dig, captura de pacotes e leitura de contadores de interface.",
+    "excludes": "Configuração específica de um fabricante, cálculo aprofundado de sub-redes, administração detalhada de sistemas operacionais, implementação criptográfica, projeto de cabeamento estruturado, protocolos de roteamento avançados e resposta completa a incidentes cibernéticos."
+  },
+  "theoryTitle": "Como os equipamentos encaminham, separam e protegem o tráfego",
+  "chapters": [
+    {
+      "title": "1. Equipamentos e caminho dos pacotes",
+      "markdown": "### O problema que este assunto resolve\n\nUma rede precisa conectar dispositivos, levar cada quadro ou pacote ao destino adequado e controlar quais comunicações podem atravessar seus limites. Equipamentos diferentes atuam em pontos diferentes do caminho. Um **switch** encaminha quadros dentro de uma rede local usando endereços MAC; um **roteador** encaminha pacotes IP entre redes; um **firewall** aplica regras de permissão e bloqueio ao tráfego. Confundir essas funções leva a diagnósticos e controles inadequados.\n\n> **Siglas e termos deste capítulo**\n> - **NIC**: interface de rede de um computador ou equipamento.\n> - **MAC**: endereço de enlace usado na entrega local de quadros.\n> - **IP**: endereço lógico usado para encaminhar pacotes entre redes.\n> - **LAN/WAN**: rede local e rede de longa distância.\n> - **MTU**: maior unidade de dados que um enlace aceita sem fragmentação.\n\n### O que cada equipamento faz\n\n| Equipamento | Função típica | Decisão principal |\n| --- | --- | --- |\n| Repetidor ou hub | Regenera ou replica sinais para as portas | Não escolhe destino; compartilha o meio |\n| Switch de camada 2 | Aprende MACs por porta e encaminha quadros na VLAN | MAC de destino e tabela de encaminhamento |\n| Roteador | Liga redes IP diferentes e seleciona próximo salto | Prefixo de destino na tabela de rotas |\n| Ponto de acesso | Conecta clientes Wi-Fi à rede de distribuição | Associação sem fio e política configurada |\n| Firewall | Permite, nega ou inspeciona fluxos conforme política | Endereços, protocolo, portas, estado ou aplicação |\n| Proxy | Intermedeia solicitações de clientes para serviços | Política e destino da aplicação |\n| Balanceador | Distribui conexões ou requisições entre servidores | Algoritmo, saúde e persistência configurados |\n\nO switch aprende observando o **MAC de origem** dos quadros e associando-o à porta de entrada e à VLAN. Para um MAC de destino conhecido, encaminha o quadro pela porta correspondente; para destino desconhecido ou broadcast, inunda as portas pertinentes da mesma VLAN, exceto a porta de entrada. Uma tabela MAC não é uma tabela de rotas IP.\n\nO roteador consulta a tabela de rotas e escolhe a rota mais específica que corresponda ao endereço de destino, encaminhando o pacote pela interface ou próximo salto indicado. A rota padrão é usada quando não há rota mais específica aplicável. O roteamento entre VLANs exige uma interface de camada 3 ou um roteador com interfaces/subinterfaces apropriadas; a mera existência de VLANs no switch não as conecta.\n\nUm hub repete bits para as demais portas e não aprende endereços. Em Ethernet comutada, cada porta é normalmente seu próprio domínio de colisão; hubs compartilham o domínio de colisão. Roteadores e VLANs separam domínios de broadcast de camada 2. Um ponto de acesso não equivale necessariamente a um roteador: pode apenas fazer ponte entre Wi-Fi e Ethernet.\n\n### Como cai na prova\n\nSe o problema descreve quadro local e MAC, pense em switch. Para destinos em redes IP distintas, o tráfego precisa de roteador ou função de camada 3. ACL e firewall filtram; VLAN organiza a camada 2, mas não substitui política de segurança. Uma falha em uma porta pode ser física ou de enlace mesmo que a tabela de rotas esteja correta."
+    },
+    {
+      "title": "2. Segmentação, VLANs e políticas entre redes",
+      "markdown": "### O problema que este assunto resolve\n\nColocar todos os dispositivos no mesmo segmento facilita a comunicação, mas amplia o alcance do broadcast e o impacto de erros ou comprometimentos. A segmentação separa grupos por função ou nível de confiança. Ela reduz tráfego desnecessário e permite aplicar controles em pontos definidos, desde que as rotas e regras entre segmentos sejam planejadas.\n\n> **Siglas e termos deste capítulo**\n> - **VLAN**: rede local virtual identificada em switches compatíveis.\n> - **802.1Q**: mecanismo de marcação de VLAN em quadros Ethernet de trunk.\n> - **Access/untagged**: porta destinada normalmente a um dispositivo de uma VLAN.\n> - **Trunk/tagged**: enlace que transporta tráfego de várias VLANs identificadas.\n> - **ACL**: lista de controle de acesso que compara tráfego a regras.\n> - **DMZ**: segmento controlado para serviços que precisam ser alcançados de redes menos confiáveis.\n\n### VLANs não são, sozinhas, uma barreira completa\n\nUma VLAN cria um domínio de broadcast de camada 2 separado. Em geral, uma porta de acesso associa o tráfego do dispositivo a uma VLAN; um trunk transporta várias VLANs entre switches ou entre switch e equipamento de camada 3. A marcação 802.1Q permite identificar a VLAN no enlace trunk. Os dois lados precisam ter configuração compatível, inclusive a lista de VLANs permitidas e o tratamento da VLAN nativa quando usada. Uma divergência pode causar tráfego ausente ou classificação inesperada.\n\nA comunicação entre duas VLANs passa por roteamento de camada 3. É nesse ponto que ACLs ou firewalls podem limitar origem, destino, protocolo e serviço. Uma ACL sem regra explícita de permissão pode terminar com negação implícita, conforme a plataforma e a política; sempre verifique a semântica e a ordem real das regras. Uma VLAN separa o domínio de broadcast, mas usuários em VLANs distintas ainda podem comunicar se houver roteamento permitido.\n\n| Mecanismo | O que separa ou controla | Limite prático |\n| --- | --- | --- |\n| VLAN | Domínios de broadcast de camada 2 | Não decide por si só quais fluxos roteados são permitidos |\n| Sub-rede IP | Agrupamento lógico de endereços e roteamento | Não é controle de acesso por si só |\n| ACL | Fluxos que correspondem a critérios de cabeçalho | Pode ser stateless e exige ordem correta |\n| Firewall stateful | Fluxos conforme política e estado de conexão | Depende de regra, posicionamento e visibilidade |\n| Microsegmentação | Políticas granulares entre cargas ou identidades | Depende de inventário, identidade e aplicação consistente |\n\nA DMZ separa serviços expostos, como servidores acessíveis por clientes externos, das redes internas de usuários. Não significa que os servidores sejam automaticamente seguros: devem existir regras explícitas da Internet para a DMZ e da DMZ para redes internas, normalmente restritivas e específicas.\n\n### Como cai na prova\n\nUma estação em VLAN de visitantes que precisa consultar um servidor interno deve passar por roteamento e política; permitir isso não exige unir as VLANs. Se vários segmentos aparecem em um único enlace entre switches, esse enlace costuma ser trunk. Na análise de incidente, valide a VLAN atribuída, a lista permitida no trunk, o gateway e as regras entre segmentos antes de concluir que o switch está defeituoso."
+    },
+    {
+      "title": "3. VPN, NAC e controle de confiança",
+      "markdown": "### O problema que este assunto resolve\n\nUma conexão por rede pública precisa proteger o tráfego entre pontos autorizados. Uma VPN cria um canal lógico protegido sobre uma rede subjacente. Já o NAC decide se um dispositivo pode entrar na rede e sob quais condições. Uma VPN não substitui o controle de acesso interno, e autenticar um dispositivo no NAC não cifra automaticamente todo o tráfego.\n\n> **Siglas e termos deste capítulo**\n> - **VPN**: rede privada virtual construída sobre uma rede de transporte.\n> - **IPsec**: conjunto de mecanismos de segurança aplicado à camada IP.\n> - **IKE**: protocolo usado para negociar e administrar associações de segurança IPsec.\n> - **NAC**: controle de acesso à rede segundo identidade e/ou condição do dispositivo.\n> - **802.1X**: controle de acesso baseado em porta para redes cabeadas ou sem fio.\n> - **Supplicant, autenticador e servidor**: cliente que solicita acesso, switch/AP que controla a porta e serviço que valida credenciais.\n> - **RADIUS**: protocolo cliente-servidor usado frequentemente para autenticação e autorização de acesso.\n\n### VPN: proteger o caminho e definir o alcance\n\nUma VPN de **acesso remoto** conecta um dispositivo individual a uma rede ou serviço corporativo; uma VPN **site a site** liga redes de locais distintos por gateways. Em IPsec, a política determina que tráfego deve ser protegido, descartado ou encaminhado sem proteção. O modo túnel encapsula o pacote interno em outro pacote IP; o cabeçalho externo permite transportar o túnel, enquanto a proteção aplicada pode ocultar o cabeçalho interno. Uma VPN precisa de autenticação dos pares, negociação consistente de parâmetros, chaves protegidas, rotas e regras compatíveis.\n\nCriptografia protege confidencialidade, mas não corrige permissões excessivas. Se um usuário remoto recebe rota ampla e acesso irrestrito, o túnel pode ampliar o alcance de uma conta comprometida. Use autenticação forte, escopo de rotas adequado, regras por função e registro de conexão. Em WireGuard, pares são identificados por chaves públicas e configuração de endereços permitidos; isso não elimina a necessidade de distribuir chaves e limitar o tráfego autorizado com cuidado.\n\n### NAC: quem entra, de onde e em que condição\n\nEm 802.1X, o supplicant do terminal troca mensagens EAP com o autenticador (por exemplo, switch ou ponto de acesso). O autenticador encaminha a validação ao servidor de autenticação, frequentemente usando RADIUS, e mantém ou libera o acesso conforme a resposta. O servidor pode retornar atributos de autorização, como VLAN ou perfil, se a infraestrutura suportar. Falhas de autenticação podem levar a negação, rede restrita ou processo de remediação conforme a política implantada.\n\nNAC pode combinar identidade do usuário, certificado ou identidade do dispositivo, tipo de conexão, postura de segurança e contexto. Autenticação responde quem apresentou credenciais; autorização define o que pode acessar; avaliação de postura verifica sinais como atualização ou agente ativo. MAC Authentication Bypass pode acomodar dispositivos sem supplicant, mas um endereço MAC é identificador falsificável e não oferece a mesma garantia de identidade que autenticação criptográfica.\n\n### Como cai na prova\n\nSe o enunciado fala de canal criptografado entre sedes, identifique VPN site a site. Se descreve autenticação no acesso à porta do switch, é 802.1X/NAC. RADIUS transporta pedidos e respostas entre autenticador e servidor; não é o supplicant nem o túnel VPN. Uma conexão VPN ativa comprova que o túnel foi estabelecido, não que DNS, rotas e acesso à aplicação estejam corretos."
+    },
+    {
+      "title": "4. Monitoramento, observabilidade e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nUma rede pode aparentar estar conectada e ainda apresentar perda, lentidão, falha de DNS ou bloqueio seletivo. Monitorar estado e desempenho, correlacionar eventos e testar cada trecho reduz o tempo até a causa. Uma medição isolada não prova que todos os serviços funcionam: ping bem-sucedido testa alcance ICMP até um destino, não autenticação da aplicação nem disponibilidade de sua porta TCP.\n\n> **Siglas e termos deste capítulo**\n> - **SNMP**: protocolo de gerenciamento para consultar objetos e receber notificações de equipamentos.\n> - **MIB/OID**: definição e identificador de objeto gerenciado.\n> - **Syslog**: formato/mecanismo comum de envio de mensagens de registro.\n> - **ICMP**: mensagens de controle e diagnóstico da camada IP.\n> - **RTT**: tempo de ida e volta observado por uma sonda.\n> - **PCAP**: arquivo de captura de pacotes.\n\n### O que monitorar e como diagnosticar\n\nSNMP organiza dados de agentes e sistemas de gerenciamento. O gerente pode consultar contadores e estado de interfaces; notificações como traps são enviadas pelo agente sem aguardar uma consulta específica. SNMPv3 dispõe de modelos de segurança com níveis sem autenticação/privacidade, com autenticação sem privacidade e com ambas; a política deve usar credenciais e permissões apropriadas. Comunidades SNMPv1/v2c não fornecem a mesma proteção criptográfica de SNMPv3.\n\nSyslog centraliza mensagens de equipamentos e aplicações, facilitando correlação temporal. Telemetria pode enviar medições de modo mais frequente ou estruturado. Métricas úteis incluem disponibilidade, utilização, erros e descartes de interface, latência, perda, CPU, memória, estado de túneis e resultados de DNS. Configure relógios sincronizados e retenção, proteja o canal e limite quem pode consultar ou alterar os dispositivos.\n\n| Sintoma | Teste inicial | O que o resultado sugere |\n| --- | --- | --- |\n| Sem link físico | Ver LEDs, cabo, transceptor e estado da interface | Camada física, negociação ou energia |\n| IP local inacessível | Conferir endereço, máscara, gateway, VLAN e ARP | Configuração local ou enlace de camada 2 |\n| IP remoto sem resposta | Ping e traceroute, comparando saltos e caminhos | Rota, filtro, perda ou política ICMP |\n| Nome não resolve | nslookup/dig e configuração do resolvedor | DNS, zona, caminho ou política para DNS |\n| Aplicação falha com IP alcançável | Testar porta e serviço; revisar firewall e logs | Transporte, política ou serviço de destino |\n| Desempenho degradado | Comparar RTT, perdas e contadores ao longo do caminho | Congestionamento, erro físico ou fila |\n\nPing usa ICMP Echo quando permitido. Traceroute infere o caminho a partir de respostas de tempo excedido ou mensagens equivalentes; firewalls podem filtrar essas respostas e produzir saltos sem resposta mesmo quando o destino funciona. ARP resolve endereço IPv4 local para MAC no enlace; não descobre o MAC de um host remoto através de roteadores. Uma captura de pacotes mostra o que passou pelo ponto de captura, não o que ocorreu em trechos não observados.\n\n### Como cai na prova\n\nDiagnostique do mais próximo para o mais distante: link, configuração IP, vizinhança local, gateway, rota, DNS, porta e aplicação. Compare os dois lados de um enlace e examine contadores de CRC, descartes e mudanças de estado. Falta de resposta a ping, por si só, não prova indisponibilidade do host. Combine sondas ativas, telemetria, syslog e registros da aplicação para localizar a falha."
+    }
+  ],
+  "summary": "Switches encaminham quadros por MAC; roteadores conectam redes IP; firewalls e ACLs aplicam política. VLANs separam domínios de broadcast, mas comunicação entre elas depende de roteamento e pode exigir filtragem. VPN protege um caminho entre pares autenticados; NAC controla a admissão e o perfil de acesso, frequentemente com 802.1X e RADIUS. SNMP, syslog, telemetria e testes por camada ajudam a observar e diagnosticar redes. Ping, traceroute e captura são evidências parciais e devem ser interpretadas junto a rotas, DNS, contadores e logs.",
+  "flashcards": [
+    {
+      "front": "Qual é a decisão básica de encaminhamento de um switch de camada 2?",
+      "back": "Usa o MAC de destino e a tabela de endereços aprendidos por porta e VLAN."
+    },
+    {
+      "front": "Como o switch aprende a localização de um MAC?",
+      "back": "Observa o MAC de origem dos quadros que chegam e associa-o à porta de entrada na VLAN."
+    },
+    {
+      "front": "Qual equipamento encaminha pacotes entre redes IP?",
+      "back": "Roteador ou equipamento que execute função de camada 3."
+    },
+    {
+      "front": "O que faz um hub Ethernet?",
+      "back": "Repete sinais para outras portas sem selecionar destino por endereço MAC."
+    },
+    {
+      "front": "O que uma VLAN separa?",
+      "back": "Domínios de broadcast de camada 2 dentro da infraestrutura comutada."
+    },
+    {
+      "front": "O que caracteriza uma porta access?",
+      "back": "Associa normalmente o tráfego de um dispositivo final a uma VLAN."
+    },
+    {
+      "front": "Para que serve um trunk 802.1Q?",
+      "back": "Transporta quadros de múltiplas VLANs identificadas entre equipamentos."
+    },
+    {
+      "front": "Uma VLAN impede todo tráfego entre seus membros e outras VLANs?",
+      "back": "Não. Se houver roteamento, regras de camada 3 definem o que pode atravessar."
+    },
+    {
+      "front": "O que permite roteamento entre VLANs?",
+      "back": "Uma interface de camada 3 ou roteador configurado para as redes correspondentes."
+    },
+    {
+      "front": "Qual é a finalidade de uma ACL?",
+      "back": "Permitir ou negar tráfego conforme critérios como endereço, protocolo e porta."
+    },
+    {
+      "front": "Para que é usada uma DMZ?",
+      "back": "Isolar serviços expostos em segmento controlado e limitar seus caminhos para redes internas."
+    },
+    {
+      "front": "O que conecta uma VPN site a site?",
+      "back": "Redes de locais diferentes por gateways através de uma rede de transporte."
+    },
+    {
+      "front": "O que conecta uma VPN de acesso remoto?",
+      "back": "Um dispositivo ou usuário remoto a recursos autorizados da organização."
+    },
+    {
+      "front": "O que faz o modo túnel do IPsec?",
+      "back": "Encapsula o pacote IP interno em outro pacote para transporte pelo túnel."
+    },
+    {
+      "front": "Quais papéis participam de uma autenticação 802.1X?",
+      "back": "Supplicant, autenticador de acesso e servidor de autenticação."
+    },
+    {
+      "front": "Qual é o papel típico do RADIUS em 802.1X?",
+      "back": "Transporta requisições de autenticação e respostas entre autenticador e servidor."
+    },
+    {
+      "front": "Por que MAC Authentication Bypass é menos forte que certificado?",
+      "back": "O endereço MAC pode ser copiado e não prova, por si só, identidade criptográfica."
+    },
+    {
+      "front": "O que diferencia autenticação de autorização?",
+      "back": "Autenticação valida identidade; autorização determina os recursos permitidos."
+    },
+    {
+      "front": "O que um agente SNMP pode fornecer?",
+      "back": "Objetos e contadores gerenciados por consulta e notificações assíncronas."
+    },
+    {
+      "front": "O que é uma trap SNMP?",
+      "back": "Notificação iniciada pelo agente, sem depender de uma consulta imediata do gerente."
+    },
+    {
+      "front": "Quais proteções oferece o nível authPriv do SNMPv3?",
+      "back": "Autenticação e privacidade do conteúdo da mensagem."
+    },
+    {
+      "front": "Para que serve syslog?",
+      "back": "Centraliza mensagens de registro para pesquisa e correlação de eventos."
+    },
+    {
+      "front": "O que mede o ping?",
+      "back": "Alcance e resposta ICMP Echo, quando permitido, além de estimativa de RTT e perda."
+    },
+    {
+      "front": "O que traceroute tenta revelar?",
+      "back": "Saltos observáveis do caminho até o destino a partir de respostas de limite de vida."
+    },
+    {
+      "front": "O que ARP resolve em IPv4?",
+      "back": "Associa endereço IPv4 do enlace local a um endereço MAC."
+    },
+    {
+      "front": "Por que ping não comprova que uma aplicação funciona?",
+      "back": "ICMP pode responder enquanto a porta, o processo, DNS ou a autorização da aplicação falham."
+    },
+    {
+      "front": "O que sugerem contadores crescentes de CRC em uma interface?",
+      "back": "Possível problema físico ou de enlace, como cabo, conector, transceptor ou negociação."
+    },
+    {
+      "front": "O que um nslookup ou dig investiga?",
+      "back": "Resolução de nomes pelo DNS e respostas do servidor consultado."
+    },
+    {
+      "front": "O que uma captura de pacotes permite verificar?",
+      "back": "Tráfego observado no ponto de captura, como sequências, protocolos e retransmissões."
+    },
+    {
+      "front": "Por que sincronizar relógios dos equipamentos?",
+      "back": "Para correlacionar corretamente eventos registrados em dispositivos diferentes."
+    }
+  ],
+  "tips": [
+    "Siga o pacote por etapas: interface, VLAN, gateway, rota, filtro, nome e serviço.",
+    "Separe as funções: switch decide por MAC; roteador, por prefixo IP; firewall, por política.",
+    "Ao revisar trunk, confira em ambas as pontas VLANs permitidas e VLAN nativa.",
+    "Considere falta de resposta ICMP como inconclusiva até comparar com testes de serviço e logs.",
+    "Para NAC, memorize o fluxo supplicant → autenticador → servidor RADIUS.",
+    "Use SNMP para estado e contadores, syslog para eventos e sondas ativas para testar caminhos."
+  ],
+  "traps": [
+    "VLAN separa broadcasts, mas não bloqueia automaticamente o roteamento entre segmentos.",
+    "Um ponto de acesso pode funcionar como ponte; Wi-Fi não implica que ele seja o gateway IP.",
+    "RADIUS autentica/autorização no servidor; o switch ou AP é quem controla a porta de acesso.",
+    "VPN criptografada não significa que qualquer destino interno deva ser alcançável.",
+    "Traceroute com saltos sem resposta pode refletir filtragem de ICMP, não necessariamente uma rota quebrada.",
+    "Endereço MAC é identificador de enlace e pode ser falsificado; não equivale a identidade forte."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare o caminho de um quadro destinado a outro host da mesma VLAN com o caminho de um pacote para outra sub-rede.",
+      "answer": "Na mesma VLAN, o switch encaminha o quadro ao MAC conhecido; para outra sub-rede, o host envia ao gateway e um roteador encaminha o pacote por uma rota."
+    },
+    {
+      "question": "Explique por que duas VLANs podem trocar tráfego apesar de estarem segmentadas.",
+      "answer": "A segmentação de camada 2 não impede roteamento; uma interface de camada 3 pode conectá-las, e ACLs ou firewalls precisam definir os fluxos autorizados."
+    },
+    {
+      "question": "Descreva os papéis de 802.1X e RADIUS em um acesso corporativo cabeado.",
+      "answer": "O terminal supplicant apresenta credenciais ao autenticador no switch; o switch encaminha a validação ao servidor RADIUS, que responde com aceitação ou rejeição e atributos possíveis de autorização."
+    },
+    {
+      "question": "Dê dois motivos pelos quais uma VPN estabelecida pode não permitir acesso à aplicação esperada.",
+      "answer": "A rota ou DNS pode estar incorreto, o recurso pode não estar incluído nas políticas de tráfego, uma ACL/firewall pode bloquear a porta ou o serviço pode estar indisponível."
+    },
+    {
+      "question": "Como você distinguiria uma falha de DNS de uma falha geral de conectividade?",
+      "answer": "Testaria conectividade ao endereço IP conhecido, consultaria o resolvedor com nslookup/dig e compararia a resposta e o caminho ao serviço."
+    },
+    {
+      "question": "Quais evidências de switch podem apontar problema físico em uma conexão?",
+      "answer": "Estado de link instável, erros CRC, descartes, velocidade/duplex incompatíveis e eventos de interface no syslog."
+    },
+    {
+      "question": "O que uma estação precisa para falar com um host de outra VLAN?",
+      "answer": "Configuração IP coerente, gateway alcançável, roteamento entre redes e política que permita o fluxo requerido."
+    },
+    {
+      "question": "Como combinar SNMP e syslog durante uma interrupção?",
+      "answer": "SNMP mostra estado e tendências de contadores; syslog fornece eventos com contexto temporal. Correlacionar ambos ajuda a localizar a mudança associada à falha."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Switch e roteador confundidos",
+      "summary": "Switch de camada 2 encaminha quadros por MAC dentro da VLAN; roteador escolhe rotas IP entre redes."
+    },
+    {
+      "key": "e2",
+      "title": "VLAN tratada como firewall",
+      "summary": "VLAN separa domínios de broadcast, mas tráfego pode atravessar quando existe roteamento permitido; controle exige política em camada 3 ou superior."
+    },
+    {
+      "key": "e3",
+      "title": "Papéis de NAC confundidos",
+      "summary": "Supplicant solicita acesso, autenticador controla a porta, servidor RADIUS valida identidade e pode devolver atributos de autorização."
+    },
+    {
+      "key": "e4",
+      "title": "Teste de rede interpretado como prova total",
+      "summary": "Ping, traceroute e captura observam aspectos limitados; DNS, transporte, aplicação, filtros e trechos não capturados precisam de testes próprios."
+    },
+    {
+      "key": "e5",
+      "title": "VPN confundida com autorização",
+      "summary": "Túnel protege transporte entre pares, mas rotas, escopo, identidade e regras ainda determinam os recursos acessíveis."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um quadro Ethernet chega a um switch e o MAC de destino já consta na tabela da mesma VLAN. Qual ação descreve o encaminhamento esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar o quadro somente pela porta associada ao MAC de destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Encaminhar o pacote pela rota padrão configurada no switch.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inundar todas as portas da VLAN, inclusive a de entrada, embora o MAC de destino já seja conhecido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o endereço MAC de destino em um endereço IP público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Abrir uma sessão VPN com o dispositivo antes de transmitir.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um switch de camada 2 consulta a tabela MAC, considerando a VLAN, e encaminha o quadro conhecido pela porta correspondente. A rota padrão é uma decisão de camada 3; inundação ocorre para destino desconhecido ou broadcast, não para MAC conhecido.",
+      "section": "1. Equipamentos e caminho dos pacotes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host envia tráfego para um endereço em outra sub-rede. Qual equipamento precisa encaminhar o pacote para a rede remota?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um hub que replique os bits para todas as estações locais e segmentos conectados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um roteador ou função de camada 3 com rota aplicável.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um repetidor que regenere o sinal recebido no cabo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um servidor DNS que traduza o IP remoto em endereço MAC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um proxy de aplicação que substitua o gateway padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrega a outra rede IP depende de encaminhamento de camada 3. O host normalmente envia o quadro ao MAC do gateway local, e o roteador seleciona a rota para o destino. Hub, repetidor e DNS não executam essa decisão.",
+      "section": "1. Equipamentos e caminho dos pacotes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer transportar várias VLANs entre dois switches por um enlace Ethernet. Que configuração corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar uma porta access com uma VLAN de gerenciamento e esperar que ela transporte as demais sem tags.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar um trunk 802.1Q com as VLANs autorizadas nas duas pontas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Configurar uma rota padrão diferente para cada endereço MAC remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar NAT em cada porta física do enlace entre switches.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar um hub para identificar e marcar as VLANs automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um trunk 802.1Q carrega tráfego de várias VLANs com identificação apropriada. As configurações dos dois lados devem ser compatíveis, incluindo VLANs permitidas. Uma porta access é normalmente destinada a uma VLAN; hub não marca nem seleciona VLANs.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois computadores estão em VLANs diferentes e precisam trocar dados. Qual condição de rede é necessária para que o tráfego seja encaminhado entre elas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um serviço DNS que coloque ambos no mesmo domínio de broadcast e faça a entrega entre segmentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Roteamento de camada 3 entre as redes, sujeito às regras de acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma porta access configurada simultaneamente como hub e repetidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A remoção das máscaras de sub-rede dos dois computadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tabela MAC que conecte diretamente as duas VLANs sem gateway.",
+          "correct": false
+        }
+      ],
+      "explanation": "VLANs separam domínios de camada 2. Para comunicação entre sub-redes distintas é necessário roteamento entre VLANs, e ACLs ou firewall podem restringir o fluxo. A tabela MAC não realiza essa função.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço web precisa receber conexões externas, mas não deve compartilhar livremente a rede de estações internas. Qual desenho atende melhor a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hospedar o serviço em uma DMZ e filtrar explicitamente seus fluxos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar o servidor na VLAN de usuários e confiar na senha forte do serviço para impedir movimentação lateral.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ligar o servidor diretamente ao hub interno sem firewall ou roteador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o roteamento para impedir acesso externo ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar o servidor como resolvedor DNS de todos os clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma DMZ posiciona o serviço exposto em segmento controlado, com regras específicas para acessos externos e para conexões iniciadas em direção à rede interna. A segmentação reduz exposição, mas não substitui atualização e proteção do servidor.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário remoto precisa acessar recursos corporativos por uma rede pública. Qual tecnologia cria um canal lógico protegido entre o dispositivo e a organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma VPN de acesso remoto com autenticação e políticas de rota.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma VLAN local sem gateway nem conexão externa, mas com isolamento equivalente a um túnel criptográfico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um repetidor Ethernet instalado dentro do computador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma consulta DNS que converta o nome da empresa em senha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma captura de pacotes que criptografe os dados transmitidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "VPN de acesso remoto estabelece conectividade protegida entre o cliente e o ponto corporativo. Autenticação, rotas e regras ainda definem quais recursos o usuário alcança; DNS ou captura não criam o túnel.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No controle de acesso 802.1X, qual componente controla a porta de acesso e encaminha a validação ao servidor de autenticação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O supplicant executado no terminal remoto, que controla a porta física do switch em nome do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O autenticador, como switch ou ponto de acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O resolvedor DNS configurado no computador cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O agente SNMP que coleta contadores da interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O balanceador que distribui conexões entre servidores web.",
+          "correct": false
+        }
+      ],
+      "explanation": "O autenticador fica no ponto de acesso à rede e controla o acesso da porta enquanto participa da troca EAP e encaminha a autenticação, frequentemente a um servidor RADIUS. O supplicant roda no terminal; DNS e SNMP não autorizam a porta.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer consultar uso, erros e estado de interfaces de switches e roteadores em uma plataforma central. Qual mecanismo é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SNMP, consultando objetos e contadores disponibilizados pelos agentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ARP, que envia logs completos de aplicações aos roteadores e mantém séries de estado das interfaces.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DHCP, que coleta automaticamente capturas de cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NAT, que informa a saúde de todos os enlaces físicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "802.1Q, que armazena métricas históricas em cada quadro.",
+          "correct": false
+        }
+      ],
+      "explanation": "SNMP permite ao sistema de gerenciamento consultar objetos de agentes, inclusive estado e contadores definidos em MIBs. ARP resolve endereços locais, DHCP atribui parâmetros de configuração e 802.1Q identifica VLANs em trunks.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário acessa um servidor por endereço IP, mas não pelo nome. Qual teste deve ser priorizado para investigar essa diferença?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar o DNS configurado com nslookup ou dig e conferir a resposta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar o endereço MAC do servidor antes de testar a aplicação e verificar se o nome passa a ser traduzido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar todas as VLANs para ampliar o domínio de broadcast.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar os repetidores para limpar a tabela de rotas IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o MTU sem verificar o caminho ou o tamanho dos pacotes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o acesso ao IP funciona, mas o nome não, a resolução DNS é uma hipótese inicial forte. nslookup e dig consultam o resolvedor e ajudam a conferir resposta e servidor; mudanças de MAC, VLAN ou MTU não atacam diretamente essa diferença.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface apresenta erros CRC que aumentam enquanto o tráfego passa. Qual investigação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar cabo, conectores, transceptor e negociação da interface.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar os registros DNS para remover erros do enlace físico e estabilizar a negociação entre as portas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o tempo de expiração de uma sessão VPN remota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma nova conta RADIUS sem conferir estado da porta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar uma rota padrão para corrigir corrupção de quadros Ethernet.",
+          "correct": false
+        }
+      ],
+      "explanation": "CRC crescente é evidência de quadros corrompidos e justifica verificar o meio físico, conectores, transceptores e negociação nos dois extremos. DNS, credenciais e rota padrão não corrigem erro de integridade no enlace.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que switches enviem mensagens de eventos para um coletor central e que possam ser correlacionadas no tempo. Qual prática ajuda diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Centralizar syslog e manter relógios dos equipamentos sincronizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente ARP para guardar mensagens em um cache local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar uma VLAN por evento e dispensar os registros de horário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar os logs para evitar que o coletor receba alertas duplicados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar traceroute como arquivo persistente de configuração do switch.",
+          "correct": false
+        }
+      ],
+      "explanation": "Syslog é usado para encaminhar mensagens de registro a um coletor, e relógios sincronizados tornam possível correlacionar ocorrências em dispositivos diferentes. ARP e traceroute têm outras funções, e desativar registros remove evidências úteis.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico precisa verificar os saltos observáveis entre sua estação e um servidor distante. Qual ferramenta atende a esse diagnóstico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Traceroute, que infere saltos a partir de respostas de limite de vida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ARP, que consulta todos os roteadores da Internet por endereço MAC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VLAN, que exibe o caminho IP completo em cada quadro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RADIUS, que calcula o tempo de ida e volta de cada enlace.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Syslog, que envia sondas ICMP para o servidor automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Traceroute envia sondas que provocam respostas de limite de vida nos roteadores intermediários e usa essas respostas para inferir o caminho. ARP atua no enlace local; filtros podem ocultar algumas respostas sem significar que todo o caminho falhou.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja reduzir permissões laterais entre grupos de servidores mesmo quando eles compartilham a infraestrutura física. Qual abordagem é mais alinhada a políticas granulares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Microsegmentação com regras por carga, identidade ou fluxo autorizado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um hub compartilhado que encaminhe todos os quadros a todas as portas, confiando que endereços privados impeçam conexões laterais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuição de endereços privados sem filtros entre os segmentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma rota padrão ampla que permita qualquer comunicação lateral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um servidor DNS sem zonas, usado para substituir as ACLs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Microsegmentação aplica controles mais granulares entre cargas ou identidades, limitando comunicações laterais segundo política. Endereçamento privado e uma rota não são controles de autorização; hub ampliaria a exposição do tráfego local.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em IPv4, um computador conhece o endereço IP do gateway local, mas precisa enviar um quadro Ethernet a ele. Qual protocolo ajuda a descobrir o MAC correspondente no enlace?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ARP, que resolve o IPv4 do vizinho local para seu endereço MAC.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DNS, que converte o IP do gateway em endereço MAC remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RADIUS, que entrega o MAC do roteador após validar a senha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SNMP, que traduz cada rota IP em quadro Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IPsec, que descobre os endereços físicos de toda a Internet.",
+          "correct": false
+        }
+      ],
+      "explanation": "ARP resolve endereços IPv4 em endereços Ethernet no enlace local. O computador envia o tráfego externo ao MAC do gateway, não ao MAC do host remoto; DNS, RADIUS e IPsec têm funções diferentes.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma VPN IPsec no modo túnel, que transformação descreve o tratamento do pacote interno?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pacote IP original é encapsulado em outro pacote para atravessar a rede de transporte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O pacote interno é convertido em consulta DNS e reconstruído no gateway remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O quadro Ethernet original é encaminhado sem cabeçalho IP entre todos os roteadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pacote é dividido em VLANs separadas, sem encapsulamento ou associação de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O endereço IP interno é usado como senha e substitui a autenticação do par.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modo túnel, um pacote IP interno é encapsulado dentro de outro pacote IP, permitindo seu transporte entre pontos de segurança. A proteção e a negociação dependem da política e das associações de segurança; DNS e VLAN não substituem o encapsulamento.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN entre duas sedes está estabelecida, mas os clientes de uma sede não alcançam o servidor da outra. Qual análise é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir rotas, seletores/políticas do túnel, regras de firewall e serviço de destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Presumir que o túnel autoriza automaticamente qualquer tráfego entre as redes, sem revisar rotas ou regras de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o servidor por um switch de camada 2 sem examinar endereçamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o nome DNS sem confirmar se o pacote chega ao gateway remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar autenticação de pares para permitir que a rota se propague.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estabelecimento do túnel não garante rotas corretas nem autorização do fluxo. É preciso verificar redes incluídas na política, encaminhamento em ambos os lados, filtros intermediários, resolução de nomes e estado da aplicação.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor SNMPv3 foi configurado para exigir autenticação e privacidade nas consultas de gerenciamento. Qual nível corresponde a essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "noAuthNoPriv, sem autenticação e sem proteção de privacidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "authNoPriv, com autenticação e sem privacidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "authPriv, com autenticação e privacidade da mensagem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "trapOnly, que desativa autenticação em todas as consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "communitySecure, que criptografa automaticamente SNMPv2c.",
+          "correct": false
+        }
+      ],
+      "explanation": "A arquitetura SNMPv3 define níveis noAuthNoPriv, authNoPriv e authPriv. O último exige autenticação e privacidade; comunidades de SNMPv1/v2c não equivalem a esse nível de proteção.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um switch envia uma notificação espontânea ao sistema de gerenciamento quando uma interface muda de estado. Que tipo de comunicação está sendo usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma notificação SNMP iniciada pelo agente, como uma trap.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma consulta ARP iniciada pelo gerente a cada pacote recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma resposta DNS com os contadores físicos do switch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um pedido RADIUS de autenticação de usuário administrativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma sessão 802.1Q que reescreve o syslog em quadros de usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Traps e notificações semelhantes são enviadas pelo agente SNMP para informar eventos sem esperar uma consulta periódica do gerente. Consultas SNMP continuam úteis para obter estado e contadores atuais.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede usa a mesma VLAN nativa em um trunk 802.1Q, mas há suspeita de divergência entre as pontas. Qual risco operacional deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quadros sem marcação podem ser classificados em VLANs diferentes nas extremidades.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os endereços IP privados serão automaticamente convertidos em públicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O roteador apagará a tabela DNS assim que detectar o trunk.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A autenticação RADIUS deixará de validar certificados de qualquer cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O switch transformará o enlace Ethernet em conexão sem fio aberta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A VLAN nativa trata quadros sem tag no trunk. Se as extremidades discordam, esses quadros podem cair em VLANs distintas, causando perda de conectividade e classificação inesperada. Isso não altera NAT, DNS ou autenticação diretamente.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um auditor precisa limitar o tráfego de uma VLAN de visitantes para que ela alcance somente serviços públicos autorizados. Qual controle deve ser aplicado no caminho entre segmentos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ACL ou firewall com regras explícitas para destinos e serviços permitidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma tabela MAC maior, sem alterar o encaminhamento entre redes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um resolvedor DNS que substitua a política de encaminhamento IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma VLAN nativa comum às redes de visitantes e de administração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um repetidor adicional para impedir que o roteador receba os pacotes.",
+          "correct": false
+        }
+      ],
+      "explanation": "ACLs e firewalls aplicam política ao tráfego roteado entre os segmentos, permitindo serviços necessários e negando os demais. VLANs separam broadcasts, mas não controlam sozinhas os fluxos que o roteador encaminha.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um terminal sem suporte a supplicant corporativo foi autorizado por MAC Authentication Bypass. Qual limitação de segurança deve ser reconhecida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço MAC pode ser falsificado, por isso a identidade é menos confiável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O mecanismo cifra todo o tráfego do terminal de ponta a ponta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A autenticação impede que o switch aplique qualquer perfil de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço MAC é uma credencial criptográfica exclusiva e secreta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A técnica substitui a necessidade de segmentar dispositivos não gerenciados.",
+          "correct": false
+        }
+      ],
+      "explanation": "MAB usa o endereço MAC como identificador, mas esse valor pode ser copiado ou falsificado e não oferece, isoladamente, prova forte de identidade. Pode ser útil para equipamentos sem supplicant, com perfil restrito e controles compensatórios.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação responde ao ping do servidor, mas a conexão TCP ao serviço continua falhando. Qual conclusão é tecnicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta ICMP prova que a porta da aplicação está aberta e autenticada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É necessário testar a porta e revisar filtros, rota e estado do serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O servidor está necessariamente desligado apesar da resposta recebida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A falha só pode estar no servidor DNS, mesmo usando o endereço IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rede não tem roteamento porque recebeu uma resposta ICMP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ping testa resposta ICMP, não estabelece a sessão TCP usada pela aplicação. Uma porta pode estar filtrada, o serviço pode estar parado ou a autorização pode falhar. Testes específicos e logs delimitam a causa.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede gerenciada, o traceroute mostra alguns saltos e depois apenas tempos excedidos sem identificar novos roteadores. Qual interpretação é prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os equipamentos podem filtrar ou limitar respostas de diagnóstico, exigindo testes adicionais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ausência de resposta prova que todos os roteadores seguintes estão sem energia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O DNS converteu os saltos restantes em endereços MAC invisíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tráfego de aplicação necessariamente percorre a mesma política ICMP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A VPN apagou os endereços IP dos roteadores que receberam os pacotes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Traceroute depende de respostas de diagnóstico que podem ser filtradas ou limitadas. A ausência de salto não prova falha de encaminhamento; compare com testes ao destino, rotas, logs e sondas de aplicação.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SNMPv3, o nível authNoPriv oferece autenticação da mensagem, mas não cifra seu conteúdo para confidencialidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. authNoPriv combina autenticação com ausência de privacidade. Para autenticação e privacidade, a arquitetura define authPriv; noAuthNoPriv não fornece nenhuma das duas proteções.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um switch aprende a porta associada a um MAC observando o MAC de destino de cada quadro recebido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O switch aprende a localização pelo MAC de origem dos quadros recebidos, associando-o à porta de entrada e à VLAN. O MAC de destino serve para decidir o encaminhamento.",
+      "section": "1. Equipamentos e caminho dos pacotes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um hub Ethernet identifica o MAC de destino e encaminha cada quadro somente à porta aprendida para aquele endereço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O hub repete o sinal para outras portas e não aprende endereços MAC para selecionar uma porta. Essa função de encaminhamento é característica de switches de camada 2.",
+      "section": "1. Equipamentos e caminho dos pacotes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VLAN separa o domínio de broadcast de camada 2, mas o tráfego entre VLANs pode passar por roteamento quando existe uma política que o permita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. VLANs isolam domínios de broadcast, enquanto um dispositivo de camada 3 pode encaminhar pacotes entre as redes. ACLs ou firewalls devem controlar os fluxos conforme a política desejada.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta trunk 802.1Q é destinada a transportar uma única VLAN sem identificadores entre dois switches.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Trunks transportam tráfego de múltiplas VLANs com identificação 802.1Q, conforme a configuração permitida. Uma porta access normalmente associa tráfego de um dispositivo a uma VLAN.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No 802.1X, o autenticador, como switch ou ponto de acesso, controla o acesso à porta e pode encaminhar a validação a um servidor RADIUS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O autenticador intermedeia o acesso à rede e a troca com o supplicant, encaminhando a autenticação para o servidor, frequentemente por RADIUS. Cada papel tem função distinta.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma autenticação bem-sucedida por 802.1X cifra automaticamente todo o tráfego IP entre o terminal e cada servidor da rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. 802.1X controla admissão à rede e não equivale a uma VPN nem cifra universalmente o tráfego IP. A proteção de dados depende de mecanismos próprios, e a autorização define o alcance permitido.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ARP em IPv4 resolve o endereço do próximo vizinho no enlace local; para um destino remoto, esse vizinho costuma ser o gateway.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ARP associa endereços IPv4 locais a MACs do enlace. O roteador não propaga a consulta ARP até o host remoto; o host entrega o quadro ao gateway local.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta positiva a ping demonstra, por si só, que DNS, autenticação e serviço TCP da aplicação estão operacionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ping observa resposta ICMP até o destino, se permitida. DNS, autenticação, portas TCP e processo da aplicação precisam de testes próprios; é possível ter ping e ainda assim o serviço falhar.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN site a site normalmente conecta redes por gateways, enquanto uma VPN de acesso remoto conecta um dispositivo individual ao ambiente autorizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os modelos diferem pelo tipo de extremidade: gateways de redes distintas no cenário site a site e cliente individual no acesso remoto. Em ambos, autenticação, rotas e regras determinam o tráfego protegido e permitido.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo túnel do IPsec encapsula o pacote IP interno em outro pacote IP para transportá-lo entre pontos de segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O encapsulamento cria um pacote externo para encaminhamento pela rede intermediária e preserva o pacote interno para processamento no ponto remoto, conforme a associação de segurança estabelecida.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a VPN cifra o tráfego, toda rota interna deve ser liberada para qualquer usuário que consiga estabelecer o túnel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Criptografia protege o transporte, mas não define autorização. Rotas e políticas devem limitar o usuário aos recursos necessários, pois um túnel amplo pode expor redes internas em caso de conta comprometida.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma trap SNMP é uma notificação iniciada pelo agente para informar um evento sem aguardar uma consulta específica do gerente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Notificações SNMP podem ser iniciadas pelo agente quando ocorre um evento, enquanto consultas são iniciadas pelo sistema de gerenciamento. Ambas ajudam a observar os dispositivos.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A VLAN nativa de um trunk pode ser diferente em cada extremidade sem risco, pois todos os quadros sempre carregam tag 802.1Q.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quadros associados à VLAN nativa podem ser enviados sem marcação em configurações típicas. Divergência entre as pontas pode fazer com que sejam classificados em VLANs diferentes e criar falhas ou risco de segmentação.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de resposta em um salto do traceroute pode decorrer de filtragem de mensagens de diagnóstico e não prova, isoladamente, que o encaminhamento cessou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Roteadores podem não responder ou limitar respostas de diagnóstico. Compare o resultado com conectividade ao destino, registros, rotas e testes de aplicação antes de concluir que existe uma interrupção naquele salto.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura de pacotes feita em um switch prova quais quadros atravessaram todos os segmentos da rede, inclusive os que não foram espelhados ao ponto de captura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A captura mostra o que passou pelo ponto observado e depende da configuração de espelhamento ou posição do sensor. Para cobrir outros trechos, é necessário capturar nesses pontos ou usar telemetria e registros complementares.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma falha, a interface do switch apresenta erros físicos crescentes, mas ping ao gateway continua respondendo ocasionalmente. Qual sequência de diagnóstico é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inspecionar meio físico e contadores nas duas pontas, depois correlacionar perda e eventos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar primeiro os registros DNS, pois eles controlam os erros CRC da interface.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar a VLAN e assumir que isso repara o transceptor, elimina CRC e estabiliza a conexão física entre os switches.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar as rotas estáticas sem verificar estado, duplex ou descarte de quadros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concluir que o caminho está saudável porque houve uma resposta ICMP isolada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Erros CRC apontam para investigar cabo, conector, transceptor e negociação, além de comparar contadores nas duas extremidades. Uma resposta ocasional ao ping não elimina perda intermitente. DNS e rotas não corrigem corrupção física de quadros.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário 802.1X autentica corretamente, mas recebe perfil de rede de convidados em vez da VLAN corporativa. O que deve ser verificado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atributos de autorização retornados, mapeamento de perfil e VLAN permitida no trunk.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O registro A do servidor DNS, pois ele define a VLAN da porta do switch.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modo túnel IPsec do usuário, mesmo sem VPN configurada para o acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela ARP do servidor web, que escolhe a VLAN do supplicant.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O contador SNMP de CPU, pois autenticação bem-sucedida prova a autorização correta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação valida a identidade, mas a autorização e a aplicação do perfil podem falhar separadamente. Verifique resposta/atributos RADIUS, regras de mapeamento e se a VLAN está criada e permitida nos enlaces necessários.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após conectar uma VPN, o cliente alcança serviços pelo IP, mas nomes internos falham. O túnel e a rota funcionam para alguns destinos. Qual hipótese e teste são mais úteis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar DNS interno entregue ao cliente, busca de sufixo e acesso ao resolvedor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir o gateway VPN por um hub, pois nomes internos são aprendidos por MAC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar IPsec, porque um túnel ativo não pode transportar consultas DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ampliar a MTU sem verificar respostas DNS, rota ou fragmentação observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Limpar a tabela MAC do switch, que armazena os registros de nomes corporativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conectividade por IP não garante que o cliente use o resolvedor corporativo ou tenha rota e permissão até ele. Confira parâmetros DNS recebidos, sufixos, resolução por ferramenta de consulta e regras para o tráfego DNS.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação na VLAN de visitantes alcança o gateway, mas não deve abrir conexões para estações administrativas. Que desenho preserva segmentação e aplica a restrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter redes distintas e negar o fluxo visitante→admin na ACL ou firewall de camada 3.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar as duas redes à mesma VLAN e confiar que o domínio de broadcast impeça conexões administrativas não autorizadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o gateway dos visitantes e manter uma rota irrestrita até a rede administrativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir o fluxo em ambas as direções para que o estado do firewall seja simétrico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente nomes DNS diferentes, sem política de encaminhamento entre segmentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manter segmentos separados e aplicar negação explícita no ponto de roteamento ou firewall limita conexões laterais. DNS não impõe autorização, e colocar redes na mesma VLAN amplia o domínio de camada 2 sem fornecer o controle desejado.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de alterar um trunk, somente hosts de uma VLAN deixam de alcançar outro switch; a VLAN funciona localmente. Qual sequência de checagem localiza melhor a falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar VLAN permitida, estado da VLAN e configuração do trunk nas duas extremidades.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Recriar o servidor DNS e trocar o MAC de todos os hosts daquela VLAN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o roteamento entre todas as VLANs para restaurar o enlace trunk.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar as credenciais RADIUS dos hosts que não usam autenticação de porta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a largura de banda da WAN, mesmo com falha restrita a uma VLAN no trunk.",
+          "correct": false
+        }
+      ],
+      "explanation": "Funcionamento local com falha ao atravessar o enlace aponta para verificar VLAN permitida, existência/estado da VLAN e compatibilidade do trunk nas duas pontas. DNS, WAN e RADIUS não são a primeira hipótese sem evidências relacionadas.",
+      "section": "2. Segmentação, VLANs e políticas entre redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleta SNMP mostra descartes crescentes na saída de uma interface durante o horário de pico, enquanto os erros CRC permanecem estáveis. Qual hipótese merece investigação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Congestionamento ou limitação de fila/capacidade, comparando taxa e uso do enlace.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Falha de DNS como causa direta de descarte de quadros na fila de saída, mesmo com resolução de nomes normal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Corrupção física confirmada, pois todo descarte é necessariamente erro CRC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticação 802.1X inválida em todos os fluxos que passam pela interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ausência de rota padrão como explicação única para contadores de fila de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Descartes de saída com CRC estável podem refletir congestionamento ou pressão de filas, especialmente em horários de pico. Compare utilização, taxas, QoS e direção dos contadores. Descarte não equivale automaticamente a corrupção física ou falha DNS.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer conceder a cada grupo de usuários acesso apenas aos serviços necessários, mesmo após autenticação correta. Qual separação de conceitos orienta o projeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação verifica identidade; autorização define recursos e fluxos permitidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Autorização verifica somente senha; autenticação define a tabela de rotas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autenticação e autorização são sinônimos e dispensam regras entre VLANs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O DNS autentica usuários e o servidor RADIUS resolve todos os nomes internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A VPN substitui identidade e autorização quando a criptografia está habilitada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação estabelece quem ou o que está solicitando acesso. Autorização decide o que essa identidade pode alcançar, podendo aplicar perfis, VLANs e políticas. Um túnel protegido não elimina a necessidade de autorização granular.",
+      "section": "3. VPN, NAC e controle de confiança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote chega a um roteador destinado a endereço IP que não corresponde a nenhuma rota mais específica, mas há uma rota padrão válida. Qual comportamento é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encaminhar pelo próximo salto da rota padrão, se a política permitir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter o pacote em broadcast para todas as VLANs conectadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o MAC de destino para decidir uma rota IP sem consultar a tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Descartar o pacote porque rotas padrão são usadas apenas por switches de camada 2.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar uma consulta RADIUS ao endereço de destino antes de cada encaminhamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rota padrão serve como caminho de último recurso quando nenhuma rota mais específica se aplica. O roteador ainda pode descartar o pacote por política, mas não transforma tráfego unicast em broadcast nem consulta RADIUS por pacote.",
+      "section": "1. Equipamentos e caminho dos pacotes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma investigação, o switch registra link flapping no horário das quedas e o syslog do roteador mostra rotas estáveis. Qual evidência deve guiar a próxima etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correlacionar eventos e contadores da interface, inspecionando cabo e transceptor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar prefixos de rotas estáveis sem verificar a interface que oscila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar logs porque somente uma captura no servidor pode mostrar link físico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o servidor DNS para impedir que a porta física renegocie o link.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o escopo da VPN para encobrir as mudanças de estado da interface.",
+          "correct": false
+        }
+      ],
+      "explanation": "Link flapping é mudança recorrente de estado físico/enlace. Correlacione timestamps do syslog com contadores, negociações e erros da interface e verifique o meio físico nas duas pontas. Rotas estáveis tornam uma alteração de prefixo menos provável como causa inicial.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo gerenciado deve permitir leitura de métricas a uma equipe, mas alteração de configuração somente a administradores autorizados. Qual princípio deve orientar a configuração de monitoramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar permissões de leitura e escrita, restringindo credenciais e acesso de gerenciamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar uma credencial administrativa ampla com todo coletor e usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Expor a interface de gerenciamento à rede pública para facilitar consultas SNMP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação e privacidade para acelerar as consultas de métricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir alterações por qualquer endereço que consiga resolver o nome do switch.",
+          "correct": false
+        }
+      ],
+      "explanation": "A gestão segura exige privilégio mínimo, separação entre leitura e alteração e restrição dos caminhos de administração. Em SNMP, controle de acesso e proteção apropriada reduzem risco de divulgação ou modificação não autorizada.",
+      "section": "4. Monitoramento, observabilidade e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1918 — Address Allocation for Private Internets",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Endereçamento privado, conectividade interna e filtragem de anúncios e pacotes privados em enlaces entre organizações.",
+      "url": "https://www.rfc-editor.org/rfc/rfc1918.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 826 — An Ethernet Address Resolution Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Resolução de endereços de protocolo para endereço Ethernet no enlace.",
+      "url": "https://www.rfc-editor.org/rfc/rfc826.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4301 — Security Architecture for the Internet Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Arquitetura IPsec, políticas de segurança, associações e processamento de tráfego protegido.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4301.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3411 — An Architecture for Describing SNMP Management Frameworks",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Arquitetura SNMP, aplicações de consulta e notificação, subsistemas de segurança e níveis de proteção.",
+      "url": "https://www.rfc-editor.org/rfc/rfc3411.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2865 — Remote Authentication Dial In User Service (RADIUS)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Mensagens e função cliente-servidor do protocolo RADIUS para autenticação e autorização de acesso.",
+      "url": "https://www.rfc-editor.org/rfc/rfc2865.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3580 — IEEE 802.1X Remote Authentication Dial In User Service (RADIUS) Usage Guidelines",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Uso de RADIUS no contexto de controle de acesso IEEE 802.1X.",
+      "url": "https://www.rfc-editor.org/rfc/rfc3580.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Cisco IOS XE VLAN Configuration Guide — Configure VLAN Trunking",
+      "publisher": "Cisco",
+      "reference": "Trunks 802.1Q, VLAN nativa, VLANs permitidas e compatibilidade de configuração nos enlaces.",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/lyr2-fwd/vlan/vlan-configuration-guide/configure-vlan-trunks.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "WireGuard — Protocol & Cryptography",
+      "publisher": "WireGuard",
+      "reference": "Handshake, chaves de pares, proteção criptográfica e configuração de AllowedIPs.",
+      "url": "https://www.wireguard.com/protocol/",
+      "accessedAt": "2026-11-09"
+    }
+  ]
+}

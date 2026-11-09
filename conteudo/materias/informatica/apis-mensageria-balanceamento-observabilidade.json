@@ -1,0 +1,1914 @@
+{
+  "id": "informatica.apis-mensageria-balanceamento-observabilidade",
+  "subject": "Informática",
+  "title": "APIs, mensageria, balanceamento, cache e observabilidade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "APIs REST, gRPC e mensageria",
+    "Interfaces REST e chamadas gRPC",
+    "APIs REST e serviços gRPC",
+    "Mensageria e filas de mensagens",
+    "Balanceamento de carga entre serviços",
+    "Cache de dados em aplicações",
+    "Observabilidade de sistemas distribuídos",
+    "REST, mensageria e balanceamento",
+    "gRPC, filas e observabilidade",
+    "Cache, métricas, logs e rastros",
+    "Integração de serviços distribuídos",
+    "APIs e comunicação entre serviços"
+  ],
+  "scope": {
+    "covers": "Princípios e operações HTTP em APIs REST; idempotência, status, paginação e concorrência; gRPC, Protocol Buffers, quatro padrões de RPC, deadlines e streaming; mensageria, filas, tópicos, confirmação, reentrega, ordenação, idempotência e dead letter; balanceamento round-robin, least connections, afinidade, pesos e verificações de saúde; cache-aside, TTL, invalidação, consistência e stampede; observabilidade com métricas, logs, traces, spans, contexto, SLI/SLO e diagnóstico distribuído.",
+    "excludes": "Implementação integral de produtos específicos, sintaxe completa de protocolos, administração de clusters e configuração detalhada de provedores de nuvem."
+  },
+  "theoryTitle": "Comunicação e operação de serviços distribuídos",
+  "chapters": [
+    {
+      "title": "1. APIs REST e gRPC",
+      "markdown": "### O problema que este assunto resolve\n\nServiços precisam expor operações a clientes e a outros serviços. REST usa os recursos e a semântica uniforme do HTTP; gRPC descreve métodos remotos e mensagens tipadas. A escolha afeta interoperabilidade, formato dos dados, streaming, geração de clientes e facilidade de inspeção.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface de programação oferecida a outro componente.\n> - **REST**: estilo arquitetural que organiza a interação em torno de recursos e semântica HTTP.\n> - **RPC**: chamada de procedimento remoto.\n> - **IDL**: linguagem de definição de interface; em gRPC, normalmente Protocol Buffers.\n> - **Stub**: cliente gerado ou objeto local que representa o serviço remoto.\n\n### REST preserva o significado de HTTP\n\nEm uma API REST, URIs identificam recursos, como `/pedidos/42`; métodos expressam a operação. `GET` obtém uma representação; `POST` submete dados para processamento ou criação subordinada; `PUT` substitui a representação do recurso-alvo; `DELETE` remove suas representações. `PATCH` é usado para modificar parcialmente, conforme a definição adotada pela API. O método não deve ser tratado como mero nome decorativo: ferramentas intermediárias e clientes dependem de sua semântica.\n\nA RFC 9110 define `PUT`, `DELETE` e métodos seguros como idempotentes quanto ao efeito pretendido. Idempotência significa que repetir a mesma solicitação produz o mesmo efeito pretendido que fazê-la uma vez; não significa que todas as respostas ou registros de auditoria sejam iguais. `POST` não é idempotente por definição geral. Uma chave de idempotência implementada pela aplicação pode permitir repetição segura de determinada operação POST.\n\nO código de status comunica resultado do HTTP: `200` indica sucesso com resposta; `201` indica criação; `204` sucesso sem conteúdo; `400` solicitação inválida; `401` falta de autenticação válida; `403` recusa de autorização; `404` recurso não encontrado; `409` conflito de estado; `429` limitação de requisições; `500` falha interna; `503` indisponibilidade temporária. O contexto da API determina o corpo e os detalhes, mas não deve inverter os significados.\n\n### Representações, concorrência e limites\n\nJSON é comum em REST, mas HTTP não obriga uma representação específica. Cabeçalhos como `Content-Type` descrevem o formato enviado; `Accept` informa formatos que o cliente aceita. Paginação por cursor pode usar um marcador opaco para continuar a partir de uma posição estável; paginação por deslocamento (`offset`) é simples, mas inserções entre páginas podem causar repetições ou saltos. Filtros e limites precisam ser validados no servidor.\n\nETag pode identificar uma representação. Um cliente pode enviar `If-Match` ao atualizar para evitar sobrescrever uma versão que mudou desde a leitura; se a condição falhar, o servidor pode responder `412 Precondition Failed`. Isso resolve uma classe de atualização perdida, mas não substitui autorização nem validação de negócio.\n\n### gRPC define contratos de chamada\n\nNo gRPC, uma definição `.proto` especifica serviços, métodos e mensagens. Ferramentas geram tipos e stubs para linguagens suportadas. O transporte usual é HTTP/2 e Protocol Buffers é a codificação padrão, compacta e tipada. Isso favorece comunicação serviço a serviço e streaming; para navegador ou integração ampla, REST pode ser mais simples de inspecionar e consumir.\n\nHá quatro padrões: unary (uma solicitação e uma resposta); server streaming (uma solicitação e uma sequência de respostas); client streaming (sequência de solicitações e uma resposta); bidirectional streaming (sequências nos dois sentidos, que podem avançar independentemente). A ordem das mensagens é preservada dentro de cada fluxo RPC. Streaming não torna o serviço automaticamente escalável nem confiável: controle de fluxo, cancelamento, limites e consumo precisam ser considerados.\n\nO cliente deve definir deadline ou timeout adequado. Sem deadline, pode esperar indefinidamente; expirado o prazo, a chamada pode terminar com `DEADLINE_EXCEEDED`. Cancelamento interrompe trabalho futuro, mas não desfaz efeitos já realizados pelo servidor. Metadados transportam informações associadas à chamada, como credenciais e contexto; não devem ser usados para enviar payloads volumosos.\n\n| Aspecto | REST sobre HTTP | gRPC |\n| --- | --- | --- |\n| Contrato | Recursos, métodos e representações HTTP | Serviços e mensagens definidos em IDL |\n| Formato comum | JSON | Protocol Buffers |\n| Fluxo | Requisição e resposta, com extensões conforme API | Unary e três modalidades de streaming |\n| Uso frequente | APIs públicas e clientes variados | Comunicação tipada entre serviços |\n\n### Como cai na prova\n\n- PUT é idempotente pelo efeito pretendido; POST não ganha idempotência só por usar HTTP.\n- 401 trata de autenticação; 403, de autorização negada.\n- gRPC tem quatro formas de RPC e deadlines não são automáticos em todas as configurações.\n- Cancelar uma chamada não reverte transações ou efeitos que o servidor já confirmou."
+    },
+    {
+      "title": "2. Mensageria",
+      "markdown": "### O problema que este assunto resolve\n\nUma chamada síncrona mantém o solicitante esperando o serviço chamado. Uma fila desacopla o momento em que o produtor publica uma mensagem do momento em que o consumidor a processa. O desacoplamento absorve picos e permite retentativas, mas introduz consistência eventual, duplicatas e operação adicional.\n\n> **Siglas e termos deste capítulo**\n> - **Broker**: intermediário que recebe, armazena e encaminha mensagens.\n> - **Produtor/consumidor**: componente que publica/processa mensagens.\n> - **Ack**: confirmação de recebimento ou processamento, conforme o protocolo.\n> - **DLQ**: fila de mensagens que não puderam ser processadas normalmente.\n> - **At-least-once**: entrega uma ou mais vezes; duplicatas são possíveis.\n\n### Filas, tópicos e grupos\n\nEm uma fila de trabalho, consumidores concorrentes podem dividir mensagens; em um modelo de publicação/assinatura, uma publicação em tópico pode ser distribuída a várias assinaturas. Os nomes e garantias exatas dependem do broker. Em Kafka, tópicos são particionados e consumidores do mesmo grupo dividem partições; em regra, uma partição é atribuída a um consumidor do grupo por vez, e a ordem é mantida dentro da partição, não necessariamente entre partições. A chave de partição afeta a distribuição e pode manter eventos da mesma chave juntos.\n\n### Confirmações e duplicidade\n\nRabbitMQ distingue publisher confirms (broker confirma ao produtor a aceitação da publicação) de consumer acknowledgements (consumidor confirma ao broker o processamento da entrega). São confirmações independentes: o publisher confirm não prova que um consumidor processou a mensagem. Com confirmação manual, uma mensagem não confirmada pode ser reenfileirada após queda de conexão; por isso o consumidor deve tolerar reentrega.\n\nEm entrega at-least-once, o consumidor pode concluir uma operação e cair antes do ack: a mensagem volta e pode executar novamente. Torne o efeito idempotente, por exemplo registrando um identificador único processado na mesma transação do efeito. “Exactly once” exige delimitar cuidadosamente o que é garantido pelo sistema; não presume que um efeito externo, como cobrar cartão, será realizado exatamente uma vez sem deduplicação ou protocolo próprio.\n\n### Retentativas, fila de erro e ordenação\n\nRetentativas são úteis para falhas transitórias, mas uma repetição imediata e ilimitada pode sobrecarregar serviço indisponível. Use limite, atraso progressivo e jitter quando apropriado. Falhas permanentes, como mensagem incompatível com o esquema, não devem ser repetidas sem fim: encaminhe para DLQ ou fluxo de erro, registre motivo e permita inspeção e reprocessamento controlado. Mensagens “venenosas” podem bloquear uma fila se sempre retornarem ao início.\n\nA ordenação depende da topologia. Consumidores paralelos podem terminar fora da ordem de retirada; partições ou filas distintas não estabelecem uma ordem global. Se a ordem por entidade importa, use chave consistente e serialize processamento daquela entidade, equilibrando paralelismo e ordenação.\n\nPrefetch limita entregas não confirmadas em trânsito para um consumidor/canal em RabbitMQ. Valor alto pode elevar throughput, mas aumenta mensagens em voo e memória; valor baixo aplica contenção e pode reduzir utilização. Confirmação automática considera entregue assim que enviado, aumentando throughput, mas pode perder mensagem se consumidor cair antes de processar.\n\n### Como cai na prova\n\n- Confirmação do produtor e ack do consumidor cobrem trechos diferentes do fluxo.\n- Reentrega exige consumidor idempotente; ack antes de concluir pode perder trabalho.\n- Ordem global, exatamente uma vez e retentativa infinita não são garantias genéricas de mensageria.\n- DLQ ajuda a isolar falhas persistentes; não corrige automaticamente a mensagem."
+    },
+    {
+      "title": "3. Balanceamento e cache",
+      "markdown": "### O problema que este assunto resolve\n\nMúltiplas instâncias aumentam capacidade e tolerância a falhas, mas o tráfego precisa ser distribuído e dados repetidos podem pressionar o banco. Balanceador escolhe destino para uma conexão ou requisição; cache guarda cópias temporárias para reduzir leituras caras. Ambos mudam o comportamento sob falha e precisam de observabilidade.\n\n> **Siglas e termos deste capítulo**\n> - **LB**: load balancer, distribuidor de carga.\n> - **Health check**: verificação da disponibilidade de uma instância.\n> - **TTL**: tempo de vida de uma entrada no cache.\n> - **Cache hit/miss**: dado encontrado/não encontrado no cache.\n> - **Stampede**: muitas requisições recalculam simultaneamente uma chave expirada.\n\n### Algoritmos de balanceamento\n\nRound-robin percorre os servidores em sequência; com pesos, instâncias maiores podem receber proporção maior. Least connections direciona novas conexões ao servidor com menos conexões ativas, útil quando durações variam. Hash de IP tende a encaminhar o mesmo endereço ao mesmo servidor, oferecendo afinidade, mas pode distribuir mal quando muitos usuários compartilham NAT ou quando há endereços desiguais. Afinidade não substitui armazenamento compartilhado de sessão.\n\nHealth checks retiram temporariamente destinos que falham segundo os critérios configurados; checagem superficial pode declarar saudável uma instância incapaz de atender dependências críticas. Proxy reverso pode terminar TLS, aplicar roteamento e distribuir chamadas HTTP ou gRPC. Com conexões persistentes ou canais HTTP/2, a unidade real de distribuição pode ser conexão, stream ou chamada, conforme o produto e configuração: não presuma uma nova escolha por mensagem RPC.\n\nBalanceamento não corrige sobrecarga por si só. Limites de concorrência, timeouts, circuit breaker e escalonamento ajudam a evitar que lentidão de dependência se propague. Retentativas em várias camadas podem multiplicar carga; defina orçamento e repita somente operações seguras ou deduplicadas.\n\n### Cache-aside e consistência\n\nNo padrão cache-aside, a aplicação consulta o cache; em miss, lê a fonte primária e preenche o cache. Ao atualizar, grava a fonte e invalida a chave; a próxima leitura recarrega. Uma alternativa é atualizar o cache junto com a gravação, mas requer coerência em todas as falhas e instâncias. O cache não deve ser considerado fonte durável de verdade quando a aplicação pode reconstruir seus dados da origem.\n\nTTL limita por quanto tempo uma cópia pode permanecer, mas não garante atualização imediata. Invalidação explícita reduz janela de dado obsoleto, porém mensagens de invalidação perdidas ainda podem deixar cópia antiga. TTLs variados, bloqueio curto por chave ou atualização antecipada ajudam a reduzir stampede. Um cache distribuído compartilha entradas entre processos, mas traz latência de rede e dependência operacional; cache local é rápido, porém cada instância pode divergir.\n\nAcompanhe taxa de hit, latência, evicções, memória e erros. Taxa alta não prova correção: chave mal composta pode servir dados de outro usuário. Inclua no escopo da chave todos os fatores relevantes, inclusive identidade ou permissões quando a resposta variar por usuário, e evite armazenar dados sensíveis sem controles adequados.\n\n### Como cai na prova\n\n- Least connections considera conexões ativas; round-robin distribui em sequência.\n- IP hash cria afinidade com limites e riscos de desbalanceamento.\n- TTL reduz o tempo máximo de retenção configurado, mas não é sincronização imediata.\n- Em cache-aside, miss consulta origem; invalidação e consistência são responsabilidade do desenho da aplicação."
+    },
+    {
+      "title": "4. Observabilidade",
+      "markdown": "### O problema que este assunto resolve\n\nEm um sistema distribuído, uma solicitação atravessa gateway, API, fila, consumidor, cache e banco. Um erro visto no usuário pode ter sido causado em qualquer trecho. Observabilidade combina sinais que permitem responder o que ocorreu e onde, sem depender de uma única máquina.\n\n> **Siglas e termos deste capítulo**\n> - **Métrica**: medida numérica agregável ao longo do tempo.\n> - **Log**: registro de evento com contexto.\n> - **Trace**: caminho correlacionado de uma operação distribuída.\n> - **Span**: unidade de trabalho dentro de um trace.\n> - **SLI/SLO**: indicador medido / objetivo de nível de serviço.\n\n### Três sinais complementares\n\nMétricas mostram tendências agregadas: taxa de requisições, erros, latência em percentis, saturação de CPU, tamanho da fila e taxa de cache hit. Um histograma permite estimar distribuição e percentis; uma média pode esconder uma cauda lenta. Logs registram eventos discretos, idealmente estruturados com timestamp, nível, serviço, ambiente, trace ID e campos úteis. Não inclua segredos, tokens ou dados pessoais desnecessários.\n\nTraces conectam spans por meio de contexto propagado entre serviços. Um span pode representar a requisição recebida, chamada HTTP de saída, consulta a banco ou publicação/processamento de mensagem. O trace ID permite saltar de uma métrica ou log para a execução correspondente. Em processamento assíncrono, contexto pode seguir nos metadados da mensagem; span do consumidor pode ocorrer muito depois do span do produtor e pode ser ligado como continuação ou relação causal.\n\nOpenTelemetry oferece APIs/SDKs para instrumentar e coletar traces, métricas e logs e exportá-los a um collector ou backend. É uma camada de instrumentação e transporte; não é, por si só, o banco de dados de telemetria nem a interface de análise. Context propagation é necessária para correlação entre serviços. Amostragem controla custo, mas uma política inadequada pode descartar justamente traces raros de erro.\n\n### Do sinal à investigação\n\nSLI é uma medida definida de confiabilidade, como proporção de requisições válidas atendidas abaixo de um limite de latência. SLO é o alvo para esse indicador em uma janela definida pela equipe; não confunda com SLA contratual. Alertas devem apontar sintomas relevantes ao usuário e orientar ação. Para uma fila crescente, compare taxa de entrada e saída, idade da mensagem mais antiga, erros e concorrência dos consumidores; apenas CPU baixa não prova saúde.\n\nUma investigação pode começar no aumento de latência p95, filtrar por rota e serviço, abrir traces lentos, localizar um span de chamada externa e correlacionar logs com trace ID. Métricas dão amplitude, logs detalham eventos e traces revelam relações temporais. Instrumentação excessiva, cardinalidade alta em rótulos e retenção indiscriminada elevam custo e podem expor dados.\n\n### Como cai na prova\n\n- Métrica agrega comportamento, log descreve eventos e trace relaciona spans ao longo do caminho.\n- Trace ID só correlaciona sistemas se o contexto for propagado.\n- OpenTelemetry instrumenta e exporta; o armazenamento e a visualização podem ser de outro produto.\n- Percentis e idade de fila revelam caudas e backlog que a média ou CPU isolada não mostram."
+    }
+  ],
+  "summary": "APIs REST usam recursos e semântica HTTP; gRPC declara contratos tipados e oferece quatro modalidades de RPC. Mensageria desacopla produtores e consumidores, mas exige lidar com confirmação, duplicatas, ordenação e falhas. Balanceadores distribuem chamadas conforme algoritmos e verificações; caches reduzem leituras com custo de coerência e validade. Métricas, logs e traces complementam-se para diagnosticar sistemas distribuídos.",
+  "flashcards": [
+    {
+      "front": "Qual é a semântica usual de GET?",
+      "back": "Obter uma representação do recurso, sem alteração pretendida do estado."
+    },
+    {
+      "front": "O que significa idempotência HTTP?",
+      "back": "Repetir a mesma solicitação produz o mesmo efeito pretendido de uma execução."
+    },
+    {
+      "front": "Quais métodos HTTP são idempotentes segundo a RFC 9110?",
+      "back": "PUT, DELETE e os métodos seguros definidos pela especificação."
+    },
+    {
+      "front": "O que um status 201 sinaliza?",
+      "back": "A solicitação resultou na criação de recurso."
+    },
+    {
+      "front": "Para que serve If-Match?",
+      "back": "Condicionar a operação a uma representação atual, prevenindo atualização perdida."
+    },
+    {
+      "front": "Qual formato descreve serviços gRPC comumente?",
+      "back": "Protocol Buffers em arquivos .proto."
+    },
+    {
+      "front": "Quais são os quatro padrões de RPC no gRPC?",
+      "back": "Unary, server streaming, client streaming e bidirectional streaming."
+    },
+    {
+      "front": "O que deadline limita no gRPC?",
+      "back": "Quanto tempo o cliente aceita esperar pela chamada."
+    },
+    {
+      "front": "O cancelamento gRPC reverte efeitos já confirmados?",
+      "back": "Não; interrompe trabalho futuro, sem rollback automático."
+    },
+    {
+      "front": "Publisher confirm confirma o processamento pelo consumidor?",
+      "back": "Não; confirma a interação do produtor com o broker."
+    },
+    {
+      "front": "O que consumer ack confirma?",
+      "back": "A entrega foi processada ou assumida conforme o contrato da aplicação."
+    },
+    {
+      "front": "Qual risco acompanha at-least-once?",
+      "back": "Redelivery e processamento duplicado; o consumidor deve ser idempotente."
+    },
+    {
+      "front": "Onde Kafka mantém ordenação?",
+      "back": "Dentro de uma partição, não como ordem global entre partições."
+    },
+    {
+      "front": "Para que serve uma DLQ?",
+      "back": "Isolar mensagens que não foram processadas normalmente para análise e reprocessamento controlado."
+    },
+    {
+      "front": "O que limita prefetch?",
+      "back": "Quantidade de entregas não confirmadas em trânsito para consumidor/canal."
+    },
+    {
+      "front": "Como funciona round-robin?",
+      "back": "Distribui destinos em sequência, respeitando pesos se configurados."
+    },
+    {
+      "front": "Quando least connections pode ajudar?",
+      "back": "Quando a duração das conexões ou solicitações varia bastante."
+    },
+    {
+      "front": "O que TTL faz no cache?",
+      "back": "Limita o tempo configurado de vida da entrada."
+    },
+    {
+      "front": "Como funciona cache-aside em um miss?",
+      "back": "A aplicação busca na origem e então preenche o cache."
+    },
+    {
+      "front": "O que caracteriza um cache stampede?",
+      "back": "Muitas requisições recalculam ao mesmo tempo uma chave expirada."
+    },
+    {
+      "front": "O que é uma métrica?",
+      "back": "Uma medida numérica do comportamento do sistema ao longo do tempo."
+    },
+    {
+      "front": "O que um span representa?",
+      "back": "Uma unidade de trabalho dentro de um trace."
+    },
+    {
+      "front": "Para que serve propagação de contexto?",
+      "back": "Correlacionar spans de uma operação ao atravessar serviços."
+    },
+    {
+      "front": "OpenTelemetry é um backend de armazenamento?",
+      "back": "Não; fornece instrumentação, coleta e exportação de telemetria."
+    }
+  ],
+  "tips": [
+    "Em HTTP, classifique o efeito e a repetição segura pelo método e pelo contrato da API, não só pelo nome do endpoint.",
+    "Separe a confirmação de publicação do ack do consumidor: são saltos distintos do fluxo.",
+    "Se a questão mencionar partições, pense em ordenação por partição e chave, não em ordem global automática.",
+    "Relacione algoritmo de balanceamento com o dado observado: sequência, conexões ativas ou chave de afinidade.",
+    "Para cache, acompanhe hit, miss, TTL e invalidação; desempenho sem chave correta pode causar vazamento entre usuários.",
+    "Na investigação, use métrica para localizar o sintoma, trace para encontrar o trecho e log para examinar o evento."
+  ],
+  "traps": [
+    "POST não é idempotente por definição geral; uma chave ou contrato da aplicação pode tornar uma operação específica repetível com segurança.",
+    "Publisher confirm não confirma que o consumidor concluiu o trabalho.",
+    "Ack automático pode aumentar throughput ao custo de segurança se o consumidor falhar antes de processar.",
+    "Afinidade por IP pode concentrar usuários atrás de NAT e não substitui sessão compartilhada.",
+    "TTL limita validade, mas não garante consistência imediata após atualização da origem.",
+    "OpenTelemetry não é o produto de armazenamento e visualização da telemetria."
+  ],
+  "activeRecall": [
+    "Explique a diferença de efeito pretendido entre PUT e POST e por que isso afeta retentativas.",
+    "Compare REST e gRPC quanto a contrato, formato comum e padrões de fluxo.",
+    "Descreva o que acontece se um consumidor processa uma mensagem e cai antes do ack.",
+    "Explique por que chave de partição afeta ordenação e paralelismo em Kafka.",
+    "Escolha entre round-robin, least connections e hash de IP para três cenários distintos.",
+    "Desenhe o fluxo cache-aside de leitura e atualização e indique onde pode surgir dado obsoleto.",
+    "Diferencie métrica, log, trace e span usando uma requisição que atravessa uma fila.",
+    "Explique como trace ID e metadados de mensagem ajudam a investigar uma falha assíncrona."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir aceitação e processamento",
+      "summary": "Publisher confirm e consumer ack confirmam etapas diferentes; nenhum substitui automaticamente o outro."
+    },
+    {
+      "key": "e2",
+      "title": "Supor ordenação e unicidade globais",
+      "summary": "Concorrência e partições limitam a ordenação; reentregas tornam necessária a idempotência."
+    },
+    {
+      "key": "e3",
+      "title": "Tratar cache como fonte de verdade",
+      "summary": "Cache é cópia temporária; TTL e invalidação precisam fazer parte do desenho de consistência."
+    },
+    {
+      "key": "e4",
+      "title": "Misturar sinais de observabilidade",
+      "summary": "Métricas, logs e traces respondem perguntas complementares e requerem contexto propagado para correlação."
+    },
+    {
+      "key": "e5",
+      "title": "Confundir afinidade com balanceamento uniforme",
+      "summary": "Hash de IP tende a fixar destino, mas a distribuição pode ficar enviesada e a sessão deve sobreviver à troca de instância."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma API HTTP, PUT e DELETE são idempotentes quanto ao efeito pretendido, embora respostas e registros de auditoria possam variar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A idempotência se refere ao efeito pretendido no recurso após solicitações idênticas repetidas, não à igualdade de toda resposta ou efeito de auditoria.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No gRPC, o padrão unary permite que o cliente envie uma sequência de mensagens e receba uma única resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Unary troca uma solicitação por uma resposta. Uma sequência enviada pelo cliente corresponde ao client streaming.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta HTTP 403 indica que a solicitação não apresentou autenticação válida, enquanto 401 indica que o usuário foi autenticado, mas não tem permissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em termos gerais, 401 refere-se à falta de credenciais válidas; 403 indica que o servidor recusou a ação por autorização, ainda que o cliente esteja identificado.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cache-aside consulta a fonte primária quando ocorre miss e pode preencher o cache com o resultado obtido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A aplicação consulta primeiro o cache; em falta, lê a origem, devolve o dado e normalmente grava a entrada para leituras seguintes.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um esquema de confirmação manual do RabbitMQ, publisher confirm e consumer acknowledgement são a mesma confirmação vista por lados opostos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Publisher confirm cobre a aceitação da publicação pelo broker; consumer acknowledgement cobre o tratamento da entrega pelo consumidor. São mecanismos independentes.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Métricas, logs e traces fornecem perspectivas complementares sobre o funcionamento de um sistema distribuído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Métricas mostram medidas agregadas, logs registram eventos e traces relacionam operações através dos componentes.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um health check que falha pode levar o balanceador a evitar temporariamente uma instância considerada indisponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Conforme os critérios e tempos configurados, o balanceador pode retirar o destino do conjunto elegível e voltar a testá-lo depois.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O TTL de uma chave no cache garante que o dado seja atualizado imediatamente sempre que a fonte primária muda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TTL limita o tempo de vida configurado da cópia, mas a atualização imediata requer invalidação ou atualização coordenada da entrada.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Kafka, consumidores que pertencem ao mesmo grupo dividem entre si o consumo das partições atribuídas ao grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O grupo permite paralelismo por partição; tipicamente, uma partição é atribuída a um consumidor do grupo em cada momento.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método HTTP seguro pode produzir efeitos colaterais internos, como registrar uma consulta, sem deixar de ser seguro quanto ao efeito solicitado pelo cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Segurança significa que o cliente não solicitou alteração de estado; o servidor ainda pode registrar logs, métricas ou histórico operacional.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ordem de mensagens em uma chamada gRPC bidirecional exige que o cliente e o servidor alternem estritamente uma mensagem de cada vez.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os fluxos de leitura e escrita são independentes; cada lado pode enviar e receber em ritmos próprios, preservando a ordem de seu fluxo.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um consumidor confirmar uma mensagem antes de concluir o efeito de negócio e depois falhar, o broker pode considerar concluída uma tarefa que não ocorreu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um ack prematuro remove a obrigação de redelivery no broker. A confirmação deve refletir o ponto de conclusão definido pela aplicação.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Round-robin escolhe necessariamente o servidor com menos conexões ativas em cada decisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Round-robin distribui em sequência; escolher o servidor com menos conexões ativas é a política least connections.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trace pode conter spans de entrada, chamadas de saída e processamento de mensagens associados por contexto propagado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Spans representam unidades de trabalho e o contexto correlaciona partes da operação, inclusive ao atravessar serviços e mensageria.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de cache que omite o identificador do usuário pode devolver com segurança qualquer resposta personalizada sob a mesma chave, desde que tenha TTL curto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TTL curto não corrige colisão lógica entre usuários. Se a resposta varia por identidade ou autorização, esses fatores precisam participar da chave ou o dado não deve ser compartilhado.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um servidor conclui uma operação gRPC depois do prazo do cliente, é possível que o servidor considere sucesso enquanto o cliente recebe DEADLINE_EXCEEDED.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cliente e servidor avaliam localmente o término da chamada; a expiração observada pelo cliente não desfaz por si só o efeito já executado no servidor.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de partição pode manter eventos de uma mesma entidade na mesma partição, mas não cria uma ordem total para eventos de partições diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A ordenação é local à partição. A chave orienta a colocação dos eventos, mas partições distintas podem avançar em paralelo sem ordem global garantida.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A combinação de retries automáticos em cliente, gateway e serviço pode multiplicar a carga sobre uma dependência já lenta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Camadas independentes podem repetir a mesma operação em cascata. Orçamentos de tentativa, backoff, jitter, timeout e proteção de idempotência reduzem amplificação.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A amostragem de traces reduz volume e custo, mas uma política inadequada pode descartar justamente execuções raras que falharam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Amostragem é um controle de volume, não garantia de que todo erro será observado; políticas precisam considerar latência e status de erro quando possível.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão cache-aside, gravar primeiro a origem e depois invalidar a chave reduz o risco de a leitura posterior obter o valor antigo do cache, embora ainda existam janelas de corrida que exigem análise.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa é uma sequência comum para atualizar cache-aside; concorrência entre leituras e escrita ainda pode recriar uma entrada antiga, de modo que a garantia depende do desenho e da estratégia de invalidação.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual método HTTP indica, pela semântica padronizada, a substituição da representação atual do recurso-alvo pelo conteúdo da solicitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET, pois recupera o recurso e grava a representação recebida como estado novo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "POST, pois sempre substitui integralmente o recurso que aparece na URI solicitada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PUT, pois solicita a substituição das representações atuais do recurso-alvo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "PATCH, pois exige que o cliente envie uma representação completa para troca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HEAD, pois atualiza os metadados do recurso sem transferir o corpo da resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "PUT expressa substituição da representação do recurso-alvo. GET recupera, POST tem processamento definido pelo recurso, PATCH aplica modificação parcial conforme seu formato e HEAD corresponde aos metadados de GET sem corpo de resposta.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição de Kafka pode garantir a ordem dos eventos que contém, mas consumidores não devem inferir por isso uma ordem global entre partições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A sequência é preservada dentro de cada partição. Partições diferentes podem ser processadas em paralelo e não estabelecem, por si só, ordenação total.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um balanceador com IP hash replica automaticamente os dados de sessão local de uma instância para todas as outras instâncias do grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. IP hash escolhe um destino com base no endereço do cliente e pode criar afinidade; não replica estado. Sessões precisam de armazenamento compartilhado ou outro mecanismo de continuidade.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Publisher confirm no RabbitMQ garante que o consumidor final já concluiu a operação de negócio da mensagem publicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Publisher confirm cobre a interação do produtor com o broker. O processamento do consumidor é uma etapa separada, sinalizada por consumer acknowledgement conforme a aplicação.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cancelamento de uma chamada gRPC desfaz automaticamente os efeitos que o servidor concluiu antes de receber o cancelamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cancelamento encerra trabalho futuro, mas não executa rollback automático. Se a operação exige atomicidade, ela deve ser implementada com transação ou compensação apropriada.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma solicitação HTTP com If-Match não satisfaz a precondição, o servidor deve aplicar mesmo assim a alteração e apenas retornar um cabeçalho de cache diferente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. If-Match condiciona a execução à correspondência da representação atual. Se a condição for falsa, o método não deve ser realizado; o servidor pode indicar falha de precondição, por exemplo com 412.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RabbitMQ, o limite prefetch do consumidor também restringe o número de mensagens obtidas individualmente pela operação básica de pull basic.get.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O prefetch QoS limita entregas não confirmadas em consumidores push, mas não tem efeito sobre mensagens obtidas com basic.get, que usa o modo pull.",
+      "section": "2. Mensageria",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API retorna muitos registros. Qual recurso controla tamanho e custo de cada resposta sem mudar a identidade dos recursos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Paginação com um limite validado e cursor ou deslocamento conforme o caso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repetir todos os registros em cada página e pedir ao cliente que elimine duplicatas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Responder 500 sempre que a coleção tiver mais itens que cabem na tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar filtros e limites para que cada chamada leia a tabela inteira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar GET por DELETE para reduzir o conteúdo devolvido ao consumidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação restringe o conjunto de cada resposta. Cursor pode ser útil quando a coleção muda durante a navegação; limites devem ser validados para evitar consultas excessivas.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pedidos diferentes devem ser processados em paralelo, mas atualizações do mesmo pedido precisam manter a ordem. Qual desenho em tópico particionado ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar a chave do pedido e preservar sua ordem de processamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar eventos sem chave e esperar ordenação global entre todas as partições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir um grupo consumidor exclusivo a cada mensagem e ordenar offsets ao final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar cada evento numa partição aleatória e ordenar pelos relógios dos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar partições e confiar que consumidores concorrentes terminarão na ordem de chegada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave consistente coloca eventos da entidade na mesma partição, onde a ordem é preservada. Partições diferentes processam entidades em paralelo; a aplicação também deve evitar concorrência que reordene operações da mesma chave.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pool de servidores usa round-robin, mas uma instância tem capacidade maior que as demais. Que ajuste aumenta sua parcela de tráfego?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir peso maior à instância mais capaz no grupo de servidores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reduzir o peso desse servidor para que ele receba mais requisições por rodada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar as verificações de saúde e usar o TTL como peso de roteamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar IP hash, que reparte cada cliente em proporção à capacidade da máquina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar least connections, que garante proporção exata à capacidade nominal configurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pesos influenciam a participação na distribuição round-robin; peso maior envia fração maior das solicitações. Least connections considera conexões ativas, sem prometer divisão exata pela capacidade nominal.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de catálogo tem muitos cache hits, mas atualizações recentes demoram a aparecer. Qual causa é compatível com esse sintoma?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cópia antiga permanece até o TTL vencer quando a gravação não invalida a chave.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A taxa de hits força uma consulta à origem antes de cada leitura servida pelo cache.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O balanceador converte automaticamente toda gravação do banco em invalidação distribuída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Métricas de hits substituem a política de consistência e atualizam as entradas antigas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O status HTTP 304 torna a entrada permanente, mesmo sem diretivas ou cabeçalhos de cache.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem atualização ou invalidação, uma entrada pode ser servida até o TTL expirar. Taxa de hit mede reutilização, não a atualidade do conteúdo em relação à fonte.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um log de erro não permite descobrir a qual requisição distribuída pertence. Qual melhoria facilita correlacioná-lo à execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar trace ID e campos estruturados, propagando contexto entre serviços.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a verbosidade sem incluir operação, serviço ou identificador correlacionável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir logs por média global de CPU sem dimensão de serviço ou intervalo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar credenciais completas no log para reproduzir a solicitação posteriormente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar traces para impedir que spans revelem a sequência dos componentes chamados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trace ID e contexto propagado permitem relacionar o log aos spans e serviços envolvidos. Campos estruturados ajudam na consulta; segredos e dados sensíveis desnecessários não devem ser registrados.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente perde a resposta após enviar novamente a mesma atualização PUT. Qual propriedade da semântica HTTP torna a repetição normalmente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A repetição é segura porque PUT não pode alterar estado no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A repetição é idempotente quanto ao efeito pretendido sobre o recurso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A repetição cria sempre uma nova cópia do recurso em outra URI.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A repetição transforma automaticamente a atualização em uma consulta GET.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A repetição desativa a validação e ignora conflitos com atualizações concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "PUT é idempotente pelo efeito pretendido: repetir a mesma substituição não deve produzir efeito acumulativo. Isso não significa que PUT seja seguro nem que dispense controle de concorrência.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API quer evitar sobrescrever uma representação que outro cliente alterou depois da leitura. Qual mecanismo HTTP atende melhor a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar If-Match com o ETag lido e recusar a operação se a versão atual não corresponder.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar Accept com o tipo JSON e aceitar a atualização mesmo com versão divergente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar Cache-Control max-age e usar a cópia local como versão sempre vigente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar User-Agent com o horário da leitura e deixar o servidor ignorar concorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar Content-Type com a versão anterior e obrigar o proxy a restaurar essa cópia.",
+          "correct": false
+        }
+      ],
+      "explanation": "If-Match permite condicionar uma operação ao ETag atual, protegendo contra atualização perdida; uma condição falsa impede a aplicação e pode gerar 412. Cabeçalhos de formato ou cache não fazem esse controle.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação corresponde a uma chamada gRPC server streaming?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente envia um evento e o servidor devolve uma resposta final única.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cliente envia várias mensagens e o servidor devolve uma resposta agregada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cliente envia uma solicitação e recebe uma sequência de respostas do servidor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O cliente e o servidor trocam sequências independentes nos dois sentidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor inicia várias chamadas sem solicitação ou abertura feita pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em server streaming, o cliente faz uma solicitação e lê uma sequência de respostas. Unary retorna uma resposta; client streaming recebe várias mensagens do cliente; bidirecional mantém fluxos nos dois sentidos.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada gRPC espera indefinidamente quando o cliente não define limite de espera. Qual medida do lado do cliente evita essa espera sem limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir um deadline coerente com a latência esperada e o tempo disponível para a operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover o status da resposta para que o servidor finalize quando estiver disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o formato protobuf por JSON para que o transporte imponha um prazo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar streaming bidirecional, que encerra sozinho cada chamada após a primeira mensagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tamanho dos metadados, que instrui o servidor a responder imediatamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "gRPC não impõe necessariamente um deadline padrão. O cliente deve estabelecer deadline/timeout adequado; se ele expirar, a chamada pode terminar como DEADLINE_EXCEEDED, sem rollback automático dos efeitos feitos.",
+      "section": "1. APIs REST e gRPC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor de RabbitMQ cai depois de receber uma mensagem sem enviar ack manual. Qual comportamento e proteção devem ser esperados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O broker elimina a mensagem porque a entrega ao socket equivale à confirmação do trabalho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O broker pode reenfileirar a entrega, por isso o consumidor deve tolerar processamento repetido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O broker converte a entrega em publisher confirm e a envia ao produtor original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O broker mantém a mensagem invisível até receber do produtor uma nova publicação igual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O broker marca a tarefa como concluída e transfere o ack para outro consumidor do grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com ack manual, uma entrega não confirmada pode ser reencaminhada quando canal ou conexão fecha. O efeito da aplicação pode, portanto, repetir-se; idempotência ou deduplicação evita duplicar o resultado.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma publicação precisa ser confirmada pelo broker, e depois o processamento pelo consumidor também deve ser confirmado. Quais mecanismos RabbitMQ cobrem as duas etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publisher confirms do produtor e consumer acknowledgements do consumidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Consumer acknowledgements do produtor e publisher confirms do consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Health checks do produtor e prefetch do consumidor, que juntos confirmam persistência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dead lettering do produtor e roteamento do consumidor, que confirmam o efeito externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prefetch no produtor e requeue no consumidor, que substituem toda confirmação explícita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publisher confirms cobrem a aceitação pelo broker para o produtor; consumer acknowledgements informam ao broker o resultado da entrega ao consumidor. Um não comprova a outra etapa.",
+      "section": "2. Mensageria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem com formato inválido falha repetidamente, sem chance de sucesso por tentativa posterior. Que tratamento evita bloquear indefinidamente o fluxo normal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar sem limite a velocidade das retentativas para que a mensagem preceda as demais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retornar a mensagem ao início da fila sempre que a validação apontar o mesmo erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Encaminhar após a política de tentativas para uma DLQ com motivo e trilha de análise.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Confirmar a mensagem antes da validação e descartar qualquer registro de processamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a validação do consumidor e confiar que o broker corrigirá o conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falhas permanentes não melhoram com retries ilimitados. Uma dead letter queue isola mensagens irrecuperáveis para inspeção, correção e eventual reprocessamento controlado.",
+      "section": "2. Mensageria",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila RabbitMQ entrega muitas mensagens não confirmadas a um consumidor lento, elevando a memória usada. Qual recurso limita essa quantidade em trânsito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar prefetch para limitar entregas pendentes de confirmação por canal ou consumidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ativar publisher confirms, que limita diretamente a quantidade mantida no consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar ip hash, que divide as mensagens pela faixa de endereço de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o TTL de cada mensagem, que reduz as entregas ativas em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar dead lettering em todas as mensagens, que confirma seu processamento normal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prefetch limita o número de entregas não confirmadas em trânsito. Um valor maior pode elevar throughput, mas também aumenta trabalho pendente e memória; publisher confirms pertencem ao lado do produtor.",
+      "section": "2. Mensageria",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um balanceador NGINX, as requisições duram tempos muito diferentes. Qual política escolhe um destino com base no número de conexões ativas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Round-robin, que escolhe sempre a máquina que respondeu mais rápido na última tentativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Least connections, que considera quantas conexões permanecem ativas em cada servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "IP hash, que escolhe o destino com menor número de bytes enviados ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Health check, que atribui cada solicitação ao servidor com mais sessões abertas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache-aside, que encaminha a solicitação ao servidor menos utilizado pela aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Least connections seleciona considerando conexões ativas, o que pode ajudar quando solicitações têm duração desigual. Round-robin percorre destinos; IP hash usa o IP como chave de afinidade.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa IP hash para manter cada cliente no mesmo servidor. Vários usuários saem pelo mesmo NAT. Qual risco deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo endereço IP público passa a gerar uma conexão criptografada distinta, sem afinidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Clientes diferentes podem concentrar tráfego no mesmo destino e produzir desbalanceamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A política transforma a sessão local em armazenamento compartilhado em todas as instâncias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O algoritmo preserva a ordem global das solicitações mesmo após retirar uma instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O NAT faz o balanceador ignorar o endereço do cliente e aplicar least connections.",
+          "correct": false
+        }
+      ],
+      "explanation": "IP hash oferece afinidade a partir do endereço observado, mas muitos usuários atrás do mesmo NAT podem compartilhar a chave e concentrar carga. Afinidade não replica sessão nem garante equilíbrio uniforme.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação atualiza dados no banco e usa cache-aside. Qual sequência simples evita que leituras posteriores encontrem no cache a versão que acabou de ficar velha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar a origem e invalidar a chave do cache para que a próxima leitura recarregue o dado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Invalidar a origem e manter a chave antiga para que o cache reconstrua o banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atualizar somente o cache e tratar a cópia volátil como registro durável principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o TTL da chave antiga para impedir que ela expire durante a atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a chave antes de qualquer escrita e nunca consultar novamente a fonte primária.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia comum grava na origem e invalida a entrada; leituras futuras buscam a fonte e repovoam o cache. Ainda pode haver corridas, que precisam ser avaliadas conforme a consistência exigida.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave muito popular expira e, em seguida, centenas de solicitações consultam o banco simultaneamente. Qual problema e mitigação correspondem melhor ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cache stampede; combinar expirações escalonadas com coordenação ou atualização antecipada da chave.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dead letter; aumentar a quantidade de partições de mensagem para confirmar cada leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Split brain; substituir o TTL por round-robin entre as réplicas do balanceador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Head-of-line blocking; enviar respostas gRPC em ordem inversa para espalhar a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cardinalidade; incluir o horário atual na chave para que cada requisição use a mesma entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expiração simultânea de uma chave popular causa cache stampede e amplifica a carga no banco. TTLs variados, mutex curto por chave ou refresh antecipado podem dispersar ou coordenar as recomputações.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy recebe gRPC por HTTP/2 e mantém conexões persistentes. Qual suposição sobre distribuição de carga deve ser evitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda chamada RPC abre obrigatoriamente uma nova conexão TCP para uma nova escolha de servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A política de distribuição depende do proxy e pode atuar sobre conexões ou chamadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O proxy pode encaminhar tráfego gRPC se oferecer suporte ao protocolo e à configuração usados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma conexão persistente HTTP/2 pode carregar mais de um stream de chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A arquitetura precisa considerar como a persistência afeta a distribuição entre instâncias.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chamada gRPC não exige abrir novo TCP a cada RPC; HTTP/2 multiplexa streams na conexão. O comportamento de distribuição de chamadas depende da topologia e do proxy, por isso a suposição de nova escolha por conexão é incorreta.",
+      "section": "3. Balanceamento e cache",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa localizar uma chamada que ficou lenta ao percorrer gateway, serviço de pedidos e banco. Qual sinal mostra melhor a sequência temporal entre esses componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um trace com spans correlacionados para a solicitação recebida e as operações descendentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma métrica de CPU agregada para todo o cluster sem rótulos de serviço ou tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um log isolado do gateway sem identificador que permita achar eventos relacionados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de configuração do balanceador sem informação sobre chamadas concluídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um valor de TTL do cache sem eventos de leitura, escrita ou latência registrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trace e spans representam o caminho e as unidades de trabalho da chamada distribuída. Métricas ajudam a detectar tendências e logs descrevem eventos, mas sem correlação não mostram por si só toda a cadeia temporal.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual enunciado descreve corretamente o papel do OpenTelemetry numa arquitetura de monitoramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instrumenta e coleta sinais e pode exportá-los a um collector ou backend escolhido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazena obrigatoriamente todas as métricas num banco próprio e substitui qualquer backend.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui o balanceador e escolhe servidores com base nos traces exportados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante a correção de negócio ao modificar respostas HTTP com base em logs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atua como broker durável que retém mensagens de negócio até o consumidor confirmar.",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenTelemetry fornece APIs, SDKs e componentes de coleta/exportação de telemetria. Armazenamento, consulta e visualização são normalmente oferecidos por outros componentes da arquitetura.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica de latência média permanece baixa, mas usuários relatam lentidão em algumas solicitações. Que análise é mais informativa para revelar a cauda lenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar percentis de latência, como p95, por rota e dependência relevante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar somente a janela da média até que todos os picos desapareçam do painel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar o total de mensagens publicadas sem comparar tempo de processamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar apenas o status HTTP mais frequente e desconsiderar a distribuição temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir a quantidade de spans exportados sem considerar duração ou operação observada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A média pode ocultar uma fração de solicitações muito lentas. Percentis como p95 ajudam a observar a cauda e a segmentação por rota ou dependência localiza onde ela ocorre.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um trace distribuído, cada serviço gera spans localmente, mas nenhum contexto é propagado entre chamadas. Qual consequência é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os registros de cada serviço podem existir, mas será difícil correlacioná-los como uma única operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O trace ID será reconstruído automaticamente a partir do endereço IP do usuário final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ausência de contexto converterá os spans em métricas de histograma por padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O backend concluirá que cada span é uma repetição da mesma mensagem de fila.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O protocolo HTTP gerará a relação pai-filho independentemente da instrumentação configurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A propagação de contexto carrega IDs e relação causal entre limites de processo. Sem ela, spans isolados podem ser exportados, mas não formar um trace contínuo correlacionado.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SLI mede a proporção de solicitações válidas atendidas abaixo da latência definida. O que representa um SLO associado a esse indicador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O objetivo definido para o valor do indicador dentro de uma janela de avaliação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A lista de eventos individuais registrados em cada log de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tempo de vida atribuído a cada cópia armazenada no cache distribuído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A configuração do método de balanceamento entre servidores de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem garantida de processamento de mensagens entre tópicos independentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "SLI é a medida operacional; SLO é o alvo definido para essa medida num período escolhido. SLA é um compromisso externo ou contratual e não é sinônimo automático de SLO.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila cresce continuamente, enquanto CPU dos consumidores permanece baixa. Qual conjunto de sinais ajuda melhor a distinguir falta de paralelismo, erro de processamento e lentidão de dependência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Taxa de entrada e saída, idade da mensagem mais antiga, tentativas, concorrência e traces das dependências.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente CPU média do cluster e quantidade de implantações no mês corrente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o número total de mensagens publicadas desde a criação da fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O p95 do gateway sem dados de consumidores ou chamadas descendentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa de cache hit do frontend sem ligação com a operação que consome a fila.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tendência entrada/saída e a idade do item mais antigo mostram backlog e atraso; tentativas e erros apontam falhas, concorrência mostra capacidade, e traces ajudam a localizar dependências lentas. CPU isolada não explica a causa.",
+      "section": "4. Observabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9110: HTTP Semantics",
+      "publisher": "IETF",
+      "reference": "Métodos, semântica segura e idempotente, status, cabeçalhos condicionais e cache HTTP.",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Core concepts, architecture and lifecycle",
+      "publisher": "gRPC",
+      "reference": "Definição .proto, Protocol Buffers, quatro padrões RPC, deadlines, cancelamento e metadados.",
+      "url": "https://grpc.io/docs/what-is-grpc/core-concepts/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Consumer Acknowledgements and Publisher Confirms",
+      "publisher": "RabbitMQ",
+      "reference": "Confirmações do produtor, ack do consumidor, prefetch, reentrega e segurança de entrega.",
+      "url": "https://www.rabbitmq.com/docs/confirms",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Kafka Documentation",
+      "publisher": "Apache Kafka",
+      "reference": "Tópicos, partições, grupos consumidores, offsets e entrega de mensagens.",
+      "url": "https://kafka.apache.org/documentation/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using nginx as HTTP load balancer",
+      "publisher": "NGINX",
+      "reference": "Round-robin, least-connected, ip-hash, pesos e verificações passivas de saúde.",
+      "url": "https://nginx.org/en/docs/http/load_balancing.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis cache-aside",
+      "publisher": "Redis",
+      "reference": "Cache-aside, TTL, invalidação e contenção de cache stampede.",
+      "url": "https://redis.io/docs/latest/develop/use-cases/cache-aside/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry signals",
+      "publisher": "OpenTelemetry",
+      "reference": "Sinais de métricas, logs, traces e baggage.",
+      "url": "https://opentelemetry.io/docs/concepts/signals/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry traces",
+      "publisher": "OpenTelemetry",
+      "reference": "Spans, propagação de contexto, exporters e correlação de traces distribuídos.",
+      "url": "https://opentelemetry.io/docs/concepts/signals/traces/",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

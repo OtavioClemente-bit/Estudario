@@ -18,12 +18,20 @@ const aprovada = (arquivo: string) => {
   return new TextDecoder().decode(o.stdout).trim().endsWith("OK");
 };
 
+// Reprovadas na revisão (work/codex-reprovadas.json, id → hora do arquivo quando foi reprovado): só voltam à amostra
+// se o rascunho mudar depois disso (09/11: 5 reprovadas de 08/11 voltaram iguais, porque o arquivo continuava na pasta).
+const REPROVADAS = `${ROOT}work/codex-reprovadas.json`;
+let reprovadas: Record<string, number> = {};
+try { reprovadas = JSON.parse(Deno.readTextFileSync(REPROVADAS)); } catch { /* nenhuma */ }
+const mtime = (id: string) => { try { return Deno.statSync(`${PASTA}/${id}.json`).mtime?.getTime() ?? 0; } catch { return 0; } };
+
 if (Deno.args.includes("--montar")) {
   const ids: string[] = [];
   for (const e of [...Deno.readDirSync(PASTA)].sort((a, b) => a.name.localeCompare(b.name))) {
     if (!e.name.endsWith(".json")) continue;
     const id = e.name.replace(/\.json$/, "");
     if (!destino(id) || publicada(id)) continue;
+    if (reprovadas[id] && mtime(id) <= reprovadas[id]) continue;
     if (aprovada(`${PASTA}/${e.name}`)) ids.push(id);
   }
   const lotes = [];
@@ -55,8 +63,13 @@ if (Deno.args.includes("--montar")) {
   try { duplicadas = new Set(Deno.readTextFileSync(`${ROOT}work/duplicadas.txt`).split(/\s+/).filter(Boolean)); } catch { /* nenhuma */ }
   for (const e of Deno.readDirSync(RES)) {
     if (!e.name.endsWith(".json")) continue;
-    for (const id of JSON.parse(Deno.readTextFileSync(`${RES}/${e.name}`)).ok ?? []) if (!publicada(id) && destino(id) && !duplicadas.has(id) && existe(id)) ok.push(id);
+    const r = JSON.parse(Deno.readTextFileSync(`${RES}/${e.name}`));
+    for (const id of r.ok ?? []) if (!publicada(id) && destino(id) && !duplicadas.has(id) && existe(id)) ok.push(id);
+    for (const id of Object.keys(r.reprovar ?? {})) reprovadas[id] = mtime(id);
   }
+  // Uma "ok" numa conferência posterior (ler-N.json) vence a reprovação anterior.
+  for (const id of ok) delete reprovadas[id];
+  Deno.writeTextFileSync(REPROVADAS, JSON.stringify(reprovadas, null, 1));
   for (const id of ok) {
     const m = JSON.parse(Deno.readTextFileSync(`${PASTA}/${id}.json`));
     m.status = "PUBLISHED";

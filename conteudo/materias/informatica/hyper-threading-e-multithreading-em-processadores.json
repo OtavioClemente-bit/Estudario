@@ -1,0 +1,2100 @@
+{
+  "id": "informatica.hyper-threading-e-multithreading-em-processadores",
+  "subject": "Informática",
+  "title": "Hyper-Threading e multithreading em processadores",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Multithreading de hardware em CPUs",
+    "Multithreading em processadores modernos",
+    "SMT e Hyper-Threading em CPUs",
+    "Execução simultânea de threads na CPU",
+    "Processadores lógicos e Hyper-Threading",
+    "Hyper-Threading e multithreading em processadores",
+    "Threads de software e processadores lógicos"
+  ],
+  "scope": {
+    "covers": "Multithreading de software e de hardware; SMT e implementação Intel Hyper-Threading; relação entre thread, núcleo físico e processador lógico; estado arquitetural próprio e recursos compartilhados; enumeração e escalonamento pelo sistema operacional; coexistência com processadores multinúcleo; benefícios, limitações, afinidade, desempenho, segurança e dependência do modelo de processador.",
+    "excludes": "Programação detalhada de sincronização, modelos de memória compartilhada, topologias NUMA, benchmarks de modelos específicos e especificação completa de instruções x86."
+  },
+  "theoryTitle": "Mais trabalho concorrente no mesmo processador",
+  "chapters": [
+    {
+      "title": "1. Threads de software e multithreading",
+      "markdown": "### O problema que este assunto resolve\n\nUm programa pode ter várias partes de trabalho que avançam de forma independente. Uma aplicação de edição, por exemplo, pode responder à interface enquanto outra thread processa uma imagem. **Thread** é um fluxo de execução dentro de um processo; threads do mesmo processo normalmente compartilham seu espaço de endereçamento e recursos do processo, embora cada fluxo tenha seu próprio estado de execução.\n\n> **Siglas e termos deste capítulo**\n> - **Processo**: programa em execução e seus recursos gerenciados pelo sistema operacional.\n> - **Thread de software**: fluxo de instruções escalonável dentro de um processo.\n> - **Concorrência**: progresso intercalado ou simultâneo de mais de uma atividade.\n> - **Paralelismo**: execução efetivamente simultânea em recursos de processamento distintos.\n> - **Escalonador**: componente do sistema operacional que escolhe qual thread pronta recebe tempo de CPU.\n\n**Multithreading de software** é a organização do programa em mais de uma thread. Isso permite separar tarefas e, quando existem recursos disponíveis, executá-las em paralelo. Ter várias threads não garante que todas rodem ao mesmo instante: em uma CPU de um único contexto de execução, o sistema operacional pode alternar rapidamente entre elas.\n\n| Situação | O que acontece |\n| --- | --- |\n| Uma thread, um processador disponível | Um fluxo de instruções progride |\n| Várias threads, um contexto disponível | O sistema alterna o uso do contexto; há concorrência |\n| Várias threads, vários núcleos ou contextos | Pode haver execução paralela, conforme o sistema e a carga |\n\nO software cria e coordena threads; o processador fornece contextos de execução e recursos físicos. **Hyper-Threading não cria threads de software**: permite que o hardware exponha mais de um contexto lógico por núcleo compatível para o sistema escalonar.\n\n### Como cai na prova\n\n- Se o enunciado diz que um aplicativo foi dividido em tarefas executáveis, trata de threads de software ou multithreading da aplicação.\n- Se diz que um núcleo físico aparece ao sistema como mais de um processador lógico, trata de SMT/Hyper-Threading.\n- Muitas threads podem ser alternadas em um único contexto; não conclua que há paralelismo físico só pela quantidade de threads."
+    },
+    {
+      "title": "2. SMT e a arquitetura do Hyper-Threading",
+      "markdown": "### O problema que este assunto resolve\n\nUma thread pode ficar temporariamente sem instruções prontas para usar certas unidades do núcleo, por exemplo enquanto aguarda dados. O **multithreading simultâneo** (*simultaneous multithreading*, SMT) permite que um núcleo mantenha mais de um contexto arquitetural ativo e aproveite recursos de execução para instruções de fluxos diferentes. **Intel Hyper-Threading (HT)** é o nome comercial da implementação de SMT da Intel.\n\n> **Siglas e termos deste capítulo**\n> - **SMT**: técnica de multithreading simultâneo implementada no hardware de um núcleo.\n> - **HT**: Intel Hyper-Threading Technology, implementação Intel de SMT.\n> - **Núcleo físico**: unidade de processamento física que contém recursos de execução.\n> - **Processador lógico**: contexto que o sistema operacional pode tratar como uma CPU escalonável.\n> - **Estado arquitetural**: registradores e estado de controle que identificam a execução de um contexto.\n\nEm uma implementação HT comum, um núcleo físico oferece dois processadores lógicos. Cada contexto lógico mantém estado arquitetural próprio para que o processador preserve a identidade de cada fluxo. Os contextos, porém, compartilham recursos do núcleo: não são dois núcleos completos. O manual de arquitetura Intel descreve estado arquitetural individual e recursos de execução compartilhados, incluindo o mecanismo de execução e a interface de barramento.\n\n| Elemento | Relação em HT |\n| --- | --- |\n| Núcleo físico | Contém os recursos que executam instruções |\n| Contexto lógico | Mantém estado próprio e pode receber uma thread |\n| Unidades de execução | São recursos físicos do núcleo, disputados ou aproveitados pelos contextos |\n| Sistema operacional | Enxerga processadores lógicos e escalona threads neles |\n\nHT busca elevar a utilização do núcleo quando uma thread deixa recursos ociosos. O benefício não equivale a duplicar todos os recursos do núcleo, nem garante dobrar a velocidade. Se dois fluxos disputam a mesma unidade ou largura de banda, o ganho pode ser pequeno ou pode haver perda para a carga específica.\n\n### Como cai na prova\n\n- Dois processadores lógicos em HT continuam pertencendo a um núcleo físico.\n- Estado arquitetural independente não significa unidades de execução independentes.\n- SMT é o conceito; Hyper-Threading é a implementação da Intel. Outros fabricantes usam seus próprios nomes e implementações."
+    },
+    {
+      "title": "3. Sistema operacional, topologia e contagem de CPUs",
+      "markdown": "### O problema que este assunto resolve\n\nO sistema operacional precisa saber em quais unidades pode escalonar trabalho. Um processador compatível pode expor contextos lógicos, que o firmware inicializa e o sistema enumera como processadores disponíveis. O sistema então distribui threads de software entre esses contextos, levando em conta sua política de escalonamento.\n\n> **Siglas e termos deste capítulo**\n> - **BIOS/UEFI**: firmware que inicializa a plataforma e configura recursos antes do sistema operacional.\n> - **CPUID**: instrução x86 que permite consultar informações e capacidades do processador.\n> - **Afinidade**: restrição ou preferência que associa uma thread a certos processadores lógicos.\n> - **CPU lógica**: processador lógico enumerado pelo sistema operacional.\n> - **Núcleo multinúcleo**: processador físico com mais de um núcleo físico.\n\nPara usar HT são necessários suporte do processador e habilitação adequada pela plataforma; firmware e sistema operacional também precisam tratar corretamente os processadores lógicos. A opção pode estar configurável no firmware e sua disponibilidade depende do produto. O sistema não transforma os processadores lógicos em núcleos físicos: ferramentas podem mostrar, por exemplo, quatro núcleos e oito processadores lógicos.\n\nEm um processador com vários núcleos e HT habilitado em todos eles, a contagem lógica pode superar a contagem física. A fórmula simples de dois contextos por núcleo é comum em HT, mas não deve ser generalizada a todo modelo, geração ou fabricante. A documentação do modelo é a referência para confirmar a capacidade e a configuração.\n\nA **afinidade** pode evitar que uma aplicação use apenas alguns núcleos ou pode aproximar threads que compartilham dados. Ela não cria recursos adicionais. Uma política ruim pode concentrar duas threads nos contextos irmãos de poucos núcleos e deixar outros núcleos físicos ociosos.\n\n### Como cai na prova\n\n- Número de processadores lógicos não é sinônimo de número de núcleos físicos.\n- A contagem depende de capacidade do processador, firmware, configuração e enumeração do sistema.\n- Afinidade orienta a colocação de threads; não converte SMT em dois núcleos independentes."
+    },
+    {
+      "title": "4. Desempenho, limites e uso correto",
+      "markdown": "### O problema que este assunto resolve\n\nAdicionar contextos lógicos aumenta as oportunidades de execução, mas threads que compartilham um núcleo também competem por recursos. O resultado precisa ser avaliado para a carga real, e não inferido apenas pela contagem anunciada de threads.\n\n> **Siglas e termos deste capítulo**\n> - **Throughput**: quantidade de trabalho concluída por unidade de tempo.\n> - **Latência**: tempo necessário para concluir uma operação.\n> - **IPC**: instruções concluídas por ciclo, medida influenciada pela arquitetura e pela carga.\n> - **Contenção**: disputa entre fluxos por um recurso compartilhado.\n> - **Canal lateral**: inferência sobre dados a partir de efeitos observáveis de execução, como tempo ou uso de recursos.\n\nHT pode melhorar throughput quando uma thread não mantém ocupados todos os recursos do núcleo e outra thread consegue usar recursos disponíveis. O ganho depende das instruções, dos acessos à memória, da quantidade de trabalho e do escalonamento. Em cargas que já saturam as unidades de execução ou a memória, dois contextos podem competir sem trazer ganho. Não existe porcentagem fixa de melhoria válida para todos os programas.\n\n| Fator | Efeito possível |\n| --- | --- |\n| Thread frequentemente parada à espera de dados | Outro contexto pode aproveitar unidades livres |\n| Duas threads usam intensamente o mesmo recurso | Contenção e ganho reduzido ou desempenho menor |\n| Poucas threads e afinidade mal escolhida | Alguns núcleos podem ficar ociosos enquanto outros recebem dois fluxos |\n| Carga medida em cenário representativo | Permite decidir se HT ajuda naquela aplicação |\n\nHT também tem implicações de segurança: contextos no mesmo núcleo compartilham recursos microarquiteturais, e pesquisas de execução especulativa mostraram que certas condições podem permitir canais laterais entre threads. Isso não significa que qualquer uso de HT seja automaticamente vulnerável; mitigação depende da falha, do processador, do sistema operacional e da política de isolamento.\n\nA presença do recurso varia por família e modelo. A Intel, por exemplo, informa que Core Ultra desktop Series 2 não inclui Hyper-Threading, embora haja famílias Intel cujos P-cores ofereçam HT. Portanto, não se deve presumir HT por marca ou por uma regra universal de contagem.\n\n### Como cai na prova\n\n- HT aumenta contextos lógicos, não duplica necessariamente o desempenho nem todos os recursos do núcleo.\n- Ganho depende da carga; meça e compare com configuração controlada.\n- Não confunda HT com virtualização de máquinas virtuais, com múltiplos núcleos físicos ou com criação de threads no programa."
+    }
+  ],
+  "summary": "Multithreading de software divide o trabalho de um programa em threads. SMT é uma técnica de hardware que permite a um núcleo manter mais de um contexto de execução; Intel Hyper-Threading é uma implementação de SMT. O sistema operacional enxerga processadores lógicos e pode escalonar neles threads de software. Cada contexto mantém estado arquitetural próprio, mas os contextos de um núcleo HT compartilham recursos físicos. Assim, mais processadores lógicos não significam mais núcleos físicos nem desempenho dobrado. O benefício depende da carga, da contenção, da afinidade, do modelo do processador e da configuração de firmware e sistema.",
+  "flashcards": [
+    {
+      "front": "O que é uma thread de software?",
+      "back": "Um fluxo de execução dentro de um processo, escalonável pelo sistema operacional."
+    },
+    {
+      "front": "O que significa multithreading de software?",
+      "back": "Organizar um programa em múltiplos fluxos de execução que podem progredir concorrentemente."
+    },
+    {
+      "front": "A existência de várias threads garante execução simultânea?",
+      "back": "Não. Em um único contexto, elas podem ser alternadas; paralelismo exige recursos simultâneos."
+    },
+    {
+      "front": "O que significa SMT?",
+      "back": "Multithreading simultâneo: mais de um contexto de execução ativo no hardware de um núcleo."
+    },
+    {
+      "front": "O que é Intel Hyper-Threading?",
+      "back": "A implementação Intel de multithreading simultâneo em determinados processadores."
+    },
+    {
+      "front": "HT cria novos núcleos físicos?",
+      "back": "Não. Apresenta mais contextos lógicos sobre um núcleo físico compatível."
+    },
+    {
+      "front": "O que é processador lógico?",
+      "back": "Contexto de hardware que o sistema operacional pode enumerar e usar para escalonar threads."
+    },
+    {
+      "front": "O que é estado arquitetural?",
+      "back": "Estado visível da execução, como registradores e informações de controle do contexto."
+    },
+    {
+      "front": "Os contextos HT compartilham estado arquitetural?",
+      "back": "Cada contexto mantém estado arquitetural próprio, embora compartilhem recursos físicos do núcleo."
+    },
+    {
+      "front": "Os contextos HT têm unidades de execução completas e separadas?",
+      "back": "Não. Compartilham recursos de execução do núcleo físico."
+    },
+    {
+      "front": "Qual é o papel do escalonador do sistema operacional?",
+      "back": "Escolher qual thread pronta será executada em cada processador lógico disponível."
+    },
+    {
+      "front": "O que é afinidade de thread?",
+      "back": "Preferência ou restrição sobre os processadores lógicos nos quais a thread pode executar."
+    },
+    {
+      "front": "Como HT pode melhorar throughput?",
+      "back": "Outro fluxo pode usar recursos que ficariam ociosos enquanto a primeira thread espera."
+    },
+    {
+      "front": "HT garante dobrar a velocidade?",
+      "back": "Não. Contextos compartilham recursos e o ganho depende da carga e da contenção."
+    },
+    {
+      "front": "Que carga tende a aproveitar HT?",
+      "back": "Uma carga em que uma thread deixa recursos disponíveis que outra thread consegue utilizar."
+    },
+    {
+      "front": "Que carga pode não ganhar com HT?",
+      "back": "Uma carga que já satura recursos compartilhados, causando contenção entre os contextos."
+    },
+    {
+      "front": "O que a contagem de processadores lógicos informa?",
+      "back": "Quantos contextos enumeráveis o sistema pode escalonar, não quantos núcleos físicos existem."
+    },
+    {
+      "front": "Quais elementos influenciam a disponibilidade de HT?",
+      "back": "Suporte do processador, firmware, configuração da plataforma e suporte do sistema operacional."
+    },
+    {
+      "front": "HT é sinônimo de virtualização?",
+      "back": "Não. HT expõe contextos de hardware; virtualização executa sistemas convidados sobre recursos virtuais."
+    },
+    {
+      "front": "O que é throughput?",
+      "back": "Quantidade de trabalho concluída por unidade de tempo."
+    },
+    {
+      "front": "Por que medir a aplicação com e sem HT?",
+      "back": "Porque ganhos e perdas variam conforme instruções, memória, escalonamento e recursos disputados."
+    },
+    {
+      "front": "Todo processador Intel tem HT?",
+      "back": "Não. O recurso depende da família e do modelo; verifique a documentação específica."
+    },
+    {
+      "front": "O que é um canal lateral microarquitetural?",
+      "back": "Uma forma de inferir informação por efeitos observáveis do uso de recursos internos do processador."
+    },
+    {
+      "front": "Afinidade mal configurada pode causar o quê?",
+      "back": "Concentrar threads em alguns núcleos e deixar outros núcleos físicos sem uso."
+    }
+  ],
+  "tips": [
+    "Separe sempre núcleo físico de processador lógico ao interpretar uma ficha técnica.",
+    "Associe HT a SMT: a primeira expressão é a tecnologia Intel; a segunda é a categoria técnica.",
+    "Se duas threads compartilham um núcleo, procure no enunciado quais recursos físicos também são compartilhados.",
+    "Considere firmware e suporte do sistema operacional ao analisar a enumeração dos processadores lógicos.",
+    "Desconfie de afirmações de desempenho universal: a carga determina o efeito do HT.",
+    "Confirme o modelo exato antes de afirmar que um processador oferece Hyper-Threading."
+  ],
+  "traps": [
+    "Contar cada processador lógico como um núcleo físico dobra artificialmente o número de núcleos.",
+    "Tratar estado arquitetural próprio como prova de que cada contexto tem unidades de execução próprias.",
+    "Afirmar que HT cria threads de software; quem cria e coordena threads é o software e o sistema operacional.",
+    "Concluir que HT sempre aumenta desempenho ou sempre oferece dois contextos por núcleo em qualquer produto.",
+    "Confundir SMT com execução de máquinas virtuais ou com processadores físicos em soquetes separados.",
+    "Supor que aumentar a quantidade de threads elimina contenção por cache, execução ou memória."
+  ],
+  "activeRecall": [
+    "Explique a diferença entre uma thread de software e um processador lógico.",
+    "Descreva o que é próprio de cada contexto HT e o que continua compartilhado no núcleo.",
+    "Compare concorrência por alternância em um contexto com paralelismo em vários contextos.",
+    "Explique como o sistema operacional usa a enumeração de processadores lógicos.",
+    "Dê um exemplo de situação em que HT pode elevar throughput e explique por quê.",
+    "Dê um exemplo de contenção entre threads irmãs e seu possível efeito no desempenho.",
+    "Liste as condições de plataforma que podem determinar se o sistema usa HT.",
+    "Explique por que a contagem lógica e a presença de HT devem ser confirmadas para o modelo específico."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Núcleo físico e processador lógico",
+      "summary": "Distinguir contexto lógico escalonável de núcleo físico com recursos próprios.",
+      "description": "Os processadores lógicos HT são contextos no mesmo núcleo físico, não núcleos físicos adicionais."
+    },
+    {
+      "key": "e2",
+      "title": "Estado próprio e recursos compartilhados",
+      "summary": "Separar estado de execução próprio da disputa por recursos comuns do núcleo.",
+      "description": "Contextos mantêm estado arquitetural distinto enquanto compartilham recursos físicos do núcleo."
+    },
+    {
+      "key": "e3",
+      "title": "Multithreading de software e SMT",
+      "summary": "Diferenciar threads criadas pelo programa dos contextos oferecidos pelo hardware.",
+      "description": "O programa organiza threads; SMT/HT fornece contextos de hardware nos quais o sistema pode escaloná-las."
+    },
+    {
+      "key": "e4",
+      "title": "Desempenho dependente da carga",
+      "summary": "Avaliar ganhos de utilização e perdas por contenção conforme a carga medida.",
+      "description": "A utilização de unidades ociosas pode aumentar throughput, mas a contenção pode reduzir o benefício."
+    },
+    {
+      "key": "e5",
+      "title": "Suporte e configuração do processador",
+      "summary": "Confirmar capacidade do modelo, configuração de firmware e suporte do sistema.",
+      "description": "A disponibilidade de HT depende do modelo, firmware e suporte de software, não apenas da marca."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação cria quatro threads, mas o computador dispõe de um único contexto de execução. Qual descrição é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As quatro threads executam necessariamente no mesmo instante no núcleo único.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema alterna threads no contexto; há concorrência, sem paralelismo simultâneo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cada thread passa a representar um núcleo físico separado da máquina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação transforma automaticamente o núcleo em quatro processadores lógicos HT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As threads ficam em processos diferentes e deixam de compartilhar recursos do programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com um único contexto, o sistema operacional pode alternar a execução entre threads prontas. Isso permite concorrência, mas não execução simultânea em quatro recursos físicos. Threads não criam núcleos nem ativam HT automaticamente.",
+      "section": "1. Threads de software e multithreading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue corretamente multithreading de software e Hyper-Threading?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O programa cria threads; HT expõe contextos de hardware que o sistema escalona.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O software cria núcleos físicos; HT apenas escolhe quais processos serão encerrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O software duplica unidades de execução; HT transforma threads em processos independentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O software habilita firmware; HT substitui o escalonador do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O software é exclusivo de CPUs Intel; HT é uma biblioteca de threads para aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Multithreading de software estrutura um programa em threads. HT é um recurso de hardware que oferece processadores lógicos adicionais em determinados processadores, para que o sistema operacional escalone trabalho neles.",
+      "section": "1. Threads de software e multithreading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SMT, dois contextos lógicos de um núcleo físico podem executar instruções de fluxos diferentes usando recursos comuns do núcleo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SMT permite que um núcleo mantenha mais de um contexto de execução e aproveite recursos físicos compartilhados para avançar fluxos distintos.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CPU mostra oito processadores lógicos. É possível concluir, sem consultar a topologia, que ela contém oito núcleos físicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Processadores lógicos podem incluir contextos irmãos de SMT no mesmo núcleo físico. A contagem lógica não informa sozinha a quantidade de núcleos físicos.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a relação correta entre SMT e Intel Hyper-Threading?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SMT é a técnica de hardware; HT é a implementação Intel dessa técnica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SMT é o firmware Intel; Hyper-Threading é o nome genérico de todo escalonador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SMT designa núcleos físicos; Hyper-Threading designa threads criadas por aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SMT é uma forma de virtualização; Hyper-Threading é um formato de máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMT e Hyper-Threading são nomes exclusivos de multithreading de software.",
+          "correct": false
+        }
+      ],
+      "explanation": "SMT descreve a execução simultânea de múltiplos contextos de hardware em um núcleo. Hyper-Threading é o nome da implementação Intel; não é nome de escalonador ou de virtualização.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de duas threads prontas em um computador garante que elas executem ao mesmo tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Duas threads podem ser alternadas em um único contexto. A execução simultânea depende de recursos adequados e de escalonamento para esses recursos.",
+      "section": "1. Threads de software e multithreading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que informação descreve melhor um processador lógico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contexto de hardware enumerado para receber threads do sistema operacional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um núcleo físico completo com unidades de execução que não são compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um processo isolado que possui memória independente de todas as threads.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um dispositivo virtual que executa necessariamente um sistema operacional convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma fila de instruções de software que substitui a memória principal do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Processador lógico é o contexto que o sistema enumera como unidade escalonável. Em HT, dois contextos lógicos podem compartilhar o mesmo núcleo físico.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um núcleo HT, cada contexto mantém estado arquitetural próprio, embora compartilhe recursos físicos de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O estado próprio permite identificar a execução de cada contexto; recursos do núcleo, como mecanismos de execução, continuam compartilhados.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado o Hyper-Threading busca quando uma thread deixa recursos do núcleo sem uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um contexto pode aproveitar recursos do núcleo deixados ociosos por outra thread.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Duplicar todos os recursos físicos do núcleo e dobrar sempre a velocidade da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a espera por memória em capacidade permanente de armazenamento local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar a necessidade de o sistema operacional escalonar threads de software.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o número de núcleos físicos sem alterar a área de silício do processador.",
+          "correct": false
+        }
+      ],
+      "explanation": "HT pode aumentar a utilização do núcleo quando outro fluxo usa recursos que estariam ociosos. Não duplica todas as unidades e não garante uma taxa fixa de aceleração.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema operacional pode enumerar processadores lógicos e escalonar threads de software nesses contextos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O processador e a plataforma expõem contextos lógicos, e o escalonador do sistema operacional distribui threads prontas entre as CPUs disponíveis.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre duas threads irmãs no mesmo núcleo HT é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Podem avançar instruções diferentes, mas concorrem por recursos físicos compartilhados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada uma recebe todas as unidades físicas exclusivas de um núcleo separado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma delas precisa ser uma máquina virtual criada pelo firmware do computador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A primeira thread fica suspensa enquanto a segunda altera seus registradores próprios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas são apenas nomes alternativos para o mesmo fluxo de software.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contextos HT permitem fluxos diferentes no mesmo núcleo e preservam estado próprio, mas compartilham recursos físicos. A concorrência por esses recursos afeta o resultado.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ter processadores lógicos adicionais equivale a instalar mais processadores físicos em soquetes independentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Contextos lógicos HT residem no mesmo núcleo físico e compartilham seus recursos; não são pacotes físicos independentes.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação tende a limitar o ganho de HT em uma carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duas threads saturam simultaneamente as mesmas unidades ou a largura de banda compartilhada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma thread aguarda dados e outra consegue usar unidades que ficariam ociosas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O programa tem partes independentes e o escalonador distribui fluxos disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A plataforma enumera contextos lógicos e a aplicação mantém threads prontas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O processador dispõe de capacidade HT e a carga usa recursos complementares.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando threads irmãs disputam intensamente os mesmos recursos, a contenção reduz ou pode eliminar o benefício. HT é mais útil quando há recursos que uma thread não está usando.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O escalonador do sistema operacional substitui as unidades de execução do processador ao distribuir threads entre CPUs lógicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O escalonador decide onde executar threads, mas não substitui nem duplica os recursos físicos de execução do núcleo.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que conjunto descreve condições relevantes para o uso de HT em uma plataforma?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CPU compatível, firmware configurado e suporte adequado do sistema operacional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicação compilada em 64 bits, placa de vídeo dedicada e memória em canal duplo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Máquina virtual ativa, dois discos físicos e um sistema de arquivos com journaling.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Processador com qualquer marca, firmware irrelevante e sistema operacional sem suporte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dois processos em execução, conexão de rede disponível e cache de disco habilitado.",
+          "correct": false
+        }
+      ],
+      "explanation": "HT depende de capacidade do processador e de como a plataforma a inicializa e apresenta ao sistema. A presença de aplicações ou periféricos citados nas outras opções não substitui essas condições.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Hyper-Threading é um recurso de virtualização que fornece CPUs virtuais a sistemas operacionais convidados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HT apresenta contextos lógicos de hardware ao sistema operacional. Virtualização de máquinas convidadas é uma função distinta, ainda que uma VM possa receber CPUs virtuais associadas a recursos do host.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significa throughput ao comparar uma aplicação com HT ligado e desligado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quantidade de trabalho concluída durante uma unidade de tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de núcleos físicos soldada dentro do encapsulamento da CPU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tempo mínimo de inicialização do firmware antes de carregar o sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de memória virtual reservada para cada thread de software.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A frequência máxima do barramento, independentemente da carga processada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Throughput mede o volume de trabalho concluído por unidade de tempo. HT pode elevá-lo em certas cargas, mas o resultado depende da utilização e da contenção de recursos.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A afinidade de uma thread pode influenciar quais processadores lógicos o escalonador usará para ela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Afinidade restringe ou orienta a colocação de threads em CPUs lógicas; uma escolha inadequada pode concentrar trabalho em alguns núcleos.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão é adequada ao encontrar mais CPUs lógicas do que núcleos físicos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diferença pode decorrer de SMT, cujos contextos lógicos compartilham núcleos físicos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema operacional duplicou os núcleos físicos durante a inicialização do computador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada thread de software criou outro núcleo e aumentou permanentemente o hardware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A memória virtual transformou processadores físicos em processadores lógicos adicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O processador está necessariamente executando uma máquina virtual por núcleo lógico.",
+          "correct": false
+        }
+      ],
+      "explanation": "SMT pode expor múltiplos contextos lógicos em um mesmo núcleo físico. Essa relação explica contagens lógicas maiores sem qualquer criação de núcleos físicos pelo sistema operacional.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É correto inferir que o Hyper-Threading dobra sempre o desempenho porque, em implementações comuns, expõe dois contextos por núcleo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Dois contextos lógicos não duplicam as unidades físicas nem garantem aceleração proporcional. A carga e a disputa por recursos determinam o resultado.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como avaliar se HT beneficia uma aplicação de cálculo específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir a carga representativa com configurações controladas e observar throughput e latência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir ganho igual à quantidade de processadores lógicos exibida pelo sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar dois modelos diferentes e atribuir toda diferença somente ao HT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contar threads criadas pela aplicação e tomar essa contagem como velocidade final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar apenas o nome comercial da CPU e dispensar medições da carga real.",
+          "correct": false
+        }
+      ],
+      "explanation": "O desempenho depende do padrão de instruções, recursos usados, dados e escalonamento. Medições comparáveis e representativas ajudam a separar efeito do HT de diferenças de modelo ou de carga.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma thread que aguarda dados pode deixar algumas unidades do núcleo sem uso, criando oportunidade para outro contexto HT avançar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Aproveitar períodos em que uma thread não usa certos recursos é uma das razões para HT poder aumentar a utilização do núcleo e o throughput.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que efeito uma política de afinidade mal escolhida pode produzir em um sistema HT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concentrar duas threads em alguns núcleos e deixar outros núcleos físicos ociosos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Duplicar as unidades de execução dos núcleos sem alterar sua configuração física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar automaticamente a memória virtual para equilibrar a carga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar cada processador lógico em um soquete físico independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar qualquer contenção entre threads que compartilham dados e instruções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma colocação inadequada pode usar contextos irmãos enquanto outros núcleos ficam sem trabalho. Documentação Intel para cargas paralelas alerta que a afinidade e a distribuição influenciam a utilização dos núcleos.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pode ter multithreading de software mesmo em um processador que não oferece Hyper-Threading.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Threads são uma estrutura de software. O sistema pode alterná-las em um contexto ou executá-las em vários núcleos, ainda que não exista HT.",
+      "section": "1. Threads de software e multithreading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processador com quatro núcleos físicos e HT habilitado em cada núcleo apresentará necessariamente oito processadores lógicos em qualquer plataforma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A conta de dois contextos por núcleo é comum, mas capacidade, configuração de firmware e enumeração podem variar. Deve-se confirmar o modelo e a configuração efetiva.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação é válida para duas threads que compartilham um núcleo HT e passam a competir por cache e unidades de execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A contenção pode reduzir o ganho e, conforme a carga, tornar a execução mais lenta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O estado próprio das threads impede que elas disputem qualquer recurso do núcleo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema operacional cria cópias físicas de cache para remover toda competição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A competição demonstra que uma das threads deixou de ser thread de software.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Hyper-Threading garante throughput dobrado mesmo quando ambas saturam o núcleo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Recursos compartilhados podem se tornar gargalos. Ter estado arquitetural próprio separa os fluxos, mas não elimina disputa por unidades de execução, caches ou largura de banda.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instrução CPUID pode fornecer informações sobre recursos e processadores lógicos que o sistema usa para identificar capacidades do processador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação Intel descreve o uso de CPUID para consultar suporte a multithreading de hardware e informações sobre processadores lógicos, conforme a arquitetura e o modelo.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que recurso do sistema pode restringir os processadores lógicos nos quais uma thread está autorizada ou preferencialmente escalonada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Afinidade de processador, configurada para orientar a colocação da thread.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Memória virtual, configurada para converter endereços em núcleos físicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache de disco, configurado para duplicar contextos de execução da CPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Máquina virtual, configurada para fazer o papel do escalonador do host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Multithreading do aplicativo, configurado para definir a topologia física do chip.",
+          "correct": false
+        }
+      ],
+      "explanation": "Afinidade é o mecanismo de preferência ou restrição de colocação da thread em CPUs lógicas. Ela não altera a topologia física nem cria processadores adicionais.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um processador tem SMT, todas as suas threads de software executam em contextos lógicos próprios e dedicados, sem compartilhamento de recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O sistema escalona threads nos contextos disponíveis, mas contextos irmãos compartilham recursos físicos e podem executar em momentos distintos conforme a carga.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma comparação de desempenho entre HT ligado e desligado deve controlar o modelo do processador e o cenário de execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Isolar o efeito de HT repetindo testes comparáveis da mesma carga.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para garantir que o processador desligado passe a ter menos núcleos físicos instalados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para assegurar que cada thread seja executada em um processo separado pelo firmware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para forçar a aplicação a deixar de usar recursos compartilhados do núcleo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para provar que toda medição produz a mesma porcentagem de ganho em qualquer programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma comparação controlada ajuda a isolar o efeito da opção de HT. Processadores de gerações diferentes, cenários distintos ou cargas não equivalentes tornam a conclusão inválida.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A marca Intel, sem identificar família ou modelo, basta para afirmar que um processador oferece Hyper-Threading.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A disponibilidade depende do modelo e da geração. Há inclusive famílias Intel que não incluem HT, por isso é necessário conferir a especificação concreta.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a distinção essencial entre um processador físico dual-core com HT e dois processadores físicos de núcleo único?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Multicore no pacote e processadores em pacotes físicos separados são configurações distintas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No primeiro há apenas um processador lógico; no segundo há sempre quatro núcleos físicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No primeiro os núcleos não têm estado arquitetural; no segundo o estado é compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No primeiro HT cria dois soquetes; no segundo o sistema operacional cria o segundo pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas configurações são idênticas porque o número de threads elimina diferenças físicas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Multicore coloca mais de um núcleo físico no pacote; HT fornece contextos adicionais dentro de cada núcleo compatível. Pacotes físicos distintos são uma organização diferente, ainda que o sistema possa escalonar threads em todos eles.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O termo processador lógico significa que o contexto HT é uma unidade de software sem qualquer implementação de hardware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O processador lógico corresponde a um contexto implementado no hardware, que o sistema operacional consegue enumerar como unidade escalonável.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre segurança e contextos HT é tecnicamente equilibrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recursos microarquiteturais compartilhados podem criar canais laterais em certos cenários, avaliados conforme a ameaça.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A presença de HT torna todo processador automaticamente vulnerável a qualquer ataque remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contextos lógicos nunca compartilham informação observável por efeitos de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar HT remove todas as classes possíveis de vulnerabilidade do processador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sistemas operacionais não podem aplicar mitigação para problemas microarquiteturais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compartilhamento microarquitetural pode ser relevante a canais laterais de execução especulativa, mas risco e mitigação dependem da vulnerabilidade, processador, software e política de isolamento. Não é correto concluir imunidade ou vulnerabilidade universal.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação de um modelo específico é necessária para confirmar se ele oferece HT, pois a capacidade varia entre famílias e gerações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A disponibilidade não pode ser deduzida apenas do fabricante ou de uma regra genérica sobre processadores. Consulte as especificações do modelo e sua configuração.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com 6 núcleos físicos e 12 processadores lógicos informa, por si só, que possui 12 núcleos de execução independentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A diferença pode resultar de dois contextos lógicos por núcleo via SMT. Os contextos de cada núcleo compartilham recursos e não equivalem a núcleos físicos independentes.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um canal lateral pode explorar efeitos observáveis do compartilhamento de recursos microarquiteturais por contextos no mesmo núcleo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Efeitos de uso de recursos internos podem, em condições específicas, revelar informação por temporização ou comportamento de execução. A possibilidade exige análise do cenário e da mitigação pertinente.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa queda no tempo de resposta de uma tarefa ao desabilitar HT. Qual explicação é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A contenção em recursos compartilhados e saturados pode explicar a melhora observada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "HT reduz necessariamente a frequência física a zero sempre que há duas threads prontas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A desativação criou unidades de execução adicionais que não existiam no núcleo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resultado prova que a aplicação não continha threads de software antes do teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema operacional passou a usar mais processadores lógicos após desativar HT.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma carga que já usa intensamente recursos compartilhados pode sofrer contenção com dois contextos ativos no mesmo núcleo. Desabilitar HT pode melhorar uma carga específica, sem que isso seja regra universal.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa multithread pode ser executado em paralelo por vários núcleos físicos mesmo que HT esteja desativado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Multicore fornece núcleos físicos independentes que podem executar threads em paralelo. HT é uma técnica distinta para oferecer contextos adicionais dentro de um núcleo compatível.",
+      "section": "1. Threads de software e multithreading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente a relação entre o firmware e o sistema operacional no uso de HT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O firmware inicializa a plataforma; o sistema enumera contextos e escalona threads.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O firmware divide cada aplicativo em threads e o sistema cria circuitos no processador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema ativa unidades físicas ausentes e o firmware apenas salva arquivos de usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O firmware substitui o escalonador e escolhe cada instrução do aplicativo em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos são dispensáveis se o programa solicitar dois núcleos lógicos ao sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A inicialização e a configuração da plataforma envolvem firmware; depois, o sistema operacional trata os processadores lógicos e agenda neles as threads. O software não cria recursos de hardware ausentes.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se cada thread mantém estado arquitetural próprio, isso garante que nenhuma delas possa influenciar o desempenho da outra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O estado arquitetural separado preserva a identidade dos fluxos, mas eles compartilham recursos físicos e podem interferir no desempenho por contenção.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma medição, aumentar threads de software de quatro para oito melhora necessariamente o throughput se o processador mostra oito CPUs lógicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mais threads podem aumentar competição por recursos ou exceder o paralelismo útil da carga. A quantidade de processadores lógicos não determina sozinha o throughput, que deve ser medido.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implementação comum de HT, cada núcleo compatível apresenta dois processadores lógicos ao sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Duas CPUs lógicas por núcleo é uma implementação comum de Hyper-Threading. Não é uma regra universal para todo processador ou configuração.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "HT assegura que cada processador lógico possua cache e unidades de execução exclusivas, sem recursos compartilhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os contextos têm estado arquitetural próprio, mas compartilham recursos físicos do núcleo; portanto, pode haver contenção.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual benefício potencial explica o uso de HT em programas com várias threads?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Outra thread pode usar recursos do núcleo que a primeira deixou ociosos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tecnologia duplica integralmente o núcleo e garante dobro de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O processador dispensa o escalonador e executa qualquer thread automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada thread recebe um pacote físico próprio dentro do mesmo núcleo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Toda espera por memória termina antes de os dados chegarem ao processador.",
+          "correct": false
+        }
+      ],
+      "explanation": "HT pode usar melhor recursos disponíveis quando uma thread está parada ou não ocupa todas as unidades do núcleo. O benefício não é uma duplicação integral do hardware nem é garantido.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A desativação de HT transforma necessariamente cada processador lógico removido em um núcleo físico adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Desativar HT reduz os contextos lógicos apresentados, mas não modifica a quantidade de núcleos físicos fabricados no processador.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação distingue concorrência por escalonamento de paralelismo em hardware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concorrência pode alternar fluxos; paralelismo executa fluxos ao mesmo tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concorrência exige núcleos exclusivos; paralelismo ocorre apenas em uma thread.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concorrência significa memória compartilhada; paralelismo significa disco compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concorrência é recurso do firmware; paralelismo é opção exclusiva de virtualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concorrência e paralelismo são nomes distintos para a mesma unidade física.",
+          "correct": false
+        }
+      ],
+      "explanation": "Concorrência descreve progresso de múltiplas atividades, inclusive por alternância em um contexto. Paralelismo exige execução simultânea em recursos de processamento disponíveis.",
+      "section": "1. Threads de software e multithreading",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando duas threads de um núcleo HT executam fluxos diferentes, o estado de uma substitui necessariamente os registradores da outra a cada instrução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os contextos lógicos mantêm estado arquitetural próprio, permitindo preservar a identidade de cada execução enquanto compartilham recursos físicos do núcleo.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual evidência é mais adequada para saber se um computador está usando HT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar o modelo, a configuração do firmware e a topologia enumerada pelo sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contar apenas os processos abertos e presumir que cada um representa um núcleo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar a quantidade de memória instalada e deduzir daí o número de contextos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Observar a marca do gabinete e inferir que toda CPU da marca tem HT ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir a velocidade da rede e concluir se os núcleos têm estado compartilhado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A capacidade precisa ser confirmada para o modelo específico; firmware pode habilitar ou desabilitar o recurso, e o sistema apresenta a topologia efetivamente disponível.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois contextos lógicos em um mesmo núcleo garantem melhor latência para toda operação individual da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HT pode melhorar throughput em certas cargas, mas contenção por recursos compartilhados pode reduzir o desempenho ou a latência de operações específicas.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual fator pode levar uma organização a avaliar HT em conjunto com políticas de isolamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contextos que compartilham recursos microarquiteturais podem exigir análise de canais laterais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contextos HT nunca compartilham dados observáveis e dispensam qualquer mitigação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HT substitui as permissões do sistema e remove o isolamento entre processos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar HT corrige todas as falhas de segurança de qualquer geração de CPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de núcleos físicos define sozinha todas as vulnerabilidades do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "O compartilhamento de recursos microarquiteturais pode ser relevante a canais laterais em cenários específicos. A avaliação e as mitigações dependem da vulnerabilidade e da configuração completa.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um núcleo HT está executando duas threads independentes. Qual descrição da relação entre elas está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada contexto tem estado próprio; ambos compartilham recursos físicos do núcleo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada contexto tem registradores e unidades de execução totalmente exclusivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As duas threads são um único fluxo que o sistema operacional não pode separar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A segunda thread exige outro pacote físico instalado no soquete da máquina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O processador copia todo o núcleo e duplica sua capacidade para cada thread.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os contextos lógicos preservam estado arquitetural próprio, mas compartilham recursos do mesmo núcleo físico. Por isso podem executar fluxos distintos e também disputar unidades de execução.",
+      "section": "2. SMT e a arquitetura do Hyper-Threading",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação tem quatro núcleos físicos e oito CPUs lógicas. Qual leitura é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode haver dois contextos lógicos por núcleo via SMT.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema criou quatro núcleos físicos extras durante a inicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada CPU lógica é necessariamente um processador em soquete separado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de CPUs lógicas informa quantas threads o usuário abriu.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A memória virtual duplicou a quantidade de circuitos de processamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A contagem pode refletir dois contextos lógicos em cada núcleo físico. CPUs lógicas não são núcleos físicos adicionais nem se confundem com as threads abertas por um usuário.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga de trabalho satura as unidades de execução do núcleo. Como HT pode afetar essa carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A contenção pode limitar o ganho ou reduzir o desempenho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A saturação garante que cada thread receba unidades adicionais exclusivas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HT elimina a competição ao multiplicar o núcleo físico em duas cópias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A carga passa a ignorar cache e memória porque usa processadores lógicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O throughput dobra porque a aplicação sempre executa duas vezes mais instruções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando os contextos disputam unidades já saturadas, pode haver contenção. O efeito depende da carga e deve ser medido; HT não replica integralmente os recursos físicos.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual enunciado descreve uma responsabilidade do sistema operacional em uma plataforma HT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enumerar CPUs lógicas e escalonar threads prontas entre elas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fabricar núcleos físicos adicionais quando mais threads ficam prontas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duplicar registradores e unidades de execução por decisão do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter cada processador lógico em uma máquina virtual independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o firmware e ativar recursos que o modelo não suporta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sistema operacional trata os processadores lógicos disponibilizados pela plataforma e agenda threads prontas neles. Não cria hardware físico nem transforma cada contexto em uma máquina virtual.",
+      "section": "3. Sistema operacional, topologia e contagem de CPUs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista compara o mesmo programa com HT ativado e desativado. Qual procedimento permite uma conclusão mais confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir a carga representativa em condições controladas e comparar resultados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar simultaneamente CPU, memória e programa para acelerar a comparação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas a contagem de CPUs lógicas como medida final de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir um programa ocioso e aplicar seu resultado a toda carga de produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Presumir o mesmo percentual de ganho para qualquer aplicação executada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Medições controladas da carga real ajudam a identificar o efeito de HT. Resultados variam com a aplicação, a contenção, o modelo e as condições do teste.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ficha técnica não menciona HT para certo processador. Qual atitude é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar o recurso na documentação do modelo e da plataforma.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Presumir suporte porque o fabricante oferece HT em outros modelos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deduzir suporte pela quantidade de memória instalada no computador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar toda CPU da mesma família como idêntica em recursos e configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concluir que o sistema operacional pode criar HT se o desejar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A presença de HT varia por modelo e geração e pode depender da configuração da plataforma. A documentação específica é mais confiável que uma generalização por fabricante.",
+      "section": "4. Desempenho, limites e uso correto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What Is Hyper-Threading?",
+      "publisher": "Intel",
+      "reference": "Diferença entre multithreading de software e Hyper-Threading; contextos lógicos por núcleo, uso de períodos ociosos e configuração do recurso.",
+      "url": "https://www.intel.com/content/www/us/en/gaming/resources/hyper-threading.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Intel 64 and IA-32 Architectures Software Developer’s Manual, Volume 1",
+      "publisher": "Intel",
+      "reference": "Seção 2.2.5: estado arquitetural dos processadores lógicos, recursos compartilhados, inicialização e relação entre HT e multicore.",
+      "url": "https://www.intel.com/content/dam/support/us/en/documents/processors/pentium4/sb/25366521.pdf",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using Intel Hyper-Threading Technology",
+      "publisher": "Intel",
+      "reference": "Efeito de cargas que usam recursos diferentes, afinidade e contenção no desempenho de cargas paralelas.",
+      "url": "https://www.intel.com/content/www/us/en/docs/onemkl/developer-guide-windows/2026-0/using-intel-hyper-threading-technology.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What Is Performance Hybrid Architecture?",
+      "publisher": "Intel",
+      "reference": "Disponibilidade de Hyper-Threading em famílias de processadores e distinção entre P-cores e E-cores.",
+      "url": "https://www.intel.com/content/www/us/en/support/articles/000091896/processors.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Speculative Execution Side Channel Mitigations",
+      "publisher": "Intel",
+      "reference": "Compartilhamento de recursos microarquiteturais e implicações de canais laterais entre processadores lógicos.",
+      "url": "https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/technical-documentation/speculative-execution-side-channel-mitigations.html",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

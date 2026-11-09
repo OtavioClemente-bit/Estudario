@@ -1,0 +1,1957 @@
+{
+  "id": "informatica.deep-belief-networks",
+  "subject": "Informática",
+  "title": "Deep belief networks",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Deepbelief networks.",
+    "Deep belief networks (DBN)",
+    "Redes de crenças profundas",
+    "Redes profundas de crenças",
+    "Deep belief nets e RBM",
+    "Arquitetura deep belief network",
+    "Treinamento de deep belief networks",
+    "Pré-treinamento de redes profundas",
+    "Modelos generativos profundos",
+    "Redes de crença e variáveis latentes"
+  ],
+  "scope": {
+    "covers": "Deep belief networks (DBN): modelo probabilístico generativo em camadas, variáveis latentes e conexões; relação entre DBN e máquinas de Boltzmann restritas (RBM); pré-treinamento não supervisionado guloso camada por camada, contrastive divergence, propagação de representações e ajuste fino supervisionado ou generativo; usos, vantagens, limites e distinção em relação a redes feed-forward, autoencoders e redes profundas discriminativas.",
+    "excludes": "Implementação completa de bibliotecas, derivação matemática avançada de gradientes, detalhes de arquiteturas contemporâneas de transformers e comparação exaustiva entre algoritmos de inferência probabilística."
+  },
+  "theoryTitle": "Aprendizagem profunda por crenças e camadas latentes",
+  "chapters": [
+    {
+      "title": "1. O que é uma deep belief network",
+      "markdown": "### O problema que este assunto resolve\n\nUma DBN (deep belief network, ou rede de crenças profunda) é um modelo probabilístico com várias camadas de variáveis ocultas. Ela procura aprender regularidades dos dados e representar observações em níveis: unidades próximas da entrada capturam padrões simples; níveis superiores combinam esses padrões em características mais abstratas. O nome não significa que a rede tenha crenças humanas: refere-se a um modelo probabilístico de dependências entre variáveis.\n\nA DBN é generativa: especifica como variáveis latentes podem produzir uma observação. A formulação clássica combina camadas direcionadas com uma associação não direcionada no topo. Em uma arquitetura com entrada x e camadas ocultas g1, g2, ..., gL, a distribuição conjunta pode ser fatorada como P(x|g1) P(g1|g2) ... P(gL-2|gL-1) P(gL-1,gL). O par de camadas superiores forma uma RBM.\n\n> **Siglas e termos deste capítulo**\n> - **DBN**: deep belief network, modelo generativo profundo em camadas.\n> - **Variável latente/oculta**: variável interna que não é observada diretamente no conjunto de dados.\n> - **Distribuição conjunta**: probabilidade atribuída em conjunto aos valores das variáveis do modelo.\n> - **Generativo**: modelo que representa uma distribuição dos dados e pode, em princípio, gerar amostras.\n> - **Unidade**: elemento computacional que representa uma variável ou ativação de uma camada.\n\n### Estrutura probabilística em camadas\n\nCada camada mantém conexões com camadas vizinhas, construindo uma hierarquia de representações. Na formulação clássica com unidades binárias, uma unidade da camada inferior tem probabilidade de ativar dada pela camada imediatamente acima, calculada por uma função logística aplicada à soma ponderada e ao viés. O modelo não precisa conectar cada unidade a todas as unidades de todas as camadas: a dependência é especificada entre níveis adjacentes.\n\nA distinção entre direção das conexões é central. Nas camadas inferiores do modelo gerador, a relação é direcionada de representações superiores para variáveis inferiores; no topo, a associação entre as duas camadas é não direcionada. Por isso, descrever toda DBN como uma cadeia puramente direcionada ou como uma RBM única é impreciso.\n\n| Elemento | Papel na DBN |\n| --- | --- |\n| Camada visível | Recebe ou representa os dados observados |\n| Camadas ocultas inferiores | Codificam regularidades locais e combinações simples |\n| Camadas ocultas superiores | Representam padrões progressivamente mais abstratos |\n| Par superior | Forma a associação RBM que modela o prior latente |\n\n### Como cai na prova\n\n- DBN é um modelo probabilístico generativo profundo, com múltiplas camadas latentes.\n- Não confunda a DBN inteira com uma RBM: a RBM é o bloco usado para treinar pares de camadas e aparece na associação do topo.\n- O modelo clássico tem conexões entre camadas adjacentes e não conexões arbitrárias dentro de cada camada."
+    },
+    {
+      "title": "2. RBM e aprendizagem camada por camada",
+      "markdown": "### O problema que este assunto resolve\n\nTreinar de uma só vez uma rede muito profunda com inicialização aleatória pode ser difícil: os parâmetros de níveis inferiores recebem sinais de aprendizagem que atravessam muitos níveis. O procedimento histórico das DBNs contorna essa dificuldade começando por pares de camadas e construindo a representação gradualmente.\n\nA máquina de Boltzmann restrita (RBM) é um modelo estocástico com camada visível e camada oculta. A restrição significa que não há conexões entre unidades da mesma camada; as conexões atravessam entre visíveis e ocultas. Dada uma das camadas, as unidades da outra podem ser amostradas condicionalmente de forma fatorizada, o que torna o treinamento mais tratável do que numa máquina de Boltzmann geral.\n\n> **Siglas e termos deste capítulo**\n> - **RBM**: restricted Boltzmann machine, máquina de Boltzmann restrita.\n> - **CD**: contrastive divergence, aproximação de gradiente para treinamento de RBMs.\n> - **Guloso (greedy)**: otimizar uma etapa local de cada vez, sem otimizar simultaneamente todas as camadas.\n> - **Pré-treinamento**: etapa inicial de aprendizagem das representações antes do critério final da tarefa.\n> - **Viés**: parâmetro que desloca a ativação de uma unidade.\n\n### Passos do pré-treinamento\n\nPrimeiro, ajusta-se uma RBM entre os dados observados e a primeira camada oculta. Depois, as ativações ou amostras dessa camada passam a servir como dados para treinar a RBM seguinte. Repete-se o processo para níveis superiores. Assim, cada RBM aprende uma representação da saída da camada anterior. O processo é não supervisionado: não precisa de rótulos de classe para aprender as regularidades de entrada.\n\nEm RBMs, um método conhecido é a contrastive divergence. A atualização compara estatísticas obtidas a partir de dados reais com estatísticas de uma cadeia curta de reconstrução: começa-se com um vetor visível de treinamento, amostra-se o estado oculto, reconstrói-se o visível e amostra-se novamente. A diferença aproxima o sinal de aprendizagem; não é uma solução exata geral da distribuição de equilíbrio.\n\n| Etapa | Entrada para a etapa | Resultado\n| --- | --- | --- |\n| Primeira RBM | Dados observados | Primeira representação oculta |\n| RBM seguinte | Representações do nível anterior | Representação mais abstrata |\n| Repetição | Saída do nível imediatamente inferior | Pilha de camadas pré-treinadas |\n| Ajuste global | Representações e objetivo escolhido | Parâmetros adaptados à tarefa final |\n\n### Como cai na prova\n\n- A aprendizagem camada por camada usa a saída de uma camada como dado para a camada seguinte.\n- “Guloso” descreve a otimização local sucessiva; não significa busca aleatória nem seleção de exemplos.\n- CD usa fase de dados e reconstrução aproximada; não é backpropagation supervisionada nem cálculo exato da verossimilhança."
+    },
+    {
+      "title": "3. Ajuste fino, tarefas e interpretação",
+      "markdown": "### O problema que este assunto resolve\n\nO pré-treinamento organiza parâmetros iniciais e aprende características sem exigir rótulos. Porém, uma boa representação não garante que os parâmetros sejam ótimos para qualquer tarefa. Depois de empilhar as camadas, é possível adaptar a rede inteira ao objetivo efetivo.\n\nPara classificação, acrescenta-se uma saída apropriada, como uma camada de regressão logística, e ajustam-se os parâmetros com exemplos rotulados e uma função de perda supervisionada. Em tarefas generativas, o ajuste pode continuar mirando a qualidade do modelo probabilístico. O método específico depende do objetivo; DBN não implica uma única cabeça de saída ou uma única função de perda.\n\n> **Siglas e termos deste capítulo**\n> - **Ajuste fino (fine-tuning)**: otimização posterior dos parâmetros para um objetivo global ou tarefa.\n> - **Discriminativo**: modelo treinado para prever rótulos ou saídas a partir das entradas.\n> - **Supervisionado**: treinamento que utiliza alvos ou rótulos associados a exemplos.\n> - **Não supervisionado**: aprendizagem de estrutura dos dados sem rótulos de tarefa.\n> - **Verossimilhança**: medida de quão compatíveis os dados observados são com o modelo.\n\n### O que se aprende e o que não se deve presumir\n\nUma DBN pode ser usada para aprender características, reduzir dimensionalidade, modelar dados ou inicializar uma rede para classificação. A representação hierárquica é útil quando padrões complexos podem ser formados pela composição de padrões mais simples. Ainda assim, o pré-treinamento não substitui validação, controle de sobreajuste, escolha adequada de arquitetura ou avaliação em dados não vistos.\n\nO trabalho de Osindero, Hinton e Teh estudou DBNs e também comparou a aprendizagem gulosa com inicialização por autoencoders. Isso não torna os conceitos equivalentes: autoencoder é treinado para reconstruir uma entrada por uma representação, enquanto a DBN é definida como modelo probabilístico generativo em camadas. A mesma estratégia gulosa pode ser aplicada a outros modelos, mas a arquitetura e o objetivo diferem.\n\n| Afirmação | Avaliação correta |\n| --- | --- |\n| Pré-treino usa rótulos obrigatoriamente | Falso; a fase de camada por camada é não supervisionada |\n| Ajuste fino pode usar rótulos | Sim, quando o objetivo final é supervisionado |\n| Toda DBN é somente classificadora | Falso; é generativa e pode apoiar diferentes tarefas |\n| Aprender representação garante generalização | Falso; é necessário avaliar em dados não vistos |\n\n### Como cai na prova\n\n- Separe pré-treinamento não supervisionado de ajuste fino supervisionado.\n- Uma DBN pode alimentar uma tarefa discriminativa, mas sua definição clássica é generativa.\n- Resultados de um artigo em um conjunto de dados não são garantia universal de superioridade."
+    },
+    {
+      "title": "4. Comparações, limites e usos",
+      "markdown": "### O problema que este assunto resolve\n\nQuestões de prova frequentemente trocam nomes de arquiteturas ou atribuem a uma DBN propriedades de outro modelo. Para reconhecer uma DBN, procure o conjunto: camadas latentes, modelo generativo, associação RBM no topo e treinamento histórico guloso camada por camada.\n\n> **Siglas e termos deste capítulo**\n> - **MLP**: perceptron multicamadas, rede feed-forward com camadas de unidades.\n> - **Autoencoder**: rede treinada para reconstruir a entrada a partir de uma representação interna.\n> - **Dado de treinamento**: exemplo usado para ajustar parâmetros.\n> - **Generalização**: desempenho em exemplos não usados no ajuste.\n> - **Representação**: codificação interna aprendida para os dados.\n\n### Comparação prática\n\n| Modelo | Característica central |\n| --- | --- |\n| DBN | Modelo generativo probabilístico em camadas; empilhamento de RBMs no procedimento clássico |\n| RBM | Modelo estocástico de duas camadas, sem conexões internas à mesma camada |\n| MLP discriminativo | Mapeia entrada a saída; tipicamente treinado por retropropagação com alvo |\n| Autoencoder | Codifica e reconstrói entrada; sua meta principal é reconstrução |\n\nDBNs tiveram papel importante no desenvolvimento histórico do treinamento profundo, pois o pré-treinamento ajudava a inicializar redes com muitas camadas. Isso não significa que sejam sempre necessárias em sistemas atuais: disponibilidade de dados, inicialização, normalização, regularização, hardware e arquitetura influenciam a escolha. Também é incorreto afirmar que uma DBN elimina o custo de treinamento ou não pode sofrer sobreajuste.\n\n### Como cai na prova\n\n- RBM é componente de duas camadas; DBN organiza diversas camadas em um modelo profundo.\n- Autoencoder e DBN podem ser usados para representação, mas têm definições e objetivos distintos.\n- A importância histórica do pré-treinamento não significa que toda rede profunda moderna precise de DBN."
+    }
+  ],
+  "summary": "Deep belief network (DBN) é um modelo probabilístico generativo profundo formado por camadas de variáveis latentes. Na formulação clássica, camadas inferiores são organizadas em relações direcionadas e o par latente superior forma uma máquina de Boltzmann restrita (RBM). O treinamento histórico pré-treina uma RBM por vez, sem rótulos: a representação de uma camada alimenta o treinamento da camada seguinte. Contrastive divergence aproxima atualizações de uma RBM comparando dados e reconstruções curtas. Depois do pré-treinamento, a rede pode ser ajustada globalmente para modelagem generativa ou para tarefa supervisionada, como classificação. DBN não é sinônimo de RBM, MLP ou autoencoder; é preciso distinguir arquitetura, objetivo e procedimento. O pré-treinamento não garante generalização e não é obrigatório em toda rede profunda.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza uma DBN?",
+      "back": "Modelo probabilístico generativo profundo com múltiplas camadas de variáveis latentes."
+    },
+    {
+      "front": "O que significa DBN?",
+      "back": "Deep belief network, ou rede de crenças profunda."
+    },
+    {
+      "front": "O que é variável latente?",
+      "back": "Variável interna não observada diretamente nos exemplos."
+    },
+    {
+      "front": "Qual componente aparece no topo da DBN clássica?",
+      "back": "Uma máquina de Boltzmann restrita conectando as duas camadas latentes superiores."
+    },
+    {
+      "front": "O que significa RBM?",
+      "back": "Restricted Boltzmann machine, máquina de Boltzmann restrita."
+    },
+    {
+      "front": "Por que a máquina de Boltzmann é restrita?",
+      "back": "Não possui conexões entre unidades da mesma camada; as conexões ligam visíveis a ocultas."
+    },
+    {
+      "front": "Como a DBN clássica organiza suas camadas?",
+      "back": "Em níveis latentes adjacentes, com uma associação não direcionada no topo."
+    },
+    {
+      "front": "O que é pré-treinamento guloso?",
+      "back": "Aprender sucessivamente cada camada ou par de camadas, em vez de otimizar tudo desde o início."
+    },
+    {
+      "front": "O pré-treinamento clássico exige rótulos?",
+      "back": "Não; ele aprende regularidades da entrada de forma não supervisionada."
+    },
+    {
+      "front": "Como a camada seguinte recebe dados no pré-treinamento?",
+      "back": "A partir das ativações ou amostras da representação da camada anterior."
+    },
+    {
+      "front": "O que é contrastive divergence?",
+      "back": "Aproximação de treinamento de RBM que compara estatísticas dos dados e de uma reconstrução curta."
+    },
+    {
+      "front": "CD calcula exatamente a verossimilhança?",
+      "back": "Não; fornece uma aproximação baseada em amostragem curta."
+    },
+    {
+      "front": "O que acontece após pré-treinar as camadas?",
+      "back": "Pode-se ajustar a rede inteira para um objetivo generativo ou supervisionado."
+    },
+    {
+      "front": "Como adaptar uma DBN para classificação?",
+      "back": "Adicionar uma saída classificadora e ajustar a rede com exemplos rotulados."
+    },
+    {
+      "front": "DBN é discriminativa por definição?",
+      "back": "Não; é generativa, embora possa ser usada como base para tarefa discriminativa."
+    },
+    {
+      "front": "Qual é o objetivo central de um autoencoder?",
+      "back": "Reconstruir a entrada a partir de uma representação codificada."
+    },
+    {
+      "front": "Uma RBM e uma DBN são sinônimos?",
+      "back": "Não; RBM é um modelo de duas camadas que pode ser bloco de uma DBN."
+    },
+    {
+      "front": "O que é ajuste fino?",
+      "back": "Otimização posterior dos parâmetros para o objetivo global ou tarefa final."
+    },
+    {
+      "front": "O pré-treinamento garante generalização?",
+      "back": "Não; desempenho deve ser avaliado em dados não usados no treinamento."
+    },
+    {
+      "front": "Qual foi a contribuição histórica de DBNs?",
+      "back": "Popularizaram o pré-treinamento não supervisionado camada por camada para redes profundas."
+    }
+  ],
+  "tips": [
+    "Associe DBN à combinação de várias camadas latentes e ao caráter probabilístico generativo.",
+    "Lembre que RBM restringe conexões dentro da própria camada; a comunicação é entre visíveis e ocultas.",
+    "No treinamento guloso, cada camada superior aprende sobre a representação produzida pela inferior.",
+    "Separe pré-treinamento não supervisionado de ajuste fino que pode ser supervisionado.",
+    "Contrastive divergence usa dados reais e reconstrução amostrada; não é solução exata da verossimilhança.",
+    "Quando comparar DBN, MLP e autoencoder, identifique primeiro a estrutura e o objetivo de cada um."
+  ],
+  "traps": [
+    "Chamar a DBN inteira de RBM: RBM é um bloco de duas camadas, DBN é uma estrutura profunda.",
+    "Dizer que pré-treinamento guloso é supervisionado: o procedimento inicial aprende sem rótulos.",
+    "Afirmar que todas as conexões da DBN são não direcionadas: a formulação clássica mistura tipos de relação.",
+    "Confundir CD com backpropagation: CD atualiza RBMs por estatísticas amostradas de dados e reconstruções.",
+    "Tratar DBN como classificador exclusivamente: o modelo é generativo, embora aceite ajuste discriminativo.",
+    "Afirmar que pré-treinamento assegura melhor resultado em todo conjunto: isso depende dos dados e da tarefa."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a estrutura probabilística básica de uma DBN clássica.",
+      "answer": "Há uma sequência de camadas latentes; as relações geradoras inferiores apontam de níveis superiores para inferiores, enquanto as duas camadas superiores formam uma associação RBM."
+    },
+    {
+      "question": "Por que uma RBM pode ser usada como bloco de treinamento de DBN?",
+      "answer": "Ela modela um par de camadas com conexões entre visíveis e ocultas, sem conexões dentro de cada camada, permitindo aprender a representação do par."
+    },
+    {
+      "question": "Explique a sequência do pré-treinamento guloso.",
+      "answer": "Treina-se o primeiro par com os dados; usa-se a representação obtida como entrada do próximo par; repete-se até o topo."
+    },
+    {
+      "question": "Qual informação a contrastive divergence compara?",
+      "answer": "Estatísticas associadas aos exemplos reais com estatísticas de uma reconstrução obtida após amostragem curta na RBM."
+    },
+    {
+      "question": "Como uma DBN pré-treinada pode ser usada em classificação?",
+      "answer": "Acrescenta-se uma camada de saída para as classes e ajustam-se os parâmetros com exemplos rotulados."
+    },
+    {
+      "question": "Diferencie DBN de autoencoder.",
+      "answer": "DBN é um modelo probabilístico generativo em camadas; autoencoder busca reconstruir a entrada através de uma codificação interna."
+    },
+    {
+      "question": "O que o ajuste fino acrescenta ao pré-treinamento?",
+      "answer": "Adapta conjuntamente os parâmetros ao critério final, que pode ser supervisionado ou generativo."
+    },
+    {
+      "question": "Por que não se deve afirmar que DBNs são sempre necessárias?",
+      "answer": "A utilidade do pré-treinamento depende de dados, arquitetura, inicialização e tarefa; outras estratégias podem funcionar sem DBN."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "DBN confundida com RBM",
+      "summary": "RBM é um modelo estocástico de duas camadas sem conexões intracamadas; DBN é um modelo profundo que pode usar RBMs como blocos."
+    },
+    {
+      "key": "e2",
+      "title": "Direção das dependências simplificada incorretamente",
+      "summary": "A DBN clássica combina relações direcionadas nas camadas inferiores e associação não direcionada no topo."
+    },
+    {
+      "key": "e3",
+      "title": "Pré-treinamento confundido com ajuste supervisionado",
+      "summary": "O pré-treinamento guloso aprende camadas sem rótulos; a etapa posterior pode ajustar a rede para a tarefa supervisionada."
+    },
+    {
+      "key": "e4",
+      "title": "Contrastive divergence tratada como cálculo exato",
+      "summary": "CD aproxima atualizações por amostragem curta, comparando dados e reconstruções; não é cálculo exato geral da distribuição."
+    },
+    {
+      "key": "e5",
+      "title": "Generalização presumida pelo pré-treinamento",
+      "summary": "Pré-treino pode ajudar a inicialização, mas não elimina sobreajuste nem dispensa avaliação em dados não vistos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma DBN é um modelo probabilístico generativo que organiza variáveis latentes em várias camadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A DBN representa uma distribuição sobre observações e variáveis ocultas em uma hierarquia de níveis, podendo modelar como padrões latentes explicam os dados.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na RBM, unidades de uma mesma camada são conectadas diretamente para facilitar a representação de dependências internas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A restrição da RBM elimina conexões entre unidades da mesma camada; as conexões ocorrem entre a camada visível e a oculta.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No pré-treinamento guloso, as representações aprendidas em um nível podem servir de entrada para treinar o nível seguinte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O procedimento ajusta pares sucessivos: a saída ou amostra da camada anterior constitui os dados do próximo par de camadas.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fase clássica de pré-treinamento não supervisionado exige rótulos de classe em cada exemplo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O pré-treinamento camada por camada aprende regularidades das entradas sem rótulos; rótulos podem ser usados depois no ajuste fino supervisionado.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Contrastive divergence compara estatísticas dos dados com estatísticas de amostras reconstruídas pela RBM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A aproximação inicia nos dados, amostra unidades ocultas e reconstrói unidades visíveis; a diferença resultante fornece um sinal de atualização aproximado.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Contrastive divergence calcula exatamente a verossimilhança de qualquer RBM treinada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CD é uma aproximação baseada em uma cadeia curta de amostragem; ela não fornece em geral o cálculo exato da verossimilhança ou do gradiente da distribuição de equilíbrio.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois do pré-treinamento, uma DBN pode ser ajustada com uma saída classificadora e exemplos rotulados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A representação pré-treinada pode inicializar uma rede que recebe uma camada de classificação; o ajuste supervisionado adapta os parâmetros ao critério de classes.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ajuste fino supervisionado é parte obrigatória da definição de toda DBN, mesmo quando o objetivo é modelar dados sem rótulos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DBN é um modelo generativo e pode ser treinada ou empregada sem objetivo de classificação; o ajuste supervisionado é uma possibilidade quando a tarefa final pede previsões rotuladas.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DBN clássica combina relações direcionadas em níveis inferiores com uma associação não direcionada no topo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fatoração clássica usa condicionais entre camadas inferiores e uma distribuição conjunta RBM para as duas camadas latentes superiores.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda DBN é apenas uma RBM com muitas unidades ocultas na mesma camada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RBM designa um modelo de duas camadas; DBN contém múltiplas camadas latentes organizadas hierarquicamente, embora o treinamento clássico use RBMs como blocos.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um autoencoder e uma DBN são conceitos idênticos, pois ambos podem aprender representações internas dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Podem ambos aprender representações, mas autoencoder é definido por uma tarefa de reconstrução, enquanto DBN é um modelo probabilístico generativo em camadas.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aprender características em camadas assegura por si só bom desempenho em dados que não participaram do treinamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A representação pode ajudar, mas generalização depende dos dados, da tarefa e do ajuste; é preciso avaliar exemplos não vistos e considerar sobreajuste.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No procedimento guloso, cada RBM é treinada de forma independente de qualquer informação produzida por camadas anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A RBM seguinte recebe ativações ou amostras da representação anterior, de modo que o treinamento forma uma pilha de representações sucessivas.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DBN pode apoiar a aprendizagem de características e também servir de base para classificação após adaptação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As camadas aprendem representações e podem ser conectadas a uma saída discriminativa, com ajuste supervisionado para classes.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fato de DBNs terem importância histórica significa que qualquer rede profunda atual deve começar com esse pré-treinamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DBNs foram importantes para treinar redes profundas, mas a escolha atual depende de dados, arquitetura e objetivo; não há necessidade universal de pré-treinar com RBMs.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição identifica melhor uma deep belief network clássica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modelo generativo profundo com variáveis latentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma árvore de decisão que divide atributos por regras determinísticas sucessivas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um classificador linear que estima somente uma fronteira entre duas classes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um banco de exemplos rotulados sem parâmetros probabilísticos treináveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra de associação que encontra itens frequentes sem formar representações.",
+          "correct": false
+        }
+      ],
+      "explanation": "DBN é um modelo probabilístico generativo profundo; as alternativas restantes descrevem árvores, classificadores simples, armazenamento de dados ou mineração de associações.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura clássica de uma DBN, qual componente forma a associação das duas camadas latentes superiores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma RBM: duas camadas conectadas sem ligações internas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma árvore de decisão, que escolhe um único caminho para cada observação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um autoencoder convolucional, que reconstrói pixels por filtros locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma regressão linear, que substitui todas as variáveis latentes por um escalar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tabela de consulta, que armazena a classe correta de cada entrada possível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A formulação clássica usa uma RBM para a distribuição conjunta do par de camadas latentes superior; os demais elementos têm estruturas e funções diferentes.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a palavra restrita indica na máquina de Boltzmann restrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sem ligações internas; há conexões entre as duas camadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A rede só aceita entradas com um número fixo de classes previamente rotuladas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os pesos ficam congelados depois da primeira apresentação dos exemplos de treino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada camada contém uma única unidade e por isso não aprende dependências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo não pode representar variáveis ocultas ou estados estocásticos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A restrição estrutural remove ligações dentro da camada visível e dentro da camada oculta, mantendo conexões entre as duas camadas.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o treinamento guloso constrói uma pilha de camadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usa a representação de um nível como entrada para treinar o par seguinte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Treina todos os níveis ao mesmo tempo usando somente um rótulo global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remove a camada anterior após cada época para reduzir a profundidade total.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui cada representação por uma classe escolhida aleatoriamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordena os exemplos pela resposta desejada antes de fixar os pesos da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pré-treinamento é sucessivo: a saída de um nível torna-se a entrada representacional da RBM que aprende o nível seguinte.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve a fase inicial do pré-treinamento clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aprende representações dos dados sem rótulos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ajusta diretamente os pesos para maximizar acertos de classes fornecidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usa exclusivamente uma função de custo de classificação multiclasse.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Descarta os dados de entrada e aprende apenas a sequência dos rótulos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fixa todos os parâmetros antes de observar qualquer distribuição de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pré-treinamento não supervisionado procura estrutura nas entradas; o uso de alvos de classe pode vir depois, no ajuste fino.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência resume uma atualização típica por contrastive divergence em uma RBM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inicia nos dados, amostra ocultas e reconstrói visíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ordenar rótulos, calcular acurácia, apagar pesos e selecionar a classe majoritária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ajustar uma árvore, podar folhas, gerar regras e converter regras em amostras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Codificar a entrada, descartar a reconstrução e minimizar somente o tamanho do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular a distribuição exata de estados e enumerar todas as combinações possíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "CD inicia em uma observação, alterna amostragem oculta e visível e usa a diferença entre estatísticas de dados e reconstruções como aproximação do gradiente.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que contrastive divergence é chamada de aproximação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usa amostragem curta, sem calcular toda a distribuição exatamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substitui a aprendizagem por uma regra manual que não atualiza parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usa apenas rótulos previstos e não considera amostras observadas no treinamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Calcula a solução fechada exata para todo modelo probabilístico profundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte probabilidades em contagens e elimina a necessidade de amostragem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cadeia curta evita a inferência exata, que pode ser custosa; portanto, a atualização de CD aproxima o gradiente pretendido.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual uso é compatível com uma DBN após o pré-treinamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar uma camada classificadora e ajustar os pesos com exemplos rotulados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Impedir qualquer ajuste posterior e usar as ativações como rótulos verdadeiros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter todas as camadas em regras fixas sem parâmetros aprendidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a entrada por uma lista de respostas anotadas pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a camada visível e tratar o número de unidades como previsão final.",
+          "correct": false
+        }
+      ],
+      "explanation": "As representações pré-treinadas podem inicializar camadas de uma rede discriminativa, que é então ajustada usando rótulos e uma perda de tarefa.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença mais precisa entre DBN e autoencoder?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DBN é generativa; autoencoder busca reconstruir entradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DBN só armazena dados; autoencoder é uma máquina de estados sem pesos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DBN usa apenas rótulos; autoencoder exige distribuição conjunta de classes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DBN é necessariamente linear; autoencoder não pode possuir camadas ocultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DBN não aprende representações; autoencoder é usado somente para regressão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Apesar de ambos poderem aprender representações, DBN modela probabilisticamente dados latentes, enquanto a meta definidora do autoencoder é reconstruir sua entrada.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que papel têm as camadas superiores na interpretação hierárquica das representações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combinam características simples em conceitos mais abstratos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenam somente os rótulos e impedem qualquer dependência com a entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminam variáveis latentes e transformam a rede em tabela de consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconstroem diretamente o conjunto de treinamento sem usar pesos aprendidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Codificam características mais simples do que as unidades próximas aos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A hierarquia permite que níveis superiores formem conceitos mais abstratos ao combinar regularidades representadas em níveis inferiores.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma RBM binária, como se obtém a ativação probabilística condicional de uma unidade oculta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sigmoide da soma ponderada das unidades visíveis e do viés.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contando as classes observadas e atribuindo a frequência como peso fixo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calculando a distância euclidiana entre duas unidades ocultas conectadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicando uma função de ordenação às unidades da própria camada oculta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolhendo sempre a unidade de maior índice sem considerar os parâmetros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na formulação binária clássica, a probabilidade condicional depende da soma ponderada das unidades da camada oposta e do viés, transformada pela sigmoide.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre MLP discriminativo e DBN é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MLP mapeia entradas a saídas; DBN modela dados generativamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MLP é sempre não supervisionado; DBN só aceita rótulos de classe como entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MLP tem necessariamente conexões recorrentes; DBN não possui variáveis ocultas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MLP reconstrói obrigatoriamente cada entrada; DBN calcula somente fronteiras lineares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MLP e DBN têm definições idênticas e diferem apenas pela quantidade de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma MLP discriminativa aprende tipicamente um mapeamento para a saída; DBN é definida como modelo probabilístico generativo com estrutura latente profunda.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significa dizer que o pré-treinamento é guloso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada etapa aprende um nível usando a representação disponível naquele momento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A rede escolhe ao acaso qual rótulo deve receber cada exemplo de treino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O algoritmo mantém apenas o melhor exemplo e descarta os demais dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todas as camadas permanecem congeladas durante qualquer etapa de aprendizagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A atualização seleciona pesos pelo maior valor numérico sem avaliar o objetivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Guloso refere-se à aprendizagem sequencial local das camadas: cada nível é ajustado usando a representação produzida até ali.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o caráter generativo da DBN é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo representa como estados latentes podem explicar ou gerar observações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O modelo só retorna rótulos e não representa distribuição sobre os dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modelo armazena cada observação e depois a recupera por busca literal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modelo substitui toda inferência por uma sequência fixa de regras humanas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo transforma toda probabilidade em valor determinístico antes do treino.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um modelo generativo descreve uma distribuição dos dados e de variáveis latentes, permitindo interpretar observações em termos de estados internos.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a aprendizagem camada por camada foi historicamente útil para redes profundas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Forneceu inicializações aprendidas antes de ajustar conjuntamente muitos parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eliminou a necessidade de dados e de qualquer avaliação da tarefa final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantiu a solução global ótima mesmo com qualquer arquitetura escolhida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitiu treinar todas as camadas sem observar entradas ou ativações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituiu os pesos por conexões fixas definidas antes da inicialização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia construía representações úteis sucessivamente e podia fornecer uma inicialização melhor do que começar com todos os pesos aleatórios; não garantia ótimo global.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma DBN voltada à classificação, em que momento os rótulos são normalmente necessários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na etapa supervisionada que adapta a saída e os parâmetros à tarefa de classes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Obrigatoriamente em cada atualização de toda RBM do pré-treinamento inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente depois que o modelo já tenha sido publicado em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Antes da coleta de dados, para determinar valores de entrada ainda não observados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em nenhuma etapa, porque uma saída classificadora não usa alvos conhecidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pré-treinamento pode ser não supervisionado; a classificação supervisionada usa rótulos para ajustar a camada de saída e a rede ao critério de classes.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção expressa um limite realista do pré-treinamento em DBNs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode ajudar a inicialização, mas não garante bom desempenho fora dos dados de treino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Impede qualquer forma de sobreajuste por construir camadas sem rótulos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assegura desempenho superior a toda arquitetura sem pré-treinamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Torna desnecessário avaliar o modelo em exemplos independentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remove a influência da distribuição dos dados na representação aprendida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pré-treinamento não assegura generalização. O modelo continua dependente dos dados e deve ser validado em exemplos não usados no ajuste.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual enunciado diferencia corretamente o componente RBM da rede DBN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RBM modela um par de camadas; DBN organiza diversas camadas em profundidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RBM é uma tarefa de classificação; DBN é uma técnica de compressão sem modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RBM usa apenas dados contínuos; DBN não representa estados probabilísticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RBM não tem unidades ocultas; DBN é formada somente por unidades visíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RBM sempre tem muitas camadas; DBN contém exatamente uma camada oculta.",
+          "correct": false
+        }
+      ],
+      "explanation": "RBM é o bloco estocástico de duas camadas; DBN é uma composição profunda, classicamente construída com vários níveis e associação RBM no topo.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na fatoração clássica da distribuição de uma DBN, que papel tem o par superior de camadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É a distribuição conjunta RBM, não direcionada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Forma uma regressão supervisionada que recebe obrigatoriamente rótulos verdadeiros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Age como um autoencoder separado que reconstrói somente a entrada visível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remove dependências latentes e fixa a saída pela média dos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte as camadas inferiores em variáveis observadas sem distribuição conjunta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na formulação original da DBN, as duas camadas ocultas superiores são ligadas pela distribuição conjunta de uma RBM; as relações abaixo são condicionais direcionadas.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que diferencia uma camada visível de uma camada oculta em uma RBM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A visível representa os dados fornecidos; a oculta codifica variáveis internas aprendidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A visível contém apenas pesos fixos; a oculta contém exclusivamente rótulos humanos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A visível é sempre a saída prevista; a oculta é sempre o conjunto de validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A visível armazena gradientes; a oculta guarda somente índices de exemplos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A visível é dispensável; a oculta é uma lista ordenada de classes possíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A camada visível corresponde aos valores de entrada observáveis; as unidades ocultas representam fatores latentes que o modelo aprende.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica do treinamento por RBM torna simples calcular condicionais de uma camada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dada a camada oposta, as unidades de uma camada são condicionalmente fatorizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As unidades da mesma camada trocam mensagens recorrentes em cada instante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada unidade depende de todos os estados futuros da rede profunda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rede enumera previamente todas as possíveis entradas do domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os pesos não participam das probabilidades condicionais calculadas pelo modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem conexões intracamadas, as unidades de uma camada ficam condicionalmente independentes dado o estado da camada oposta, facilitando amostragem condicional.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que afirmação sobre os níveis inferiores e superiores de uma DBN é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Níveis inferiores tendem a codificar padrões simples; níveis superiores os combinam.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Níveis inferiores contêm as classes finais; superiores armazenam os pixels brutos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todos os níveis aprendem obrigatoriamente o mesmo padrão sem abstração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Níveis superiores eliminam a dependência estatística entre os dados e o modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A hierarquia é apenas visual e não altera as representações computadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A motivação hierárquica é construir conceitos mais abstratos a partir de características locais ou simples extraídas pelos níveis inferiores.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pré-treina uma DBN e observa bom desempenho no conjunto usado para ajustar os pesos. O que ainda é necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Avaliar em dados não vistos para estimar generalização e detectar sobreajuste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Considerar o resultado definitivo, pois pré-treinamento impede sobreajuste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a camada de saída e inferir a qualidade pelo número de unidades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar os dados de validação por exemplos já usados no treinamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a avaliação, pois a distribuição latente já é conhecida exatamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O desempenho de treinamento não mede sozinho a generalização; dados independentes ajudam a avaliar a tarefa e identificar sobreajuste.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tarefa de modelagem generativa, qual é o foco coerente para o ajuste posterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aprimorar os parâmetros segundo um critério de qualidade do modelo dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Maximizar necessariamente o acerto de classes que não foram fornecidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar todas as variáveis latentes para manter apenas uma classe prevista.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir amostragem por uma busca literal em banco de exemplos rotulados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Congelar a rede e medir exclusivamente a velocidade de leitura dos arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O objetivo generativo é modelar a distribuição dos dados; o critério de ajuste deve refletir essa finalidade e não precisa ser acurácia de classes.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação de pesos e vieses em uma unidade binária da RBM está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pesos ligam estados entre camadas e vieses deslocam a propensão de ativação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pesos armazenam rótulos finais e vieses ordenam os exemplos por data.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pesos determinam a quantidade de camadas e vieses definem o conjunto de teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pesos são irrelevantes depois da amostragem e vieses substituem as entradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pesos enumeram estados possíveis e vieses impedem ativações estocásticas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na condicional binária clássica, a soma ponderada pelas conexões entre camadas junto ao viés determina a probabilidade de ativação após a função logística.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pesquisador afirma que DBN e classificador discriminativo são intercambiáveis porque ambos podem prever rótulos. Qual correção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DBN é generativa, embora possa ser adaptada à classificação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DBN não pode ser usada em tarefa alguma com rótulos disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Qualquer modelo que prevê rótulo deixa automaticamente de ser probabilístico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um classificador discriminativo precisa modelar a distribuição conjunta completa dos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A previsão de rótulos transforma uma RBM em árvore de decisão por definição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pode-se adaptar uma DBN a classificação, mas sua arquitetura generativa e a tarefa discriminativa são conceitos distintos; compartilhar um uso não os torna intercambiáveis.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a relação entre saída de camada e dados de treinamento da RBM seguinte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A saída pode ser amostrada ou propagada e formar os dados do próximo nível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A saída é descartada e a próxima RBM recebe apenas os rótulos finais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A próxima RBM é treinada com pesos congelados da camada de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A saída ordena arquivos, mas não interfere na representação subsequente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A camada seguinte recebe sempre dados gerados aleatoriamente sem relação com a entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O treinamento empilhado transforma representações aprendidas em um novo conjunto de ativações que alimenta a próxima RBM.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição distingue o ajuste fino global do pré-treinamento guloso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ajuste fino otimiza conjuntamente a rede em função do critério final escolhido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O ajuste fino treina somente uma RBM isolada e ignora as outras camadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ajuste fino sempre dispensa qualquer função objetivo mensurável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ajuste fino usa apenas os dados da camada visível sem parâmetros internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ajuste fino serve exclusivamente para selecionar quantas amostras serão coletadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pré-treinamento é local e sequencial; no ajuste fino, parâmetros das camadas podem ser atualizados conjuntamente conforme o objetivo final.",
+      "section": "3. Ajuste fino, tarefas e interpretação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção evita uma generalização indevida sobre resultados publicados para DBNs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resultados dependem do conjunto, da arquitetura e do critério avaliado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma vitória experimental prova superioridade em toda tarefa futura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O desempenho em um conjunto elimina a necessidade de replicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um modelo generativo não precisa ser comparado com alternativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pré-treinamento torna irrelevantes as condições de avaliação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Experimentos apoiam conclusões para condições estudadas; desempenho não deve ser convertido em garantia universal fora daqueles dados e tarefas.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe descreve toda DBN como rede feed-forward discriminativa com treinamento obrigatório por retropropagação desde pesos aleatórios. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A descrição omite o caráter generativo e o pré-treinamento não supervisionado típico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A descrição está correta porque DBN é apenas outro nome para MLP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A descrição está correta porque DBNs não usam variáveis latentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A descrição omite somente que a entrada precisa ser uma lista de rótulos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A descrição está correta porque o modelo não possui uma distribuição conjunta.",
+          "correct": false
+        }
+      ],
+      "explanation": "DBN clássica é um modelo generativo latente e seu treinamento histórico usa pré-treinamento não supervisionado camada por camada; uma adaptação discriminativa posterior é possível, mas não define toda DBN.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que situação é especialmente importante distinguir observação de variável latente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ao explicar que o modelo aprende fatores internos que não aparecem diretamente nos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ao concluir que cada unidade oculta é sempre uma coluna observada original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ao substituir qualquer entrada por um rótulo conhecido antes da inferência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ao afirmar que variável latente é apenas outro nome para arquivo de treino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ao assumir que as ativações internas são valores medidos diretamente do ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variáveis latentes são estados internos inferidos pelo modelo, ao passo que observações são valores fornecidos ou medidos nos dados.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como resumir a contribuição da RBM ao treinamento de uma DBN sem confundir os dois modelos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RBMs treinam pares de níveis e suas representações são empilhadas na DBN.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma RBM equivale à DBN completa, independentemente do número de níveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A RBM fornece apenas rótulos e a DBN não atualiza pesos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A RBM serve para avaliar teste e a DBN apenas organiza arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A RBM transforma exemplos em regras e a DBN as executa sem inferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "No procedimento clássico, RBMs aprendem pares adjacentes; a sequência dessas representações constitui a arquitetura profunda da DBN.",
+      "section": "2. RBM e aprendizagem camada por camada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cuidado é apropriado ao usar DBN em uma aplicação real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher avaliação e regularização conforme os dados e a tarefa concreta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Presumir que camadas latentes impedem vieses nos dados de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar validação quando a aprendizagem inicial foi não supervisionada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Considerar uma reconstrução curta como prova de causalidade real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assumir que a arquitetura dispensa comparação com modelos simples.",
+          "correct": false
+        }
+      ],
+      "explanation": "A arquitetura não elimina problemas de qualidade de dados, sobreajuste ou escolha de métrica; avaliação deve refletir o uso pretendido.",
+      "section": "4. Comparações, limites e usos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa associa corretamente o termo generativo ao papel de uma DBN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Representa probabilidades de observações e estados internos que podem explicá-las.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazena somente a resposta final sem representar como os dados se distribuem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executa regras fixas de classificação sem estimar parâmetros a partir de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cria uma partição de classes sem variáveis internas ou dependências aprendidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordena entradas por tamanho e considera a maior como amostra mais provável.",
+          "correct": false
+        }
+      ],
+      "explanation": "O caráter generativo significa modelar a distribuição associada aos dados e às variáveis latentes, em vez de apenas mapear entrada para rótulo.",
+      "section": "1. O que é uma deep belief network",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "A fast learning algorithm for deep belief nets",
+      "publisher": "University of Toronto, Geoffrey Hinton Publications",
+      "reference": "Artigo de Hinton, Osindero e Teh; arquitetura e aprendizagem rápida de deep belief nets",
+      "url": "https://www.cs.toronto.edu/~hinton/absps/ncfast.pdf",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Greedy Layer-Wise Training of Deep Networks",
+      "publisher": "Neural Information Processing Systems (NeurIPS), proceedings",
+      "reference": "Definição probabilística de DBN, RBMs como blocos, pré-treinamento guloso e ajuste fino",
+      "url": "https://proceedings.neurips.cc/paper/2006/file/5da713a690c067105aeb2fae32403405-Paper.pdf",
+      "accessedAt": "2026-11-09"
+    }
+  ]
+}

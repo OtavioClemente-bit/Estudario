@@ -1,0 +1,1779 @@
+{
+  "id": "informatica.monitoramento-drift-arquiteturas-resilientes",
+  "subject": "Informática",
+  "title": "Monitoramento e detecção de drift e arquiteturas distribuídas resilientes",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Monitoramento e detecção de drift e arquiteturas distribuídas resilientes",
+    "Detecção de drift em infraestrutura como código",
+    "Drift de configuração em Terraform",
+    "Observabilidade em sistemas distribuídos",
+    "Monitoramento de aplicações distribuídas",
+    "Resiliência de arquiteturas distribuídas",
+    "Tolerância a falhas em microsserviços",
+    "Telemetria com métricas logs e traces",
+    "Rastreamento distribuído com OpenTelemetry",
+    "Padrões de resiliência para serviços distribuídos",
+    "Circuit breaker e retentativas com backoff",
+    "Detecção de anomalias e desvio de dados",
+    "Monitoramento de SLI SLO e orçamento de erros",
+    "Saúde e disponibilidade de serviços distribuídos",
+    "Reconciliação de configuração e estado Terraform"
+  ],
+  "scope": {
+    "covers": "Observabilidade de sistemas distribuídos por métricas, logs e traces; instrumentação e propagação de contexto; indicadores, objetivos de nível de serviço e alertas; drift entre configuração declarada, estado de IaC e infraestrutura real, leitura de planos e reconciliação segura; drift de dados e modelos como mudança de distribuição ou de relação entre entradas e resultados; detecção, diagnóstico e resposta; redundância, isolamento de falhas, timeouts, retentativas com backoff e jitter, circuit breaker, bulkhead, idempotência, degradação controlada, filas e recuperação; prontidão e liveness; testes de resiliência e recuperação.",
+    "excludes": "Administração específica de um provedor de nuvem, comandos completos de uma ferramenta de IaC, construção matemática detalhada de modelos de detecção, implementação de produto de observabilidade e garantias de disponibilidade associadas a contrato comercial."
+  },
+  "theoryTitle": "Observar, detectar desvios e projetar para falhas",
+  "chapters": [
+    {
+      "title": "1. Observabilidade",
+      "markdown": "### O problema que este assunto resolve\n\nEm um sistema distribuído, uma requisição pode atravessar gateway, serviço de pedidos, fila, consumidor e banco. Um painel que mostra apenas que cada processo está ligado não explica por que a operação ficou lenta nem onde se perdeu. Observabilidade combina telemetria e contexto suficiente para investigar o comportamento interno a partir do que o sistema emite.\n\n> **Siglas e termos deste capítulo**\n> - **Telemetria**: dados emitidos por componentes para entender sua execução.\n> - **Métrica**: medida numérica agregável ao longo do tempo, como taxa de erros ou latência.\n> - **Log**: registro de um evento com horário e campos contextuais.\n> - **Trace**: percurso de uma operação distribuída representado por spans relacionados.\n> - **Span**: unidade de trabalho dentro de um trace, com duração, atributos e, eventualmente, eventos.\n> - **Contexto de propagação**: identificadores e metadados que acompanham a operação entre processos.\n\n### Três sinais que se complementam\n\nMétricas permitem observar tendências e agregar grande volume com custo controlável. Um histograma de latência permite calcular quantis; a média isolada pode esconder uma cauda lenta. Logs descrevem eventos específicos e podem carregar identificadores de correlação. Traces mostram a sequência e a duração dos trechos de uma solicitação, inclusive chamadas a dependências. Nenhum sinal substitui os demais: uma métrica pode apontar o pico, o trace localizar a etapa lenta e o log explicar o evento daquela etapa.\n\nOpenTelemetry oferece APIs e SDKs para instrumentar, gerar, coletar e exportar traces, métricas e logs, além do Collector para receber, processar e encaminhar telemetria. A convenção semântica padroniza nomes e atributos, facilitando consulta entre serviços. A propagação de contexto preserva a relação entre spans ao cruzar limites de processo; sem ela, dois trechos podem parecer traces separados. Amostragem reduz volume de traces, mas deve ser escolhida para não descartar justamente falhas raras importantes.\n\n### Indicadores e alertas que orientam ação\n\nUm SLI é uma medida observada da qualidade do serviço, como proporção de requisições bem-sucedidas ou latência abaixo de um limite definido. Um SLO é o objetivo interno para esse indicador durante uma janela. Um SLA é compromisso formal com consumidores, quando existente; não é sinônimo automático do SLO. O orçamento de erros expressa quanto de falha é compatível com o SLO no período. Se o consumo acelera, a equipe pode reduzir mudanças arriscadas e priorizar confiabilidade.\n\nAlertas devem representar condições acionáveis e indicar impacto, serviço, janela e caminho de resposta. Alertar para cada exceção isolada cria ruído; alertar apenas quando todos os recursos caíram detecta tarde. A taxa, a duração e a saturação ajudam a distinguir problema real de oscilação curta. Métricas com rótulos de cardinalidade ilimitada, como um identificador único por usuário, multiplicam séries e podem tornar o sistema de monitoramento caro ou indisponível.\n\n### Como cai na prova\n\n- Métrica mostra tendência agregada; log registra evento; trace conecta etapas de uma operação.\n- Propagar contexto é necessário para correlacionar spans em serviços diferentes.\n- SLI é medida, SLO é alvo e SLA é compromisso formal, quando contratado.\n- Um alerta útil aponta uma condição relevante e uma ação; não é apenas uma notificação de qualquer evento."
+    },
+    {
+      "title": "2. Drift",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe declara a infraestrutura em código, mas alguém altera uma regra de firewall pelo console durante um incidente. A nuvem agora contém uma configuração diferente da declarada. Se o desvio ficar invisível, uma implantação futura pode desfazer a correção emergencial ou manter uma abertura de segurança não revisada. Drift é uma diferença entre uma referência esperada e o estado observado; detectar a diferença não decide sozinho qual dos dois deve prevalecer.\n\n> **Siglas e termos deste capítulo**\n> - **IaC**: infraestrutura como código, configuração versionada que descreve recursos desejados.\n> - **Estado Terraform**: registro mantido pela ferramenta sobre recursos que ela gerencia.\n> - **Drift de configuração**: divergência entre configuração, registro de estado e recurso real.\n> - **Refresh-only**: plano que atualiza ou propõe atualizar o registro para refletir o recurso, sem alterar o recurso real.\n> - **Reconciliação**: decisão e ação para alinhar configuração declarada, registro e ambiente.\n> - **Drift de dados**: mudança relevante na distribuição ou nas relações dos dados observados.\n\n### Três referências que não devem ser confundidas\n\nNa IaC, compare a configuração versionada, o estado registrado pela ferramenta e os recursos reais consultados no provedor. Uma alteração manual pode criar divergência entre estado e realidade; uma mudança no código pode criar diferença entre desejado e registrado. O `terraform plan` atualiza sua visão em memória e propõe ações, mas o plano não aplica por si só. Um plano especulativo permite revisão. O modo refresh-only permite inspecionar o que mudaria no estado para refletir recursos externos, sem modificar a infraestrutura real.\n\nDepois da detecção há duas decisões distintas. Se a mudança externa é indevida, revise o plano normal e aplique a configuração aprovada para restaurar o desejado. Se foi intencional e deve permanecer, incorpore-a à configuração e revise o plano; atualizar somente o estado sem atualizar o código deixa a divergência conceitual e uma execução futura pode revertê-la. Mudanças emergenciais devem ser registradas, revisadas e incorporadas ao fluxo versionado. A detecção periódica complementa a verificação em cada plano, mas intervalos longos deixam uma janela sem observação.\n\nDrift de dados tem outro objeto: pode haver mudança nas distribuições de atributos de entrada, mudança na relação entre entrada e resultado, ou mudança de qualidade e esquema. Drift de conceito descreve mudança na relação que gera os resultados, mesmo quando a distribuição de entradas parece estável. Compare dados recentes com uma linha de base representativa, monitore valores ausentes, categorias novas, limites e métricas de qualidade, e registre janela, população e versão do pipeline. Sinal estatístico não prova causa nem determina se o modelo deve ser retreinado; mudanças sazonais, mistura de populações e falhas de coleta também alteram distribuições.\n\n### Da detecção à resposta auditável\n\nUm processo útil registra recurso ou variável afetada, referência, observação, momento, fonte, severidade, dono e decisão. Confirme primeiro se o desvio é real e se a coleta está atualizada. Avalie impacto e risco, examine diferenças propostas, escolha manter ou reverter, revise com responsável e execute por pipeline controlada. Em aplicações de dados, investigue se a mudança é esperada, valide rótulos e qualidade, compare desempenho por segmento e só então decida mitigar, ajustar limiares ou atualizar o modelo. Um detector sem processo de resposta produz alertas sem governança.\n\n### Como cai na prova\n\n- Refresh-only pode refletir no estado uma mudança externa sem alterar o recurso real.\n- O plano normal pode propor restaurar os recursos ao que está declarado; aplicar requer revisão.\n- Se a mudança manual for legítima, atualize a configuração versionada para evitar reversão futura.\n- Drift de dados é sinal para investigar; não equivale automaticamente a falha ou ordem de retreinamento."
+    },
+    {
+      "title": "3. Resiliência",
+      "markdown": "### O problema que este assunto resolve\n\nUma dependência lenta retém conexões e threads do serviço chamador. O chamador acumula trabalho, a fila cresce e a falha se espalha para componentes saudáveis. Arquitetura resiliente limita a propagação, preserva funções prioritárias e recupera o serviço sem pressupor que a rede ou qualquer nó seja infalível.\n\n> **Siglas e termos deste capítulo**\n> - **Timeout**: limite de espera por uma operação antes de desistir.\n> - **Backoff exponencial**: aumento progressivo do intervalo entre tentativas.\n> - **Jitter**: variação aleatória adicionada ao intervalo para desincronizar clientes.\n> - **Circuit breaker**: mecanismo que interrompe chamadas a dependência que falha e testa recuperação depois.\n> - **Bulkhead**: isolamento de recursos para que uma falha não consuma capacidade de todo o sistema.\n> - **Idempotência**: repetir uma operação produz o mesmo efeito lógico que executá-la uma vez.\n\n### Timeouts, retentativas e circuit breaker\n\nToda chamada remota precisa de timeout compatível com o orçamento de latência da operação. Sem limite, solicitações podem esperar indefinidamente e ocupar recursos. Retente falhas transitórias, com limite de tentativas, backoff e jitter. Uma retentativa sem limite pode amplificar a carga justamente quando o destino está degradado. Retentar uma operação não idempotente pode duplicar cobrança ou criação; use chave de idempotência, deduplicação ou desenho que torne seguro repetir.\n\nCircuit breaker tem estados usuais: fechado deixa chamadas passar; aberto falha rápido ou usa resposta degradada; semiaberto permite tentativas controladas para verificar recuperação. Ele evita insistir em uma dependência persistentemente indisponível. Não substitui timeout e não corrige a causa. O fallback deve ser simples e semanticamente aceitável, como dado em cache explicitamente marcado como possivelmente antigo; inventar uma resposta de sucesso mascara falhas.\n\nBulkheads limitam concorrência, conexões ou filas por dependência ou classe de trabalho. Assim, um serviço lento não ocupa todo o pool compartilhado. Filas desacoplam produtores e consumidores, mas precisam de limites, política de mensagens inválidas, visibilidade de atraso e comportamento de pressão reversa. Se a taxa de chegada supera continuamente a capacidade de processamento, aumentar a fila apenas adia a falha e aumenta a latência.\n\n### Redundância, degradação e recuperação\n\nReplicar componentes e distribuir falhas por zonas reduz dependência de um único nó, mas réplicas idênticas não protegem de falha comum, como erro de configuração replicado. Balanceadores precisam remover instâncias incapazes e reintegrá-las após recuperação verificada. Cache pode reduzir dependência e carga, mas exige política de validade e consideração de dados obsoletos. Degradação controlada preserva a função essencial, por exemplo desabilitando recomendações enquanto mantém checkout.\n\nConsistência distribuída envolve trade-offs: durante partição de rede pode ser necessário rejeitar ou atrasar certas operações para preservar invariantes, ou aceitar disponibilidade com reconciliação posterior. Não prometa que réplicas distribuídas tornam toda escrita instantaneamente consistente. Operações assíncronas, outbox e consumidores idempotentes ajudam a lidar com entrega repetida ou atrasada, mas não eliminam a necessidade de monitorar backlog, falhas e duplicações.\n\n### Como cai na prova\n\n- Timeout libera o chamador de esperar indefinidamente; retry é para falha transitória e deve ser limitado.\n- Circuit breaker aberto reduz chamadas à dependência degradada; semiaberto testa recuperação.\n- Bulkhead isola capacidade; fila sem limite pode converter sobrecarga em atraso crescente.\n- Réplicas ajudam contra falha de nó, mas não eliminam falhas comuns nem garantem consistência instantânea."
+    },
+    {
+      "title": "4. Saúde e operação",
+      "markdown": "### O problema que este assunto resolve\n\nUm processo pode responder ao ping e ainda ser incapaz de atender usuários porque perdeu conexão com o banco ou esgotou o pool. Testes de saúde, objetivos observáveis e exercícios controlados precisam refletir a capacidade real de servir e recuperar, sem transformar uma dependência instável em reinicializações em cascata.\n\n> **Siglas e termos deste capítulo**\n> - **Liveness**: indica se o processo deve continuar ou ser reiniciado.\n> - **Readiness**: indica se a instância está apta a receber tráfego.\n> - **SLO**: objetivo de nível de serviço para um indicador e janela definidos.\n> - **Orçamento de erros**: parcela de falhas compatível com o SLO.\n> - **RTO**: tempo alvo para restaurar um serviço após interrupção.\n> - **RPO**: perda de dados tolerável expressa como intervalo de recuperação.\n\n### Verificações de saúde e tráfego\n\nLiveness responde se o processo está travado de modo que reiniciá-lo pode ajudar. Readiness responde se deve receber tráfego agora. Um serviço inicializando pode estar vivo e ainda não pronto. Acoplar liveness a toda dependência remota pode reiniciar todas as réplicas durante uma falha do banco, ampliando a indisponibilidade. Readiness pode retirar uma instância de rotação sem reiniciar o processo. Verificações devem ser rápidas, representativas e evitar que cada sondagem gere carga significativa.\n\nMonitore latência por quantis, taxa de sucesso, volume e saturação de recursos. Relacione alertas a SLO e impacto percebido, use janelas adequadas e agrupe alertas correlatos. Um orçamento de erros que se esgota rapidamente sinaliza que mudanças arriscadas precisam ser restringidas enquanto a equipe restaura confiabilidade. Após incidente, registre linha do tempo, impacto, causa contribuinte e ações verificáveis; análise sem culpabilização busca melhorar controles do sistema, sem apagar responsabilidade operacional.\n\n### Testar recuperação, não apenas ausência de falha\n\nTestes de carga observam capacidade e saturação; testes de falha verificam comportamento quando uma dependência ou instância falha; exercícios de recuperação validam backup, failover e procedimentos. Injeção de falhas deve ter hipótese, escopo controlado, métricas de parada e responsável. Um teste que derruba dependência sem observar filas, erros e recuperação não demonstra resiliência. Simule também falhas parciais, latência e perda de comunicação, pois são diferentes de desligamento total.\n\nRTO e RPO são metas de recuperação diferentes: RTO limita duração até restaurar serviço; RPO limita quanto de dados pode ser perdido, medido pelo ponto recuperável. Replicação contínua pode reduzir perda, mas não substitui cópias independentes: corrupção ou exclusão pode se propagar. Faça restaurações testadas e verifique integridade. Plano de recuperação precisa especificar dependências, sequência, responsáveis, critérios de retorno e comunicação.\n\n### Como cai na prova\n\n- Readiness controla entrada de tráfego; liveness orienta reinício quando processo não progride.\n- SLI mede, SLO define alvo e orçamento de erros ajuda a decidir ritmo de mudanças.\n- RTO trata de tempo de restauração; RPO, de perda de dados tolerada.\n- Resiliência precisa ser demonstrada por testes com critérios de parada e recuperação observada."
+    }
+  ],
+  "summary": "Sistemas distribuídos exigem sinais correlacionáveis, detecção de divergências e mecanismos que contenham falhas. Métricas, logs e traces respondem a perguntas diferentes; SLI mede, SLO define alvo e SLA formaliza compromisso. Drift de IaC é discrepância entre configuração, estado e recurso real: detectar, decidir manter ou reverter e registrar a decisão são etapas distintas. Drift de dados orienta investigação, não retreinamento automático. Timeouts, retries limitados com backoff e jitter, circuit breakers, bulkheads, idempotência, degradação controlada, readiness e liveness reduzem propagação e facilitam recuperação. SLO, testes de falha, RTO e RPO tornam a confiabilidade verificável.",
+  "flashcards": [
+    {
+      "front": "Quais são os três sinais comuns de observabilidade?",
+      "back": "Métricas, logs e traces; agregam medidas, registram eventos e conectam etapas de operações, respectivamente."
+    },
+    {
+      "front": "O que é um span?",
+      "back": "Uma unidade de trabalho em um trace, com duração e contexto próprio."
+    },
+    {
+      "front": "Para que serve propagar contexto?",
+      "back": "Para relacionar spans e preservar a identidade da operação entre processos e serviços."
+    },
+    {
+      "front": "O que diferencia SLI e SLO?",
+      "back": "SLI é a medida observada; SLO é o objetivo definido para essa medida em uma janela."
+    },
+    {
+      "front": "O que expressa o orçamento de erros?",
+      "back": "A parcela de falhas compatível com o SLO no período considerado."
+    },
+    {
+      "front": "O que é cardinalidade alta em métricas?",
+      "back": "Muitas combinações de rótulos criando séries distintas, com custo e carga elevados."
+    },
+    {
+      "front": "Quais estados usuais tem um circuit breaker?",
+      "back": "Fechado, aberto e semiaberto; o último testa a recuperação de modo controlado."
+    },
+    {
+      "front": "O que distingue drift de IaC?",
+      "back": "Divergência entre configuração declarada, estado registrado e recurso real."
+    },
+    {
+      "front": "O plano Terraform aplica automaticamente suas mudanças?",
+      "back": "Não; plan apresenta ações propostas para inspeção, sem aplicá-las por si só."
+    },
+    {
+      "front": "O que faz o modo refresh-only?",
+      "back": "Permite revisar e atualizar o registro de estado para refletir recursos reais sem modificar esses recursos."
+    },
+    {
+      "front": "Como preservar uma alteração externa intencional?",
+      "back": "Incorporá-la à configuração versionada e revisar um novo plano."
+    },
+    {
+      "front": "O que é drift de dados?",
+      "back": "Mudança relevante nas distribuições, esquema, qualidade ou relações dos dados observados."
+    },
+    {
+      "front": "Drift de dados implica retreinar imediatamente?",
+      "back": "Não; deve-se validar coleta, população, sazonalidade, qualidade e desempenho antes da decisão."
+    },
+    {
+      "front": "Por que definir timeout em chamada remota?",
+      "back": "Para impedir espera indefinida e limitar recursos retidos pelo chamador."
+    },
+    {
+      "front": "Qual a função do jitter em retries?",
+      "back": "Desincronizar clientes para evitar novas ondas simultâneas de carga."
+    },
+    {
+      "front": "Quando retry é apropriado?",
+      "back": "Em falha provavelmente transitória, com limite, intervalo e segurança contra efeitos duplicados."
+    },
+    {
+      "front": "O que protege um bulkhead?",
+      "back": "Reserva ou limita recursos para conter a falha de uma dependência ou classe de trabalho."
+    },
+    {
+      "front": "Por que retries exigem idempotência ou deduplicação?",
+      "back": "Porque repetição após resposta perdida pode executar o efeito mais de uma vez."
+    },
+    {
+      "front": "O que indica readiness?",
+      "back": "Se a instância está apta a receber tráfego neste momento."
+    },
+    {
+      "front": "O que indica liveness?",
+      "back": "Se o processo continua progredindo ou precisa ser reiniciado."
+    },
+    {
+      "front": "O que mede RTO?",
+      "back": "O tempo alvo para restaurar o serviço após interrupção."
+    },
+    {
+      "front": "O que mede RPO?",
+      "back": "A perda de dados tolerável, expressa como intervalo até o ponto recuperável."
+    },
+    {
+      "front": "Uma fila ilimitada aumenta capacidade?",
+      "back": "Não; pode apenas acumular atraso se a chegada superar continuamente o processamento."
+    },
+    {
+      "front": "Réplicas impedem falhas comuns?",
+      "back": "Não necessariamente; uma configuração defeituosa replicada pode afetar todas."
+    },
+    {
+      "front": "Por que testar restauração de backup?",
+      "back": "Para confirmar que cópias são utilizáveis e que os procedimentos e a integridade funcionam."
+    }
+  ],
+  "tips": [
+    "Ao ler uma questão de drift, identifique primeiro as três referências: desejado, estado registrado e real.",
+    "Não confunda detectar uma diferença com autorizar sua correção automática.",
+    "Associe métrica a tendência agregada, log a evento e trace ao caminho de uma solicitação.",
+    "Em falhas remotas, pense em timeout, limite de tentativas e proteção contra duplicidade.",
+    "Leia readiness como elegibilidade para tráfego e liveness como necessidade de reinício.",
+    "Separe recuperação de serviço (RTO) de perda de dados tolerada (RPO)."
+  ],
+  "traps": [
+    "Tratar SLO e SLA como sinônimos; o SLA é compromisso formal, quando houver.",
+    "Achar que refresh-only corrige o recurso real para combinar com o código.",
+    "Supor que toda mudança de distribuição prova deterioração do modelo.",
+    "Aumentar retries sem limite durante uma sobrecarga e amplificar a falha.",
+    "Usar liveness dependente de banco e reiniciar toda instância numa falha compartilhada.",
+    "Supor que replicação substitui cópias de backup e testes de restauração."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como métricas, logs e traces se complementam ao investigar latência.",
+      "answer": "A métrica identifica tendência e janela; o trace aponta os trechos lentos; logs contextualizados descrevem eventos ocorridos nesses trechos."
+    },
+    {
+      "question": "Quais estados comparar ao investigar drift de infraestrutura?",
+      "answer": "Configuração declarada, estado mantido pela IaC e recurso observado no ambiente real."
+    },
+    {
+      "question": "Uma mudança manual é desejada. Como evitar que a próxima implantação a reverta?",
+      "answer": "Revisar a mudança e incorporá-la à configuração versionada antes de aplicar um plano coerente."
+    },
+    {
+      "question": "Por que detecção de drift de dados exige investigação antes da remediação?",
+      "answer": "Sazonalidade, população, qualidade da coleta ou mudança legítima podem deslocar a distribuição sem provar piora do modelo."
+    },
+    {
+      "question": "Como limitar uma retentativa a serviço remoto com falha transitória?",
+      "answer": "Timeout, quantidade limitada, backoff com jitter e proteção idempotente ou deduplicação."
+    },
+    {
+      "question": "Como circuit breaker e bulkhead se complementam?",
+      "answer": "O breaker interrompe chamadas a destino degradado; o bulkhead impede que consumo de recursos dessa área esgote a capacidade compartilhada."
+    },
+    {
+      "question": "Qual diferença prática entre readiness e liveness?",
+      "answer": "Readiness remove temporariamente tráfego de instância não apta; liveness sinaliza processo sem progresso que pode se beneficiar de reinício."
+    },
+    {
+      "question": "Diferencie RTO de RPO em uma recuperação de desastre.",
+      "answer": "RTO limita o tempo para restaurar o serviço; RPO limita quanto de dado pode ser perdido."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre sinais de telemetria",
+      "summary": "Tratar métricas, logs e traces como formatos intercambiáveis e perder a pergunta que cada sinal responde."
+    },
+    {
+      "key": "e2",
+      "title": "Reconciliação automática de drift",
+      "summary": "Supor que detectar discrepância determina se o estado externo ou a configuração deve prevalecer."
+    },
+    {
+      "key": "e3",
+      "title": "Retries que amplificam a falha",
+      "summary": "Repetir sem limite ou sem idempotência aumenta carga e pode duplicar efeitos."
+    },
+    {
+      "key": "e4",
+      "title": "Verificações de saúde acopladas",
+      "summary": "Usar dependência compartilhada em liveness e reiniciar réplicas saudáveis durante incidente externo."
+    },
+    {
+      "key": "e5",
+      "title": "Metas de recuperação confundidas",
+      "summary": "Trocar tempo para restaurar (RTO) pela perda de dados tolerada (RPO)."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um serviço distribuído, qual sinal permite acompanhar a duração de etapas relacionadas da mesma solicitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma série de métricas agregadas sem identificador da operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um trace com spans correlacionados por contexto propagado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo de log local sem campos de correlação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma verificação de prontidão executada pelo balanceador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um relatório de capacidade calculado ao fim do mês.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trace representa o percurso da operação, e a propagação de contexto relaciona spans entre processos. Métricas agregam medidas, logs registram eventos, readiness verifica aptidão para tráfego e um relatório mensal não reconstrói o caminho de uma chamada.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A média de latência sempre revela com fidelidade o comportamento das solicitações mais lentas, mesmo quando são poucas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A média pode esconder a cauda da distribuição; quantis como percentis ajudam a observar solicitações mais lentas, desde que a janela e a população sejam interpretadas corretamente.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente SLI, SLO e SLA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SLI mede qualidade observada; SLO define alvo e SLA formaliza compromisso externo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SLI é contrato externo, SLO é painel de operação e SLA é o orçamento mensal calculado pela equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SLI é meta interna, SLO é resultado observado e SLA é alerta técnico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SLI e SLA são objetivos internos, enquanto SLO é a penalidade contratual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SLO mede erros, SLI define compensação e SLA calcula latência média.",
+          "correct": false
+        }
+      ],
+      "explanation": "SLI é o indicador medido, SLO é o objetivo definido para ele, e SLA é compromisso formal com consumidores se houver. Orçamento de erros deriva do objetivo, mas não redefine esses três termos.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar um identificador exclusivo para cada usuário como rótulo reduz a cardinalidade e o custo das métricas agregadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada combinação distinta de rótulos pode criar uma série temporal própria. Identificadores sem limite elevam cardinalidade e carga; dimensões controladas são mais adequadas para métricas agregadas.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que combinação ajuda a localizar e explicar um pico de latência percebido por usuários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trace localiza trecho lento da operação; log correlacionado registra eventos relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Log local isolado para calcular a latência da cadeia remota, mesmo sem identificador de correlação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Readiness para identificar a linha de código que elevou o tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SLO para reconstruir a ordem das chamadas entre os serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Métrica agregada para registrar o conteúdo de cada evento individual.",
+          "correct": false
+        }
+      ],
+      "explanation": "A métrica pode detectar o pico, o trace aponta duração por etapa e logs correlacionados contextualizam eventos. Readiness não localiza código, SLO é um alvo e métricas agregadas não substituem registros de evento.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A amostragem de traces reduz o volume coletado, mas uma política inadequada pode descartar operações raras que falharam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Amostragem é uma forma de controlar volume, mas seus critérios afetam quais operações ficam disponíveis para investigação. A política precisa considerar erros e eventos raros relevantes.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso do OpenTelemetry recebe, processa e exporta dados de telemetria de forma independente da aplicação instrumentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Collector recebe, processa e exporta telemetria para destinos configurados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O SLO, configurado como transporte de spans entre serviços e roteador de eventos para vários destinos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O circuit breaker, configurado como banco de métricas global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O estado Terraform, configurado como arquivo de eventos de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O readiness probe, configurado como exportador de logs estruturados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Collector pode receber, processar e exportar telemetria, desacoplando a instrumentação dos destinos. SLO, breaker, estado Terraform e readiness têm outras funções.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trace distribuído pode manter relação entre spans de serviços distintos quando o contexto de propagação acompanha a solicitação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A propagação de contexto transporta identificadores necessários à correlação. Sem isso, trechos da mesma operação podem aparecer como traces independentes.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alerta tende a ser mais operacionalmente útil para uma equipe de serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alerta acionável identifica impacto, serviço afetado, janela e resposta definida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Notificação individual para cada evento informativo sem severidade ou ação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alarme disparado apenas quando todos os componentes deixam de responder.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mensagem diária que agrega falhas distintas sem informar sua duração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aviso sobre qualquer mudança de métrica, mesmo dentro da variação normal e sem impacto para o usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alertas acionáveis vinculam uma condição relevante a serviço, janela, impacto e resposta. Notificações sem ação geram ruído, e esperar a queda total costuma detectar tarde.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A padronização semântica de nomes e atributos facilita consultas e comparação da telemetria entre serviços instrumentados de forma independente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Convenções compartilhadas reduzem diferenças arbitrárias de nomenclatura e permitem ferramentas e consultas reconhecerem operações e recursos de modo consistente.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma chamada remota, uma falha de rede pode deixar o cliente aguardando sem liberar conexões. Qual controle limita essa espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Timeout compatível com o orçamento de latência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retry sem limite até a dependência responder com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumento da fila compartilhada para reter as chamadas pendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Amostragem de traces para descartar a chamada bloqueada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualização do SLO sem alterar o comportamento de espera.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout encerra a espera do cliente após limite definido e libera recursos do lado chamador. Retry ilimitado e filas maiores podem agravar retenção; amostragem e SLO não encerram chamadas.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Terraform, um plano especulativo mostra ações propostas, mas não altera os recursos reais enquanto não houver uma aplicação aprovada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `terraform plan` permite inspecionar mudanças propostas. A execução do plano não aplica por si só as alterações planejadas aos recursos.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração manual intencional foi detectada em um recurso gerenciado por Terraform. Como evitar que o próximo plano normal a reverta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incorporar a mudança aceita à configuração versionada e revisar o plano resultante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar refresh-only e deixar o código antigo sem revisão, pois o estado atualizado passa a representar a intenção aprovada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar permanentemente a leitura de estado do recurso alterado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o recurso do provedor antes de cada plano normal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar apply sem revisar diferenças porque a mudança já existe.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a mudança externa deve permanecer, a configuração desejada precisa incorporá-la; caso contrário, um plano normal pode propor revertê-la. Refresh-only atualiza estado, não altera a intenção registrada no código.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo refresh-only tem como objetivo principal alterar os recursos reais para que passem a corresponder à configuração declarada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Refresh-only permite revisar e atualizar o estado registrado para refletir recursos externos; não tenta alterar esses recursos para alinhá-los ao código. A reconciliação exige decisão posterior.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação caracteriza drift de configuração em infraestrutura como código?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recurso real diverge do estado registrado e da configuração declarada no código.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma métrica de latência é armazenada com resolução de um minuto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um trace contém spans de mais de um serviço independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma equipe reduz o objetivo interno de disponibilidade do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma aplicação envia logs estruturados a um coletor central.",
+          "correct": false
+        }
+      ],
+      "explanation": "Drift de configuração é discrepância entre recursos observados e as referências da IaC. Resolução de métrica, traces, mudança de objetivo e exportação de logs não caracterizam por si sós esse desvio.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Detectar drift de dados prova que o modelo perdeu qualidade e deve ser retreinado imediatamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A mudança pode decorrer de sazonalidade, população, mudança legítima ou falha de coleta. É necessário avaliar qualidade, rótulos e desempenho antes de escolher uma resposta.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de detecção de drift de dados compara observações recentes com uma referência. Que informação melhora a interpretação do alerta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Janela observada, população, versão do pipeline e qualidade da coleta dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas a cor do gráfico, sem histórico, janela de observação, população comparável ou medida de qualidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente a quantidade de instâncias de aplicação em execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de retries feitos por serviços que não geram os dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra fixa para retreinar sempre que houver categoria nova.",
+          "correct": false
+        }
+      ],
+      "explanation": "Janela e população contextualizam a comparação; versão e qualidade ajudam a separar mudança real de alterações no pipeline ou na coleta. Categoria nova é sinal para investigar, não gatilho universal de retreinamento.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração emergencial feita fora do fluxo de IaC não precisa ser registrada se o recurso real estiver funcionando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mudanças emergenciais podem ser necessárias, mas precisam ser investigadas, documentadas e incorporadas ou revertidas por um fluxo controlado para evitar divergência duradoura.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma comparação detectou que uma regra de firewall foi alterada manualmente. Que sequência evita uma correção cega?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar o desvio, avaliar impacto e revisar o plano antes de agir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar imediatamente qualquer plano normal antes de examinar as diferenças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atualizar somente o estado e presumir que o código também foi corrigido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar a detecção em todos os ambientes após o primeiro alerta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o recurso do estado e deixar a regra externa sem proprietário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A detecção deve ser validada e avaliada; então a equipe determina se a mudança é legítima ou precisa ser revertida. Aplicar sem revisão pode remover correções necessárias, e estado atualizado não substitui a configuração versionada.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O plano Terraform normal pode propor alterações para alinhar recursos reais à configuração declarada depois de atualizar sua visão do estado remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O planejamento lê recursos gerenciados, compara configuração e estado observado e propõe ações para atingir o desejado. A equipe deve revisar as ações antes de aplicar, pois drift intencional pode exigir atualizar primeiro o código.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual evidência é mais adequada para avaliar se uma mudança na distribuição de entrada prejudicou um modelo em produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métricas de qualidade com resultados observados, segmentadas e comparadas à referência válida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas o número de arquivos que chegaram ao armazenamento do modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma diferença estatística isolada sem examinar coleta, população ou rótulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O estado Terraform do cluster que hospeda o endpoint de inferência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A latência média do balanceador, sem medir predições ou resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para concluir sobre impacto, compare qualidade e resultados observados, considerando segmentos e uma referência representativa. Drift estatístico é evidência para investigação, enquanto estado de IaC e latência não medem por si sós qualidade preditiva.",
+      "section": "2. Drift",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada remota sofre falhas provavelmente transitórias. Qual política de retry tende a proteger melhor o serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retries limitados, com jitter e proteção idempotente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tentativas simultâneas sem limite para recuperar a resposta o quanto antes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir todas as operações mesmo quando o destino rejeita permanentemente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aguardar sem timeout e repetir depois de qualquer duração arbitrária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar cópias da operação a todas as réplicas sem chave de deduplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Retries limitados, espaçados e com jitter reduzem sincronização e carga. A operação precisa tolerar repetição ou ter deduplicação; repetição ilimitada, simultânea ou de falha permanente pode ampliar o incidente e duplicar efeitos.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar jitter ao backoff faz com que clientes em falha sincronizem suas tentativas no mesmo instante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O intervalo crescente reduz a frequência de tentativas, e a variação aleatória distribui as retomadas no tempo, evitando que clientes formem uma nova onda simultânea.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma dependência está persistente e severamente degradada, qual comportamento do circuit breaker aberto é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interromper chamadas à dependência ou usar resposta alternativa aceitável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar continuamente as conexões até a dependência se recuperar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar todas as instâncias do serviço chamador em conjunto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetir cada operação em paralelo sem limite de concorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar como bem-sucedidas respostas incompletas para reduzir alertas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aberto, o breaker deixa de insistir na dependência e pode falhar rápido ou oferecer fallback semanticamente válido. Ele reduz propagação, não reinicia chamadores nem mascara sucesso inexistente.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estado semiaberto do circuit breaker permite sondagens controladas para verificar se uma dependência voltou a responder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No estado semiaberto, uma quantidade controlada de chamadas testa recuperação; sucesso pode fechar o circuito e nova falha pode reabri-lo.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o padrão bulkhead limita a propagação de falhas entre dependências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limitar pools de conexões ou concorrência conforme a dependência atendida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retenta todas as chamadas lentas usando a mesma conexão compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replica a configuração defeituosa em todas as zonas disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remove timeouts para que cada operação possa terminar eventualmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agrega métricas de vários serviços em um único contador sem limites.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bulkhead isola recursos para que uma dependência lenta não consuma toda a capacidade. Compartilhar conexões sem limite e remover timeouts aumenta acoplamento; replicação de configuração não isola falhas.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Retentar uma operação de cobrança que pode ter sido executada, sem chave de idempotência ou deduplicação, pode gerar cobranças duplicadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se a resposta se perde depois de a cobrança ser efetivada, o cliente não sabe se houve sucesso. Repetição sem proteção pode aplicar o efeito duas vezes.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de recomendações falha, mas a compra ainda pode ser concluída. Qual estratégia preserva a função prioritária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar recomendações temporariamente e preservar a conclusão do checkout.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Bloquear checkout até que a recomendação personalizada volte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir a consulta de recomendação sem timeout durante todo o pedido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exibir uma confirmação de compra antes de persistir o pedido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar todas as réplicas do checkout quando a recomendação falhar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Degradação controlada preserva a função essencial e remove temporariamente uma capacidade secundária. Bloquear compra ou mascarar persistência não mantém o serviço prioritário.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila pode desacoplar produtor e consumidor, mas backlog crescente sem limite pode aumentar atraso e consumo de recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fila absorve variações temporárias, mas não resolve uma diferença persistente entre taxa de chegada e capacidade. Limites, monitoramento e pressão reversa ajudam a evitar acúmulo descontrolado.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe a mesma mensagem mais de uma vez. Qual desenho reduz efeitos duplicados no consumidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deduplicar mensagens recebidas e tornar idempotente o efeito no consumidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o número de consumidores sem registrar mensagens processadas, supondo que a concorrência elimine duplicidades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a ordem das mensagens e repetir toda operação sem verificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a fila após cada erro sem conferir o efeito no destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar observabilidade para impedir que duplicidades sejam reportadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mensagens podem ser entregues mais de uma vez; chave de deduplicação e idempotência fazem a repetição não duplicar o efeito lógico. Mais consumidores sem controle não resolvem duplicidades.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Replicar um serviço em várias zonas garante que uma alteração de configuração defeituosa não afete as réplicas simultaneamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Redundância ajuda contra falha isolada de nó ou zona, mas uma configuração ou versão defeituosa compartilhada pode afetar todas as réplicas. São necessários controles contra falhas comuns e implantações progressivas.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe detecta que um banco está lento e que o pool compartilhado se esgota. Qual combinação contém melhor a propagação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Timeout, concorrência limitada por serviço e circuit breaker com sondagem controlada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover timeouts, aumentar retries e compartilhar todas as conexões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar indefinidamente a fila de requisições síncronas pendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Marcar todas as instâncias como não vivas e reiniciá-las ao mesmo tempo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar métricas para reduzir a carga do banco durante o incidente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout libera espera no chamador, limite de concorrência isola recursos e breaker interrompe chamadas enquanto testa recuperação de modo controlado. Retentativas ilimitadas e filas sem limite amplificam saturação.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Disponibilidade de réplicas implica que toda escrita distribuída será imediatamente visível em todos os nós, inclusive durante partição de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Réplicas não eliminam partições nem asseguram consistência instantânea. Durante partição, o desenho pode precisar priorizar invariantes e consistência ou aceitar disponibilidade com reconciliação posterior.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação terminou a inicialização, mas ainda não estabeleceu a conexão necessária para atender solicitações. Como deve ser tratada pela verificação de saúde?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Está viva como processo, mas ainda não está apta a receber tráfego.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Está necessariamente sem liveness e deve ser reiniciada em ciclo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deve ser considerada pronta porque seu processo foi iniciado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A situação deve ser registrada somente como drift de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O balanceador deve encaminhar tráfego para testar a conexão real.",
+          "correct": false
+        }
+      ],
+      "explanation": "Liveness e readiness respondem perguntas diferentes. O processo pode estar ativo, mas a ausência de uma dependência necessária impede temporariamente que esteja apto a receber tráfego.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Readiness indica se uma instância deve receber tráfego, enquanto liveness pode indicar que o processo precisa ser reiniciado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Readiness controla elegibilidade para tráfego; liveness aponta processo travado ou sem progresso que pode se recuperar por reinício.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma verificação de liveness dependente de um banco compartilhado pode ser perigosa durante uma falha do banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode reiniciar instâncias saudáveis ao mesmo tempo e agravar a indisponibilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pode atualizar automaticamente o estado Terraform dos recursos do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode elevar o RPO sem afetar a continuidade das aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pode converter métricas de latência em logs distribuídos correlacionados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pode impedir o circuit breaker de sair do estado semiaberto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o banco falha, cada instância pode falhar na sonda e ser reiniciada mesmo que seu processo esteja saudável. Reinícios simultâneos consomem capacidade e agravam a recuperação; readiness pode retirar tráfego sem reiniciar.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objetivo de confiabilidade é consumido muito mais rápido que o esperado. Qual uso do orçamento de erros é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir mudanças arriscadas e priorizar ações que restaurem a confiabilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tráfego de teste sem revisar impacto ou janela do SLO.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar as séries de erro para restaurar o orçamento contabilizado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o SLO em SLA automaticamente e encerrar o monitoramento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar alertas até que o período do indicador seja reiniciado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O orçamento relaciona falhas toleráveis ao objetivo. Consumo acelerado é sinal para reduzir risco operacional e priorizar confiabilidade, não para ocultar erros ou alterar o indicador sem mudança real.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RTO define a perda de dados tolerável, enquanto o RPO define o tempo máximo para restaurar o serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RTO é a meta de tempo para restaurar o serviço; RPO limita a perda de dados, expressa pelo ponto no tempo até o qual é possível recuperar informação.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação contínua elimina a necessidade de backups independentes e de testar a restauração dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exclusão ou corrupção pode ser replicada para as cópias. Backups independentes e restaurações testadas verificam a possibilidade de recuperação e a integridade dos dados.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um exercício de injeção de falha está planejado para uma dependência crítica. Qual elemento torna o teste mais controlável e verificável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hipótese, escopo, responsável, limites de parada e recuperação observada no teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Falha sem limite de duração para observar o maior impacto possível, sem definir sinais de parada ou responsável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativação de alertas e ausência de equipe durante toda a execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alteração simultânea de várias dependências sem registrar a sequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medição apenas do estado inicial, sem observar o comportamento posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste controlado define hipótese e limite, monitora sinais de parada e observa a recuperação. Falha sem contenção ou sem instrumentação pode causar impacto sem produzir evidência útil.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que interpretação de RTO e RPO está correta para o plano de recuperação de um sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTO limita o tempo de restauração; RPO limita a perda de dados tolerada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RTO limita a perda de dados desde a última cópia; RPO mede a latência do serviço depois da retomada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTO mede número de réplicas; RPO mede disponibilidade contratual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTO e RPO são duas formas de expressar a mesma meta de latência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTO é o tempo de detecção; RPO é o tempo de abertura de incidente.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTO trata do tempo para restaurar o serviço; RPO trata do ponto recuperável e, portanto, do volume temporal de dados que pode ser perdido. Nenhum dos dois é uma medida de latência normal.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de carga pode revelar saturação e limites de capacidade, enquanto um teste de falha investiga como o sistema se comporta diante da perda ou degradação de componentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os testes respondem perguntas distintas e complementares: carga mede resposta sob demanda e saturação; falha observa contenção, degradação e recuperação diante de problemas injetados ou simulados.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer alertar sobre desvio de configuração e verificar que regras de segurança continuam válidas. Qual distinção é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Drift compara configuração e recurso real; validação testa condições declaradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Drift mede apenas disponibilidade; validação contínua substitui o plano de IaC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Drift aplica correções sem revisão; validação contínua apaga mudanças externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Drift registra spans; validação contínua converte logs em métricas agregadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Drift verifica objetivos de negócio; validação contínua estima perda de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Detecção de drift verifica se a infraestrutura real corresponde à configuração; validações contínuas podem testar asserções ou condições personalizadas, como postura de segurança. São verificações diferentes e não implicam correção automática.",
+      "section": "4. Saúde e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer limitar o efeito de falhas em uma dependência lenta sem parar as funções essenciais da aplicação. Que decisão combina isolamento e operação segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar recursos da dependência e limitar suas chamadas com timeout.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar o pool e aguardar respostas sem limite de duração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar retries simultâneos até eliminar qualquer erro observado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar todas as instâncias quando uma chamada exceder a média.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o registro de erros para preservar recursos da dependência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Isolar pools ou concorrência funciona como bulkhead, enquanto timeout limita a espera por uma chamada. Compartilhamento sem limite e retries simultâneos aumentam propagação; reiniciar tudo ou ocultar erros não resolve a dependência lenta.",
+      "section": "3. Resiliência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica de serviço mostra aumento de erros, mas a aplicação registra logs e traces normalmente. Qual abordagem inicial favorece um diagnóstico baseado em evidências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correlacionar a janela da métrica com traces e eventos do mesmo serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar todos os serviços antes de comparar os sinais disponíveis, para descartar a causa sem preservar a janela do incidente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o SLO para que os erros deixem de ser contabilizados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar cada log como prova de que a causa já foi encontrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar traces antigos para que a taxa de erro aparente diminua.",
+          "correct": false
+        }
+      ],
+      "explanation": "A métrica delimita a janela e a magnitude; traces e logs correlacionados ajudam a localizar e explicar o comportamento. Reinícios e alteração de metas não são diagnóstico e podem apagar evidência sem corrigir a causa.",
+      "section": "1. Observabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry Documentation",
+      "publisher": "Cloud Native Computing Foundation",
+      "reference": "Framework de observabilidade, sinais, instrumentação, propagação de contexto e Collector",
+      "url": "https://opentelemetry.io/docs/",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry Concepts",
+      "publisher": "Cloud Native Computing Foundation",
+      "reference": "Conceitos de sinais, traces distribuídos, amostragem e instrumentação",
+      "url": "https://opentelemetry.io/docs/concepts/",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Manage Resource Drift",
+      "publisher": "HashiCorp Developer",
+      "reference": "Drift entre configuração, estado e recurso; inspeção e reconciliação com refresh-only",
+      "url": "https://developer.hashicorp.com/terraform/tutorials/state/resource-drift",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "terraform plan command",
+      "publisher": "HashiCorp Developer",
+      "reference": "Planejamento especulativo, leitura de recursos e modo refresh-only",
+      "url": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Reliability Pillar - AWS Well-Architected Framework",
+      "publisher": "Amazon Web Services",
+      "reference": "Timeouts, retentativas com backoff e jitter, circuit breakers e monitoramento de chamadas remotas",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/welcome.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Google SRE Book: Monitoring Distributed Systems",
+      "publisher": "Google",
+      "reference": "Monitoramento de sistemas distribuídos, métricas de latência, tráfego, erros e saturação",
+      "url": "https://sre.google/sre-book/monitoring-distributed-systems/",
+      "accessedAt": "2026-11-09"
+    }
+  ]
+}

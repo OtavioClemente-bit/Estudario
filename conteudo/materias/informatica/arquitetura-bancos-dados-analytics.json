@@ -1,0 +1,1819 @@
+{
+  "id": "informatica.arquitetura-bancos-dados-analytics",
+  "subject": "Informática",
+  "title": "Arquiteturas de bancos: particionamento, replicação, sharding, indexação avançada e armazenamento para analytics",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquiteturas de bancos de dados e analytics",
+    "Particionamento de tabelas e bancos de dados",
+    "Replicação de bancos de dados distribuídos",
+    "Sharding horizontal de bancos de dados",
+    "Indexação avançada em bancos de dados",
+    "Armazenamento analítico colunar e distribuído",
+    "Arquitetura de dados para analytics",
+    "Particionamento, replicação e sharding",
+    "Índices avançados de banco de dados",
+    "Bancos de dados para processamento analítico",
+    "Arquiteturas de bancos: particionamento, replicação, sharding, indexação avançada e armazenamento para analytics"
+  ],
+  "scope": {
+    "covers": "Arquiteturas de bancos de dados com particionamento horizontal e vertical, particionamento por faixa/lista/hash, poda de partições, replicação síncrona e assíncrona, primário-réplica e multi-primary, consistência e atraso de replicação, sharding e escolha da chave, roteamento e rebalanceamento, índices B-tree, hash, compostos, parciais, de cobertura, GiST, GIN e BRIN, índices bitmap e invertidos, custos de manutenção; armazenamento row-store e column-store, warehouse, lake e lakehouse, formatos colunares, compressão, MPP, distribuição/sort keys, partições e clustering para analytics.",
+    "excludes": "Administração detalhada de produto ou versão específica, sintaxe completa de DDL, tuning dependente de benchmark local, backup e recuperação como procedimento operacional, modelagem dimensional completa, ferramentas ETL específicas e garantias particulares de serviços gerenciados não descritas nas fontes citadas."
+  },
+  "theoryTitle": "Distribuir, replicar e organizar dados para cada carga",
+  "chapters": [
+    {
+      "title": "1. Particionamento: dividir uma relação grande",
+      "markdown": "### O problema que este assunto resolve\n\nUma tabela de eventos pode acumular bilhões de linhas. Particioná-la significa conservar a visão lógica de uma tabela, mas separar fisicamente seus registros em partes menores segundo uma regra. O otimizador pode eliminar partições que não atendem ao filtro (poda), reduzindo I/O; a manutenção também pode operar sobre uma partição, como retirar um período antigo. Particionamento não cria por si só cópias redundantes nem exige vários servidores.\n\n> **Siglas e termos deste capítulo**\n> - **Partição**: subconjunto físico de linhas de uma tabela lógica.\n> - **Poda (pruning)**: exclusão, pelo plano, das partições que não podem satisfazer a consulta.\n> - **OLTP**: processamento transacional, com muitas operações curtas por registro.\n> - **Chave de partição**: coluna ou expressão usada para encaminhar cada linha a uma partição.\n> - **Particionamento horizontal**: separa linhas; o vertical separa colunas ou grupos de atributos.\n\n| Estratégia | Regra de encaminhamento | Bom exemplo | Risco típico |\n| --- | --- | --- | --- |\n| Faixa (range) | Intervalos ordenados de valores | Eventos por mês ou identificadores em intervalos | Faixa atual pode concentrar escrita; limites precisam ser mantidos |\n| Lista (list) | Conjuntos explícitos de valores | Uma partição por região ou categoria conhecida | Valores novos exigem destino apropriado |\n| Hash | Resultado de função hash | Distribuir chaves sem ordem natural | Consultas por intervalo não localizam uma faixa contígua |\n\nParticionamento por data permite que `WHERE data >= ... AND data < ...` exclua meses irrelevantes, desde que o predicado seja compatível com a chave e o planejador consiga inferir o intervalo. Colocar uma função ou conversão sobre a coluna pode impedir a poda em certos sistemas. Muitas partições minúsculas também custam metadados e planejamento; mais partições não significam automaticamente mais velocidade.\n\nNo particionamento vertical, atributos acessados juntos ficam próximos e colunas raramente lidas podem ser separadas. A fragmentação horizontal divide linhas, enquanto a vertical divide a composição de colunas; ambas mantêm uma relação lógica reconstruível, mas têm efeitos diferentes em junções e consultas. Em PostgreSQL, índices declarados na tabela particionada correspondem a índices locais nas partições; a poda usa os limites da partição e pode ocorrer também durante a execução.\n\nParticionar uma tabela dentro de um nó não é sharding: não implica que as partes estejam em máquinas independentes. Também não é replicação: cada linha costuma pertencer a uma partição, ao passo que uma réplica mantém cópia dos dados. É possível combinar os mecanismos.\n\n### Como cai na prova\n\n- “A consulta mensal deve ler só o mês indicado”: pense em particionamento por faixa de data e poda.\n- Uma tabela lógica dividida em segmentos dentro do banco é particionada; distribuir fragmentos por servidores para escalar capacidade é sharding.\n- Eliminar partições antigas pode ser mais barato que apagar milhões de linhas individualmente, mas limites e partições futuras precisam de gestão."
+    },
+    {
+      "title": "2. Replicação e sharding: cópias versus fragmentos",
+      "markdown": "### O problema que este assunto resolve\n\nReplicação mantém cópias de dados em nós diferentes. Ela pode aumentar disponibilidade e distribuir leituras, mas introduz atraso, eleição/failover e decisões de consistência. Sharding (fragmentação distribuída) divide o conjunto de dados entre nós: cada shard guarda uma parte, permitindo distribuir armazenamento e carga de escrita. Réplica responde “quantas cópias?”; shard responde “em qual nó fica cada subconjunto?”.\n\n> **Siglas e termos deste capítulo**\n> - **Primário/leader**: nó que recebe escrita em topologia primário-réplica.\n> - **Réplica/standby**: nó que aplica alterações recebidas do primário.\n> - **Replicação síncrona**: confirmação da escrita depende das réplicas configuradas confirmarem a persistência/recebimento exigido.\n> - **Replicação assíncrona**: primário confirma sem aguardar todas as réplicas; pode haver atraso.\n> - **Shard**: nó ou partição de nós que armazena parte do conjunto particionado.\n> - **Scatter/gather**: consulta enviada a muitos shards e combinação das respostas.\n\n| Mecanismo | Cada nó mantém | Benefício principal | Limitação que deve ser lembrada |\n| --- | --- | --- | --- |\n| Primário-réplica | Primário e cópias atualizadas pelo fluxo de alterações | Failover e leituras distribuídas conforme o sistema | Réplica atrasada pode responder com dado antigo; promoção requer controle |\n| Multi-primary | Mais de um nó aceita escrita | Escritas em mais de um local | Conflitos e ordenação de alterações precisam de resolução |\n| Sharding | Fragmentos diferentes em cada shard | Capacidade e escrita distribuídas horizontalmente | Consulta sem chave pode atingir todos os shards |\n\nNo PostgreSQL, replicação física em streaming transmite alterações do WAL para um standby, enquanto replicação lógica publica alterações de tabelas selecionadas para assinantes; a lógica permite selecionar objetos e pode servir a integração ou migração, mas não equivale a replicação física integral. O primário e o standby podem divergir temporariamente quando a replicação é assíncrona. “RPO zero” ou leitura imediatamente consistente não deve ser presumida sem conhecer modo, confirmação e topologia. Replicação não é backup: exclusões ou corrupção lógica podem ser propagadas.\n\nA chave de shard determina distribuição e roteamento. Chave monotônica em distribuição por faixa pode concentrar novas escritas num shard; hash distribui valores mais uniformemente, mas perde localidade de intervalo. Uma consulta que contém a chave (ou prefixo relevante da chave composta) tende a ser direcionada; sem ela, o roteador pode consultar todos os shards. Balanceadores movem intervalos/chunks para corrigir desequilíbrio, com custo de rede, I/O e impacto operacional.\n\nEm MongoDB, `mongos` atua como roteador do cluster; dados sharded são organizados em chunks segundo a chave, e o balancer migra intervalos. Réplica-set dentro dos shards pode dar disponibilidade aos fragmentos, combinando sharding e replicação, sem que esses termos se tornem sinônimos.\n\n### Como cai na prova\n\n- Réplicas duplicam; shards repartem. Um cluster pode usar ambos.\n- Assíncrona favorece latência/disponibilidade de escrita ao custo de uma janela de defasagem; síncrona pode elevar latência e depender da confirmação exigida.\n- Escolha chave de shard com distribuição e consultas reais em mente; distribuição uniforme sem roteamento útil pode aumentar consultas scatter/gather."
+    },
+    {
+      "title": "3. Indexação avançada: estrutura, operador e custo",
+      "markdown": "### O problema que este assunto resolve\n\nUm índice é uma estrutura auxiliar que ajuda a localizar linhas ou valores sem varrer toda a tabela. Índices aceleram consultas compatíveis com sua estrutura, mas ocupam armazenamento e precisam ser mantidos em inserções, atualizações e exclusões. A pergunta correta não é “índice sempre acelera?”, mas “qual operador e padrão de consulta esse índice consegue atender, e a seletividade justifica seu custo?”.\n\n> **Siglas e termos deste capítulo**\n> - **B-tree**: árvore balanceada, adequada a igualdade e ordenação/faixas em muitos tipos.\n> - **GIN**: Generalized Inverted Index, associa um item indexado a muitos componentes/valores.\n> - **GiST**: Generalized Search Tree, estrutura extensível para operadores e dados diversos.\n> - **BRIN**: Block Range Index, resume valores por faixas de blocos físicos adjacentes.\n> - **Seletividade**: proporção de linhas que satisfaz um predicado; baixa proporção costuma favorecer acesso indexado.\n> - **Índice de cobertura**: contém as colunas necessárias para responder uma consulta sem buscar cada linha da tabela, quando o SGBD permite.\n\n| Tipo/recurso | Padrão favorecido | Exemplo de uso | Cuidado\n| --- | --- | --- |\n| B-tree composto | Igualdade nas colunas iniciais e depois faixa/ordem | `(cliente_id, data)` | Ordem das colunas afeta quais prefixos aproveitam o índice |\n| Parcial/filtrado | Predicado recorrente sobre subconjunto | Índice só de pedidos `status='aberto'` | A consulta precisa implicar o predicado do índice |\n| GIN/invertido | Um registro contém vários termos/elementos | Array, JSONB ou busca textual, conforme operador | Pode ser grande e custoso para atualizações |\n| GiST | Busca espacial, proximidade e operadores extensíveis | Geometria ou intervalos | Suporte depende da classe de operadores |\n| BRIN | Tabela enorme com correlação entre ordem física e valores | Datas carregadas em ordem | Menor e mais barato, mas menos preciso; pode exigir rechecagem |\n| Bitmap | Combinação de predicados de baixa cardinalidade em alguns SGBDs | Sexo, situação ou categoria | Nem todo mecanismo/SGBD oferece o mesmo recurso; escrita concorrente pode ser inadequada |\n\nEm B-tree composto `(a,b,c)`, o prefixo `a` e combinações iniciais podem ser úteis; um predicado somente em `c` geralmente não obtém o mesmo benefício, embora detalhes dependam do otimizador e do SGBD. Um índice de cobertura (por exemplo, `INCLUDE` no PostgreSQL) pode evitar acesso ao heap em planos elegíveis, mas não garante que toda consulta vire index-only scan. Um índice único também impõe regra de integridade além de acelerar busca.\n\nÍndice hash costuma servir a igualdade, não à ordenação por faixa. No PostgreSQL, GIN é apropriado para procurar componentes dentro de valores compostos; GiST oferece operadores definidos por classes, inclusive espaciais; BRIN armazena resumos de blocos e é eficiente em espaço quando há correlação física. Não se deve transportar características de um produto para todos os SGBDs. `EXPLAIN` e métricas reais verificam se o plano usa o índice; baixo custo de leitura pode ser superado pelo custo de escrita e manutenção de muitos índices.\n\n### Como cai na prova\n\n- Vetor/array ou documento contendo termo: índice invertido/GIN é candidato; geometria/proximidade: GiST; tabela física ordenada em faixa: BRIN.\n- Índice composto respeita ordem de colunas; índice parcial atende subconjunto que corresponda ao predicado.\n- Índice é estrutura de acesso, não cópia de segurança, particionamento ou garantia de que o otimizador o escolherá."
+    },
+    {
+      "title": "4. Armazenamento e execução para analytics",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação transacional frequentemente busca ou altera poucas linhas e vários campos; um relatório analítico agrega milhões de linhas e lê poucas colunas. Armazenamento orientado a linhas favorece registros completos e operações pontuais. Armazenamento colunar agrupa valores da mesma coluna, podendo ler só os atributos necessários e comprimir padrões repetidos com eficiência. São propriedades típicas, não uma regra de que um formato vence em qualquer carga.\n\n> **Siglas e termos deste capítulo**\n> - **OLAP**: processamento analítico, com varreduras e agregações extensas.\n> - **Column-store**: organização que armazena valores por coluna.\n> - **MPP**: processamento massivamente paralelo em vários nós/partições de execução.\n> - **Data warehouse**: repositório integrado e estruturado, preparado para consultas analíticas.\n> - **Data lake**: armazenamento amplo de arquivos/dados em formatos diversos, muitas vezes desacoplado do mecanismo de consulta.\n> - **Lakehouse**: arquitetura que combina armazenamento de lake com recursos de gestão/consulta típicos de warehouse.\n> - **Min/max metadata**: estatísticas por bloco que permitem pular blocos fora do intervalo consultado.\n\n| Arquitetura | Organização comum | Perfil favorecido | Aspecto a observar |\n| --- | --- | --- | --- |\n| Banco row-store transacional | Registros lado a lado, índices de linha | Busca/alteração de poucas linhas | Agregação extensa lê colunas desnecessárias se não houver otimização |\n| Warehouse colunar | Colunas comprimidas, execução paralela | Agregações e scans de muitas linhas | Cargas pequenas de linha e atualizações frequentes podem não ser o foco |\n| Lake em objetos | Arquivos abertos/colunares em armazenamento de objetos | Retenção de volumes e dados variados | Catálogo, esquema, qualidade, particionamento e concorrência de arquivos |\n| Lakehouse | Dados em lake com catálogo e camada transacional/gestão | Compartilhar dados entre engenharia e analytics | Recursos e garantias variam conforme formato e plataforma |\n\nParquet e ORC são formatos colunares de arquivo: guardam grupos de linhas e estatísticas por coluna, úteis para leitura seletiva e compressão. Em BigQuery, dados de tabela são armazenados em formato colunar e consultas analíticas podem ler somente as colunas necessárias; particionamento segmenta dados e clustering organiza blocos dentro de partições. Em Redshift, sort keys organizam dados; metadados min/max por bloco permitem ignorar blocos quando o filtro restringe faixa. Esses exemplos ilustram princípios, não especificações universais.\n\nArmazenamento é apenas uma parte. Execução MPP divide varredura e agregação entre unidades paralelas e combina resultados. Distribuição de linhas por chave pode reduzir movimentação de dados em joins quando tabelas usam chaves compatíveis, mas uma chave desigual causa skew. No Redshift, estilos EVEN distribuem em rodízio, KEY agrupa valores iguais de chave, e ALL replica a tabela pequena em nós à custa de armazenamento e carga; AUTO deixa a plataforma escolher. A escolha deve considerar volume e joins.\n\nPartição e clustering/sort podem trabalhar em camadas: primeiro restringir partições por data, depois blocos organizados por dimensão/categoria. BigQuery documenta poda de partições quando o filtro qualifica a coluna de partição e ressalta que particionar em excesso com pouco dado por parte gera sobrecarga. Em analytics, índice tradicional não é necessariamente a forma principal de acelerar scan colunar; pruning, estatísticas, compressão e paralelismo também são fundamentais.\n\n### Como cai na prova\n\n- Agregar poucas colunas sobre milhões de registros favorece column-store e leitura seletiva; consultar/atualizar um registro inteiro favorece frequentemente row-store.\n- Separar dados por mês mais clusterizar por cliente combina eliminação grossa de partições e poda fina de blocos.\n- Sharding/distribuição melhora paralelismo apenas quando o roteamento e o equilíbrio ajudam; skew e movimentação em joins podem anulá-lo."
+    }
+  ],
+  "summary": "Particionar divide uma tabela lógica em segmentos e permite podar partes que não atendem ao filtro; sharding distribui fragmentos entre nós; replicação mantém cópias e pode dar disponibilidade/leitura, com possíveis atrasos e conflitos. Índices B-tree, GIN, GiST, BRIN, compostos, parciais e de cobertura atendem padrões distintos, com custo de escrita e armazenamento. Para analytics, organização colunar, compressão, poda de partições/blocos e execução paralela reduzem leituras; distribuição e sort/clustering keys devem refletir filtros e joins reais.",
+  "flashcards": [
+    {
+      "front": "O que é particionamento de tabela?",
+      "back": "Dividir as linhas de uma tabela lógica em partes físicas menores segundo uma chave/regra."
+    },
+    {
+      "front": "O que é poda de partições?",
+      "back": "O planejador exclui da leitura as partições que não podem satisfazer os filtros."
+    },
+    {
+      "front": "Faixa, lista e hash diferem como?",
+      "back": "Faixa usa intervalos ordenados; lista usa valores enumerados; hash distribui pelo resultado de uma função."
+    },
+    {
+      "front": "Particionar implica usar mais de um servidor?",
+      "back": "Não. Partições podem residir no mesmo nó; distribuição em nós é uma decisão adicional."
+    },
+    {
+      "front": "O que o particionamento vertical separa?",
+      "back": "Colunas/grupos de atributos, ao contrário do horizontal, que separa linhas."
+    },
+    {
+      "front": "Qual risco de partições muito pequenas?",
+      "back": "Metadados e planejamento excessivos, sem ganho proporcional de leitura."
+    },
+    {
+      "front": "Replicação duplica ou reparte dados?",
+      "back": "Duplica cópias; a replicação pode manter o conjunto inteiro em mais de um nó."
+    },
+    {
+      "front": "Sharding duplica ou reparte dados?",
+      "back": "Reparte o conjunto em fragmentos que ficam em shards diferentes."
+    },
+    {
+      "front": "O que pode ocorrer na réplica assíncrona?",
+      "back": "Atraso de aplicação e leitura temporariamente desatualizada."
+    },
+    {
+      "front": "Replicação é backup?",
+      "back": "Não. Alteração indevida ou exclusão pode propagar-se às cópias."
+    },
+    {
+      "front": "O que faz uma shard key?",
+      "back": "Determina distribuição dos documentos/linhas e auxilia o roteamento de consultas."
+    },
+    {
+      "front": "Vantagem e custo de shard key hash?",
+      "back": "Distribuição tende a ser uniforme; intervalos de valores perdem localidade."
+    },
+    {
+      "front": "O que é scatter/gather?",
+      "back": "Consultar múltiplos shards e juntar as respostas, geralmente com custo superior a operação direcionada."
+    },
+    {
+      "front": "Para que serve B-tree?",
+      "back": "Busca por igualdade e, em muitos casos, ordenação e intervalos."
+    },
+    {
+      "front": "Qual padrão favorece índice composto?",
+      "back": "Filtros que usam o prefixo de colunas na ordem definida pelo índice."
+    },
+    {
+      "front": "Para que serve índice parcial?",
+      "back": "Indexar apenas linhas que satisfazem um predicado, reduzindo tamanho para consultas compatíveis."
+    },
+    {
+      "front": "Quando GIN é candidato?",
+      "back": "Busca por componentes de arrays, documentos ou texto, conforme operadores e classe suportados."
+    },
+    {
+      "front": "Quando GiST é candidato?",
+      "back": "Operações extensíveis como busca espacial, proximidade ou intervalos conforme a classe."
+    },
+    {
+      "front": "Quando BRIN é candidato?",
+      "back": "Tabelas enormes cujo valor acompanha a ordem física, com resumos compactos por bloco."
+    },
+    {
+      "front": "O que é índice de cobertura?",
+      "back": "Índice que contém as colunas necessárias e pode evitar visitar linhas da tabela em planos elegíveis."
+    },
+    {
+      "front": "Qual vantagem de column-store em agregação?",
+      "back": "Lê as poucas colunas usadas sem carregar todos os campos de cada linha."
+    },
+    {
+      "front": "Por que colunares comprimem bem?",
+      "back": "Valores da mesma coluna tendem a repetir padrões e tipos semelhantes."
+    },
+    {
+      "front": "Como min/max por bloco ajuda?",
+      "back": "Blocos cujo intervalo não cruza o filtro podem ser ignorados."
+    },
+    {
+      "front": "O que significa MPP?",
+      "back": "Dividir processamento entre nós/unidades paralelas e combinar resultados."
+    },
+    {
+      "front": "Qual risco da chave de distribuição desigual?",
+      "back": "Skew: alguns nós recebem muito mais linhas e tornam-se gargalo."
+    }
+  ],
+  "tips": [
+    "Separe as perguntas “onde fica a linha?” (partição/shard) e “quantas cópias existem?” (replicação).",
+    "Associe a chave de partição a filtros comuns; confirme poda no plano de execução.",
+    "Avalie shard key por cardinalidade, distribuição, monotonicidade e consultas que carregam essa chave.",
+    "Escolha índice pelo operador: B-tree para ordem/faixas; GIN para componentes; GiST para operadores espaciais; BRIN para correlação física.",
+    "Em índice composto, a ordem das colunas importa; não presuma que a última coluna isolada será útil.",
+    "Para analytics, confira bytes/blocos lidos, skew, compressão e movimentação de joins, não só número de índices."
+  ],
+  "traps": [
+    "Tratar particionamento como sinônimo de sharding: o primeiro separa tabela; o segundo distribui fragmentos em nós.",
+    "Afirmar que réplica assíncrona sempre responde com o dado mais recente ou substitui backup.",
+    "Presumir que chave hash oferece a mesma eficiência para consulta por intervalo que chave por faixa.",
+    "Achar que todo índice acelera toda consulta sem custo: índice exige espaço e manutenção nas escritas.",
+    "Confundir armazenamento colunar de analytics com garantia de que qualquer carga OLTP será rápida.",
+    "Acreditar que mais partições, shards ou nós sempre melhoram desempenho, ignorando metadados, skew e coordenação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Diferencie particionamento horizontal e vertical.",
+      "answer": "Horizontal separa linhas da relação; vertical separa colunas ou grupos de atributos."
+    },
+    {
+      "question": "Como filtro por intervalo de datas pode reduzir leitura numa tabela particionada?",
+      "answer": "Se a coluna de filtro corresponde à chave e o planejador reconhece o intervalo, ele poda as partições fora do período."
+    },
+    {
+      "question": "Compare range e hash para uma chave crescente de eventos.",
+      "answer": "Range preserva localidade de intervalo, mas novas gravações podem concentrar-se na faixa corrente; hash tende a distribuir melhor, mas espalha intervalos."
+    },
+    {
+      "question": "Por que não chamar partição de réplica?",
+      "answer": "Cada linha normalmente pertence a uma partição, enquanto réplica mantém cópia dos dados em outro nó."
+    },
+    {
+      "question": "Quais vantagens e riscos tem replicação assíncrona?",
+      "answer": "Pode confirmar escrita sem esperar réplicas, reduzindo latência; réplicas podem atrasar e leituras ou failover podem expor dado defasado."
+    },
+    {
+      "question": "O que uma shard key ruim pode causar?",
+      "answer": "Distribuição desigual, hotspot ou consultas que precisam varrer todos os shards."
+    },
+    {
+      "question": "Diferencie scatter/gather e consulta direcionada.",
+      "answer": "A direcionada usa a shard key para selecionar shard(s); scatter/gather consulta vários ou todos e agrega resultados."
+    },
+    {
+      "question": "Compare GIN e BRIN.",
+      "answer": "GIN indexa componentes/termos associados a registros; BRIN resume valores por faixas de blocos físicos e é compacto quando há correlação."
+    },
+    {
+      "question": "Por que a ordem de um índice composto importa?",
+      "answer": "O mecanismo organiza as chaves nessa ordem; filtros pelo prefixo aproveitam melhor a busca que filtros apenas por coluna posterior."
+    },
+    {
+      "question": "Explique a vantagem de armazenamento colunar para uma soma sobre milhões de linhas.",
+      "answer": "O mecanismo pode ler apenas a coluna somada, reduzindo dados transferidos e aproveitando compressão por coluna."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Partição, réplica e shard confundidos",
+      "summary": "Partição segmenta tabela; réplica duplica dados; sharding distribui fragmentos entre nós. São dimensões combináveis, não sinônimos."
+    },
+    {
+      "key": "e2",
+      "title": "Consistência da réplica presumida",
+      "summary": "Replicação assíncrona pode atrasar; failover, confirmação e leituras dependem da topologia. Replicar não substitui backup."
+    },
+    {
+      "key": "e3",
+      "title": "Chave de shard escolhida sem olhar consultas",
+      "summary": "A chave controla distribuição e roteamento. Monotonicidade pode concentrar gravações; consultas sem chave podem virar scatter/gather."
+    },
+    {
+      "key": "e4",
+      "title": "Índice escolhido sem considerar operadores",
+      "summary": "B-tree, GIN, GiST e BRIN têm estruturas e padrões distintos. Índices custam espaço e manutenção e o otimizador pode preferir scan."
+    },
+    {
+      "key": "e5",
+      "title": "Armazenamento analítico tratado como universal",
+      "summary": "Column-store, pruning e MPP favorecem varreduras/agrupamentos, mas não tornam qualquer consulta pontual ou toda distribuição eficiente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma tabela de vendas mantém todos os anos, mas relatórios filtram quase sempre um único mês. Qual desenho pode reduzir a leitura de meses irrelevantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Particionar por faixa temporal para podar períodos fora do filtro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicar cada linha em todas as partições mensais para que o filtro encontre uma cópia local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um shard por coluna e obrigar cada consulta mensal a juntar as colunas distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir as datas por hash e ordenar os resultados depois da leitura integral da tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar índices em todas as colunas, sem definir partições nem observar os predicados usados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Partições por faixa temporal permitem descartar períodos que não intersectam o filtro. O ganho depende de predicados compatíveis e do plano; replicar cada linha desperdiça espaço, e as demais opções não oferecem a mesma poda temporal.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No particionamento horizontal, as linhas são distribuídas entre partes, enquanto no vertical são separados grupos de colunas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A divisão horizontal mantém subconjuntos de registros; a vertical agrupa atributos em partes diferentes, que podem precisar ser recombinadas para reconstruir o registro completo.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de eventos é particionada por faixas mensais. O que o mecanismo precisa fazer para uma consulta restrita a março?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ler todas as partições e eliminar linhas de outros meses somente após a agregação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descartar partições cujos limites não cruzam março.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Copiar março para uma réplica separada antes de iniciar toda consulta temporal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a tabela particionada em índice invertido durante a execução do relatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Unir os nomes das partições ao resultado, pois a poda não pode ocorrer no planejamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A poda usa os limites das partições para excluir as partes incapazes de satisfazer o filtro. Não é necessário copiar os dados ou ler todos os meses; detalhes de poda em planejamento ou execução dependem do sistema.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dividir uma tabela por hash garante que qualquer consulta por intervalo de datas lerá menos dados que particionar por faixa de data.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hash tende a espalhar valores e pode equilibrar distribuição, mas não preserva intervalos contíguos; uma consulta temporal pode precisar visitar várias partições. Faixas temporais podem podar períodos inteiros.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela recebeu dezenas de milhares de partições minúsculas, e o tempo de planejamento cresceu. Qual explicação é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Metadados e planejamento das partes podem custar mais que o ganho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A poda exige manter uma réplica completa por partição, então o armazenamento necessariamente dobra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda partição pequena é transformada em shard remoto e precisa eleger um primário próprio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os índices deixam de existir quando a tabela tem mais de algumas centenas de segmentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O particionamento muda automaticamente o formato dos dados para colunar e aumenta o catálogo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Número excessivo de partes pode elevar metadados, planejamento e manutenção; recomenda-se escolher granularidade coerente com volume e consultas. Partições não exigem réplicas, eleições nem formato colunar por definição.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa a mesma tabela particionada em um único servidor. Esse fato, por si só, comprova que o sistema realiza sharding entre máquinas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Partições são segmentos de uma tabela lógica e podem estar no mesmo nó. Sharding implica distribuir fragmentos entre nós, com roteamento e implicações de arquitetura distribuída.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição antiga contém dados que não precisam mais estar na tabela ativa. Qual é uma vantagem operacional possível de removê-la como unidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover a partição evita apagar suas linhas individualmente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover uma partição executa automaticamente backup consistente de todas as demais tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda partição removida é transmitida para réplicas e convertida em tabela analítica pelo SGBD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A operação garante que índices de todas as outras partições sejam reconstruídos sem custo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A remoção elimina a necessidade de criar partições futuras para novos valores da chave.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desanexar ou descartar a partição pode retirar grandes volumes por manipulação estrutural, sem apagar registro a registro. A operação tem efeitos de bloqueio e retenção que precisam ser planejados; não produz backup automaticamente nem resolve partições futuras.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Particionamento pode facilitar a manutenção por períodos, mas os limites e a existência de partições para valores futuros ainda precisam ser planejados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A divisão torna operações por período mais manejáveis, mas linhas sem partição compatível podem falhar ou cair numa partição padrão, conforme configuração. O responsável deve provisionar e validar o próximo intervalo.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer dividir registros por região em categorias conhecidas, como Norte, Sul e Centro. Qual regra de particionamento expressa diretamente essa classificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Particionamento por lista associa os valores enumerados às partes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Particionamento por faixa, mesmo sem que os nomes das regiões tenham ordem de intervalo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Particionamento por hash com cópia integral de cada região em todas as partes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionamento vertical que coloca cada valor de região numa coluna diferente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicação multi-primary, que classifica cada linha por código geográfico no destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lista associa valores discretos conhecidos a partições. Faixas exprimem intervalos ordenados; hash calcula distribuição; vertical separa colunas e replicação mantém cópias.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta aplica uma transformação à coluna de partição antes de filtrá-la. Em qualquer SGBD, a poda continua garantida sem considerar a expressão usada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A capacidade de inferir limites depende da expressão e do otimizador. Funções ou conversões podem impedir a poda; deve-se conferir o plano e escrever predicados compatíveis quando possível.",
+      "section": "1. Particionamento: dividir uma relação grande",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa de cópias dos mesmos dados em nós distintos para suportar falha de um nó e eventualmente distribuir leituras. Qual mecanismo se encaixa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação mantém cópias e pode apoiar disponibilidade e leituras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Particionamento vertical, que cria uma cópia integral das linhas em cada nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sharding por faixa, que mantém todo o conjunto completo em cada fragmento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índice composto, que assume a função de servidor reserva sem receber alterações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenamento colunar, que promove automaticamente um nó secundário após uma falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação mantém cópias e pode sustentar disponibilidade ou leituras distribuídas, conforme topologia. Particionamento e sharding dividem dados; índice e formato colunar não são mecanismo de failover.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na replicação assíncrona, o primário pode confirmar uma gravação antes de todas as réplicas a aplicarem, criando uma janela em que uma leitura secundária esteja defasada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O envio/aplicação não precisa bloquear a confirmação do primário; atraso de replicação pode tornar uma réplica temporariamente desatualizada. A extensão depende da carga e da topologia.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após exclusão acidental no primário, as réplicas também refletem a exclusão. Qual conclusão é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A replicação propagou a exclusão; ela não substitui backup isolado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A réplica é necessariamente imutável e deve rejeitar qualquer exclusão replicada do primário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A exclusão transforma todas as réplicas em shards independentes e recupera a linha por hash.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela deve ser convertida em column-store, que mantém versões removidas por definição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A replicação lógica sempre preserva automaticamente cada estado anterior sem política adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação propaga alterações conforme sua finalidade; exclusão lógica pode chegar às cópias. Backup com retenção e possibilidade de restauração é mecanismo distinto e deve ser planejado separadamente.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura sharded, cada shard guarda uma porção do conjunto de dados, enquanto réplicas podem manter cópias de um shard para disponibilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sharding distribui subconjuntos; replicação copia dados. É comum combinar fragmentação horizontal com um conjunto de réplicas por shard.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção sharded é consultada por um valor exato da shard key. Por que essa chave pode reduzir o trabalho do roteador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O roteador pode encaminhar a operação apenas ao shard ou conjunto de shards que contém esse valor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave força todas as réplicas a aplicar a consulta em ordem serial no primário global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O índice da chave converte os dados distribuídos numa tabela não particionada antes da leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Toda consulta por chave apaga chunks não relacionados e reduz permanentemente o cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A consulta ignora os shards e lê diretamente os arquivos colunares do armazenamento externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A shard key dá informação para direcionar a consulta aos fragmentos relevantes. Sem a chave, o roteador pode precisar consultar múltiplos shards e combinar respostas.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta de faixa em chave hash tende a preservar a localidade dos valores próximos tão bem quanto uma distribuição por faixa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O hash espalha valores próximos por posições não necessariamente próximas, favorecendo distribuição equilibrada em alguns cenários, mas reduzindo a localidade de consultas por intervalo.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação distribui dados por uma chave monotônica crescente usando intervalos. Quais riscos devem ser analisados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Valores recentes podem concentrar gravações no mesmo shard, criando hotspot.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave monotônica faz o roteador perder todos os limites e replica a tabela inteira em cada gravação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Intervalos ordenados impedem que qualquer filtro de faixa seja direcionado a um shard específico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A única consequência é que índices B-tree deixam de manter a ordenação das chaves distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O balancer transforma automaticamente qualquer distribuição desigual em consistência síncrona global.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com chaves crescentes, escritas novas podem concentrar-se na faixa mais alta, tornando um shard gargalo. Hash pode espalhar melhor a carga, embora prejudique consultas por intervalos; escolha depende do padrão real.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca que não fornece a shard key pode exigir operação scatter/gather, que envia a consulta a vários shards e combina os resultados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem informação para direcionar o acesso, o roteador pode precisar consultar vários ou todos os shards. Essa coordenação aumenta trabalho e latência potencial.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster tem shards com volumes muito desiguais. Que função exerce um balanceador de chunks/ranges?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Move faixas de dados entre shards para equilibrar distribuição, consumindo recursos durante a migração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cria cópias de segurança offline e remove todas as linhas duplicadas do primário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte chaves range em índices GIN sem alterar a localização física dos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executa cada consulta analítica num só shard, mesmo quando os dados estão espalhados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replica integralmente cada shard para todos os nós, eliminando a necessidade de chave de distribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "O balanceador migra chunks/faixas entre shards para corrigir distribuição. Cópia e movimentação consomem rede e I/O, e a operação não substitui backups nem roteamento por chave.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação síncrona é necessariamente mais rápida que a assíncrona porque evita que os nós transmitam alterações depois da confirmação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A confirmação síncrona espera as confirmações definidas na configuração, o que pode elevar latência e depender da disponibilidade dos participantes. Os detalhes variam, mas não há regra de que seja mais rápida.",
+      "section": "2. Replicação e sharding: cópias versus fragmentos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna de chave é frequentemente filtrada por igualdade e intervalos, e resultados também são ordenados por ela. Qual índice geral costuma ser candidato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "B-tree, cuja organização ordenada atende buscas de igualdade e muitos predicados de faixa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "BRIN, que armazena uma entrada exata para cada combinação de qualquer coluna da tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GIN, que só organiza linhas inteiras em ordem lexicográfica de chave primária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bitmap, que mantém por definição uma lista completa de todas as versões históricas da linha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Índice parcial, que atende qualquer valor mesmo quando sua condição exclui a linha consultada.",
+          "correct": false
+        }
+      ],
+      "explanation": "B-tree fornece ordenação de chaves e é opção comum para igualdade e intervalos. BRIN resume blocos, GIN associa componentes, e índice parcial só cobre linhas que satisfazem seu predicado.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num índice B-tree composto por (cliente_id, data), a ordem das colunas não tem efeito: qualquer busca por data isolada começa no mesmo prefixo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A estrutura ordena primeiro por cliente_id e depois por data; filtros pelo prefixo inicial tendem a aproveitar melhor o índice. Estratégias específicas do otimizador podem variar, mas as ordens não são intercambiáveis.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de ordens contém muitos registros, mas relatórios consultam frequentemente apenas ordens abertas. Como um índice parcial pode ajudar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indexar só as ordens abertas, se a consulta corresponder ao predicado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Duplicar todos os registros em cada índice para que os fechados também sejam removidos da tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a condição da consulta por uma regra de replicação que arquiva ordens encerradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Forçar o SGBD a usar o índice mesmo em consultas cujo predicado contradiz o filtro parcial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a chave da ordem em hash, preservando a ordenação temporal dos registros abertos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índice parcial mantém entradas apenas para o subconjunto definido, podendo ser menor e atender consultas que impliquem o predicado. Ele não remove linhas da tabela e não pode responder por valores excluídos do próprio índice.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, GIN é uma estrutura candidata para procurar elementos contidos em arrays ou documentos, quando a classe de operadores suporta a consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Generalized Inverted Index associa elementos/termos às linhas que os contêm e oferece classes para estruturas como arrays, JSONB e busca textual. Não é universal para qualquer operador ou tipo.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação consulta interseção e proximidade entre geometrias usando operadores suportados pela extensão espacial. Qual família de índice é particularmente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GiST, por oferecer árvore de busca generalizada com classes de operadores espaciais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "BRIN, por armazenar todas as coordenadas exatas e ordenar cada vértice globalmente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "B-tree, pois qualquer distância espacial pode ser reduzida a igualdade de chave textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índice parcial, que transforma automaticamente uma geometria em réplica distribuída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hash, que preserva a vizinhança geométrica entre pontos próximos no mapa.",
+          "correct": false
+        }
+      ],
+      "explanation": "GiST é uma estrutura extensível usada por classes de operadores espaciais, inclusive para consultas de interseção/proximidade. O suporte exato depende da extensão, da classe e do operador; hash não preserva proximidade.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Índice BRIN mantém resumos de valores em faixas de blocos físicos e pode ser compacto em tabelas grandes quando a ordem física acompanha os valores consultados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. BRIN resume ranges de blocos adjacentes; com correlação entre posição física e valor, os resumos descartam muitas faixas. Pode apontar blocos candidatos que ainda exigem rechecagem, não uma entrada exata por linha.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de medições é carregada quase em ordem temporal e tem grande volume. Qual avaliação de BRIN é mais adequada que a de um índice por linha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BRIN pode resumir intervalos de blocos com pouco espaço, embora seja menos preciso e dependa da correlação física.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "BRIN garante localizar qualquer linha sem visitar blocos e mantém os valores sempre perfeitamente ordenados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BRIN substitui a chave primária e impõe unicidade global em todas as partições da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "BRIN é um formato de arquivo colunar que remove a necessidade de estatísticas do planejador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BRIN replica cada bloco para vários servidores e equilibra automaticamente o volume de escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "BRIN armazena resumos compactos dos valores em blocos físicos consecutivos. Em dados correlacionados com a ordem física, pode descartar muitas páginas, mas pode exigir leitura/rechecagem de candidatos e não impõe unicidade.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice de cobertura contém as colunas necessárias para uma consulta e pode permitir resposta sem visitar cada linha da tabela, dependendo do plano e do SGBD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando todas as colunas consultadas estão disponíveis no índice e as condições do mecanismo permitem, o acesso pode evitar a tabela. A elegibilidade não garante que o otimizador escolha esse plano.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de documentos sofre muitas inserções. A equipe cria índices GIN em diversas expressões e conclui que a escrita ficará gratuita porque esses índices aceleram a busca.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conclusão ignora que cada índice ocupa espaço e precisa ser mantido pelas alterações, afetando custo de escrita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A conclusão está correta, pois índices são reconstruídos apenas durante consultas e nunca durante gravações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O custo só existe em índices BRIN, porque GIN mantém os termos fora do armazenamento do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A escrita fica mais rápida porque cada documento é replicado uma única vez por índice criado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A manutenção de índices é feita exclusivamente pelo cliente antes de enviar qualquer comando SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices aceleram padrões elegíveis de leitura, mas são estruturas auxiliares que consomem armazenamento e recebem manutenção nas escritas. O número e o tipo de índices devem ser avaliados com medições de carga.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice hash geralmente oferece a mesma ordenação e suporte a consultas por intervalo que uma B-tree.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Índices hash são voltados sobretudo a igualdade e não fornecem a ordenação de chaves que permite percorrer intervalos como uma B-tree ordenada. As capacidades específicas dependem do SGBD.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta usa B-tree, mas a coluna tem baixa seletividade e quase metade da tabela atende ao filtro. O que o otimizador pode fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher varredura sequencial se visitar linhas pelo índice custar mais que ler a tabela de modo contíguo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ser obrigado a usar o índice porque sua existência determina o plano de toda consulta compatível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o índice em partições físicas e ignorar todas as linhas com valores repetidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicar a tabela para cada valor distinto e executar o filtro em todos os nós.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar estatísticas e sempre usar o caminho com maior número de páginas aleatórias.",
+          "correct": false
+        }
+      ],
+      "explanation": "O índice é uma opção de acesso, não uma ordem. Para predicado pouco seletivo, acessos dispersos podem custar mais que uma varredura sequencial; estatísticas e custos estimados influenciam o plano.",
+      "section": "3. Indexação avançada: estrutura, operador e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório soma uma coluna sobre dezenas de milhões de registros e não precisa das demais colunas. Qual organização pode reduzir os dados lidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento colunar, que permite ler a coluna necessária sem carregar todos os campos de cada linha.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento por linhas, que sempre lê apenas o campo agregado mesmo sem índices nem layout colunar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação multi-primary, que remove colunas não solicitadas da tabela em cada nó secundário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionamento vertical, que necessariamente transforma todos os registros numa única coluna numérica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sharding por faixa, que impede a leitura paralela e exige centralizar todos os valores antes da soma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Column-store mantém valores por coluna, favorecendo consultas analíticas que leem poucas colunas em muitas linhas. Não significa que as outras colunas foram apagadas; paralelismo e filtros ainda dependem do mecanismo.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O armazenamento colunar pode comprimir bem valores repetidos e favorecer scans analíticos, mas não torna qualquer busca pontual ou atualização de linha mais eficiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Valores de uma mesma coluna tendem a compartilhar tipo e padrões repetidos, ajudando compressão e leitura seletiva. Cargas de atualização pontual e leitura de registros completos têm características diferentes.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela BigQuery é particionada por data e clusterizada por cliente. Uma consulta filtra um período curto e alguns clientes. Que efeito se busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Poda das partições temporais irrelevantes e redução de blocos lidos dentro das partições relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicar cada cliente em toda partição e impedir a leitura dos metadados de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter as datas em chave de shard global e executar a consulta sem considerar os filtros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar índice B-tree em cada nó, pois BigQuery exige índice tradicional para leitura de colunas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar a coluna de cliente e recalcular todas as métricas a partir da hora de ingestão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A partição reduz o domínio temporal e clustering organiza blocos por colunas escolhidas, podendo eliminar blocos não relevantes. São técnicas distintas combináveis; BigQuery não usa índices tradicionais para esse fim.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em armazenamento colunar, uma consulta de soma pode ler somente a coluna agregada, reduzindo leitura de campos não necessários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa leitura seletiva é uma razão pela qual formatos colunares atendem bem agregações extensas. Compressão e paralelismo podem trazer ganhos adicionais conforme dados e sistema.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significam estatísticas min/max armazenadas por bloco em um mecanismo analítico como Redshift?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elas permitem ignorar blocos cujo intervalo de valores não cruza o filtro da consulta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Elas garantem que cada bloco contém exatamente uma linha e substituem os dados originais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elas são cópias replicadas dos valores e só servem para promover um nó após falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elas obrigam o mecanismo a ler todo bloco, pois mínimos e máximos não podem orientar o plano.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elas convertem colunas em índices GIN e deixam de armazenar o intervalo real dos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados min/max ajudam a eliminar blocos que não podem conter valores do intervalo filtrado. Em dados ordenados, a poda pode ser expressiva; sem ordenação útil, mais blocos podem permanecer candidatos.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema MPP divide varredura e agregação entre unidades de processamento paralelas e combina os resultados parciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MPP executa trabalho em paralelo sobre dados distribuídos e coordena a combinação dos resultados. A eficiência depende de distribuição equilibrada e do custo de comunicação.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas tabelas grandes são frequentemente unidas por customer_id. Em um warehouse distribuído, qual critério pode reduzir movimentação na junção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuí-las por chave compatível de junção, se a cardinalidade e o equilíbrio não criarem skew excessivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Distribuir uma tabela por data e outra por região, pois chaves distintas sempre evitam troca de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher a chave de menor cardinalidade possível, mesmo que concentre quase todas as linhas num nó.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicar ambas integralmente em todos os nós, independentemente do volume e do custo de carga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar os nomes das tabelas alfabeticamente para que o executor alinhe as linhas sem comparar chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "Distribuir tabelas por chave de junção compatível pode colocar linhas correspondentes na mesma unidade e reduzir redistribuição. Chave desigual cria skew, e replicar tabelas grandes pode ter custo elevado.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estilo EVEN do Redshift distribui registros em rodízio sem usar valores de uma coluna específica, enquanto KEY distribui considerando valores de uma chave.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. EVEN usa distribuição round-robin; KEY agrupa valores de chave de distribuição em slices, podendo favorecer joins compatíveis. A escolha deve considerar padrão de acesso e equilíbrio.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um formato de arquivo Parquet ou ORC é colunar. Qual consequência prática explica seu uso comum em consultas analíticas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura seletiva de colunas e compressão por padrões de valores semelhantes, conforme o leitor e o layout.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantia de transação distribuída entre qualquer banco relacional sem catálogo ou metadados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminação de toda necessidade de particionamento, estatísticas, esquema ou controle de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenamento de uma réplica primária completa por cada coluna, com failover automático integrado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Execução exclusiva de busca pontual por chave, sendo inadequados para varredura e agregação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Formatos colunares permitem que leitores busquem apenas colunas necessárias e explorem compressão/estatísticas. Eles não garantem transação entre quaisquer sistemas nem eliminam catálogo, gestão de arquivos ou particionamento.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um warehouse colunar é sempre superior a um banco orientado a linhas, inclusive para atualizações frequentes de poucas linhas e leitura do registro completo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Column-store favorece scans e agregações de muitas linhas e poucas colunas; row-store é frequentemente adequado a operações pontuais de registros completos. A escolha depende da carga, implementação e requisitos.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao particionar um conjunto analítico por dia, cada partição fica pequena demais e quase todas as consultas abrangem anos. O que deve ser reavaliado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A granularidade: metadados e planejamento podem superar o benefício, e mês ou ano pode adequar-se melhor ao volume e aos filtros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o número de partições para uma por hora, pois granularidade fina sempre reduz custo de metadados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicar todos os dias em cada partição anual para que o mecanismo faça uma poda mais precisa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o filtro temporal por índice GIN, pois ele transforma as partições em intervalos contínuos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o catálogo, já que partições pequenas não precisam ser descritas para consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Partições excessivamente pequenas e numerosas podem elevar sobrecarga; consultas que abrangem muitos períodos podem não se beneficiar da granularidade diária. Escolha período conforme distribuição de dados e filtros comuns.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma distribuição KEY acelera todo join sem risco de concentração, porque valores iguais sempre se repartem igualmente entre os nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Colocalizar valores iguais pode reduzir movimentação em joins, mas distribuição enviesada concentra linhas de chaves frequentes e cria skew. A eficácia depende da cardinalidade e da distribuição dos dados.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em BigQuery, particionamento por uma coluna de data e clustering por colunas usadas em filtros podem combinar redução de partições e blocos lidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O filtro qualificado pode podar partições; dentro delas, clustering organiza dados em blocos e pode permitir ignorar os que não contêm valores relevantes. A ordem das colunas de clustering importa.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma lakehouse substitui automaticamente toda necessidade de catálogo, governança e validação porque usa armazenamento de objetos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Lakehouse combina princípios de armazenamento de lake com recursos de gestão/consulta, mas catálogo, governança, qualidade e concorrência continuam sendo questões arquiteturais; capacidades variam entre plataformas e formatos.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer preservar dados brutos em formatos diversos em armazenamento de objetos e consultar tabelas geridas com recursos de warehouse. Qual descrição representa melhor um lakehouse?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combinação de armazenamento amplo de lake com camadas de catálogo, gestão e consulta analítica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Réplica física de um banco OLTP em que cada linha é armazenada em todos os objetos do bucket.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Índice B-tree distribuído que transforma qualquer arquivo em tabela relacional sem esquema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionamento vertical que divide o armazenamento de objetos por colunas sem metadados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Topologia multi-primary que permite escrita simultânea em todo arquivo de dados sem coordenação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lakehouse designa uma arquitetura que busca combinar flexibilidade e escala do lake com recursos de organização e consumo analítico do warehouse. A forma concreta e as garantias variam por implementação.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar uma consulta analítica lenta, observar bytes/blocos lidos, poda, distribuição desigual e redistribuição em joins ajuda a encontrar gargalos de arquitetura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses indicadores revelam se filtros eliminam dados, se a distribuição cria skew e se o executor move dados para combinar tabelas. Contar índices isoladamente não explica o custo de um scan analítico.",
+      "section": "4. Armazenamento e execução para analytics",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Table Partitioning",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Particionamento declarativo, poda de partições, índices e manutenção",
+      "url": "https://www.postgresql.org/docs/current/ddl-partitioning.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Index Types",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "B-tree, Hash, GiST, SP-GiST, GIN e BRIN",
+      "url": "https://www.postgresql.org/docs/current/indexes-types.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Logical Replication",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Publicação, assinatura, identidade de réplica e failover",
+      "url": "https://www.postgresql.org/docs/current/logical-replication.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB Manual — Sharding Introduction and Architecture",
+      "publisher": "MongoDB",
+      "reference": "Shard keys, chunks, roteamento, balanceador, distribuição por faixa e hash",
+      "url": "https://www.mongodb.com/docs/manual/sharding/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "BigQuery — Overview of BigQuery storage",
+      "publisher": "Google Cloud",
+      "reference": "Armazenamento colunar, compressão, metadados e tabelas externas",
+      "url": "https://docs.cloud.google.com/bigquery/docs/storage_overview",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "BigQuery — Introduction to partitioned tables",
+      "publisher": "Google Cloud",
+      "reference": "Poda, particionamento, clustering, granularidade e comparação com tabelas sharded",
+      "url": "https://docs.cloud.google.com/bigquery/docs/partitioned-tables",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon Redshift — Sort keys",
+      "publisher": "Amazon Web Services",
+      "reference": "Dados colunares, min/max por bloco, sort keys compostas/interleaved",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/t_Sorting_data.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon Redshift — Distribution styles",
+      "publisher": "Amazon Web Services",
+      "reference": "Distribuição EVEN, KEY e ALL e colocação de linhas para joins",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_choosing_dist_sort.html",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

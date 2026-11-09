@@ -1,0 +1,2145 @@
+{
+  "id": "informatica.servidores-armazenamento-objetos",
+  "subject": "Informática",
+  "title": "Servidores de armazenamento de objetos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Servidores de armazenamento de objetos",
+    "Conceito de armazenamento de objetos",
+    "Armazenamento de dados como objetos",
+    "Serviço de armazenamento de objetos",
+    "Object storage em servidores",
+    "Servidor object storage",
+    "Armazenamento baseado em objetos",
+    "Buckets e objetos em armazenamento",
+    "Chaves de objetos em buckets",
+    "Metadados de objetos armazenados",
+    "API de armazenamento de objetos",
+    "Gateway de armazenamento de objetos",
+    "Ceph Object Gateway e S3",
+    "Armazenamento de objetos em nuvem",
+    "Conhecimento das ferramentas de wireframe: Conceito de servidores de armazenamento de objetos."
+  ],
+  "scope": {
+    "covers": "Conceito e funcionamento de servidores de armazenamento de objetos; objeto como conteúdo, identificador e metadados; buckets/contêineres, chaves e namespace; acesso por APIs HTTP/REST; metadados, tags, versões, políticas e ciclo de vida; diferenças conceituais entre armazenamento de objetos, arquivos e blocos; usos, vantagens e limitações; exemplos de serviços compatíveis com S3 e do Ceph Object Gateway.",
+    "excludes": "Configuração passo a passo de provedores, administração de clusters, comandos de implantação, preços e limites comerciais de serviços, detalhes internos de protocolos proprietários e desenho de wireframes de interface."
+  },
+  "theoryTitle": "Como funcionam os servidores de armazenamento de objetos",
+  "chapters": [
+    {
+      "title": "1. O que é armazenamento de objetos",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações produzem arquivos de naturezas muito diferentes: imagens, vídeos, documentos, cópias de segurança, registros de sensores e conjuntos de dados para análise. Em vez de exigir que a aplicação conheça discos e caminhos físicos, um **servidor de armazenamento de objetos** oferece um serviço de rede que recebe unidades de dados identificadas e administra sua persistência. A aplicação envia uma solicitação ao serviço e recebe uma resposta; o servidor cuida da organização física, da distribuição e dos mecanismos de disponibilidade que fazem parte de sua implementação.\n\nUm **objeto** combina o conteúdo (por exemplo, os bytes de uma imagem) com uma identificação e metadados descritivos. O serviço agrupa objetos em **buckets** (ou contêineres, conforme o produto) e usa uma **chave** para localizar cada objeto dentro do bucket. Amazon S3 é um exemplo de serviço de objetos; Ceph oferece armazenamento de objetos por meio do Ceph Object Gateway. Esses exemplos ajudam a reconhecer o modelo, mas não significam que todos os produtos tenham os mesmos detalhes ou limites.\n\n> **Siglas e termos deste capítulo**\n> - **Objeto**: conteúdo armazenado associado a uma chave e a metadados.\n> - **Bucket**: contêiner lógico no qual são organizados objetos.\n> - **Chave (key)**: identificador do objeto no bucket.\n> - **Metadado**: informação descritiva ou técnica associada ao objeto.\n> - **API**: interface de programação usada por clientes para solicitar operações ao serviço.\n\n### Peças do modelo\n\n| Peça | Função | Exemplo conceitual |\n| --- | --- | --- |\n| Bucket | Delimita uma coleção e pode receber configurações próprias | `documentos-equipe` |\n| Chave | Identifica um objeto dentro do bucket | `2026/relatorio.pdf` |\n| Conteúdo | Bytes efetivamente armazenados | Bytes do PDF |\n| Metadados | Descrevem ou orientam o tratamento do objeto | tipo de conteúdo, data, tags |\n\nA chave costuma ser tratada pelo serviço como um identificador, não como um caminho em uma árvore de diretórios. Uma chave com barras, como `fotos/viagem/praia.jpg`, pode **parecer** uma pasta para a interface, mas em buckets de namespace plano ela continua sendo uma chave única. Alguns serviços e classes de bucket oferecem organização hierárquica; por isso, a resposta correta deve distinguir o modelo do produto concreto.\n\n### Como cai na prova\n\n- Objeto não é somente o arquivo: inclui dados e informações associadas, além da chave que o identifica.\n- Bucket é contêiner lógico; não é necessariamente um disco ou uma pasta física.\n- Uma chave com barras não prova que exista diretório físico.\n- O serviço de objetos é acessado pela rede; não se confunde com instalar um disco local no servidor da aplicação."
+    },
+    {
+      "title": "2. Operações, API e metadados",
+      "markdown": "### O problema que este assunto resolve\n\nA aplicação precisa enviar, consultar, listar e remover dados sem controlar a localização física de cada unidade. O servidor de objetos expõe operações por uma **API**, com frequência acessada por HTTP e organizada como uma API REST. O cliente endereça o bucket e a chave e pede uma ação, como gravar, obter ou excluir um objeto. A interface exata depende do serviço; compatibilidade com uma API conhecida não garante que todo recurso específico esteja implementado da mesma forma.\n\nNo S3, por exemplo, a documentação define um objeto como arquivo mais metadados e uma chave como identificador único dentro do bucket. Metadados podem ser definidos pelo sistema ou fornecidos pelo usuário. Tags são pares chave-valor úteis para categorizar objetos, aplicar regras de ciclo de vida ou compor políticas de acesso. Metadados não substituem o conteúdo: descrevem-no ou ajudam a administrá-lo.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo de comunicação usado entre cliente e serviço.\n> - **REST**: estilo de desenho de APIs que representa recursos e operações por requisições.\n> - **PUT/GET/DELETE**: nomes usuais de operações HTTP para criar/substituir, obter e remover recursos; a semântica final depende da API.\n> - **Tag**: par chave-valor associado ao objeto para classificação e regras.\n> - **Checksum**: valor usado para verificar integridade dos dados, conforme suporte do serviço.\n\n### Operações típicas\n\n| Necessidade da aplicação | Operação conceitual |\n| --- | --- |\n| Gravar conteúdo sob uma chave | Enviar/criar objeto |\n| Recuperar conteúdo conhecido | Ler/obter objeto pela chave |\n| Descobrir chaves disponíveis | Listar objetos, sujeito a permissões e paginação |\n| Remover uma unidade | Excluir objeto, considerando versionamento e retenção |\n| Consultar descrição sem baixar o corpo | Obter metadados, quando a API oferecer essa operação |\n\nEm serviços como Amazon S3, a chave e o bucket endereçam o objeto. Metadados definidos pelo usuário podem ter regras específicas de alteração; na documentação do S3, por exemplo, modificar esses metadados após o envio exige copiar o objeto e definir os novos valores. Isso é um detalhe do serviço, não uma regra universal para todas as implementações.\n\n### Como cai na prova\n\n- O cliente usa uma interface de serviço; não precisa descobrir em qual disco físico estão os bytes.\n- Chave identifica, metadado descreve e conteúdo carrega os dados armazenados.\n- A API de objetos não é uma consulta SQL nem exige montar o serviço como unidade de arquivos.\n- Compatibilidade S3 significa compatibilidade com o subconjunto implementado, não identidade total entre produtos."
+    },
+    {
+      "title": "3. Comparação com arquivos e blocos",
+      "markdown": "### O problema que este assunto resolve\n\nA prova pode descrever um serviço de armazenamento sem nomeá-lo e perguntar qual modelo combina com a situação. Para decidir, observe a **unidade endereçada** e a **forma de acesso**. No modelo de objetos, a aplicação trata cada unidade como objeto identificado por chave e normalmente faz operações por API. No modelo de arquivos, usuários e programas navegam por diretórios e caminhos em um sistema de arquivos. No modelo de blocos, o sistema apresenta volumes divididos em blocos que outro componente pode formatar e usar como disco.\n\n> **Siglas e termos deste capítulo**\n> - **Sistema de arquivos**: organiza arquivos e diretórios, com caminhos e operações próprias.\n> - **Bloco**: unidade endereçável de um volume apresentado a um sistema operacional ou aplicação.\n> - **Volume**: dispositivo lógico de blocos que pode ser particionado ou formatado.\n> - **Latência**: tempo entre a solicitação e a resposta do serviço.\n> - **Namespace**: conjunto e regra de nomes usados para identificar recursos.\n\n### Comparação prática\n\n| Modelo | Unidade vista pelo cliente | Interface típica | Exemplo de uso comum |\n| --- | --- | --- | --- |\n| Objetos | Objeto com chave e metadados | API de serviço, frequentemente HTTP/REST | Mídia, cópias, arquivos de dados e conteúdo de aplicações |\n| Arquivos | Arquivo em diretório e caminho | Operações de sistema de arquivos, local ou compartilhado | Diretório compartilhado por aplicações e usuários |\n| Blocos | Blocos dentro de volume | Dispositivo de bloco apresentado ao sistema | Disco de máquina virtual ou volume para banco que gerencia seu sistema de arquivos |\n\nEsses modelos não são simplesmente três nomes para o mesmo armazenamento. Um cliente que espera abrir, bloquear e atualizar trechos de um arquivo por um sistema de arquivos não recebe automaticamente essas mesmas operações de um serviço de objetos. Um serviço pode oferecer gateways ou camadas de compatibilidade, mas isso não muda o conceito da interface subjacente.\n\n### Escolha e limites\n\nArmazenamento de objetos costuma ser apropriado quando muitos dados independentes precisam ser acessados por aplicações distribuídas, quando metadados e políticas ajudam a organizar grandes coleções, ou quando se deseja separar o cliente da localização do hardware. Não é automaticamente a melhor opção para qualquer carga: requisitos de baixa latência, atualizações frequentes de pequenas partes, semântica POSIX ou dependência de operações de disco podem favorecer arquivos ou blocos. Avaliam-se interface, desempenho observado, consistência, custo e recursos do produto, sem presumir que uma característica comercial seja universal.\n\n### Como cai na prova\n\n- Se o enunciado destaca bucket, chave, objeto e API, aponta para o modelo de objetos.\n- Se destaca diretórios, caminhos e operações de sistema de arquivos, aponta para arquivos.\n- Se destaca volume formatado apresentado como dispositivo, aponta para blocos.\n- Um bucket não é sinônimo de volume de blocos; uma chave não é necessariamente um caminho real."
+    },
+    {
+      "title": "4. Disponibilidade, controle e aplicações",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma aplicação real, guardar os bytes é só parte do trabalho. É preciso controlar quem lê ou grava, preservar versões quando necessário, limitar exposição pública, atender retenção e lidar com recuperação e custos de acesso. Serviços de objetos oferecem mecanismos configuráveis para administrar esses aspectos. O servidor ou serviço pode distribuir e replicar dados conforme sua arquitetura, mas não se deve afirmar que toda implantação replica automaticamente em várias regiões ou que todo objeto é público.\n\n> **Siglas e termos deste capítulo**\n> - **IAM**: gerenciamento de identidade e acesso, usado em alguns serviços para definir permissões.\n> - **ACL**: lista de controle de acesso associada a recurso, quando habilitada pelo produto.\n> - **Versionamento**: manutenção de mais de uma versão de um objeto sob o histórico do serviço.\n> - **Ciclo de vida**: regras para transicionar objetos entre classes ou removê-los conforme condições.\n> - **WORM**: modelo de retenção em que dados podem ser gravados uma vez e lidos muitas vezes, impedindo alteração ou exclusão durante a retenção configurada.\n\n### Controles e usos concretos\n\nNo Amazon S3, buckets e objetos são privados por padrão; políticas de identidade e de bucket, pontos de acesso e, conforme a configuração, ACLs podem controlar permissões. O versionamento pode manter versões distintas para auxiliar na recuperação de sobrescritas ou exclusões acidentais. Regras de ciclo de vida podem transferir objetos para classes adequadas a acesso menos frequente ou expirar objetos. Object Lock é um mecanismo específico para retenção que impede exclusão ou sobrescrita pelo período configurado ou indefinidamente, conforme o modo usado. São exemplos concretos do S3, não garantias de qualquer servidor de objetos.\n\nAplicações frequentes incluem servir imagens e documentos, armazenar backups, arquivos de log, conteúdo de sites, dados de IoT e bases para análise. O Ceph Object Gateway, por sua vez, fornece uma interface REST compatível com uma parte ampla das APIs S3 e Swift sobre um cluster Ceph. É um gateway: traduz solicitações de clientes para operações no armazenamento Ceph e não é um sistema de arquivos POSIX por definição.\n\n### Como cai na prova\n\n- Armazenamento de objetos não significa acesso público; permissões e políticas governam o acesso.\n- Versionamento ajuda a recuperar versões, mas não substitui política de backup nem garante retenção contra qualquer exclusão.\n- Replicação, durabilidade, consistência, limites de objeto e recursos de bloqueio variam por produto e configuração.\n- Ceph Object Gateway oferece interfaces compatíveis com S3 e Swift e conversa com o cluster Ceph; compatível não quer dizer idêntico."
+    }
+  ],
+  "summary": "Servidor de armazenamento de objetos é um serviço de rede que guarda unidades chamadas objetos, identificadas por chave dentro de buckets e acompanhadas de metadados. Clientes interagem por uma API, frequentemente HTTP/REST, sem administrar diretamente a localização física. O modelo difere de arquivos (diretórios e caminhos) e blocos (volumes apresentados como dispositivos). É comum para mídia, documentos, backups, logs, conteúdo de aplicações e dados analíticos. Permissões, versionamento, ciclo de vida, consistência, replicação e retenção dependem do serviço e da configuração. Amazon S3 e Ceph Object Gateway são exemplos; compatibilidade de API não implica recursos idênticos.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um servidor de armazenamento de objetos?",
+      "back": "Um serviço de rede que recebe e entrega objetos identificados por chave, mantendo o conteúdo e metadados e abstraindo a localização física."
+    },
+    {
+      "front": "Quais componentes conceituais formam um objeto?",
+      "back": "Conteúdo de dados, uma chave para identificá-lo no bucket e metadados associados."
+    },
+    {
+      "front": "Qual é o papel do bucket?",
+      "back": "Agrupar logicamente objetos e servir como parte do contexto em que a chave identifica cada objeto."
+    },
+    {
+      "front": "O que é a chave de um objeto?",
+      "back": "O identificador usado para endereçar o objeto dentro de seu bucket."
+    },
+    {
+      "front": "Uma chave com barras prova que há diretórios físicos?",
+      "back": "Não. Em namespace plano, as barras podem ser apenas caracteres da chave usados para simular uma hierarquia visual."
+    },
+    {
+      "front": "Para que servem os metadados?",
+      "back": "Para descrever o objeto e apoiar operações como classificação, apresentação, controle ou administração."
+    },
+    {
+      "front": "O que é uma tag de objeto?",
+      "back": "Um par chave-valor associado ao objeto, útil para classificação e para regras ou políticas compatíveis com o serviço."
+    },
+    {
+      "front": "Como a aplicação costuma acessar um serviço de objetos?",
+      "back": "Por uma API de rede, frequentemente uma API HTTP/REST, enviando operações endereçadas ao bucket e à chave."
+    },
+    {
+      "front": "O serviço de objetos exige que o cliente saiba em qual disco está o objeto?",
+      "back": "Não. A abstração do serviço separa a aplicação da localização física administrada pela plataforma."
+    },
+    {
+      "front": "Qual unidade o modelo de arquivos apresenta ao cliente?",
+      "back": "Arquivos em diretórios, normalmente localizados por caminhos e manipulados por operações de sistema de arquivos."
+    },
+    {
+      "front": "Qual unidade o modelo de blocos apresenta?",
+      "back": "Um volume de blocos que o sistema operacional ou aplicação pode tratar como dispositivo de armazenamento."
+    },
+    {
+      "front": "Qual pista de prova sugere armazenamento de objetos?",
+      "back": "Bucket, chave, objeto com metadados e acesso por API de serviço."
+    },
+    {
+      "front": "Cite dois usos comuns de armazenamento de objetos.",
+      "back": "Por exemplo, mídia estática e cópias de segurança; também é usado para logs, documentos e dados analíticos."
+    },
+    {
+      "front": "O que significa compatibilidade com S3 no contexto do Ceph Object Gateway?",
+      "back": "Ele oferece uma interface compatível com uma parte ampla da API REST S3, sem implicar que todo recurso seja idêntico."
+    },
+    {
+      "front": "Qual é a função do Ceph Object Gateway?",
+      "back": "Atuar como gateway HTTP/REST entre aplicações que usam interfaces S3 ou Swift e um cluster de armazenamento Ceph."
+    },
+    {
+      "front": "O que o versionamento pode oferecer?",
+      "back": "Manter versões distintas do objeto para auxiliar na recuperação após sobrescrita ou exclusão, conforme o serviço e a configuração."
+    },
+    {
+      "front": "O que é uma regra de ciclo de vida de objetos?",
+      "back": "Uma regra que pode transicionar objetos entre classes de armazenamento ou expirálos segundo condições configuradas."
+    },
+    {
+      "front": "O que significa WORM?",
+      "back": "Write once, read many: retenção configurada para impedir sobrescrita ou exclusão durante o período aplicável."
+    },
+    {
+      "front": "Objeto armazenado em serviço de nuvem é necessariamente público?",
+      "back": "Não. No S3, por exemplo, buckets e objetos são privados por padrão; o acesso exige permissões apropriadas."
+    },
+    {
+      "front": "O que uma política de bucket controla?",
+      "back": "Permissões relacionadas ao bucket e aos objetos conforme as regras de acesso configuradas no serviço."
+    },
+    {
+      "front": "Metadados e conteúdo são a mesma coisa?",
+      "back": "Não. O conteúdo são os bytes armazenados; metadados são informações associadas que descrevem ou orientam o tratamento."
+    },
+    {
+      "front": "É correto presumir que todo serviço replica objetos entre regiões?",
+      "back": "Não. Localização, replicação e redundância dependem do produto, da classe e da configuração."
+    },
+    {
+      "front": "Qual operação conceitual lê um objeto conhecido?",
+      "back": "Solicitar a obtenção do objeto usando seu bucket e sua chave, sujeito às permissões e à API."
+    },
+    {
+      "front": "Qual cuidado há ao equiparar uma API compatível a outra API?",
+      "back": "Compatibilidade pode cobrir somente um subconjunto e não assegura identidade de recursos, limites ou semântica."
+    },
+    {
+      "front": "O armazenamento de objetos é sinônimo de banco de dados relacional?",
+      "back": "Não. É um modelo para armazenar objetos de dados por chave e API, não um mecanismo de tabelas e consultas relacionais."
+    }
+  ],
+  "tips": [
+    "Na questão, procure a unidade de endereçamento: chave em bucket aponta para objetos; caminho aponta para arquivos; volume aponta para blocos.",
+    "Separe as três partes: conteúdo guarda os bytes, chave identifica e metadados descrevem ou orientam o tratamento.",
+    "Lembre que uma barra dentro da chave pode ser convenção de nome, sem diretório físico por trás.",
+    "Diante de uma afirmação sobre alta disponibilidade, replicação ou consistência, confira se o enunciado nomeia produto e configuração.",
+    "Compatibilidade com S3 descreve uma interface suportada; não conclua que todos os recursos S3 estejam presentes.",
+    "Versionamento, ciclo de vida e retenção são funções distintas: histórico de versões, transição/expiração e proteção contra alteração, respectivamente."
+  ],
+  "traps": [
+    "A questão diz que um bucket é necessariamente uma pasta em disco. Bucket é contêiner lógico; a organização física é responsabilidade do serviço.",
+    "A questão trata a chave `equipe/atas/maio.pdf` como prova de uma árvore de diretórios. Em namespace plano, é apenas o nome do objeto.",
+    "A questão afirma que objeto é só o arquivo. No modelo, objeto reúne conteúdo e informações associadas, e é endereçado por uma chave.",
+    "A questão troca API de objetos por sistema de arquivos montado. O acesso típico a objetos ocorre por operações de API, ainda que existam gateways adicionais.",
+    "A questão presume que compatibilidade S3 garanta suporte integral. Ceph documenta compatibilidade com uma parte ampla da API, não identidade universal.",
+    "A questão diz que todo objeto é público ou que todo serviço replica em várias regiões por padrão. Acesso e distribuição dependem de política e configuração."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como uma aplicação localiza um objeto.",
+      "answer": "Ela seleciona o bucket e fornece a chave que identifica o objeto nesse bucket; a API do serviço processa a solicitação sem que a aplicação informe o disco físico."
+    },
+    {
+      "question": "Diferencie objeto, arquivo e bloco como unidades de armazenamento.",
+      "answer": "Objeto é endereçado por chave e tratado por API; arquivo aparece em diretório/caminho; bloco é parte de volume apresentado como dispositivo."
+    },
+    {
+      "question": "Por que uma chave com barras pode não representar diretórios?",
+      "answer": "Porque em muitos buckets o namespace é plano e a chave é um identificador textual; a interface pode apenas agrupar visualmente prefixos separados por barras."
+    },
+    {
+      "question": "Que papel metadados e tags cumprem?",
+      "answer": "Metadados descrevem ou controlam aspectos associados ao objeto; tags são pares chave-valor usados para classificar e apoiar políticas e regras compatíveis."
+    },
+    {
+      "question": "Como o acesso por API difere de abrir um arquivo em um sistema de arquivos?",
+      "answer": "A API recebe uma solicitação de serviço endereçada ao bucket/chave, enquanto o sistema de arquivos expõe operações sobre caminhos e diretórios."
+    },
+    {
+      "question": "Quais aspectos devem ser avaliados ao escolher armazenamento de objetos?",
+      "answer": "Interface esperada, padrão de acesso, latência e desempenho observados, consistência, permissões, retenção, custo e recursos da implementação."
+    },
+    {
+      "question": "O que o Ceph Object Gateway conecta?",
+      "answer": "Clientes que usam interfaces compatíveis com S3 ou Swift ao cluster Ceph por meio de um gateway HTTP/REST."
+    },
+    {
+      "question": "Diferencie versionamento, ciclo de vida e Object Lock no exemplo S3.",
+      "answer": "Versionamento conserva versões; ciclo de vida pode transicionar ou expirar objetos; Object Lock pode impedir alterações ou exclusões segundo retenção configurada."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Objeto, chave e metadados confundidos",
+      "summary": "O objeto inclui o conteúdo e informações associadas; a chave é seu identificador dentro do bucket. Metadados descrevem ou apoiam o tratamento, não são os próprios bytes do arquivo."
+    },
+    {
+      "key": "e2",
+      "title": "Bucket e estrutura de diretórios confundidos",
+      "summary": "Bucket é um contêiner lógico. Em namespaces planos, prefixos e barras dentro da chave podem simular pastas sem criar uma árvore de diretórios física."
+    },
+    {
+      "key": "e3",
+      "title": "Objetos, arquivos e blocos tratados como equivalentes",
+      "summary": "Objetos são endereçados por chave e API; arquivos por caminhos em diretórios; blocos por volumes apresentados como dispositivos. As interfaces e semânticas diferem."
+    },
+    {
+      "key": "e4",
+      "title": "Propriedades específicas generalizadas",
+      "summary": "Replicação, consistência, limites, disponibilidade e semântica de versões dependem do produto e da configuração. Exemplos documentados para S3 não são leis universais."
+    },
+    {
+      "key": "e5",
+      "title": "Compatibilidade de API interpretada como identidade",
+      "summary": "Ceph Object Gateway fornece compatibilidade com uma parte ampla das APIs S3 e Swift; compatibilidade não garante que toda operação, recurso ou detalhe se comporte de forma idêntica."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação envia uma imagem a um serviço remoto e depois a recupera informando um contêiner e uma chave, sem saber em qual disco os bytes ficaram. Que modelo está sendo usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento de objetos, com bucket e chave para endereçar o conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento em blocos, com volume montado e setor escolhido pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sistema de arquivos local, com caminho absoluto no disco da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Banco relacional, com tabela e chave estrangeira para cada imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Memória volátil, com endereço de processo mantido pelo servidor web.",
+          "correct": false
+        }
+      ],
+      "explanation": "No armazenamento de objetos, o cliente endereça um objeto pelo bucket e pela chave através do serviço. O local físico fica abstraído. Volumes de blocos expõem dispositivos, sistemas de arquivos usam caminhos e bancos relacionais organizam registros em tabelas.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um serviço de objetos, qual afirmação descreve corretamente o bucket?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o contêiner lógico no qual o serviço organiza os objetos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É o arquivo de dados antes de receber qualquer identificador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É o endereço físico do disco onde cada objeto permanece gravado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É o protocolo de rede que substitui a API oferecida pelo serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É a cópia de segurança automática de todos os objetos do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bucket é a unidade lógica que contém objetos e fornece contexto para suas chaves. Não revela necessariamente a posição física, não é o protocolo nem equivale por definição a um backup automático.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que identifica um objeto dentro do bucket em modelos como o Amazon S3?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chave atribuída ao objeto naquele bucket.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O número do setor físico escolhido pelo programa cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome do usuário que enviou o objeto pela primeira vez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço IP do computador que armazena os bytes naquele momento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O formato do conteúdo, que funciona como identificador universal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave identifica unicamente o objeto dentro do bucket no modelo descrito pelo S3. O usuário, tipo do conteúdo e localização física não substituem esse identificador.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface mostra a chave `contratos/2026/termo.pdf` como se estivesse em pastas. Qual conclusão é segura para um bucket com namespace plano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As barras podem compor a chave e apenas simular uma hierarquia visual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada trecho separado por barra é obrigatoriamente um diretório físico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O objeto foi dividido em blocos e cada trecho virou um volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave aponta para um caminho local acessível sem consultar o serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bucket converteu automaticamente o PDF em registros relacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em namespace plano, o nome inteiro é uma chave, e barras podem ser usadas para agrupar prefixos na apresentação. Não se pode inferir uma árvore física ou um caminho local a partir da aparência.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que conjunto representa melhor um objeto em um serviço como o S3?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bytes do conteúdo acompanhados de metadados e identificados por uma chave.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente metadados, pois o conteúdo fica sempre no computador cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um bloco de volume sem nome, sem conteúdo e sem associação descritiva.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma pasta física com arquivos obrigatoriamente organizados em árvore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma linha SQL cuja chave primária determina o disco de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do S3 descreve o objeto como arquivo/conteúdo e metadados, endereçado por chave no bucket. As demais alternativas trocam o modelo por metadados isolados, blocos, diretórios físicos ou registros relacionais.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a interface mais típica para um cliente de armazenamento de objetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma API de serviço acessada pela rede, frequentemente baseada em HTTP/REST.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um cabo SATA que conecta diretamente o cliente a cada disco físico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma instrução SQL obrigatória para cada byte transmitido ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma chamada de sistema que exige compartilhar a memória do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um caminho POSIX que sempre precisa ser montado como disco local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Clientes normalmente usam uma API de rede para executar operações no serviço, frequentemente HTTP/REST. A abstração evita exigir conexão física a discos, SQL por byte ou montagem de sistema de arquivos.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer classificar objetos por departamento e usar essa classificação em regras de acesso. Que recurso é apropriado quando o serviço o suporta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tags em pares chave-valor associadas aos objetos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Setores físicos renomeados com o nome do departamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Versões de conteúdo usadas como campos de uma tabela SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endereços IP acrescentados ao corpo binário de cada arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Partições do volume que substituem as permissões da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tags são pares chave-valor de classificação e, em serviços como S3, podem ser usadas em políticas e regras de ciclo de vida. Setores, versões e endereços IP não cumprem essa função conceitual.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente deseja consultar informações de descrição do objeto sem receber seu conteúdo completo. Qual operação conceitual pode atender, se a API oferecer suporte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma solicitação de consulta de metadados, como uma operação HEAD em API compatível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma formatação do bucket que regrava os bytes em setores menores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma criação de volume que converte metadados em blocos de disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma listagem de usuários que devolve sempre o corpo de cada objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma transação SQL que muda a chave sem acessar a API de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "APIs compatíveis podem oferecer operação de consulta de metadados sem devolver o corpo do objeto; a documentação S3 cita HEAD para esse fim. A alternativa correta é condicionada ao suporte da API, pois os recursos variam.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Amazon S3, uma aplicação precisa alterar metadados definidos pelo usuário depois do envio. Qual procedimento a documentação descreve?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar o objeto e definir os metadados desejados na cópia ou substituição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Editar diretamente o disco físico sem chamar qualquer operação do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar somente a chave, pois isso atualiza todos os metadados antigos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modificar o objeto por consulta SQL, mantendo a API fora da operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar as permissões do bucket, que libera metadados para edição local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na documentação do S3, metadados definidos pelo usuário não são editados in-place após o upload; o caminho indicado é copiar o objeto e definir os metadados na operação de cópia. É um comportamento documentado desse serviço, não uma regra universal de todo produto.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente armazenamento de objetos e armazenamento de arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Objetos usam chaves e API; arquivos são organizados por caminhos em diretórios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Objetos exigem diretórios POSIX; arquivos sempre usam tags em buckets.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Objetos são volumes formatados; arquivos são identificadores em namespace plano.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Objetos guardam apenas nomes; arquivos guardam necessariamente metadados externos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Objetos só existem em discos locais; arquivos só existem em serviços de nuvem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cliente de objetos endereça conteúdo por chave através de uma API; o sistema de arquivos expõe arquivos em diretórios e caminhos. Os modelos podem coexistir em produtos, mas não são equivalentes.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma máquina virtual precisa de um volume que o sistema operacional formate e trate como disco. Qual modelo corresponde diretamente a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento em blocos, apresentado como volume ou dispositivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento de objetos, endereçado por bucket e chave apenas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenamento de arquivos, organizado necessariamente por tags de objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenamento de metadados, sem conteúdo persistente associado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenamento de cache, que fornece durabilidade de arquivo por definição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um volume de blocos é apresentado ao sistema como dispositivo que pode ser particionado ou formatado. Objetos são acessados por API e arquivos por operações de sistema de arquivos.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa compartilhar um diretório com operações usuais sobre caminhos entre várias máquinas. Qual característica favorece o modelo de arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A exposição de arquivos em diretórios e caminhos por uma interface de sistema de arquivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A necessidade de selecionar um bucket e uma chave em toda leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A apresentação de setores de um volume como dispositivo de bloco bruto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A classificação exclusiva por tags, sem nomes ou caminhos de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A gravação de cada operação em tabela relacional como condição de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "O requisito descreve a semântica familiar de um sistema de arquivos compartilhado: diretórios, caminhos e operações sobre arquivos. Uma camada de gateway pode aproximar interfaces, mas o modelo nativo de objetos é centrado em API e chave.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação distribui imagens e documentos estáticos a partir de um repositório remoto e os endereça por identificador. Qual uso combina com armazenamento de objetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar os conteúdos como objetos e recuperá-los por uma API de serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter cada documento somente na memória do processo web ativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Representar cada byte como coluna de uma tabela relacional obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Montar cada disco remoto diretamente no navegador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter as imagens em endereços de setores escolhidos pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Imagens e documentos estáticos são exemplos de conteúdo frequentemente armazenado como objetos e servido por aplicações usando API. O serviço abstrai discos e não exige armazenar os bytes em memória ou em linhas SQL.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que armazenamento de objetos pode não ser a escolha adequada para qualquer carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A carga pode exigir semântica de sistema de arquivos, acesso a blocos ou latência diferente da oferecida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O modelo proíbe guardar documentos, imagens ou cópias de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O serviço não aceita aplicações distribuídas como clientes de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma chave jamais pode identificar conteúdo com metadados associados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O armazenamento necessariamente transforma todos os dados em tabelas SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escolha depende da interface e do padrão de acesso. Requisitos de semântica POSIX, atualização frequente de trechos ou acesso direto a volumes podem favorecer arquivos ou blocos; objetos não são proibidos para documentos nem limitados a uma aplicação.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o Ceph Object Gateway está de acordo com sua documentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um gateway REST sobre Ceph que oferece interfaces compatíveis com S3 e Swift.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É um sistema de arquivos POSIX que substitui obrigatoriamente o cluster Ceph.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um controlador de volumes de bloco que só aceita o protocolo SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma implementação completa e idêntica de todos os serviços Amazon S3.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um agente que armazena objetos sem comunicação HTTP com aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Ceph define o Object Gateway como interface de armazenamento de objetos sobre librados e gateway REST entre aplicações e clusters Ceph, com compatibilidade com uma parte ampla das APIs S3 e Swift. Isso não equivale a identidade total nem a sistema de arquivos POSIX.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização pretende permitir acesso somente a uma aplicação autorizada aos objetos de um bucket. Qual abordagem conceitual é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar políticas ou controles de identidade e acesso do serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher chaves com nomes difíceis, pois o nome substitui autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar os objetos em prefixos diferentes, sem definir qualquer permissão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir o tamanho dos objetos, que impede solicitações de outros clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o bucket e manter os dados acessíveis por endereço público.",
+          "correct": false
+        }
+      ],
+      "explanation": "Permissões são administradas por mecanismos de identidade, políticas e, dependendo do serviço, ACLs ou pontos de acesso. Nomes obscuros e prefixos não substituem controle de acesso. No S3, recursos são privados por padrão, e o proprietário concede acesso explicitamente.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer manter versões de um objeto para recuperar conteúdo sobrescrito acidentalmente. Qual recurso deve avaliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Versionamento de objetos, se disponível e habilitado no serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compactação de metadados, que reconstitui versões anteriores automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma chave nova em toda leitura, sem política de histórico no bucket.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A montagem do bucket como volume, que registra cada cópia por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tag de classificação, que guarda o conteúdo antigo no próprio rótulo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Versionamento pode preservar múltiplas versões identificáveis e auxiliar a recuperação de sobrescritas ou exclusões, conforme a configuração do serviço. Tags classificam, mas não guardam o corpo antigo; não se deve presumir versionamento automático.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que descreve melhor uma regra de ciclo de vida em armazenamento de objetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra para transicionar objetos entre classes ou expirá-los conforme critérios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma regra que converte qualquer objeto em volume de blocos montado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma permissão que torna todos os objetos públicos no momento do upload.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma função que cria diretórios físicos e determina o disco de cada objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma operação que substitui o conteúdo por metadados de identificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Serviços como S3 oferecem regras de ciclo de vida para mover objetos entre classes de armazenamento ou expirar objetos segundo condições configuradas. Isso não cria diretórios físicos nem define, por si, acesso público.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre versionamento e retenção WORM é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Versionamento conserva versões; WORM pode impedir alteração ou exclusão durante retenção configurada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Versionamento bloqueia todo acesso; WORM cria cópias de leitura temporárias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Versionamento classifica por tags; WORM substitui a autenticação da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Versionamento move dados entre classes; WORM remove versões sem histórico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Versionamento é uma API HTTP; WORM é um bucket com namespace hierárquico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Versionamento registra versões distintas para permitir recuperar estados anteriores. WORM é uma modalidade de retenção voltada a impedir gravação sobre o dado ou exclusão conforme regras e duração configuradas. Nenhum dos dois é sinônimo do outro.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É correto afirmar que qualquer servidor de armazenamento de objetos replica automaticamente todo objeto em várias regiões geográficas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicação geográfica não é uma propriedade universal de qualquer servidor. Ela depende da arquitetura, do serviço, da classe escolhida e das regras de replicação configuradas.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em armazenamento de objetos, uma chave pode identificar um objeto dentro do bucket sem revelar a localização física do conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A chave é um identificador lógico no contexto do bucket. O serviço resolve a solicitação e administra a localização física, que não precisa ser exposta ao cliente.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave com segmentos separados por barras necessariamente corresponde a diretórios reais criados no disco do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em buckets com namespace plano, a barra pode ser apenas parte do nome da chave; consoles podem agrupar prefixos visualmente sem haver diretório físico.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Metadados descrevem ou auxiliam o tratamento de um objeto, enquanto seu conteúdo contém os dados propriamente ditos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Conteúdo corresponde aos bytes armazenados; metadados são informações associadas, como tipo de conteúdo ou atributos definidos pelo serviço ou pela aplicação.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de armazenamento de objetos exige que toda aplicação monte o bucket como sistema de arquivos POSIX para ler objetos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O acesso típico ocorre por API de serviço, frequentemente HTTP/REST. Alguns produtos podem oferecer gateways ou camadas de montagem, mas isso não é requisito do modelo de objetos.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Armazenamento em blocos apresenta volumes que podem ser tratados pelo sistema como dispositivos de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No modelo de blocos, o cliente recebe um volume de blocos e pode particioná-lo ou formatá-lo conforme sua necessidade. Isso difere do objeto acessado por chave e API.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bucket equivale conceitualmente a um volume de blocos que o sistema operacional formata antes de armazenar arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Bucket é contêiner lógico para objetos; volume de blocos é uma unidade apresentada como dispositivo. Os modelos oferecem interfaces e semânticas diferentes.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em serviços como Amazon S3, políticas e mecanismos de identidade podem ser usados para controlar acesso a buckets e objetos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação S3 descreve IAM, políticas de bucket e outros mecanismos de autorização. O acesso depende das permissões configuradas; objeto armazenado não se torna público por definição.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Compatibilidade com S3 garante que qualquer produto implemente todas as operações e se comporte exatamente como o Amazon S3.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Compatibilidade geralmente cobre uma parte especificada da API. A documentação do Ceph Object Gateway fala em compatibilidade com uma parte ampla das APIs S3 e Swift, sem garantir identidade de recursos ou semântica.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de ciclo de vida pode, em serviços que oferecem esse recurso, transicionar objetos para outra classe ou expirálos segundo regras configuradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ciclo de vida administra a trajetória de objetos, por exemplo movendo-os entre classes ou removendo-os quando atingem critérios estabelecidos. O suporte e as condições exatas dependem do serviço.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tags de objetos são os próprios bytes do arquivo e, por isso, não podem participar de regras administrativas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tags são metadados em pares chave-valor, distintos do conteúdo. Em serviços como S3, podem apoiar classificação, regras de ciclo de vida e políticas de acesso.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O versionamento de objetos pode auxiliar a recuperar uma versão anterior depois de uma sobrescrita, se estiver habilitado e configurado para isso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Serviços com versionamento podem manter identificadores e conteúdos de versões distintas. A função não deve ser presumida ativa em toda implantação, e não substitui por si só todas as estratégias de backup.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Ceph Object Gateway é um gateway REST sobre o ecossistema Ceph que oferece interfaces compatíveis com partes das APIs S3 e Swift.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação Ceph descreve o RGW como interface de armazenamento de objetos sobre librados e gateway REST para clusters Ceph, com compatibilidade com uma parte ampla das APIs S3 e Swift.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Armazenamento de objetos é necessariamente uma tecnologia de banco de dados relacional, pois todo bucket corresponde a uma tabela SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O modelo de objetos não pressupõe tabelas relacionais. Ele agrupa objetos em contêineres e os endereça por chaves por meio de APIs; serviços tabulares podem existir como produtos distintos.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Object Lock, no Amazon S3, pode apoiar uma política WORM ao impedir exclusão ou sobrescrita durante retenção configurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação S3 apresenta Object Lock para impedir que objetos sejam excluídos ou sobrescritos por período definido ou indefinidamente, ajudando a implementar retenção WORM conforme a configuração. É recurso específico do produto.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de armazenamento de objetos assegura, sem configuração adicional, consistência, durabilidade e disponibilidade idênticas em todos os fornecedores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Consistência, durabilidade e disponibilidade são propriedades implementadas e descritas por cada produto e configuração. Não se deve generalizar uma garantia de um serviço para todos os servidores de objetos.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API de objetos permite que uma aplicação solicite operações por identificadores lógicos sem selecionar diretamente setores do disco subjacente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A aplicação solicita operações sobre recursos identificados logicamente, como bucket e chave; o serviço faz a mediação com a infraestrutura física. Seleção de setores seria uma preocupação de nível de bloco.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de um gateway de arquivos sobre um produto de objetos transforma toda a semântica interna do serviço em sistema de arquivos nativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma camada gateway pode traduzir operações e oferecer acesso adicional, mas não torna automaticamente idênticas as semânticas da API de objetos e do sistema de arquivos. Compatibilidade precisa ser avaliada no produto e na camada usada.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe avalia uma plataforma para guardar grande quantidade de imagens, vídeos e arquivos de sensores, acessados por aplicações distribuídas. Qual justificativa combina com armazenamento de objetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço oferece objetos endereçados por chave e acesso por API, abstraindo os dispositivos físicos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O serviço força cada aplicação a escolher setores e cabeças do disco remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O serviço converte todo conteúdo em tabelas normalizadas antes do primeiro acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O serviço exige uma única máquina cliente conectada por cabo de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serviço não admite metadados nem controle administrativo sobre coleções armazenadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conteúdo não estruturado em larga escala, acessado por clientes distribuídos através de API e chaves, é um uso compatível com armazenamento de objetos. Setores são do modelo de blocos; tabelas e conexão por cabo não são requisitos desse serviço.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista precisa recuperar somente metadados de um objeto sem transferir o corpo inteiro. Qual alternativa expressa corretamente a relação entre essa necessidade e a API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma operação de consulta de metadados pode atender, se a API do serviço a oferecer.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A única saída é baixar o objeto completo, pois metadados não podem ser consultados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deve formatar o bucket como volume, pois metadados são setores de disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É necessário enviar uma consulta SQL ao sistema de arquivos do gateway.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deve alterar a chave para que o serviço inclua os metadados no nome automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Algumas APIs de objetos permitem consultar metadados sem devolver o corpo, como a operação HEAD documentada pelo S3. A disponibilidade e os detalhes dependem da API; isso não exige converter o bucket em volume ou banco relacional.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão quer retenção imutável por prazo definido e também deseja manter versões acessíveis. Qual entendimento sobre os recursos é mais preciso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Versionamento e retenção WORM tratam de aspectos distintos e podem ser avaliados em conjunto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Versionamento sozinho sempre impede qualquer exclusão pelo prazo escolhido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retenção WORM substitui a chave e remove a necessidade de identificar objetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tag de ciclo de vida garante por si só imutabilidade legal do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A compatibilidade com S3 torna esses recursos obrigatórios em qualquer produto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Versionamento mantém versões distintas; retenção WORM pode impor restrição de sobrescrita ou exclusão durante retenção configurada. São mecanismos diferentes, e disponibilidade, comportamento e efeitos legais dependem do serviço e da configuração.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolheu um gateway com API compatível com S3. Para portar a aplicação, que premissa técnica deve adotar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar as operações e os recursos efetivamente suportados pelo gateway de destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que toda operação e comportamento do serviço original são idênticos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar autenticação e políticas, pois compatibilidade elimina controles de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir chaves por caminhos POSIX, mesmo que o cliente use uma API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Presumir replicação regional automática sem examinar a configuração implantada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compatibilidade indica suporte a uma interface ou subconjunto dela, não identidade completa de funcionalidades. A equipe deve verificar operações, autenticação e semântica implementadas no destino. A documentação Ceph, por exemplo, fala em compatibilidade com uma parte ampla das APIs.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa de atualizações repetidas de pequenas partes de arquivos por operações de sistema de arquivos, além de acesso a objetos completos. Como comparar os modelos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar se a semântica exigida é atendida; API de objetos não equivale automaticamente a edição parcial de arquivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que toda chave de objeto aceita escrita parcial como arquivo POSIX.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher objetos porque o bucket sempre oferece bloqueio de intervalos de bytes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher blocos, pois um volume garante por si só operações POSIX compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher arquivos, pois caminhos eliminam a necessidade de avaliar a carga real.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo de objetos costuma operar sobre objetos completos por API, e não herda automaticamente operações de edição de arquivos. A equipe deve avaliar a interface e o padrão de acesso; até volumes de blocos precisam de sistema de arquivos ou software apropriado para semânticas de arquivo.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar acesso a dados, um arquiteto propõe inferir o disco, a região e a redundância exclusivamente pela chave do objeto. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chave é identificador lógico; localização e redundância dependem do serviço e da configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave codifica obrigatoriamente o disco físico e a região de cada réplica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome do objeto determina a topologia, mesmo sem recursos ou política configurada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O bucket informa cada setor usado, mas somente após decodificar as barras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os metadados de usuário controlam sempre a localização física em todo provedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chave endereça o objeto no contexto do bucket, mas não é uma descrição universal da topologia física. Localização, redundância e replicação são propriedades definidas pela implementação e por opções de configuração do serviço.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao listar objetos em uma coleção muito grande, por que uma aplicação deve seguir a paginação ou continuação oferecida pela API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A listagem pode ser dividida em respostas limitadas, e a API indica como prosseguir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A paginação converte automaticamente a lista inteira em arquivos locais POSIX.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A paginação remove os objetos já consultados e os exclui do bucket.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A paginação substitui autenticação, porque cada página é um novo bucket.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A paginação decide os discos físicos onde as próximas chaves serão gravadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "APIs de objetos podem paginar resultados de listagem. O cliente precisa consumir os marcadores ou tokens de continuação definidos pela API para obter as próximas páginas; isso não altera nem exclui objetos e não define a infraestrutura física.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação envia um arquivo de backup para um serviço, recebe confirmação e guarda o nome da chave para recuperá-lo depois. O que a chave representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O identificador lógico do objeto dentro do bucket.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O endereço permanente do disco e do setor físico usados no cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A credencial secreta que autoriza qualquer cliente a baixar o backup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A classe de armazenamento que todos os objetos do bucket devem usar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cópia de segurança adicional criada automaticamente pelo serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave é o identificador lógico usado para localizar o objeto no bucket. Não é endereço de disco, credencial, política de classe nem cópia de segurança.",
+      "section": "1. O que é armazenamento de objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador precisa identificar rapidamente arquivos de contratos e aplicar regras de retenção a esse conjunto, sem alterar o conteúdo. Qual recurso de classificação é adequado quando suportado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tags associadas aos objetos para classificação e regras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Setores físicos nomeados pelo departamento jurídico do órgão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Blocos de dados inseridos no início de cada conteúdo armazenado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Caminhos locais impostos ao sistema operacional de cada cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Endereços IP anexados ao objeto para substituir sua chave lógica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tags são metadados estruturados em pares chave-valor e podem apoiar classificação e regras administrativas em serviços que as oferecem. Não são setores, blocos, caminhos locais ou identificadores de rede.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe uma chave de continuação após listar parte das chaves de um bucket. O que deve fazer para continuar a listagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar a continuação prevista pela API para solicitar a próxima página.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar as chaves já vistas para liberar espaço para a próxima página.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar outro bucket, pois cada resposta de listagem tem um contêiner próprio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Montar um volume local e consultar nele as chaves ainda não recebidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar a política de acesso, pois a paginação só funciona com acesso público.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a listagem é paginada, o cliente usa o marcador ou token de continuação definido pela API para buscar resultados seguintes. A continuação não exclui objetos nem exige novo bucket ou exposição pública.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer separar dados acessados com frequências diferentes e reduzir custos conforme a idade dos arquivos. Qual mecanismo de serviço pode apoiar essa política?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Regras de ciclo de vida, se oferecidas pelo serviço escolhido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chaves físicas que mudam de endereço quando o usuário deixa de ler o objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultas SQL executadas automaticamente sobre todos os bytes armazenados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permissões que compactam o conteúdo e o transferem para a memória local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Diretórios POSIX que convertem arquivos antigos em discos de bloco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras de ciclo de vida podem transicionar objetos entre classes ou expirá-los sob condições definidas, como idade, conforme os recursos do serviço. Não confundem política de armazenamento com chave física ou consulta SQL.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No S3, um cliente deseja baixar um objeto cuja existência conhece, sem listar todo o bucket. Que informação normalmente usa para endereçá-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O bucket e a chave do objeto pretendido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O número do setor e o modelo do disco no servidor de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O caminho POSIX e o nome do usuário logado na máquina de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tag mais recente e o identificador do volume que hospeda a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A linha e a coluna SQL em que os bytes do conteúdo foram gravados.",
+          "correct": false
+        }
+      ],
+      "explanation": "No S3, o bucket junto à chave endereça um objeto conhecido. O cliente não precisa selecionar setor, caminho POSIX ou posição em tabela relacional.",
+      "section": "2. Operações, API e metadados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço informa que fornece forte consistência de leitura após gravação para operações especificadas. Qual conclusão é justificável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar essa garantia somente ao serviço e às operações documentadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concluir que toda implementação de objetos oferece a mesma garantia global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deduzir que os objetos também são replicados em toda região automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Presumir que qualquer falha de cliente é revertida sem examinar a resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar consistência como sinônimo de autorização pública para todos os objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Garantias de consistência são específicas do produto, da operação e do escopo documentados. A consistência informada para Amazon S3 não deve ser estendida a qualquer implementação nem confundida com replicação, tratamento de falhas ou permissões.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de análise lê objetos guardados em um repositório, mas os dados continuam como conteúdo endereçado por chave. O fato de serem usados por análise os transforma em tabelas relacionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; o uso analítico não altera o modelo de armazenamento subjacente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sim; todo objeto consultado por análise vira automaticamente uma linha SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; um bucket passa a ser tabela sempre que recebe arquivos de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; análise só pode operar sobre volumes de blocos montados localmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; cada metadado se transforma em chave estrangeira do conteúdo binário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Armazenamento de objetos pode servir como base para data lakes e análise, mas a aplicação analítica não converte necessariamente o modelo subjacente em banco relacional. Buckets continuam agrupando objetos endereçados por chave.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bucket está privado por padrão em um serviço que documenta esse comportamento. Qual ação conceitual é necessária para que outro principal leia objetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder permissão apropriada por mecanismo de acesso do serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar a chave do objeto em um diretório, sem alterar permissões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear o bucket com o identificador do usuário que deve lê-lo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar metadados ao conteúdo, pois descrição equivale a autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar versionamento, que libera automaticamente cada versão a terceiros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em serviços como Amazon S3, recursos são privados por padrão e o proprietário concede acesso usando políticas ou outros mecanismos compatíveis. Conhecer a chave ou ter versões não substitui autorização.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara um gateway Ceph e um serviço S3 para um cliente que usa operações da API S3. Qual etapa evita erro por supor equivalência total?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar o subconjunto de operações S3 implementado no gateway.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover testes, porque os nomes de API garantem implementação idêntica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Presumir que todo recurso AWS específico existe em qualquer gateway S3.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir API de objetos por consultas SQL sem testar o cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar comportamento de permissões, pois gateways não controlam usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Ceph afirma compatibilidade com uma parte ampla da API REST S3, o que não implica suporte integral a qualquer operação ou recurso específico. A aplicação deve validar o subconjunto e a semântica do gateway utilizado.",
+      "section": "4. Disponibilidade, controle e aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa compartilhar arquivos usando bloqueios e operações de caminho, e o serviço disponível expõe apenas API de objetos. Que risco de projeto deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A semântica requerida pode não existir na API nativa de objetos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave do objeto sempre fornece bloqueios de arquivo POSIX completos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um bucket converte automaticamente toda solicitação em sistema de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Metadados substituem operações de diretório e bloqueios concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A API REST torna dispensável avaliar concorrência entre clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Objetos e arquivos expõem interfaces distintas. Bloqueios, operações sobre caminhos e semânticas compartilhadas não decorrem automaticamente da existência de uma API de objetos; deve-se verificar uma camada de compatibilidade ou escolher um modelo que atenda ao requisito.",
+      "section": "3. Comparação com arquivos e blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What is Amazon S3?",
+      "publisher": "Amazon Web Services",
+      "reference": "Conceito de serviço de objetos, objetos, buckets, chaves, acesso, classes, versionamento e consistência no S3.",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Working with object metadata",
+      "publisher": "Amazon Web Services",
+      "reference": "Metadados de sistema e definidos pelo usuário, tags e consulta de metadados de objetos S3.",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingMetadata.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ceph Object Gateway",
+      "publisher": "Ceph Documentation / Ceph Foundation",
+      "reference": "Gateway REST de objetos sobre Ceph, compatibilidade com subconjuntos das APIs S3 e Swift e relação com o cluster Ceph.",
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

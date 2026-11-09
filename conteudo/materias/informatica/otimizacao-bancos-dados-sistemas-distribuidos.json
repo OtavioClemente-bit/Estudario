@@ -1,0 +1,2602 @@
+{
+  "id": "informatica.otimizacao-bancos-dados-sistemas-distribuidos",
+  "subject": "Informática",
+  "title": "Otimização de bancos de dados e desempenho em sistemas distribuídos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Otimização de bancos de dados e sistemas distribuídos",
+    "Planos de execução de consultas SQL",
+    "Estatísticas do otimizador de consultas",
+    "Índices e desempenho em bancos de dados",
+    "Cache de dados em aplicações distribuídas",
+    "Desempenho de bancos de dados distribuídos",
+    "Diagnóstico de consultas lentas em bancos de dados",
+    "Planos de consulta, índices e caching",
+    "Ajuste de consultas em sistemas distribuídos",
+    "Otimização de performance em banco de dados"
+  ],
+  "scope": {
+    "covers": "Planos de execução e leitura de estimativas versus valores observados; estatísticas de tabelas e colunas e sua atualização; seleção, ordem, cobertura e custos de índices; cache local e distribuído, cache-aside, TTL, invalidação, stampede e consistência; latência, percentis, contenção, chamadas de rede, particionamento, hotspots e medição do desempenho de sistemas distribuídos.",
+    "excludes": "Sintaxe completa de SQL, administração de um SGBD específico, algoritmos internos de consenso, desenho geral de arquitetura distribuída, ajuste de hardware e garantias universais de desempenho independentes da carga e da plataforma."
+  },
+  "theoryTitle": "Medir, explicar e otimizar o caminho dos dados",
+  "chapters": [
+    {
+      "title": "1. Planos de execução e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nUma consulta pode parecer curta no código e ainda ler milhões de linhas, ordenar um volume grande ou esperar por outra operação. O **plano de execução** é a estratégia que o otimizador escolhe para obter os dados: quais tabelas ler primeiro, se fará varredura sequencial ou usará índice e como combinará tabelas. O plano ajuda a localizar trabalho desnecessário antes de propor uma mudança.\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: sistema gerenciador de banco de dados.\n> - **Plano estimado**: operações e custos previstos pelo otimizador.\n> - **Plano observado**: medidas obtidas durante a execução real.\n> - **Seletividade**: fração de linhas que um predicado tende a retornar.\n> - **p95/p99**: latência abaixo da qual concluíram 95% ou 99% das observações.\n\nNo PostgreSQL, `EXPLAIN` exibe o plano planejado; `EXPLAIN ANALYZE` também executa a instrução e mostra linhas e tempos observados por nó. Isso permite comparar linhas estimadas com linhas reais. Uma diferença grande pode indicar estatística desatualizada, correlação entre colunas não representada ou uma distribuição que mudou. `EXPLAIN ANALYZE` não é apenas uma simulação: em `INSERT`, `UPDATE` ou `DELETE`, a instrução produz efeitos. Para examinar uma escrita sem mantê-la, a documentação mostra executá-la dentro de transação e terminar com `ROLLBACK`, quando o banco e a operação permitirem.\n\nO plano pode conter varredura sequencial, varredura por índice, varredura bitmap e nós de junção como nested loop, hash join ou merge join. Uma varredura sequencial não é automaticamente ruim: para retornar grande parte da tabela, ler páginas contíguas pode custar menos que visitar um índice e depois buscar muitas páginas dispersas. Avalie o volume e o padrão de acesso, não a presença isolada de um nó. Custos do plano são estimativas relativas do otimizador, não milissegundos medidos.\n\n### Como investigar\n\nComece por uma consulta representativa e um intervalo de carga conhecido. Registre duração e quantidade de linhas, examine os nós que consomem mais trabalho e compare linhas estimadas com reais. Observe leituras e buffers quando disponíveis. Depois formule uma hipótese específica: estatística antiga, filtro pouco seletivo, junção que multiplica linhas, ordenação evitável ou espera por rede/lock. Mude uma coisa por vez e compare com a mesma carga.\n\nEm sistemas distribuídos, a duração percebida inclui mais do que CPU do banco: filas, conexão, rede, serviço intermediário e tentativas repetidas podem se somar. A média pode esconder caudas lentas; acompanhe p50 e percentis altos, como p95 e p99, além de taxa de erro e throughput. Uma consulta rápida em isolamento pode degradar quando concorre por conexão, disco, CPU ou trava.\n\n### Como cai na prova\n\n- `EXPLAIN` mostra o plano; `EXPLAIN ANALYZE` executa e informa observações reais.\n- Custo estimado não é tempo de relógio. Compare estimativa de linhas com linhas efetivas.\n- Índice não vence toda varredura sequencial; seletividade e custo de acesso importam.\n- Para desempenho percebido, considere latência de ponta a ponta e percentis, não só média ou tempo isolado do SGBD."
+    },
+    {
+      "title": "2. Estatísticas e decisões do otimizador",
+      "markdown": "### O problema que este assunto resolve\n\nO otimizador escolhe um plano antes de conhecer exatamente o resultado da consulta. Ele estima quantas linhas cada filtro retornará e usa essas estimativas para comparar alternativas. Se a estimativa estiver distante da realidade, uma sequência de junções ou um método de acesso adequado para poucos registros pode se tornar ruim para milhões.\n\n> **Siglas e termos deste capítulo**\n> - **Histograma**: resumo aproximado da distribuição de valores.\n> - **Valores mais comuns**: valores que aparecem com frequência elevada.\n> - **Estatística estendida**: resumo conjunto de mais de uma coluna.\n> - **Cardinalidade**: quantidade de linhas ou valores distintos considerada na estimativa.\n> - **ANALYZE**: comando PostgreSQL que coleta estatísticas usadas pelo planejador.\n\nNo PostgreSQL, `ANALYZE` coleta estatísticas do conteúdo e as guarda no catálogo do sistema; o planejador as usa para estimar resultados. Entre as informações podem estar valores mais comuns e histogramas. Em tabelas grandes, a coleta normalmente usa amostragem, portanto os resumos são aproximações. O autovacuum pode executar análise automática conforme mudanças, mas tabelas particionadas e hierarquias com padrões de alteração específicos podem exigir atenção e análise manual.\n\nEstatísticas comuns por coluna não descrevem necessariamente a relação entre colunas. Imagine filtros `pais = 'BR'` e `idioma = 'pt'`: se esses valores são correlacionados, tratá-los como independentes pode estimar linhas demais ou de menos. O PostgreSQL permite criar estatísticas estendidas com `CREATE STATISTICS`; a coleta efetiva ocorre por `ANALYZE`. Tipos incluem dependências funcionais, número de combinações distintas e estatísticas de valores mais comuns. São úteis quando há uma combinação de colunas relevante e correlação conhecida, não como substituto de índices.\n\nMais detalhe estatístico pode melhorar estimativas, mas custa tempo de coleta e espaço. Aumentar o alvo de estatísticas em colunas importantes amplia a amostra e o número de entradas resumidas. O ajuste deve partir de discrepância observada no plano, pois aumentar tudo indiscriminadamente também aumenta custo de manutenção. Após cargas em lote ou mudanças expressivas na distribuição, uma coleta atualizada pode alterar legitimamente o plano.\n\n### Como cai na prova\n\n- Estatísticas são insumos para estimar cardinalidade e escolher plano; não executam a consulta nem garantem um índice.\n- `ANALYZE` atualiza estatísticas; em grandes tabelas, elas podem ser aproximadas por amostragem.\n- Correlação entre colunas pode tornar inadequada a hipótese de independência; estatísticas estendidas tratam relações selecionadas.\n- Ajustar estatística exige evidência: compare linhas previstas e observadas e considere o custo da coleta."
+    },
+    {
+      "title": "3. Índices: acesso rápido e custo de manutenção",
+      "markdown": "### O problema que este assunto resolve\n\nUm índice é uma estrutura auxiliar que permite localizar linhas sem examinar necessariamente toda a tabela. A vantagem de leitura vem com custos: ocupa armazenamento, precisa ser mantido nas escritas e pode não ajudar quando a consulta retorna parcela grande dos dados. O índice adequado depende dos filtros, da ordenação, da seletividade e da ordem das colunas.\n\n> **Siglas e termos deste capítulo**\n> - **B-tree**: estrutura ordenada comum para igualdade, intervalos e ordenação compatível.\n> - **Índice composto**: índice que contém mais de uma coluna-chave.\n> - **Índice de cobertura**: contém dados suficientes para uma consulta evitar buscar a linha base, quando o SGBD consegue aproveitar essa propriedade.\n> - **Índice parcial**: inclui somente linhas que satisfazem um predicado.\n> - **Hotspot**: partição ou chave que recebe parcela desproporcional da carga.\n\nUm índice composto em `(cliente_id, criado_em)` tende a ser mais eficaz para consultas que restringem `cliente_id`, possivelmente junto a uma faixa ou ordenação de `criado_em`. Em B-tree, as colunas iniciais são especialmente importantes; um índice `(a,b)` não equivale a um índice `(b,a)`. Não crie índices compostos por intuição: verifique o padrão real das consultas e o plano.\n\nUm índice pode reduzir leituras, mas cada inserção, alteração da chave indexada e exclusão exige trabalho adicional. Índices redundantes ou pouco usados consomem espaço e alongam escritas. A escolha do tipo também importa: B-tree não é solução universal para busca textual, dados geoespaciais ou estruturas especializadas. Em PostgreSQL, a documentação recomenda examinar uso real com `EXPLAIN` e estatísticas de uso, e testar índices com dados e consultas representativos.\n\nEm bancos distribuídos, a chave de partição distribui armazenamento e carga. Uma chave com poucos valores ou um valor muito popular pode concentrar tráfego numa partição quente e causar throttling mesmo quando a capacidade total parece suficiente. Uma distribuição mais uniforme tende a espalhar solicitações, mas pode dificultar consultas que precisem localizar dados sem conhecer a chave. Há uma troca entre distribuição, eficiência de consulta e necessidade de agregação entre partições.\n\n### Como cai na prova\n\n- Um índice acelera certas leituras, mas ocupa espaço e aumenta custo de escrita.\n- Ordem das colunas de um índice composto importa; em B-tree, restrições nas colunas iniciais são particularmente úteis.\n- Índice não é prova de que o plano o usará: o otimizador compara o custo estimado.\n- Em armazenamento particionado, chaves de baixa cardinalidade ou muito desbalanceadas criam hotspots e desperdício de throughput."
+    },
+    {
+      "title": "4. Cache, consistência e latência distribuída",
+      "markdown": "### O problema que este assunto resolve\n\nQuando muitas requisições leem repetidamente os mesmos dados, um cache guarda cópias próximas ao consumidor e reduz trabalho no banco de origem. A redução de latência depende de acertos, tamanho do conjunto de trabalho e custo de comunicação. O cache acrescenta uma cópia que pode ficar desatualizada; sua política de atualização faz parte da correção do sistema.\n\n> **Siglas e termos deste capítulo**\n> - **Cache-aside**: a aplicação consulta o cache, busca no banco em caso de falta e então preenche o cache.\n> - **TTL**: tempo de vida de uma entrada antes de expirar.\n> - **Miss/hit**: ausência/presença do valor no cache.\n> - **Stampede**: muitas faltas simultâneas para a mesma chave causam consultas duplicadas à origem.\n> - **Idempotência**: repetir uma operação produz o mesmo efeito relevante que executá-la uma vez.\n\nNo padrão cache-aside, uma leitura procura primeiro a chave no cache; se não encontrar, lê a origem, armazena o resultado e o devolve. Uma atualização comum grava a fonte de verdade e invalida a chave cacheada. TTL limita a duração de uma entrada antiga, mas não garante consistência imediata: uma escrita e uma leitura concorrentes ainda podem observar estados diferentes. Se a aplicação precisa de uma garantia mais forte, deve definir ordenação, invalidação ou atualização coordenada conforme o caso de uso.\n\nA expiração simultânea de uma chave popular pode provocar stampede: vários processos recebem miss e consultam juntos a base. Mitigações incluem coalescer requisições por chave, usar bloqueio de curta duração ou renovar antes da expiração com estratégia controlada. Um cache local por instância reduz ida à rede, mas cada instância mantém sua própria cópia e invalidação; um cache compartilhado facilita o compartilhamento, porém acrescenta salto de rede e dependência operacional.\n\nEm sistemas distribuídos, reduzir chamadas sequenciais pode ser tão importante quanto reduzir o trabalho do banco. Pipelining ou operações em lote reduzem viagens de ida e volta quando a API permite. Meça percentis de latência, erros e fila; p99 elevado com média estável costuma apontar uma cauda de requisições lentas, enquanto p50 persistentemente elevado sugere degradação mais ampla. A soma de tempos de vários serviços e tentativas pode ultrapassar o orçamento de uma requisição.\n\n### Como cai na prova\n\n- Cache-aside consulta a origem em um miss e preenche o cache; uma leitura de cache não torna o cache automaticamente fonte de verdade.\n- TTL limita a idade máxima esperada da cópia, mas não elimina toda janela de inconsistência.\n- Expiração sincronizada de uma chave popular pode aumentar a carga na origem; contenção por chave ajuda a evitar stampede.\n- Em serviços distribuídos, compare p50 e percentis altos, conte viagens de rede e não confunda throughput com latência."
+    }
+  ],
+  "summary": "Otimizar bancos de dados e sistemas distribuídos começa por medir a carga real e localizar o trabalho dominante. Um plano mostra as operações escolhidas pelo planejador; estimativas de linhas muito distantes das observadas podem revelar estatísticas antigas ou correlações não representadas. Estatísticas atualizadas ajudam a estimar cardinalidade, enquanto índices devem corresponder aos filtros e à ordenação, levando em conta armazenamento e manutenção das escritas. Cache-aside reduz leituras repetidas, mas TTL, invalidação e concorrência determinam quanto tempo uma cópia pode ficar antiga e se uma expiração causará stampede. Chaves de partição desbalanceadas criam hotspots. Em sistemas distribuídos, medir p50 e percentis altos, filas, erros e viagens de rede permite explicar a latência percebida além do tempo isolado do banco.",
+  "flashcards": [
+    {
+      "front": "O que um plano de execução descreve?",
+      "back": "A estratégia escolhida pelo otimizador: acessos a tabelas, índices, junções, ordenações e demais operações."
+    },
+    {
+      "front": "O que EXPLAIN mostra no PostgreSQL?",
+      "back": "O plano que o planejador gera para a instrução, com operações e custos estimados."
+    },
+    {
+      "front": "O que EXPLAIN ANALYZE acrescenta?",
+      "back": "Executa a instrução e inclui medidas observadas, como tempo e linhas efetivamente retornadas por nó."
+    },
+    {
+      "front": "Custo EXPLAIN é tempo em milissegundos?",
+      "back": "Não. É uma estimativa relativa em unidades de custo do planejador, convencionalmente relacionadas a operações de página."
+    },
+    {
+      "front": "O que indica grande diferença entre linhas estimadas e reais?",
+      "back": "Estimativas inadequadas, possivelmente por estatísticas antigas, distribuição alterada ou correlação entre colunas não descrita."
+    },
+    {
+      "front": "Para que serve ANALYZE no PostgreSQL?",
+      "back": "Coletar estatísticas dos dados que o planejador usa para estimar resultados e escolher planos."
+    },
+    {
+      "front": "Quais resumos podem compor estatísticas de coluna?",
+      "back": "Valores mais comuns, histogramas e estimativas de valores distintos, conforme a coluna e a coleta."
+    },
+    {
+      "front": "As estatísticas de tabela grande são necessariamente exatas?",
+      "back": "Não. A coleta normalmente usa amostragem, portanto os resumos são aproximações."
+    },
+    {
+      "front": "Quando estatísticas estendidas podem ajudar?",
+      "back": "Quando filtros sobre colunas correlacionadas são estimados como independentes e isso distorce a cardinalidade prevista."
+    },
+    {
+      "front": "CREATE STATISTICS coleta imediatamente os dados no PostgreSQL?",
+      "back": "Não. Cria o objeto de estatística; ANALYZE coleta os valores efetivos."
+    },
+    {
+      "front": "Índice é sempre mais rápido que varredura sequencial?",
+      "back": "Não. Para grande fração da tabela, leitura sequencial pode custar menos que muitas buscas dispersas."
+    },
+    {
+      "front": "Qual é o efeito de adicionar índice sobre uma coluna escrita com frequência?",
+      "back": "Pode acelerar leituras compatíveis, mas aumenta espaço e trabalho de manutenção em escritas."
+    },
+    {
+      "front": "O que caracteriza um índice composto?",
+      "back": "Uma estrutura indexada por mais de uma coluna-chave, em uma ordem definida."
+    },
+    {
+      "front": "Por que a ordem das colunas importa em B-tree composto?",
+      "back": "Condições nas colunas iniciais costumam aproveitar o índice mais eficazmente; mudar a ordem muda os padrões atendidos."
+    },
+    {
+      "front": "Um índice criado será sempre escolhido pelo otimizador?",
+      "back": "Não. O planejador compara o custo estimado das alternativas e pode escolher outra forma de acesso."
+    },
+    {
+      "front": "O que é uma partição quente?",
+      "back": "Uma partição que recebe tráfego desproporcional, podendo limitar ou estrangular o desempenho."
+    },
+    {
+      "front": "O que é cache-aside?",
+      "back": "A aplicação procura no cache; em uma falta consulta a origem e preenche o cache com o resultado."
+    },
+    {
+      "front": "O que TTL garante para uma entrada cacheada?",
+      "back": "Define quando ela expira; limita a idade da cópia, mas não garante consistência instantânea."
+    },
+    {
+      "front": "O que significa invalidar uma chave após escrita?",
+      "back": "Remover a cópia cacheada para que a próxima leitura busque o dado atualizado na origem."
+    },
+    {
+      "front": "O que é cache stampede?",
+      "back": "Muitas requisições simultâneas para uma chave expirada geram faltas e consultas duplicadas à origem."
+    },
+    {
+      "front": "Como p95 difere da média?",
+      "back": "p95 é o limiar abaixo do qual estão 95% das latências observadas; expõe a cauda lenta melhor que a média isolada."
+    },
+    {
+      "front": "Como pipelining pode ajudar um cliente Redis?",
+      "back": "Agrupa comandos em menos viagens de ida e volta, reduzindo o custo de rede por comando."
+    },
+    {
+      "front": "Qual é o risco de um cache local em várias instâncias?",
+      "back": "Cópias independentes podem divergir e cada instância precisa aquecer e invalidar seus próprios valores."
+    },
+    {
+      "front": "Por que medir throughput e latência juntos?",
+      "back": "Uma taxa alta de operações pode coexistir com longas filas e percentis de latência ruins."
+    }
+  ],
+  "tips": [
+    "Leia o plano e localize primeiro o nó com mais linhas ou tempo observado; não otimize apenas pelo nome do operador.",
+    "Compare linhas estimadas e reais: uma discrepância grande é pista sobre estatísticas ou hipóteses do otimizador.",
+    "Antes de criar índice, liste filtros, ordenação e frequência de escrita da consulta real.",
+    "Em índice B-tree composto, confira a ordem das colunas e se as consultas filtram as colunas iniciais.",
+    "Desenhe TTL e invalidação junto com a estratégia de cache; expiração sozinha não dá consistência imediata.",
+    "Em sistemas distribuídos, acompanhe p50, p95/p99, erros, filas e viagens de rede além da média."
+  ],
+  "traps": [
+    "EXPLAIN ANALYZE não é só previsão: executa a instrução e pode efetivar uma escrita.",
+    "Custo estimado do plano não equivale a milissegundos nem deve ser comparado como medida de relógio entre ambientes diferentes.",
+    "Varredura sequencial não é defeito automático; pode ser mais barata quando a consulta lê muitas linhas.",
+    "Estatísticas por coluna não descrevem necessariamente correlação entre colunas; estatísticas estendidas exigem coleta por ANALYZE.",
+    "Índice reduz certos custos de leitura, mas ocupa espaço e pode deixar inserções e atualizações mais caras.",
+    "TTL reduz a duração de cópias antigas, mas não elimina concorrência, invalidação atrasada nem stampede."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre plano estimado e observado.",
+      "answer": "O estimado é a estratégia e as cardinalidades previstas pelo planejador. O observado vem da execução real, com linhas e tempos medidos, por exemplo em EXPLAIN ANALYZE."
+    },
+    {
+      "question": "Uma consulta estima 20 linhas e retorna 80 mil. Que hipóteses investigaria?",
+      "answer": "Verificaria estatísticas desatualizadas, distribuição alterada, seletividade mal estimada e dependência entre colunas ausente das estatísticas; em seguida coletaria dados e compararia o plano."
+    },
+    {
+      "question": "Por que uma varredura sequencial pode vencer um índice?",
+      "answer": "Se muitas linhas forem necessárias, ler a tabela em sequência pode custar menos do que percorrer índice e buscar várias páginas dispersas."
+    },
+    {
+      "question": "Quando criar estatística estendida no PostgreSQL?",
+      "answer": "Quando há colunas correlacionadas usadas juntas em filtros e os planos mostram estimativas ruins; depois de criar o objeto, ANALYZE coleta os dados."
+    },
+    {
+      "question": "O que deve ser ponderado ao criar índice composto?",
+      "answer": "Padrões reais de filtro e ordenação, ordem das colunas, seletividade, benefício de leitura, espaço e custo de manutenção de escrita."
+    },
+    {
+      "question": "Descreva cache-aside e a política de atualização comum.",
+      "answer": "A aplicação lê o cache, consulta a origem em miss e preenche. Na escrita, grava a fonte de verdade e invalida a chave para forçar nova leitura atualizada."
+    },
+    {
+      "question": "Como evitar que expiração de chave popular sobrecarregue a origem?",
+      "answer": "Agrupar requisições concorrentes pela mesma chave, usar bloqueio breve ou renovar de modo controlado antes da expiração."
+    },
+    {
+      "question": "Como diagnosticar lentidão distribuída que a média não revela?",
+      "answer": "Examinar distribuição por percentis, picos p95/p99, erros, filas, número de saltos de rede, tentativas e latência de cada dependência."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Estimativa confundida com execução",
+      "summary": "EXPLAIN exibe planejamento e custos estimados; EXPLAIN ANALYZE executa e permite comparar linhas previstas e observadas. Custos não são milissegundos."
+    },
+    {
+      "key": "e2",
+      "title": "Estatística tratada como dado exato",
+      "summary": "ANALYZE coleta resumos, muitas vezes por amostragem. Estatísticas estendidas representam relações escolhidas entre colunas e também precisam ser coletadas."
+    },
+    {
+      "key": "e3",
+      "title": "Índice visto como ganho sem custo",
+      "summary": "Índices são específicos ao padrão de consulta, ocupam espaço e elevam o trabalho de escrita; B-tree composto depende da ordem das chaves iniciais."
+    },
+    {
+      "key": "e4",
+      "title": "Cache confundido com fonte consistente",
+      "summary": "Cache-aside busca a origem no miss; TTL e invalidação limitam cópia antiga, mas não garantem consistência imediata. Expiração popular pode causar stampede."
+    },
+    {
+      "key": "e5",
+      "title": "Média confundida com desempenho distribuído",
+      "summary": "Latência de cauda, filas, viagens de rede e hotspots podem piorar mesmo com média ou capacidade agregada aparentemente adequadas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No PostgreSQL, EXPLAIN exibe o plano planejado sem executar a consulta; EXPLAIN ANALYZE executa a instrução e acrescenta medidas observadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. EXPLAIN apresenta a estratégia e estimativas do planejador. ANALYZE faz a instrução rodar e adiciona linhas e tempos observados, portanto a execução pode ter efeitos colaterais.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os valores de custo mostrados por EXPLAIN são tempos em milissegundos medidos no relógio do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. São unidades de custo estimadas pelo planejador, não tempos medidos. EXPLAIN ANALYZE fornece durações observadas separadamente.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma diferença grande entre linhas estimadas e efetivamente retornadas pode apontar estatísticas inadequadas ou relações entre filtros que o modelo não capturou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cardinalidade prevista influencia escolhas de acesso e junção. Distribuição alterada, estatísticas antigas ou correlação entre colunas podem explicar erro de estimativa.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma varredura sequencial é sempre sinal de plano ruim, pois um índice reduz o custo para qualquer quantidade de linhas retornadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se a consulta precisa de muitas linhas, a leitura sequencial pode ser mais barata que localizar cada linha por índice e acessar páginas dispersas.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se EXPLAIN ANALYZE for aplicado a um UPDATE, a instrução será executada; envolver a operação em transação e fazer rollback pode evitar manter seus efeitos quando a operação for transacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A opção ANALYZE executa de verdade, inclusive instruções de escrita. A documentação recomenda BEGIN, EXPLAIN ANALYZE e ROLLBACK para examinar escritas sem mantê-las quando a semântica transacional permitir.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "p99 representa a latência abaixo da qual concluíram 99% das observações e ajuda a enxergar a cauda lenta que a média pode esconder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O percentil 99 deixa 1% das observações acima dele e revela experiências lentas que podem ter pouco efeito sobre a média.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta que termina rápido em execução isolada necessariamente continuará rápida sob concorrência, pois o plano não muda com contenção por conexão ou disco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Concorrência pode introduzir espera por conexão, disco, CPU ou locks e elevar latência. É preciso medir com carga representativa, além de inspecionar o plano.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ANALYZE coleta estatísticas dos dados que o planejador usa para estimar quantas linhas uma consulta retornará.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No PostgreSQL, ANALYZE atualiza resumos da distribuição de valores no catálogo; o planejador os usa para estimar cardinalidade e comparar planos.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em tabelas grandes, ANALYZE examina obrigatoriamente cada linha, de modo que os histogramas resultantes são sempre exatos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A coleta costuma usar amostragem aleatória em tabelas grandes; estatísticas são aproximações e podem variar um pouco entre coletas.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Criar um objeto com CREATE STATISTICS no PostgreSQL já calcula seus valores; executar ANALYZE depois é desnecessário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CREATE STATISTICS registra o interesse nas colunas; ANALYZE coleta os valores efetivos, inclusive para estatísticas estendidas.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar indiscriminadamente o alvo de estatísticas de todas as colunas reduz o custo de ANALYZE e não consome espaço adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mais detalhe pode melhorar estimativas, mas aumenta trabalho de coleta e espaço estatístico; deve ser ajustado a colunas relevantes e discrepâncias observadas.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Estatísticas estendidas podem representar dependências e combinações entre colunas que estatísticas independentes por coluna não capturam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O PostgreSQL oferece estatísticas multivariadas para relações selecionadas, incluindo dependências funcionais e combinações distintas, cuja coleta é feita por ANALYZE.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma carga que alterou muito a distribuição dos dados, estatísticas atualizadas podem levar o planejador a escolher legitimamente outro plano.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O planejador depende de estimativas de distribuição; uma nova coleta pode mudar cardinalidades e tornar outra estratégia a de menor custo previsto.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice composto B-tree em (cliente_id, criado_em) tende a ser especialmente útil para filtros que restringem cliente_id e depois consultam ou ordenam por criado_em.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em B-tree multicoluna, restrições nas colunas à esquerda são particularmente eficazes; a ordem do índice precisa corresponder ao padrão de acesso.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar índice pode acelerar leituras compatíveis e, ao mesmo tempo, elevar espaço ocupado e trabalho necessário para manter escritas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O benefício de busca tem contrapartida: inserções, atualizações de chaves e exclusões mantêm estruturas adicionais, que também ocupam armazenamento.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escolher uma chave de partição com um único valor muito popular distribui a carga uniformemente, porque todas as partições compartilham a capacidade total.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Valores concentrados podem criar partição quente e throttling; a capacidade agregada não remove automaticamente o gargalo localizado.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No cache-aside, a aplicação busca o dado na origem quando há cache miss e normalmente preenche o cache com o resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A leitura é reativa: consulta o cache primeiro e, em caso de falta, consulta a fonte de verdade e armazena o valor recuperado.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Definir TTL para uma chave garante que qualquer leitura após uma escrita simultânea veja imediatamente o valor novo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TTL limita a vida da entrada, mas durante essa janela uma cópia antiga pode ser lida. Consistência mais forte requer política coordenada de atualização ou invalidação.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expiração simultânea de uma chave muito popular pode fazer várias instâncias consultarem a origem ao mesmo tempo, fenômeno conhecido como cache stampede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Múltiplos misses concorrentes duplicam leituras na base. Agrupamento de requisições por chave, bloqueio curto e renovação antecipada controlada são mitigações possíveis.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Agrupar comandos em pipelining reduz necessariamente o tempo de CPU do servidor Redis, ainda que o cliente faça o mesmo número de viagens de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ganho destacado do pipelining é reduzir viagens de ida e volta e custos de comunicação; não implica reduzir o trabalho computacional de cada comando.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, qual é a finalidade principal de EXPLAIN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibir operações e estimativas do plano escolhido pelo planejador para a instrução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reescrever os dados da tabela para corrigir a distribuição de valores automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar a instrução e registrar obrigatoriamente o tempo real de cada nó.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar índices para todas as colunas usadas em filtros e ordenações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a coleta estatística e definir um plano permanente para a consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "EXPLAIN apresenta o plano planejado e seus custos estimados. Para executar e obter linhas e tempos observados usa-se EXPLAIN ANALYZE; EXPLAIN não cria índices nem atualiza dados.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar um plano estimado com a execução observada, que discrepância fornece uma pista direta sobre a qualidade das estimativas de cardinalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de linhas reais difere muito da quantidade estimada no mesmo nó do plano.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nome da tabela aparece em letras minúsculas no texto impresso pelo cliente SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O plano contém uma varredura sequencial mesmo com todas as tabelas vazias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A consulta retorna colunas em ordem diferente daquela declarada no esquema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comando SQL inclui aliases curtos para evitar repetir nomes de relações.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cardinalidade estimada guia escolhas do planejador; uma diferença grande para linhas observadas sugere que a estimativa de seletividade precisa ser investigada. Formatação e aliases não medem essa precisão.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer examinar quanto tempo e quantas linhas cada nó de uma consulta realmente consumiu. Qual recurso do PostgreSQL fornece observações de execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "EXPLAIN ANALYZE, sabendo que ele executa a instrução examinada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "EXPLAIN sem opções, que executa cada nó em modo de diagnóstico isolado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CREATE STATISTICS, que mede o tempo de cada operador durante a consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ANALYZE, que executa uma consulta escolhida e relata a latência de ponta a ponta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CREATE INDEX, que retorna o histórico de duração de todas as consultas anteriores.",
+          "correct": false
+        }
+      ],
+      "explanation": "EXPLAIN ANALYZE roda a consulta e acrescenta medidas reais por nó, inclusive linhas e tempo. ANALYZE coleta estatísticas de dados, enquanto EXPLAIN comum apenas planeja.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta busca 70% de uma tabela grande e o plano escolhe varredura sequencial. Qual interpretação é tecnicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode ser uma escolha racional, pois buscar muitas linhas via índice pode exigir acessos dispersos mais caros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É necessariamente erro, pois toda varredura sequencial deve ser substituída por um índice B-tree.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Prova que as estatísticas foram apagadas e que o banco deixou de analisar a tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indica que o planejador ignorou os filtros porque sequencial significa leitura sem predicado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Demonstra que a tabela não tem chave primária e por isso o otimizador está desativado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando grande parcela das linhas será lida, a varredura sequencial pode minimizar I/O em comparação com procurar cada linha por índice. A adequação deve ser julgada por medidas e carga, não pelo nome isolado do nó.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição passa por quatro serviços e o tempo médio permanece baixo, mas p99 aumentou bastante. Qual próximo passo melhor investiga a degradação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Decompor a latência por dependência e observar caudas, filas, tentativas e viagens de rede.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar a métrica, pois a média baixa prova que nenhum usuário espera muito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar todos os índices do banco para que cada serviço reduza sua CPU local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar as chamadas remotas por chamadas síncronas adicionais para uniformizar a duração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir somente throughput agregado e descartar percentis para evitar variação estatística.",
+          "correct": false
+        }
+      ],
+      "explanation": "p99 captura a cauda lenta. Em cadeia distribuída, uma dependência lenta, fila, repetição ou salto de rede pode dominar poucas requisições sem alterar muito a média; decompor o caminho permite localizar a causa.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma escrita precisa ser examinada com EXPLAIN ANALYZE sem manter alterações, e a transação usada suporta rollback. Qual sequência é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Iniciar transação, executar EXPLAIN ANALYZE para a escrita e encerrar com ROLLBACK.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar EXPLAIN comum e depois COMMIT, pois o plano já aplicou a escrita em memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar o planejador, rodar a escrita fora de transação e limpar o cache após a medição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar ANALYZE da tabela e assumir que ele reproduz os efeitos e o tempo da escrita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um índice temporário, rodar a escrita e remover a tabela após capturar o plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "EXPLAIN ANALYZE executa a operação. A documentação PostgreSQL apresenta BEGIN, EXPLAIN ANALYZE e ROLLBACK para observar uma escrita sem manter seus efeitos quando a operação participa de transação.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta ficou lenta após meses de muitas inserções e a estimativa de linhas diverge bastante. Qual ação diagnóstica é mais diretamente ligada às estatísticas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coletar estatísticas atualizadas com ANALYZE e então comparar o novo plano e suas estimativas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar as estatísticas para forçar o otimizador a usar as linhas reais durante o planejamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar todos os índices para obrigar o banco a medir cada alternativa possível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o TTL do cache sem verificar se a consulta consulta o cache em questão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar o cliente SQL, pois as estatísticas do planejador ficam somente no processo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "ANALYZE atualiza as estatísticas de conteúdo que fundamentam estimativas. O novo plano deve ser comparado, pois estatísticas mais atuais podem alterar as escolhas do otimizador.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas colunas de filtro são fortemente relacionadas, mas o otimizador estima cada predicado como independente e prevê linhas demais. Qual recurso PostgreSQL pode representar essa relação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar estatísticas estendidas para o conjunto de colunas e coletá-las com ANALYZE.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar somente um índice separado em cada coluna, que armazena a correlação estatística automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar VACUUM FULL, que transforma cada correlação entre colunas em histograma multivariado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de conexões, fazendo o planejador amostrar todas as combinações durante a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter as colunas em texto, para que a ordenação lexical revele a dependência ao planejador.",
+          "correct": false
+        }
+      ],
+      "explanation": "CREATE STATISTICS permite solicitar resumos multivariados, como dependências e combinações distintas. ANALYZE coleta os valores; índices separados não codificam por si sós a dependência usada na estimativa.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após criar CREATE STATISTICS para colunas correlacionadas, o que completa a coleta dos dados estatísticos no PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar ANALYZE para coletar os resumos sobre as colunas selecionadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar CREATE INDEX para materializar no índice as dependências entre os valores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar EXPLAIN ANALYZE sem consulta, pois ele coleta o catálogo inteiro automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar o servidor, pois estatísticas estendidas são inferidas somente na inicialização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar VACUUM FULL, que recalcula todos os histogramas e combinações distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "CREATE STATISTICS registra quais estatísticas interessam; a coleta efetiva ocorre durante ANALYZE, manual ou automático conforme configuração e atividade.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela muito grande recebe estatísticas por amostragem. Qual conclusão é correta para interpretar o plano após ANALYZE?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As estimativas são aproximadas e podem mudar um pouco entre coletas, ainda que os dados quase não mudem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Amostragem impede o otimizador de usar qualquer histograma na escolha do plano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada coleta examina todas as linhas e por isso garante estimativas idênticas em qualquer execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A coleta transforma as estimativas em latências reais medidas em milissegundos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de amostra elimina a necessidade de comparar linhas estimadas e retornadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A amostragem torna a coleta mais viável em tabelas grandes, mas produz aproximações que podem variar. O plano continua usando estatísticas para estimar cardinalidade; observações reais ajudam a avaliar a qualidade.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna nunca participa de WHERE, GROUP BY ou ORDER BY. Qual raciocínio é mais correto ao avaliar alvo estatístico muito alto para ela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O benefício pode ser pequeno, pois o planejador não precisa dessas estatísticas para os usos descritos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O alvo alto é obrigatório em toda coluna, pois melhora qualquer consulta mesmo sem predicados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O alvo alto reduz automaticamente o espaço de catálogo e o tempo gasto em ANALYZE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A coluna deve ganhar índice único, pois estatísticas e índices têm a mesma função de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O alvo estatístico controla a quantidade de linhas devolvidas pela aplicação em cada consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O alvo controla detalhe estatístico e afeta tempo de análise e espaço. Estatísticas de uma coluna sem uso em predicados ou ordenações podem não trazer benefício relevante ao planejador.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário justifica considerar estatísticas estendidas, em vez de apenas repetir a coleta univariada existente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Predicados usados juntos dependem de valores relacionados e a hipótese de independência erra a cardinalidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tabela contém uma chave primária simples e todas as buscas usam somente igualdade nessa chave.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O plano usa uma varredura sequencial que já retorna quase todas as linhas da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação precisa reduzir o tamanho serializado de objetos enviados pela rede ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema quer aumentar a validade das cópias mantidas em um cache local por instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estatísticas multivariadas são direcionadas a relações entre colunas, especialmente quando predicados conjuntos são correlacionados. As outras situações tratam de acesso, serialização ou cache.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe criou índice composto (status, criado_em) para consulta que filtra status e percorre um intervalo temporal. Qual aspecto da escolha está alinhado ao B-tree composto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A consulta restringe a coluna inicial e também usa a coluna seguinte no intervalo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O índice ignora a ordem das colunas e tem a mesma eficiência para qualquer subconjunto delas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A coluna status deve ser removida porque toda condição de igualdade impede busca em B-tree.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A estrutura serve apenas para validar unicidade, mesmo que não haja restrição UNIQUE declarada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas colunas precisam ser convertidas para texto para manter a ordenação do índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em um B-tree composto, as colunas líderes são especialmente importantes. Restringir status e então consultar criado_em corresponde ao prefixo e ao padrão planejado; o plano ainda deve ser validado com dados reais.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela sofre muitas inserções e tem diversos índices pouco utilizados. Qual consequência é plausível ao remover índices redundantes após análise de uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir espaço e parte do trabalho de manutenção das escritas, preservando índices necessários às consultas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eliminar a necessidade de estatísticas, pois o planejador só as usa quando todos os índices existem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantir que todas as consultas façam leitura sequencial e tenham custo menor em qualquer volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar as inserções em operações sem log, já que índices eram a única causa de persistência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir automaticamente as linhas por rede, mesmo que a tabela permaneça em um único nó.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices exigem armazenamento e manutenção em escritas. Remover estruturas redundantes ou comprovadamente inúteis pode reduzir esses custos, mas deve preservar as necessárias às consultas importantes.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta filtra apenas a segunda coluna de um B-tree composto (regiao, data). Qual afirmação deve orientar a análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O índice pode ser menos eficaz porque não há restrição sobre a coluna líder regiao.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O índice é sempre tão eficaz quanto um índice iniciado por data, pois as chaves são equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O banco necessariamente reordena as colunas do índice conforme cada consulta recebida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A falta de filtro por regiao impede qualquer uso de estatísticas para estimar o resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O índice garante que nenhuma página de tabela será visitada, independentemente das colunas projetadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação PostgreSQL destaca que B-tree multicoluna é mais eficiente quando há restrições nas colunas iniciais. A eficácia concreta ainda depende do plano, da seletividade e dos dados.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela distribuída tem chave de partição com poucos valores e quase todas as gravações usam o mesmo valor. Qual risco de desempenho é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concentrar solicitações em partição quente e provocar throttling apesar da capacidade ociosa em outras partições.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Impedir a criação de qualquer chave de ordenação, pois todas as partições precisam ter nomes distintos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar toda latência de rede porque as gravações passam a ocorrer em uma única partição física.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar automaticamente a cardinalidade do campo para equilibrar registros sem alterar a chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tornar as operações transacionais por padrão, já que valores repetidos permitem ordenar gravações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave pouco variada ou muito popular concentra tráfego. O desenho da chave deve espalhar I/O de acordo com a carga, sem ignorar as consultas que precisam localizar dados.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe acessa repetidamente os mesmos perfis e quer evitar leitura da base em cada chamada. Qual sequência caracteriza cache-aside?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar cache, buscar a origem em caso de miss, devolver o resultado e preencher a chave cacheada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gravar primeiro todo o banco no cache e encaminhar cada leitura diretamente à réplica síncrona.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar o cache em leitura e usá-lo somente como destino definitivo de todas as gravações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o banco de origem pelo cache, sem expiração, recuperação ou política de atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar a origem em toda leitura e só preencher o cache quando a aplicação encerrar.",
+          "correct": false
+        }
+      ],
+      "explanation": "No cache-aside, o código consulta o cache e trata a falta buscando a fonte de verdade; então preenche a entrada e entrega o resultado. Isso evita consulta à origem nos hits futuros.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe grava o banco principal e invalida a chave cacheada. Qual motivo explica essa política comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A próxima leitura tende a buscar o estado atualizado na fonte, em vez de reutilizar a cópia antiga.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A invalidação transforma o cache em armazenamento durável que substitui o banco principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave invalidada permite que toda instância ignore a rede e descubra o novo valor localmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exclusão do cache garante consistência linearizável sem considerar concorrência entre operações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A invalidação força o otimizador SQL a recalcular índices e estatísticas para aquela linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gravar a fonte de verdade e remover a cópia cacheada é uma política frequente para evitar servir o valor anterior em leituras posteriores. Concorrência ainda pode produzir janelas que exigem tratamento adicional.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave popular expira e muitas requisições chegam simultaneamente. Qual mitigação trata diretamente a duplicação de consultas à origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coalescer faltas concorrentes por chave para que apenas uma busca preencha a entrada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reduzir o pool de conexões a zero durante todo o dia para impedir acessos ao banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o TTL de todas as entradas e aceitar dados antigos sem política de atualização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar mais índices na origem para que cada requisição simultânea use uma estrutura diferente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o número de instâncias do serviço sem compartilhar cache nem coordenar as faltas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Coalescer requisições ou usar uma coordenação breve por chave permite que várias chamadas aguardem uma única recuperação. Sem coordenação, a expiração pode fazer todas consultarem a origem ao mesmo tempo.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema Redis tem comandos rápidos no servidor, mas o cliente faz várias viagens sequenciais pela rede. Qual ajuste pode reduzir o custo de comunicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar pipelining ou comandos agregados para enviar e receber mais operações por viagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar uma viagem de ida e volta após cada comando para confirmar o estado do socket.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter toda leitura em gravação, pois gravações não têm latência de rede no Redis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o tamanho das respostas com campos não usados para preencher melhor os pacotes TCP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o cache no cliente e distribuir a mesma consulta por servidores sem agrupamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pipelining reduz round trips agrupando comandos, e comandos agregados podem fazer várias operações em uma chamada. A documentação Redis destaca que latência de rede e agendamento somam-se ao tempo de execução do comando.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa cache local em seis instâncias independentes. Qual propriedade operacional deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada instância pode aquecer cópia própria e precisar receber ou executar invalidação coordenada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As cópias são automaticamente compartilhadas entre processos porque usam a mesma chave lógica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma atualização local altera imediatamente as memórias de todas as outras instâncias sem comunicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cache local elimina a necessidade de medir latência de rede entre serviços distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dados cacheados em memória têm durabilidade maior que o banco de origem durante reinicializações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caches locais são privados a cada processo: podem duplicar memória e aquecimento e divergir até que expiração ou mecanismo de invalidação propague a mudança. Compartilhamento entre instâncias requer comunicação ou armazenamento comum.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SGBD seleciona um índice novo para uma consulta. Qual verificação melhor demonstra que a mudança ajudou a carga relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar planos, linhas e latências observadas com consultas e dados representativos, incluindo efeito nas escritas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar apenas que o comando CREATE INDEX terminou sem erro e presumir benefício universal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contar o número de colunas indexadas e considerar melhor o índice com mais colunas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir somente o tempo de construção do índice e tratá-lo como latência futura de cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar se a consulta menciona a tabela e concluir que o planejador usará todos seus índices.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices devem ser avaliados contra carga real: consultas, seletividade, estimativas, latência e custos de manutenção de escrita. A criação bem-sucedida não prova que o planejador escolherá a estrutura nem que o saldo será positivo.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço mede 900 requisições por segundo, mas usuários relatam esperas longas em parte das chamadas. Qual complemento torna a análise mais informativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acompanhar p50 e percentis altos de latência junto com erros e saturação de recursos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desconsiderar latência, pois throughput alto implica que cada requisição termina rapidamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somar os bytes armazenados no banco e usar o total como substituto da duração das chamadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Observar somente o p50, já que ele necessariamente inclui todas as chamadas lentas da cauda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir a contagem de índices e inferir dela quantas requisições aguardaram por rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Throughput conta operações por tempo, mas não descreve a distribuição do tempo de resposta. Percentis mostram a experiência mediana e a cauda, enquanto erros e saturação ajudam a explicar a degradação.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma carga em lote, o plano escolhe hash join onde antes usava nested loop. Qual explicação é compatível com o funcionamento do otimizador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distribuição e a cardinalidade estimadas podem ter mudado após a coleta de estatísticas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O hash join é sempre selecionado quando uma tabela passa a ter chave primária composta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O planejador alterna algoritmos a cada execução para balancear conexões entre clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mudança prova que o índice anterior foi removido por ANALYZE durante a amostragem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O formato do resultado mudou e o banco usa hash join para alterar a ordem das colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudanças de volume ou distribuição podem alterar cardinalidades estimadas e custos relativos das alternativas. ANALYZE atualiza resumos usados pelo planejador, que pode então preferir outro método de junção.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta repetida filtra por igualdade em account_id e ordena por created_at. Qual proposta inicial de índice composto merece ser testada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um B-tree em (account_id, created_at), validado com o plano e a carga reais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um B-tree em (created_at, account_id), pois a ordem das chaves nunca afeta a busca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um hash em (created_at), que satisfaz sozinho o filtro e a ordenação por qualquer coluna.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índices separados em todas as colunas, que garantem eliminar toda ordenação intermediária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhum índice, pois qualquer cláusula ORDER BY impede o planejador de usar estruturas ordenadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro de igualdade pela coluna líder e a ordenação pela seguinte combinam com o prefixo de um B-tree composto. O benefício ainda depende de seletividade e plano observados.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta retorna poucas linhas, mas o plano lê quase toda uma tabela. Qual sequência de investigação é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar estimativas com linhas reais, conferir filtros e avaliar índice adequado ao predicado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar um índice em cada coluna da tabela sem verificar seletividade ou frequência de escrita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o pool de conexões para que uma única consulta percorra mais páginas em paralelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar estatísticas para evitar que o planejador altere o método de acesso no futuro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover a tabela para cache distribuído e manter a consulta e o plano sem qualquer medição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Primeiro confirme o trabalho e a cardinalidade; depois avalie se um índice compatível com o filtro melhora a execução. Índices indiscriminados podem aumentar custos sem ajudar as consultas relevantes.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação adicionou índice único para acelerar buscas, mas agora gravações ficaram mais lentas. Qual causa é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A manutenção da estrutura indexada acrescenta trabalho às inserções e alterações relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Índices únicos convertem cada gravação em leitura de todas as linhas de todas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A estrutura elimina a necessidade de persistir os dados, mas exige uma conexão extra por escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O planejador passou a ignorar o log transacional sempre que uma coluna tem índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chave única tornou as páginas de dados não ordenadas e o cache do sistema foi desativado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices ocupam espaço e precisam ser mantidos quando as escritas afetam suas chaves. A leitura pode melhorar, mas o custo total depende também da frequência de atualização.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga de registros usa a data do dia como única chave de partição; todas as escritas atuais recaem no mesmo valor. Qual mudança conceitual pode distribuir melhor a carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher uma chave com mais valores efetivamente acessados e distribuição menos concentrada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter a chave e aumentar somente o tamanho do campo, sem alterar seus valores repetidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar a chave por status, pois poucos estados conhecidos espalham solicitações uniformemente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir a quantidade de valores de partição para obrigar cada nó a receber menos tráfego.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a chave de partição e deixar o banco adivinhar a localização dos dados em cada leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chaves com maior variedade de valores acessados tendem a distribuir I/O melhor, desde que a distribuição real não tenha um valor dominante. Datas agrupadas e status com poucos valores podem concentrar carga.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela tem muitos índices e consultas com filtros e ordenações diferentes. Qual método de seleção é mais confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar consultas reais, uso observado e planos antes de decidir quais estruturas manter.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter todos, porque o espaço dos índices não interfere em cache ou escritas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter apenas o índice com mais colunas, já que ele substitui qualquer índice menor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover índices que aparecem em EXPLAIN, pois o planejador já os conhece e não precisa deles.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar índices novos por cada parâmetro possível sem medir frequência ou seletividade.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação recomenda conferir uso real; planos e estatísticas de uso ajudam a relacionar estruturas com a carga. Índices redundantes podem consumir espaço e custo de escrita sem benefício.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta usa função sobre a coluna filtrada, e o índice comum dessa coluna não aparece no plano. Qual conclusão inicial é prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A expressão pode não corresponder ao formato indexado; verifique plano e suporte do SGBD.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo índice B-tree é aplicado automaticamente antes de qualquer função na coluna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ausência do índice prova que as estatísticas da tabela foram coletadas em excesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O índice foi removido porque o resultado contém alias de coluna no SELECT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Funções em predicados são sempre executadas no cliente e não podem afetar o plano SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "O plano precisa reconhecer que a expressão da consulta pode ser atendida pela estrutura existente. A forma do predicado e os recursos do SGBD devem ser verificados com EXPLAIN; a presença nominal de índice não obriga seu uso.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação lê a mesma configuração muitas vezes e aceita pequena janela de desatualização. Qual estratégia pode reduzir leituras na base mantendo expiração limitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar cache-aside com TTL explícito e invalidar a chave quando a configuração mudar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar cache sem prazo e nunca invalidar, pois configuração muda pouco em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar a base em cada leitura e gravar a resposta somente no fim do expediente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a base de origem depois do primeiro acerto para impedir cópias divergentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar cada resposta com TTL zero para que ela permaneça no cache indefinidamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache-aside com TTL limita a vida de uma cópia; invalidação em alteração reduz a janela de desatualização. A fonte de verdade continua sendo o banco e a política depende da tolerância do caso.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cache local, uma instância recebe a escrita e apaga sua própria entrada, mas outras instâncias mantêm cópias antigas. Qual problema está presente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A invalidação não foi propagada às cópias independentes mantidas pelos demais processos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O TTL de uma instância sempre apaga chaves homônimas em toda memória de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A origem foi atualizada antes do cache, então as outras instâncias já observam a versão nova.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índices locais estão bloqueando a replicação automática das entradas entre clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pipelining impede que mensagens de invalidação alcancem processos no mesmo serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada processo com cache local mantém estado separado. Sem expiração ou mecanismo de propagação, outras cópias podem continuar servindo valor antigo após uma atualização.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cache compartilhado reduz cópias divergentes entre instâncias, mas acrescenta uma consulta pela rede. Como avaliar a troca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir latência e taxa de acerto incluindo o salto de rede e a carga removida da origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que cache compartilhado tem latência zero por estar fora do banco principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar apenas o tamanho de memória e ignorar rede, acertos e consistência de atualização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar todas as métricas da origem, pois qualquer cache compartilhado impede misses.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o TTL sem limite para compensar a latência e garantir os dados mais recentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache remoto pode compartilhar entradas, mas cada acesso ainda paga comunicação e pode falhar ou sofrer miss. O benefício depende de hit rate, latência, carga poupada e política de frescor.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço atualiza a origem e, logo depois, outra requisição preenche o cache com valor antigo lido antes da escrita. Qual preocupação de projeto esse cenário evidencia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem concorrente entre leitura, gravação e invalidação pode ressuscitar uma cópia obsoleta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O TTL automaticamente serializa todas as operações e elimina qualquer disputa por chave.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O índice da origem ficou inconsistente porque cache-aside altera a ordem física das linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O valor antigo prova que a réplica da origem aplicou a escrita mais rapidamente que o principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A concorrência desaparece ao aumentar o número de leitores e reduzir o tempo de vida do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma leitura concorrente pode buscar valor antigo e preencher o cache após a invalidação. A política precisa coordenar ordem ou validar versões quando a tolerância do sistema não aceita essa janela.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço distribuído repetiu chamadas após timeout, embora a primeira operação pudesse ter sido concluída. Qual prática reduz risco de efeitos duplicados em operações repetíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Projetar a operação como idempotente ou usar identificador de deduplicação apropriado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o timeout até que a rede nunca retorne uma resposta ambígua ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar cada tentativa em uma conexão diferente para que a primeira transação seja cancelada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar índices da tabela para que uma operação repetida seja reconhecida pelo planejador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar a resposta em cache sem chave, independentemente do conteúdo da requisição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout não demonstra que a operação não aconteceu. Idempotência ou deduplicação permite tolerar repetição sem duplicar o efeito de negócio; a solução depende do contrato da operação.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa p50 estável e p99 alto somente em horários de pico. Qual hipótese deve ser examinada primeiro junto às métricas por dependência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Filas, saturação ou hotspots podem atrasar uma fração das solicitações sob carga elevada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A mediana estável prova que a rede não participa da latência das chamadas lentas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O percentil alto indica que todas as chamadas sofreram a mesma demora naquele intervalo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A solução necessária é remover estatísticas do banco, que só afetam operações rápidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A presença de cache exclui contenção de CPU, rede e conexões durante picos de tráfego.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caudas altas podem refletir gargalos que afetam apenas parte da carga, como fila, contenção ou chave quente. Decompor latência e observar saturação por serviço ajuda a localizar esse efeito.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backend Redis atende comandos rapidamente, mas cada comando do cliente aguarda a resposta antes de enviar o próximo. Qual modificação reduz round trips?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupar comandos independentes em pipeline, ou usar operação agregada suportada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Abrir um novo socket por comando e aguardar o fechamento antes da chamada seguinte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o protocolo de rede e enviar comandos diretamente à memória do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar uma leitura de confirmação entre cada comando para reduzir o tráfego total.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar cada comando em dois servidores e aguardar em série ambas as respostas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pipelining envia vários comandos sem esperar cada resposta para então iniciar o próximo, reduzindo viagens de rede. Comandos agregados também podem consolidar operações.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de relatório retorna quase toda a tabela. O DBA avalia um índice seletivo, mas o predicado inclui a maior parte das linhas. Qual escolha do planejador pode fazer sentido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Varredura sequencial, caso o custo de tantas buscas indexadas seja maior.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Index scan obrigatório, pois possuir índice torna qualquer leitura parcial mais barata.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nested loop obrigatório, porque consultas que retornam muitas linhas não podem usar hash join.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhum plano é possível, pois um predicado seletivo não pode retornar grande fração da tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache-aside, porque o planejador converte automaticamente consultas SQL em chaves de cache.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma consulta que precisa de grande parte da tabela pode ser mais barata por leitura sequencial do que por muitas buscas indexadas dispersas. A decisão depende da distribuição e dos custos estimados.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta ficou pior depois de aumentar muito a amostra estatística de uma coluna. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rever estimativas e planos; maior detalhe pode mudar escolhas sem garantir menor latência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A coleta sempre força o melhor plano, portanto a piora observada deve ser erro do cronômetro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estatísticas mais detalhadas desativam índices para que o otimizador use somente varredura sequencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O alvo de estatística controla diretamente quantas linhas a consulta pode retornar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A alteração prova que o banco parou de considerar filtros e ordenações no plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estatísticas influenciam estimativas, não impõem um resultado melhor em toda carga. Compare previsões, plano e latência observada e ajuste com evidência; mais detalhe também tem custo de coleta.",
+      "section": "2. Estatísticas e decisões do otimizador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de cache expira no mesmo instante em várias instâncias. Qual desenho pode diminuir a chance de todas consultarem a origem simultaneamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coordenar renovação por chave ou espalhar renovações com estratégia antecipada controlada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir o mesmo TTL rígido para todas as chaves e todas as instâncias iniciadas juntas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover observabilidade de miss para que o banco não receba métricas concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fazer cada instância expirar a chave mais cedo, aumentando o número de faltas simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a origem no instante da expiração, até que todas as cópias sejam reabastecidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Coordenar preenchimentos concorrentes reduz duplicação; renovação antecipada controlada também evita que muitas instâncias atinjam o limite ao mesmo tempo. TTL uniforme sem coordenação pode sincronizar faltas.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O plano usa um índice, mas a latência percebida continua alta porque a aplicação faz cinco consultas sequenciais a serviços remotos. Qual foco pode melhorar o caminho crítico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir viagens sequenciais, agrupar operações independentes e medir a latência de cada dependência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar mais índices ao banco até eliminar o tempo de espera em serviços remotos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir somente duração da consulta SQL e ignorar os tempos das chamadas de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de consultas sequenciais para manter todas as conexões aquecidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir p95 por throughput, pois operações remotas não afetam tempo de resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A latência ponta a ponta acumula dependências sequenciais. Agrupar operações independentes ou reduzir round trips pode diminuir o caminho crítico; a análise deve medir banco e rede.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema particionado usa como chave apenas código de situação com quatro valores, e um deles recebe quase todas as leituras. Qual afirmação descreve o risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Poucos valores e popularidade desigual podem concentrar I/O em partições quentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quatro valores garantem distribuição uniforme porque cada partição recebe um status distinto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma chave de baixa cardinalidade elimina a necessidade de estimar carga por valor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A distribuição desigual só afeta armazenamento, nunca latência ou throttling de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A solução é adicionar índices locais sem alterar ou medir a concentração de acessos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave com poucos valores e um valor dominante pode concentrar solicitações em poucas partições. O desenho deve considerar a frequência real de acesso, não só o número nominal de partições.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe avalia benefício do cache e vê hit rate alto, mas p99 piorou após colocá-lo em serviço remoto. Qual análise é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar latência de hits e misses, rede, cauda, carga poupada e comportamento sob falhas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concluir que o cache sempre melhora p99, pois hit rate alto elimina todos os misses.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover os dados de origem, pois hit rate alto prova que o cache contém todos os valores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar TTL até infinito, pois entradas antigas têm latência de rede menor que entradas atuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir somente CPU do servidor de cache e excluir tempo do cliente e da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hit rate não descreve sozinho a latência completa: o salto remoto, misses, saturação e cauda podem ser relevantes. Avalie o caminho inteiro e a carga realmente removida da origem.",
+      "section": "4. Cache, consistência e latência distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta filtra por status de baixa seletividade e retorna quase todas as linhas. Qual decisão sobre índice é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir o plano; uma varredura sequencial pode superar o índice para esse resultado amplo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar índice simples obrigatoriamente, pois todo predicado WHERE é seletivo por definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar índice único em status para obrigar o banco a ler uma linha por categoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar a tabela inteira em cache e deixar de medir a quantidade de linhas retornadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o alvo estatístico até o banco converter todos os filtros em buscas pontuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtro de baixa seletividade pode retornar uma fração grande da tabela, tornando varredura sequencial mais barata. Plano e medições determinam se o índice traz benefício para aquela consulta.",
+      "section": "3. Índices: acesso rápido e custo de manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um plano, o custo de startup é relativamente baixo, mas o custo total é elevado. Qual interpretação se alinha à documentação do PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O plano pode produzir a primeira linha cedo e ainda exigir muito trabalho para completar o resultado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O custo de startup é a latência p99 e o custo total é a média de todas as consultas do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Startup baixo garante execução completa rápida, mesmo quando o plano prevê muitas linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Custo total é o número de bytes armazenados nos índices, sem relação com execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os dois custos são tempos medidos, e não estimativas empregadas para comparar planos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O planejador distingue custo antes da primeira linha (startup) e custo total para produzir todas as linhas. Em contextos que param cedo, como EXISTS ou LIMIT, o startup pode pesar mais.",
+      "section": "1. Planos de execução e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — EXPLAIN",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Planos estimados e opção ANALYZE com execução observada e efeitos colaterais",
+      "url": "https://www.postgresql.org/docs/18/sql-explain.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Using EXPLAIN",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Nós de plano, varreduras, estimativas, tempos observados e interpretação",
+      "url": "https://www.postgresql.org/docs/current/using-explain.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — ANALYZE",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Coleta de estatísticas, amostragem e utilidade para o planejador",
+      "url": "https://www.postgresql.org/docs/current/sql-analyze.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Statistics Used by the Planner",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Estatísticas de coluna, histogramas e estatísticas estendidas multivariadas",
+      "url": "https://www.postgresql.org/docs/current/planner-stats.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Multicolumn Indexes",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Ordem e eficácia das colunas em índices compostos",
+      "url": "https://www.postgresql.org/docs/current/indexes-multicolumn.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Examining Index Usage",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Análise do uso real de índices e papel de ANALYZE",
+      "url": "https://www.postgresql.org/docs/current/indexes-examine.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis — Cache-aside",
+      "publisher": "Redis Ltd.",
+      "reference": "Fluxo cache-aside, TTL, invalidação e mitigação de stampede",
+      "url": "https://redis.io/docs/latest/develop/use-cases/cache-aside/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis — Diagnosing latency issues",
+      "publisher": "Redis Ltd.",
+      "reference": "Latência de rede e redução de round trips por pipelining e comandos agregados",
+      "url": "https://redis.io/docs/latest/management/optimization/latency/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon DynamoDB — Designing partition keys to distribute your workload",
+      "publisher": "Amazon Web Services",
+      "reference": "Distribuição de carga por chave de partição e risco de partições quentes",
+      "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-uniform-load.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon DynamoDB — Troubleshooting latency issues",
+      "publisher": "Amazon Web Services",
+      "reference": "Métricas de latência, percentis e interpretação de p50 e cauda",
+      "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TroubleshootingLatency.html",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

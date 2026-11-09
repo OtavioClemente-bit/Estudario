@@ -294,8 +294,10 @@ class Checker {
   fail(message: string) {
     this.problems.push(message);
   }
-  text(value: unknown, field: string, min = 1, max = 60_000): string {
-    if (typeof value === "string" && PLACEHOLDERS.test(value)) this.fail(`${field}: tem texto de rascunho/genérico`);
+  // placeholders = false: enunciado de prova real (sourceType REAL), escrito pela banca. "atos normativos, com conteúdo
+  // genérico, abstrato e impessoal" é texto legítimo de prova e travava a publicação (09/11).
+  text(value: unknown, field: string, min = 1, max = 60_000, placeholders = true): string {
+    if (placeholders && typeof value === "string" && PLACEHOLDERS.test(value)) this.fail(`${field}: tem texto de rascunho/genérico`);
     if (typeof value !== "string" || value.trim().length < min || value.length > max) {
       this.fail(`${field}: texto ausente, curto demais (mínimo ${min}) ou longo demais`);
       return "";
@@ -321,7 +323,7 @@ class Checker {
 }
 
 function checkQuestion(c: Checker, question: Json, field: string, chapterTitles: Set<string>, conceptKeys: Set<string>) {
-  c.text(question.statement, `${field}.statement`, 20, 4_000);
+  c.text(question.statement, `${field}.statement`, 20, 4_000, question.sourceType !== "REAL");
   const options = c.list(question.options, `${field}.options`, 2, 5);
   const keys = options.map((option) => String(option.key)).join();
   if (question.format === "TRUE_FALSE") {

@@ -1,0 +1,1651 @@
+{
+  "id": "informatica.automacao-hardening-virtualizacao-containers",
+  "subject": "Informática",
+  "title": "Automação, hardening, gestão de patches, virtualização e contêineres",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automação de infraestrutura e hardening",
+    "Hardening de sistemas operacionais e servidores",
+    "Virtualização de servidores e máquinas virtuais",
+    "Contêineres Docker e segurança de imagens",
+    "Automação, hardening, gestão de patches, virtualização e contêineres",
+    "Configuração segura automatizada de servidores",
+    "Isolamento de máquinas virtuais e contêineres"
+  ],
+  "scope": {
+    "covers": "Automação de infraestrutura como código, inventário, idempotência e gestão de configuração; hardening por redução de superfície de ataque, privilégio mínimo e verificação de desvios; gestão de patches com identificação, avaliação de risco, teste, implantação e verificação; virtualização, hipervisores, isolamento, snapshots e proteção de VMs; contêineres, imagens, namespaces, cgroups, privilégios e políticas Kubernetes.",
+    "excludes": "Sintaxe completa de ferramentas específicas, administração aprofundada de nuvem e exploração de vulnerabilidades."
+  },
+  "theoryTitle": "Operar infraestrutura com automação e isolamento seguros",
+  "chapters": [
+    {
+      "title": "1. Automação e configuração segura",
+      "markdown": "### O problema que este assunto resolve\n\nConfigurar muitos servidores manualmente gera diferenças difíceis de rastrear: uma porta fica aberta em apenas um nó, uma conta privilegiada é esquecida ou um serviço desnecessário continua ativo. A automação de infraestrutura registra o estado pretendido como código revisável e aplica mudanças de modo repetível. Ferramentas de configuração administram pacotes, arquivos, serviços e permissões; ferramentas de provisionamento descrevem máquinas, redes e volumes. Criar uma VM, portanto, não significa que o sistema operacional dentro dela esteja endurecido.\n\n> **Siglas e termos deste capítulo**\n> - **IaC**: infraestrutura como código, recursos descritos em arquivos versionados.\n> - **Idempotência**: repetição da tarefa converge ao mesmo estado sem duplicar efeitos.\n> - **Drift**: divergência entre estado observado e configuração aprovada.\n> - **Playbook**: conjunto ordenado de tarefas de configuração.\n> - **CMDB**: base de inventário e relações entre ativos.\n\n### Estado declarado, mudança rastreável\n\nUm inventário útil registra ativo, proprietário, sistema e versão, função, exposição de rede e criticidade. Uma linha de base concreta para servidores web pode exigir pacote aprovado, remoção de serviços de demonstração, proibição de login remoto direto como administrador, acesso SSH somente pela rede de gestão, sincronização de relógio e envio de logs ao coletor central. A automação compara o estado real com esse alvo e relata o que mudou. Uma tarefa idempotente garante que o pacote esteja instalado; executá-la novamente não instala cópias adicionais. Uma tarefa que acrescenta a mesma linha ao arquivo em todo ciclo, por outro lado, acumula efeitos e não converge.\n\nMudanças de firewall e identidade devem ser testadas em ambiente representativo e aplicadas primeiro a um grupo canário. O controle de versão registra autoria e revisão; a aprovação separada reduz erro e abuso. Segredos devem vir de cofre, não de senha em texto no repositório ou no log. Uma alteração automatizada ainda pode estar errada, por isso confirme o serviço e a configuração após executar.\n\n### Hardening e privilégio mínimo\n\nHardening reduz funções e acessos dispensáveis sem interromper a finalidade do ativo. Remover servidor de impressão de um nó de banco, fechar portas não usadas e desabilitar serviço de demonstração reduzem caminhos de ataque. A linha de base precisa ser específica à função; aplicar regra genérica sem testar dependências pode derrubar serviço legítimo. Contas humanas e de serviço recebem somente as permissões necessárias: uma coleta de logs pode ler fontes designadas e gravar no destino, sem administração total do host.\n\nA configuração segura precisa de manutenção. Mudança manual pode reativar um serviço ou ampliar uma permissão; comparar periodicamente o estado real com a linha de base detecta drift. Registros de login, elevação e alterações administrativas devem ser protegidos e revisados. Criptografar um volume não fecha uma porta de rede, assim como instalar agente de configuração não endurece automaticamente o sistema.\n\n| Prática | Exemplo | Resultado esperado |\n| --- | --- | --- |\n| Controle de versão | Revisar regra de firewall em alteração registrada | Rastreabilidade |\n| Cofre de segredos | Obter credencial durante execução autorizada | Menor exposição |\n| Canário | Atualizar primeiro poucos nós representativos | Menor raio de impacto |\n| Reconciliação | Comparar portas e serviços com a linha de base | Encontrar drift |\n\n### Como cai na prova\n\nIdempotência é convergência após repetição. Hardening reduz superfície e privilégio, mas precisa preservar a função. Automação exige inventário, revisão, teste progressivo e verificação; código versionado ajuda a rastrear, não prova que a execução funcionou."
+    },
+    {
+      "title": "2. Gestão de patches e atualizações",
+      "markdown": "### O problema que este assunto resolve\n\nFabricantes publicam patches para corrigir falhas, vulnerabilidades e defeitos. Deixar de atualizar mantém exposição; instalar sem avaliar dependências pode interromper uma operação. A gestão de patches é contínua: identifica ativos e versões, prioriza risco, obtém atualização de fonte confiável, testa, implanta e verifica. O NIST caracteriza gestão corporativa de patches como manutenção preventiva e recomenda estratégia organizacional integrada.\n\n> **Siglas e termos deste capítulo**\n> - **Patch**: atualização que corrige problema de software ou firmware.\n> - **CVE**: identificador público de vulnerabilidade divulgada.\n> - **CVSS**: pontuação de severidade técnica, não substituto do risco local.\n> - **Canário**: pequeno grupo que recebe primeiro a mudança para observação.\n> - **Exceção**: aceitação temporária e documentada do risco de não atualizar.\n\n### Do inventário à confirmação\n\nO inventário precisa incluir sistemas operacionais, aplicações, bibliotecas e firmware. Aviso do fornecedor informa versões afetadas, correções, pré-requisitos e incompatibilidades. A priorização combina severidade técnica com exploração conhecida, exposição à rede, criticidade do serviço, dados tratados e controles compensatórios. Uma falha com pontuação elevada em ativo isolado pode ter prioridade diferente da mesma falha em serviço exposto que autentica usuários.\n\nObtenha pacotes de repositório aprovado e valide origem e integridade por assinatura ou mecanismo confiável. Teste instalação, inicialização, funções críticas, integração e desempenho em ambiente representativo. Implante em anéis: laboratório, canário, grupo menor e demais ativos. Coordene reinicializações e janelas com o responsável pelo serviço. Depois, confira versão efetiva, saúde, logs e reinicialização pendente: painel sem erro não prova que máquinas desligadas receberam patch nem que processos carregaram a biblioteca nova.\n\n| Etapa | Evidência |\n| --- | --- |\n| Identificar | Inventário e versões elegíveis |\n| Priorizar | Exposição, exploração, criticidade e impacto |\n| Obter | Origem aprovada e integridade verificada |\n| Testar | Funções, dependências e plano de retorno |\n| Implantar | Anéis, janela e registro de falhas |\n| Verificar | Versão instalada e serviço saudável |\n\n### Exceções e comprovação\n\nIncompatibilidade pode impedir correção imediata, mas a exceção precisa de responsável, justificativa, aprovação, medidas compensatórias e data de reavaliação. Segmentar e restringir acesso reduz exposição temporariamente; não corrige o defeito. Relatórios devem discriminar ativos atualizados, pendentes, falhos, sem comunicação e excepcionados. Retirar ativos silenciosos do inventário só esconderia a lacuna.\n\n### Como cai na prova\n\nO ciclo não termina no download: teste, implantação e verificação fazem parte do processo. CVSS informa, mas exposição e impacto também priorizam. Controle compensatório não equivale a patch; instalação em disco pode exigir reinicialização para entrar em vigor."
+    },
+    {
+      "title": "3. Virtualização e segurança de máquinas virtuais",
+      "markdown": "### O problema que este assunto resolve\n\nVirtualização permite executar sistemas convidados isolados sobre recursos de um servidor físico. O hipervisor administra CPU, memória, armazenamento e rede virtual. Em classificação geral, tipo 1 executa diretamente sobre hardware ou arquitetura dedicada equivalente; tipo 2 funciona como aplicação sobre sistema operacional hospedeiro. A categoria, por si só, não assegura segurança nem desempenho.\n\n> **Siglas e termos deste capítulo**\n> - **VM**: máquina virtual com sistema operacional convidado.\n> - **Hipervisor**: componente que cria e administra máquinas virtuais.\n> - **Snapshot**: captura de estado para retorno operacional, conforme a plataforma.\n> - **Live migration**: transferência da execução entre hosts com interrupção reduzida.\n> - **Escape**: violação do isolamento que alcança host ou outra carga.\n\n### Camadas de proteção\n\nHost, hipervisor, console de gestão, convidados e aplicações têm inventários e ciclos de patch próprios. Atualizar o hipervisor não corrige a biblioteca vulnerável dentro de uma VM. O plano de gestão permite criar, copiar, desligar e conectar muitas VMs; restrinja-o a rede administrativa, use autenticação forte, privilégio mínimo, registro de operações e credenciais protegidas. Separe redes de gestão, armazenamento e cargas, limite recursos e mantenha firmware e hipervisor suportados.\n\nSnapshot pode facilitar retorno após mudança, mas costuma depender do disco base ou do mesmo armazenamento. Não é necessariamente cópia independente contra falha ou comprometimento do volume. Backups exigem cópia protegida, retenção e teste de restauração. Restaurar snapshot antigo pode reintroduzir software vulnerável e credenciais revogadas. Clones de produção devem ter dados e segredos sanitizados antes de entrar em teste.\n\nEm Hyper-V, VMs protegidas podem usar Secure Boot, TPM virtual e criptografia de estado salvo e tráfego de migração. Host Guardian Service atesta hosts e autoriza quais podem iniciar certas VMs. Isso reduz inspeção ou adulteração por administrador do host em cenários configurados, mas requer gestão de chaves e planejamento para autorizar hosts de recuperação.\n\n| Recurso | Uso | Precaução |\n| --- | --- | --- |\n| Snapshot | Retorno rápido após alteração | Não presumir independência do armazenamento |\n| Clone | Ambiente de teste | Sanitizar dados e credenciais |\n| Migração | Transferir VM entre hosts | Proteger canal e autorizar destino |\n| Console | Administração e diagnóstico | Segmentar e auditar acesso |\n\n### Como cai na prova\n\nVM é ativo próprio; convidado e hipervisor recebem patches separados. Snapshot não substitui backup. A interface de gestão pode afetar diversas cargas, e tráfego de migração requer proteção adequada."
+    },
+    {
+      "title": "4. Contêineres, imagens e orquestração",
+      "markdown": "### O problema que este assunto resolve\n\nContêiner empacota aplicação e dependências e normalmente compartilha o kernel do host. VM virtualiza hardware e executa seu próprio kernel convidado. Contêiner costuma ser mais leve, mas sua fronteira de isolamento é diferente e não deve ser tratada como absoluta.\n\n> **Siglas e termos deste capítulo**\n> - **Imagem**: artefato em camadas usado para criar contêineres.\n> - **Registry**: repositório de imagens.\n> - **Namespace**: mecanismo que isola visões como processos, rede e mounts.\n> - **Cgroup**: mecanismo para contabilizar ou limitar recursos de processos.\n> - **Pod**: unidade implantável Kubernetes que pode agrupar contêineres.\n\n### Imagem e runtime com privilégio mínimo\n\nUse imagens de origem confiável, reduza pacotes, acompanhe dependências e fixe digest quando precisar identificar exatamente os bytes testados. Separar build e execução reduz compiladores e ferramentas desnecessários na imagem final. Não grave senha, token ou chave na imagem: camadas anteriores podem preservar o segredo mesmo que outra camada apague o arquivo. Injete segredos por mecanismo apropriado em execução.\n\nNamespaces separam visões de recursos; cgroups contabilizam e limitam CPU ou memória. Nenhum deles elimina riscos do daemon, kernel ou configuração permissiva. Acesso ao socket do daemon Docker pode permitir controle amplo do host. Prefira processo sem root, retire capacidades Linux dispensáveis, evite modo privilegiado e mounts graváveis de todo o host. Use limite de recursos e, se compatível, raiz somente leitura com volume restrito para dados mutáveis.\n\n### Kubernetes e contexto de segurança\n\n`securityContext` configura identidade e acesso: `runAsUser` e `runAsNonRoot` definem identidade; `allowPrivilegeEscalation: false` restringe escalada; `readOnlyRootFilesystem: true` monta raiz somente leitura; `capabilities.drop` remove capacidades; seccomp filtra chamadas de sistema; SELinux e AppArmor aplicam perfis conforme suporte do nó. Ajuste à necessidade da aplicação. RBAC deve restringir quem cria e altera workloads, pois essa capacidade pode permitir acesso indireto aos nós.\n\nPod Security Standards definem `privileged`, `baseline` e `restricted`, do mais permissivo ao mais restritivo. Pod Security Admission aplica política por namespace. `enforce` rejeita Pod incompatível; `audit` registra anotação sem bloquear; `warn` avisa o solicitante sem bloquear. É possível começar com observação, corrigir manifestos e então impor. Memória e CPU também devem ter limites para reduzir contenção e negação de serviço.\n\n### Como cai na prova\n\nContêiner compartilha kernel; namespace e cgroup têm funções diferentes. Modo privilegiado e acesso ao daemon aumentam impacto potencial. No Kubernetes, somente enforce rejeita; audit e warn observam ou informam. Imagem segura não elimina atualização de runtime, nó, kernel e orquestrador."
+    }
+  ],
+  "summary": "Automação declara, versiona e verifica estado de infraestrutura; idempotência permite repetição previsível. Hardening reduz serviços, portas e privilégios desnecessários e exige detectar desvios continuamente. Gestão de patches cobre inventário, avaliação de risco, origem confiável, teste, implantação gradual e verificação efetiva, incluindo exceções documentadas. Virtualização requer proteger hipervisor, gestão, convidados e dados; snapshot não substitui backup independente. Contêineres compartilham o kernel do host, usam namespaces para isolamento e cgroups para recursos, e devem executar com privilégio mínimo. Kubernetes oferece securityContext e Pod Security Admission: enforce rejeita, audit registra e warn avisa.",
+  "flashcards": [
+    {
+      "front": "O que é idempotência?",
+      "back": "Repetir tarefa converge ao mesmo estado sem duplicar efeitos."
+    },
+    {
+      "front": "O que é drift?",
+      "back": "Diferença entre estado observado e configuração aprovada."
+    },
+    {
+      "front": "Por que inventariar antes de corrigir?",
+      "back": "Para identificar versões, ativos afetados, funções e cobertura da atualização."
+    },
+    {
+      "front": "CVSS define sozinho a prioridade?",
+      "back": "Não; exposição, exploração, criticidade e impacto local também contam."
+    },
+    {
+      "front": "O que é implantação canário?",
+      "back": "Aplicar primeiro a um grupo pequeno e observar antes de expandir."
+    },
+    {
+      "front": "O que registrar numa exceção de patch?",
+      "back": "Responsável, justificativa, risco, mitigação, aprovação e reavaliação."
+    },
+    {
+      "front": "Snapshot é backup?",
+      "back": "Não necessariamente; pode depender do disco primário e não ser cópia independente."
+    },
+    {
+      "front": "Qual diferença entre hipervisor tipo 1 e tipo 2?",
+      "back": "Tipo 1 executa sobre hardware/host dedicado; tipo 2 sobre sistema operacional hospedeiro."
+    },
+    {
+      "front": "O que fazem namespaces?",
+      "back": "Isolam visões de recursos, como processos, rede e mounts."
+    },
+    {
+      "front": "O que fazem cgroups?",
+      "back": "Contabilizam ou limitam consumo de CPU, memória e outros recursos."
+    },
+    {
+      "front": "O que modo privilegiado concede?",
+      "back": "Acesso amplo a recursos do host, aumentando impacto de comprometimento."
+    },
+    {
+      "front": "Para que serve `readOnlyRootFilesystem`?",
+      "back": "Monta a raiz do contêiner somente para leitura."
+    },
+    {
+      "front": "O que controla `allowPrivilegeEscalation: false`?",
+      "back": "Restringe mecanismos de obtenção de privilégios adicionais pelo processo."
+    },
+    {
+      "front": "Quais níveis tem Pod Security Standards?",
+      "back": "Privileged, baseline e restricted."
+    },
+    {
+      "front": "O que faz enforce?",
+      "back": "Rejeita Pods que violam o nível aplicado."
+    },
+    {
+      "front": "O que faz audit?",
+      "back": "Registra violação sem bloquear a solicitação."
+    },
+    {
+      "front": "O que faz warn?",
+      "back": "Emite aviso ao solicitante sem bloquear."
+    },
+    {
+      "front": "Por que o socket Docker é sensível?",
+      "back": "Acesso pode permitir controlar contêineres e recursos do host."
+    },
+    {
+      "front": "Por que não embutir segredo em imagem?",
+      "back": "Camadas podem preservar conteúdo mesmo após apagar arquivo em camada posterior."
+    },
+    {
+      "front": "Para que fixar digest de imagem?",
+      "back": "Para identificar o conteúdo exato testado e implantado."
+    }
+  ],
+  "tips": [
+    "Memorize o ciclo: inventariar, priorizar, obter, testar, implantar e verificar.",
+    "Provisionar VM não equivale a endurecer o sistema convidado.",
+    "Enforce rejeita; audit registra; warn avisa.",
+    "Contêiner compartilha kernel; VM executa kernel convidado.",
+    "Namespace isola visões; cgroup controla recursos.",
+    "Snapshot não substitui cópia de segurança independente."
+  ],
+  "traps": [
+    "Confundir execução sem erro com patch confirmado no ativo.",
+    "Usar só CVSS para ordenar toda atualização.",
+    "Achar que audit ou warn bloqueiam Pods.",
+    "Dar modo privilegiado para resolver erro de permissão.",
+    "Tratar snapshot como única cópia contra falha de armazenamento.",
+    "Supor que patch do hipervisor corrige convidados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva automação segura de configuração.",
+      "answer": "Inventariar, declarar estado em código revisável, proteger segredos, testar, aplicar a canário, observar e verificar conformidade."
+    },
+    {
+      "question": "Como priorizar patch?",
+      "answer": "Cruzar severidade com exploração, exposição, criticidade, dados, controles compensatórios e impacto operacional."
+    },
+    {
+      "question": "Que evidência confirma atualização?",
+      "answer": "Versão efetiva, reinicialização necessária, saúde do serviço, logs e reconciliação dos ativos elegíveis."
+    },
+    {
+      "question": "Cite controles de hardening.",
+      "answer": "Remover serviços dispensáveis, fechar portas não necessárias e limitar contas e permissões, mantendo verificação de desvios."
+    },
+    {
+      "question": "Compare snapshot e backup.",
+      "answer": "Snapshot facilita retorno e pode depender do disco base; backup é cópia independente, protegida e restaurável."
+    },
+    {
+      "question": "Por que contêiner não é VM?",
+      "answer": "Contêiner compartilha kernel do host; VM virtualiza hardware e costuma executar kernel convidado próprio."
+    },
+    {
+      "question": "Como reduzir privilégios de contêiner?",
+      "answer": "Usuário não root, capacidades mínimas, sem escalada, mounts restritos e limites de recursos."
+    },
+    {
+      "question": "Diferencie modos de admissão Kubernetes.",
+      "answer": "Enforce rejeita, audit registra e warn avisa sem bloquear."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Automação sem convergência",
+      "summary": "Rotina que só executa comandos pode duplicar efeitos. Estado declarativo e idempotente converge; revisão, teste e verificação continuam necessários."
+    },
+    {
+      "key": "e2",
+      "title": "Patch como tarefa pontual",
+      "summary": "Sem inventário, priorização, implantação e comprovação, ativos ficam esquecidos. Exceções precisam de dono, mitigação e reavaliação."
+    },
+    {
+      "key": "e3",
+      "title": "Virtualização como proteção total",
+      "summary": "Hipervisor, gestão, convidados e dados são camadas distintas. Snapshot não é necessariamente backup independente."
+    },
+    {
+      "key": "e4",
+      "title": "Contêiner com privilégio amplo",
+      "summary": "Root, capacidades desnecessárias, modo privilegiado, mounts amplos e daemon exposto elevam o impacto de falha."
+    },
+    {
+      "key": "e5",
+      "title": "Modos Kubernetes confundidos",
+      "summary": "Enforce bloqueia; audit e warn observam ou informam sem impedir por si mesmos a criação do Pod."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma tarefa garante que um pacote esteja instalado e não acrescenta mudanças quando executada novamente. Qual propriedade descreve esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Idempotência, pois a repetição converge ao mesmo estado final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicação, pois cada execução cria uma cópia em outro host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Virtualização, pois a tarefa mantém o pacote em kernel próprio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criptografia, pois o arquivo fica oculto após a instalação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escalonamento, pois cada repetição aumenta a capacidade do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Idempotência permite repetir a aplicação sem acrescentar efeitos e mantém o estado pretendido. Replicar dados, virtualizar hardware, criptografar e escalar recursos são operações diferentes da convergência de configuração.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Servidores de mesma função têm portas abertas diferentes por mudanças manuais. Qual controle permite localizar a divergência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar o estado observado com uma linha de base versionada da função.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar snapshots sem verificar regras ou serviços após a captura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar logs de rede para evitar diferenças entre registros dos nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear cada host para forçar a sincronização das configurações locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar todos os servidores e presumir que portas serão uniformizadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma linha de base documenta o estado aprovado e permite identificar drift entre servidores. Snapshot, renomeação e reinicialização não comparam nem corrigem automaticamente regras de rede divergentes.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de firewall automatizada pode bloquear o acesso remoto de toda a frota se estiver errada. Qual implantação reduz o raio de impacto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar e testar, aplicar a um canário, observar e expandir por etapas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar simultaneamente a todos e aguardar chamados para detectar falhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma conta compartilhada permanente e pular a revisão para ganhar tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter a regra fora do controle de versão e copiá-la manualmente por host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar monitoramento durante toda a mudança para evitar alertas de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Revisão, teste, canário e expansão gradual permitem interromper a mudança antes de afetar todos os nós. Versionamento ajuda a reverter, mas não evita indisponibilidade causada por implantação simultânea de configuração incorreta.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço coleta logs de um diretório e os envia a um coletor. Como aplicar menor privilégio à sua conta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder leitura somente nas fontes necessárias e escrita no destino autorizado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dar administração local para que futuras integrações não falhem por permissão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a conta pessoal de um administrador em todos os servidores gerenciados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compartilhar a conta root entre todos os serviços para simplificar auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar a senha em texto no playbook e restringir apenas o nome do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conta deve ler apenas as fontes e gravar apenas no destino de que precisa. Administração ampla, credenciais pessoais compartilhadas ou senha em código aumentam o impacto de comprometimento e enfraquecem a atribuição de ações.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: hardening reduz serviços e acessos desnecessários, mas precisa ser ajustado à função para não interromper dependências legítimas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Reduzir superfície de ataque é objetivo do hardening, porém a linha de base precisa considerar função e dependências. Testes e validação com o responsável evitam desativar componentes necessários ao negócio.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: automação idempotente pode ser executada novamente após uma falha sem necessariamente duplicar o efeito desejado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Idempotência significa convergir ao mesmo estado quando a tarefa é repetida. Isso facilita retomada, embora cada execução ainda deva ser monitorada e a configuração testada antes de produção.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: armazenar uma senha em Base64 no repositório transforma a credencial em segredo protegido contra leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Base64 é codificação reversível, não criptografia nem controle de acesso. Segredos devem ser obtidos por mecanismo apropriado e não mantidos no histórico do repositório ou em logs.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma alteração de configuração registrada em Git dispensa teste porque o histórico permite recuperar qualquer estado sem impacto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Versionamento favorece revisão e rastreabilidade, mas não impede que uma alteração errada cause indisponibilidade antes da reversão. Teste, canário e observação limitam o impacto operacional.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma conta que só precisa ler logs pode receber acesso de administrador se a senha for rotacionada com frequência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Rotação de senha não reduz permissões excessivas. O princípio do menor privilégio exige conceder somente leitura nas fontes necessárias e os direitos de envio estritamente requeridos.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: comparação recorrente do estado real com a linha de base pode encontrar uma regra de firewall adicionada manualmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A reconciliação de configuração detecta drift, inclusive portas ou regras não aprovadas. A equipe deve investigar se a mudança foi autorizada ou corrigir o desvio conforme o processo definido.",
+      "section": "1. Automação e configuração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a pontuação técnica de severidade deve ser combinada com exposição e criticidade ao priorizar correções para ativos distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Severidade é informação importante, mas risco local também depende de exploração, exposição, dados e impacto do serviço. Contexto ajuda a ordenar correções sem ignorar a vulnerabilidade.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: verificar a instalação após uma atualização inclui confirmar versão efetiva e reinicialização quando necessária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um pacote pode estar gravado, mas um processo ainda usar bibliotecas antigas até reiniciar. Confirme estado instalado, reinicialização pendente e saúde do serviço para comprovar a correção.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma exceção aprovada para patch incompatível elimina a necessidade de acompanhar o risco até uma solução definitiva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exceção é aceitação temporária, não correção. Deve ter responsável, mitigação e reavaliação, mantendo o ativo visível até que atualização ou alternativa resolva a exposição.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: atualizar o hipervisor atualiza automaticamente as bibliotecas instaladas dentro do sistema operacional convidado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hipervisor e convidado são camadas distintas com componentes e ciclos de atualização próprios. O inventário e a implantação precisam cobrir ambos, além de aplicações executadas na VM.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação exposta à internet executa versão com falha explorada; outro ativo isolado tem severidade técnica parecida. Como priorizar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Priorizar a aplicação exposta após ponderar exploração, criticidade e impacto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atualizar primeiro o ativo isolado porque pontuação técnica determina toda ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adiar ambos até o próximo ciclo sem registrar risco ou controles temporários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher pela dimensão do arquivo, começando pelo pacote menor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir o ativo exposto do inventário para evitar erro de priorização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exposição pública e exploração aumentam urgência, junto com criticidade, impacto e viabilidade. A severidade técnica é insumo, mas não define sozinha o risco relativo de ativos com contextos diferentes.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização crítica atende serviço de transações. Que plano valida a mudança antes de alcançar toda a produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar funções e dependências, implantar a canário e observar antes de expandir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confiar apenas no teste de desenvolvimento e aplicar sem monitoramento em todos os nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar alertas e comunicar usuários somente se a aplicação parar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar primeiro nos hosts mais críticos sem consultar o responsável do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Baixar de espelho desconhecido se o repositório aprovado estiver lento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste representativo, canário e observação identificam regressões antes da expansão. Mantenha origem confiável, monitore saúde e coordene janela com o responsável pelo serviço.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O painel indica sucesso, mas alguns servidores estavam desligados durante a janela de patch. Como fechar a lacuna?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconciliar com o inventário, localizar nós sem evidência e programar nova verificação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Considerá-los corrigidos porque os servidores ligados reportaram instalação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retirá-los do inventário para melhorar a taxa consolidada de conformidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar os nós atualizados e inferir que os desligados receberam o pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Encerrar a mudança porque o orquestrador não apontou falha global.",
+          "correct": false
+        }
+      ],
+      "explanation": "A equipe precisa comprovar cobertura de todos os ativos elegíveis. Máquinas sem comunicação não demonstram instalação e devem receber a correção ou uma exceção formal, sem desaparecer do inventário.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote baixado do repositório aprovado apresenta assinatura diferente da publicada pelo fornecedor. Qual conduta é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suspender a instalação e confirmar origem e integridade por canal confiável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o alerta se o nome do pacote parecer correto no diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar a validação de assinatura para toda a frota durante a janela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Instalar primeiro e conferir conteúdo depois de reiniciar os servidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar os registros do download para evitar abertura de incidente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Assinatura inesperada compromete a confiança na origem e integridade. Suspenda a implantação, preserve evidências e valide o artefato com o fornecedor ou repositório confiável antes de prosseguir.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após instalar uma atualização, o painel mostra versão nova, mas o serviço ainda carrega bibliotecas antigas. Qual etapa falta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar reinicialização pendente e validar o serviço depois de reiniciar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desinstalar o agente de inventário para que não compare versões divergentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir a instalação várias vezes antes de observar processos em execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Marcar a atualização concluída pois o arquivo novo já está no disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir prioridade porque a versão em memória não aparece no inventário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Algumas correções só ficam ativas após reinicialização do serviço ou host. Confirme a pendência e valide versão em uso e saúde do serviço; pacote gravado em disco não comprova aplicação completa.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema legado ficará sem patch por incompatibilidade. Qual medida pode reduzir temporariamente sua exposição sem alegar que a falha foi corrigida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Segmentar o ativo, restringir origens de conexão e monitorar tentativas relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Renomear o host e encerrar o chamado como correção definitiva da vulnerabilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar monitoramento para que a equipe não veja tentativas contra o serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Expor o serviço à internet para que o fornecedor possa atualizá-lo remotamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o ativo do inventário e considerar o risco transferido ao usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segmentação e restrição de acesso são controles compensatórios que reduzem exposição enquanto se avalia uma solução. A vulnerabilidade permanece e precisa de exceção documentada, dono e reavaliação.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um hipervisor executa como aplicação sobre um sistema operacional hospedeiro. Como a arquitetura é classificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tipo 2, pois funciona sobre um sistema operacional hospedeiro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tipo 1, pois todo hipervisor é necessariamente um serviço de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cgroup, pois limita a memória compartilhada entre sistemas convidados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Snapshot, pois captura o estado do sistema hospedeiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Namespace, pois cria kernel convidado para cada máquina virtual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na classificação geral, hipervisor tipo 2 opera sobre um sistema operacional hospedeiro. Tipo 1 executa diretamente sobre hardware ou arquitetura dedicada equivalente; snapshot, cgroup e namespace são conceitos diferentes.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa snapshots no mesmo armazenamento da VM como única recuperação. Qual lacuna permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha do armazenamento primário pode atingir VM e snapshot dependente do mesmo volume.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Snapshots não podem registrar alterações de estado depois da inicialização do convidado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma VM com snapshot deixa de executar patches no sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O hipervisor sempre criptografa snapshot e o copia para outro local automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A existência de snapshot impede restauração de backup independente em outro host.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snapshot pode depender do disco base e do armazenamento original, portanto não oferece necessariamente cópia independente contra sua falha. Backups protegidos e testes de restauração são necessários para recuperação confiável.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação protege melhor o plano administrativo que permite criar, copiar e desligar várias VMs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir console e API à rede de gestão, com autenticação forte e auditoria.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar o console na rede de usuários para facilitar suporte em qualquer estação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar credenciais administrativas para que todas as equipes possam operar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar logs de operações para evitar armazenamento de dados administrativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover limites de recursos e deixar a API sem autenticação dentro do datacenter.",
+          "correct": false
+        }
+      ],
+      "explanation": "O plano de gestão controla muitas cargas e pode causar impacto amplo. Segmentação, autenticação forte, privilégio mínimo e registro limitam acesso indevido e permitem reconstruir mudanças administrativas.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM de produção será clonada para testes. Que precaução evita transferir riscos desnecessários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sanitizar dados, segredos e identidade e manter o clone isolado da produção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Preservar credenciais reais para que os testes não precisem de validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar controles de acesso e logs para tornar o ambiente de teste simples.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conectar o clone a todos os segmentos produtivos para receber os mesmos anúncios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir o clone do inventário e deixar que opere sem política de atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Clones podem conter dados sensíveis, credenciais e identificadores reais. Sanitização, credenciais próprias e isolamento limitam exposição e conflitos antes de conectar a réplica a um ambiente não produtivo.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM comprometida consome toda a memória do host compartilhado. Que controle limita melhor o impacto em outras cargas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir limites e reservas de recursos compatíveis com capacidade e criticidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar mais snapshots para dividir automaticamente a memória física do host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover autenticação do console para que qualquer usuário ajuste recursos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover o host para a rede pública para ampliar a disponibilidade de memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir a VM do inventário para que o hipervisor ignore sua demanda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Limites e reservas permitem gerir recursos compartilhados e reduzir contenção entre convidados. Snapshots não controlam memória em execução; inventário e acesso ao console também não substituem política de recursos.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM com dados sensíveis será migrada para outro host. Qual controle merece verificação antes da operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proteção do tráfego e autorização do host de destino para receber a carga.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativação de autenticação porque os dois hosts pertencem à mesma rede interna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusão de registros para que a migração não deixe trilha administrativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abertura do console à rede de usuários durante a transferência dos discos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remoção da criptografia para acelerar a migração sem avaliar sensibilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "A migração transmite dados e estado e deve usar canal protegido e destino autorizado. A rede interna não elimina risco de interceptação ou host indevido; mantenha autenticação, controles e auditoria.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contêiner consome memória crescente e ameaça outros workloads do nó. Qual mecanismo permite contabilizar e limitar esse consumo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cgroups, configurados por limites apropriados de recursos do workload.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Namespaces de rede, que reservam memória física exclusiva ao processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registry, que controla CPU do processo ao armazenar a imagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RBAC, que substitui o escalonador e limita uso de memória no kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Snapshot, que bloqueia crescimento de memória sem alterar execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cgroups fornecem contabilização e limites de recursos como memória e CPU. Namespace de rede isola a visão de interfaces; registry e snapshot não impõem limites ao processo em execução.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Pod deve executar sem root e não pode ganhar privilégios adicionais. Que configuração trata diretamente essas propriedades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar identidade não privilegiada e `allowPrivilegeEscalation: false` no securityContext.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir limite de CPU e habilitar rede do host para o processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fixar digest e remover toda autorização RBAC do namespace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar volume persistente e marcar contêiner como privilegiado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir política de reinício e conceder escrita no filesystem do nó.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contexto de segurança define identidade e controle de escalada. UID não privilegiado ou runAsNonRoot evita execução como root; allowPrivilegeEscalation false restringe obtenção de privilégios adicionais.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer observar violações do perfil restricted e, após corrigir manifestos, bloquear Pods incompatíveis. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Audit registra sem bloquear; enforce rejeita a violação após ativação da política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Audit rejeita; enforce apenas informa; warn altera manifestos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Warn bloqueia no API server; audit concede permissões ao Pod.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os três modos têm efeito idêntico e diferem somente no nome do evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enforce permite e registra; audit remove Pods depois de executados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pod Security Admission separa efeitos: audit anota a violação sem impedir, enquanto enforce rejeita Pods incompatíveis. Warn apresenta aviso sem bloquear e pode ajudar na transição antes de impor política.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: gestão de patches inclui localizar ativos afetados e confirmar que a atualização entrou em vigor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Inventário mostra a população afetada e verificação posterior confirma versão e funcionamento. Apenas baixar o pacote não demonstra que todos os ativos foram corrigidos.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um pacote com assinatura inválida pode ser instalado se o aviso de segurança parecer urgente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Urgência não elimina a necessidade de verificar origem e integridade do artefato. Suspenda a instalação e valide a assinatura por canal confiável para evitar executar pacote adulterado.",
+      "section": "2. Gestão de patches e atualizações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: contêineres normalmente compartilham kernel do host, portanto sua segurança depende também da proteção do nó e do runtime.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Processos contêinerizados usam o kernel do host com mecanismos de isolamento. Atualizar a imagem sem proteger kernel, runtime e permissões do nó deixa outras camadas expostas.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o modo warn do Pod Security Admission rejeita o Pod que viola o perfil configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Warn apresenta aviso ao solicitante, mas não bloqueia. O modo enforce rejeita violação; audit registra informação sem impedir a requisição.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: acesso ao daemon Docker pode dar controle amplo sobre o host e deve ser concedido com cautela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quem controla o daemon pode criar contêineres com mounts e privilégios capazes de afetar o host. Trate esse acesso como sensível e restrinja a operadores autorizados.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: snapshot no mesmo volume primário garante recuperação se esse volume falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Snapshot pode depender do volume que falhou e não ser cópia independente. Backup protegido em local separado e teste de restauração atendem melhor à recuperação contra perda do armazenamento.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo contêinerizado precisa de poucas chamadas do kernel. Qual controle pode restringir as chamadas disponíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seccomp, aplicado com perfil compatível com a aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cgroup, usado para criptografar chamadas de sistema do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Namespace de PID, usado para validar assinatura do registry.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RBAC, usado para filtrar chamadas Linux diretamente no kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Snapshot, usado para bloquear chamadas sem mudar o contêiner.",
+          "correct": false
+        }
+      ],
+      "explanation": "Seccomp filtra chamadas de sistema permitidas ao processo. Cgroups contabilizam recursos, namespaces isolam visões, RBAC autoriza operações da API e snapshot captura estado em outro contexto.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia mantém reproduzível a imagem que passou por teste e foi promovida a produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Referenciar o digest do conteúdo testado e registrar sua origem no pipeline.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar sempre a tag mutável latest sem registrar qual conteúdo foi implantado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear a imagem depois do teste, sem conferir se os bytes mudaram.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar a imagem de um registry público sem verificar assinatura ou procedência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar credenciais ao Dockerfile para identificar a versão implantada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Digest identifica o conteúdo específico da imagem e ajuda a promover o mesmo artefato que foi testado. Tags mutáveis podem apontar para bytes diferentes, e cópias sem verificação não estabelecem procedência confiável.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação em Kubernetes não precisa de acesso administrativo à API. Qual configuração reduz sua autoridade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder via RBAC apenas ações e recursos necessários ao workload.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Vincular a conta de serviço ao papel cluster-admin para evitar falhas futuras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar autenticação interna porque os Pods compartilham rede do cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar o contêiner como root para herdar permissões da API automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover políticas de admissão para simplificar a autorização de solicitações.",
+          "correct": false
+        }
+      ],
+      "explanation": "RBAC deve conceder somente verbos e recursos necessários. Papel cluster-admin amplia impacto de comprometimento, e identidade Unix do contêiner ou rede interna não substituem autorização da API Kubernetes.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma registra Pod que viola restricted sem bloqueá-lo durante a migração. Qual modo está aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Audit, que anota violações sem rejeitar a solicitação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enforce, que permite a criação e apenas envia aviso ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Warn, que bloqueia o Pod e grava sua imagem no registry.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Baseline, que é um modo de execução que instala o Pod automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Privileged, que é uma ferramenta de registro de auditoria do API server.",
+          "correct": false
+        }
+      ],
+      "explanation": "Audit registra evidência de violação sem bloquear, útil para avaliar impacto antes de impor política. Enforce rejeita; warn informa o solicitante sem bloquear. Baseline e privileged são níveis, não modos.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma migração de VM, a carga protegida não inicia no host novo. Qual verificação é pertinente em ambiente com HGS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar atestação e atualização da autorização ou do protetor de chave para o destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar Secure Boot permanentemente e compartilhar a senha do administrador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar os logs de migração e copiar qualquer chave para todos os hosts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a VM em contêiner e manter o disco sem verificar integridade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover inventário e TPM virtual para forçar a inicialização sem autorização.",
+          "correct": false
+        }
+      ],
+      "explanation": "VM protegida depende de host autorizado; migração pode exigir atualizar o protetor de chave e validar atestação do destino. Compartilhar chaves ou desativar controles enfraquece a proteção em vez de corrigir autorização.",
+      "section": "3. Virtualização e segurança de máquinas virtuais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem segura foi publicada, mas a versão de runtime do nó tem vulnerabilidade corrigida pelo fornecedor. Qual decisão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluir runtime e nó no inventário e aplicar seu próprio ciclo de atualização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o runtime porque o conteúdo da imagem controla o kernel do host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recriar a mesma imagem sem alterar o nó ou verificar a versão em execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar orquestração para que a falha do runtime deixe de ser registrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar apenas na assinatura da imagem como correção automática do runtime.",
+          "correct": false
+        }
+      ],
+      "explanation": "Imagem, runtime, kernel, nó e orquestrador são componentes distintos. Imagem confiável não corrige vulnerabilidade do runtime; atualize a camada afetada e verifique os workloads após a mudança.",
+      "section": "4. Contêineres, imagens e orquestração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-40 Rev. 4: Guide to Enterprise Patch Management Planning",
+      "publisher": "NIST",
+      "reference": "Ciclo corporativo de identificação, priorização, aquisição, instalação e verificação de patches.",
+      "url": "https://csrc.nist.gov/pubs/sp/800/40/r4/final",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Docker Engine security",
+      "publisher": "Docker Docs",
+      "reference": "Namespaces, cgroups, capabilities e áreas de segurança do engine.",
+      "url": "https://docs.docker.com/engine/security/",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configure a Security Context for a Pod or Container",
+      "publisher": "Kubernetes",
+      "reference": "Identidade, privilégio, escalada e sistema raiz somente leitura.",
+      "url": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pod Security Admission",
+      "publisher": "Kubernetes",
+      "reference": "Níveis e efeitos de enforce, audit e warn por namespace.",
+      "url": "https://kubernetes.io/docs/concepts/security/pod-security-admission/",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Security Checklist",
+      "publisher": "Kubernetes",
+      "reference": "RBAC, padrões de segurança, limites, seccomp, AppArmor e SELinux.",
+      "url": "https://kubernetes.io/docs/concepts/security/security-checklist/",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hyper-V generation 2 virtual machine security features",
+      "publisher": "Microsoft Learn",
+      "reference": "VMs protegidas, Secure Boot, TPM e Host Guardian Service.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/learn-more/Generation-2-virtual-machine-security-settings-for-Hyper-V",
+      "accessedAt": "2026-11-09"
+    }
+  ]
+}

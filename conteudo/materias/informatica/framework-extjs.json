@@ -1,0 +1,1949 @@
+{
+  "id": "informatica.framework-extjs",
+  "subject": "Informática",
+  "title": "Framework Ext JS",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Framework ExtJS",
+    "Framework Ext JS para aplicações web",
+    "Desenvolvimento de interfaces com Ext JS",
+    "Sencha Ext JS e seus componentes",
+    "Arquitetura MVC e MVVM no Ext JS",
+    "ViewModel e data binding no Ext JS",
+    "Model Store e Proxy do Ext JS",
+    "Layouts e containers do Ext JS",
+    "Aplicações de página única com Ext JS"
+  ],
+  "scope": {
+    "covers": "Framework Ext JS da Sencha: estrutura de aplicações SPA, classes e componentes, containers e layouts, toolkits Classic e Modern, arquitetura MVC/MVVM, ViewController, ViewModel e data binding, pacote de dados Model/Store/Proxy, leitura e gravação por proxies, componentes de formulário e grade, configuração e build com Sencha Cmd e boas práticas de organização.",
+    "excludes": "Programação JavaScript geral aprofundada, criação de serviços de servidor, sintaxe completa de HTML/CSS, diferenças exaustivas entre versões comerciais, licenciamento e detalhes proprietários de cada componente."
+  },
+  "theoryTitle": "Construção de aplicações com Ext JS",
+  "chapters": [
+    {
+      "title": "1. O framework e a estrutura da aplicação",
+      "markdown": "### O problema que este assunto resolve\n\nExt JS é um framework JavaScript da Sencha para construir aplicações web com interfaces ricas, especialmente sistemas de negócio com formulários, tabelas, navegação e grande quantidade de dados. Em vez de montar cada elemento visual e sua interação do zero, o desenvolvedor compõe componentes prontos e os conecta a dados e eventos. Aplicações geradas pelo fluxo usual do Ext JS são aplicações de página única (SPA): o navegador carrega a estrutura inicial e a interface passa a ser atualizada pelo JavaScript, sem recarregar uma página inteira a cada interação.\n\n> **Siglas e termos deste capítulo**\n> - **SPA**: Single-Page Application, aplicação cuja navegação e atualização principal ocorrem dentro de uma página carregada.\n> - **Sencha Cmd**: ferramenta de linha de comando usada para criar, configurar e construir aplicações Ext JS.\n> - **Namespace**: caminho lógico que organiza e identifica classes da aplicação.\n> - **Toolkit**: conjunto de componentes e estilos direcionado a determinado tipo de interface.\n\n### Arquivos e responsabilidades\n\nUma aplicação criada com Sencha Cmd costuma separar classes em áreas como `app/view`, `app/model` e `app/store`. A view descreve o que aparece na tela; models representam registros e seus campos; stores mantêm conjuntos de registros para consulta e exibição. A classe de aplicação concentra configurações e o método `launch`, executado depois do carregamento das classes necessárias. O arquivo `app.json` reúne configurações globais como toolkit, tema, caminhos de classes, bibliotecas e CSS externo.\n\n| Elemento | Responsabilidade típica |\n| --- | --- |\n| `index.html` | Documento inicial aberto pelo navegador |\n| `app.json` | Configuração global usada pelo processo de build |\n| `Application.js` | Inicialização e configuração geral da aplicação |\n| `view` | Componentes e composição visual |\n| `model` | Campos, identidade e regras de registros |\n| `store` | Coleção de registros e operações sobre ela |\n| `bootstrap.js` / build | Carregamento dos arquivos e artefatos para execução |\n\n### Classes, componentes e configuração\n\nA API do Ext JS organiza funcionalidades em classes sob o namespace global `Ext`. Classes costumam ser declaradas com `Ext.define`, indicando classe-base com `extend`, configurações, métodos e, quando pertinente, um `alias` para criação por tipo. Componentes visuais são instâncias configuráveis: por exemplo, um botão pode ser identificado por `xtype: 'button'` dentro de uma lista `items`. `xtype` indica o tipo de componente a instanciar; ele não é o identificador único da instância. Configurações descrevem o componente, enquanto métodos e eventos operam sobre ele depois de criado.\n\n### Classic e Modern\n\nO Ext JS oferece toolkits Classic e Modern. Eles têm catálogos e comportamentos de componentes adequados a diferentes necessidades de interface e dispositivos, embora compartilhem conceitos fundamentais como classes, componentes, dados e arquitetura. Componentes de um toolkit não devem ser presumidos como intercambiáveis com os do outro: confira a documentação e a compatibilidade do projeto. A escolha do toolkit é uma configuração do projeto, não algo que se resolve apenas trocando o nome de um componente no código.\n\n### Como cai na prova\n\n- `app.json` guarda configuração geral; não é o arquivo em que se implementa toda a lógica das telas.\n- `Application.js` oferece o ponto de inicialização `launch`; o bootstrap e o build participam do carregamento da aplicação.\n- `xtype` identifica uma espécie de componente, enquanto o `reference` serve para localizar uma instância no contexto de uma view.\n- SPA não significa que a aplicação não conversa com servidor: dados podem ser obtidos por proxies e requisições."
+    },
+    {
+      "title": "2. Componentes, containers e layouts",
+      "markdown": "### O problema que este assunto resolve\n\nUma interface com painéis dentro de abas, formulários alinhados e grades que ocupam o espaço restante precisa organizar uma árvore visual. No Ext JS, quase tudo que aparece é um componente. Um container é um componente que pode conter outros componentes; painéis e formulários podem atuar como containers. A configuração `items` define filhos, e o layout do container determina como esses filhos são dimensionados e posicionados.\n\n> **Siglas e termos deste capítulo**\n> - **Component**: unidade de interface do Ext JS, com configuração, ciclo de vida e eventos.\n> - **Container**: componente que gerencia outros componentes filhos.\n> - **Layout**: regra de posicionamento e dimensionamento dos filhos de um container.\n> - **`xtype`**: alias usado para declarar o tipo de um componente em uma configuração.\n\n### Layout é responsabilidade do container\n\nTodo container possui um layout. O layout padrão Auto Layout não impõe regras especiais de dimensionamento e posicionamento: os filhos seguem o fluxo padrão. Quando a interface pede colunas, abas, cartões, formulário ou uma região que se estende, seleciona-se um layout apropriado, por exemplo `hbox`, `vbox`, `border`, `card` ou `fit`, conforme disponibilidade e toolkit. O layout pai coordena a geometria dos filhos; não é necessário manipular diretamente o DOM para cada redimensionamento.\n\nAdicionar ou remover componentes ou redimensionar o container pode exigir novo cálculo de layout, que o framework normalmente administra. Em operações em lote, há configurações para suspender atualizações e depois solicitá-las, mas chamadas manuais de `updateLayout` não são o mecanismo cotidiano de composição da tela.\n\n| Necessidade visual | Conceito usado |\n| --- | --- |\n| Agrupar filhos e controlar sua disposição | Container com `items` e `layout` |\n| Trocar entre telas que ocupam a mesma região | Layout do tipo card |\n| Fazer um filho preencher a área disponível | Layout adequado, como fit |\n| Definir campos alinhados em uma tela | Container/formulário com layout apropriado |\n\n### Eventos e ciclo de vida\n\nComponentes emitem eventos como clique e seleção. A configuração `listeners` associa eventos a funções; em uma aplicação com ViewController, handlers podem ser declarados na controladora da view. Uma instância nasce, é renderizada e pode ser destruída; recursos associados devem acompanhar esse ciclo. O ViewController ligado a uma view é criado e descartado junto dela, o que ajuda a evitar controladores globais acumulando estado de telas já fechadas.\n\n### Como cai na prova\n\n- Container contém filhos; layout organiza tamanho e posição desses filhos.\n- Auto Layout é o padrão simples, sem regras especiais de posicionamento.\n- `items` compõe a hierarquia visual; `layout` controla como os itens são apresentados.\n- Layout resolve a composição; não substitui Store, ViewModel ou Controller."
+    },
+    {
+      "title": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "markdown": "### O problema que este assunto resolve\n\nQuando eventos de clique, estado da tela e acesso aos dados ficam misturados no mesmo componente, mudanças pequenas tornam a aplicação difícil de entender. O Ext JS permite organizar a aplicação com padrões MVC e MVVM. Eles separam responsabilidades: a view descreve interface, o controller trata ações/eventos, e o model de domínio representa dados. No MVVM, o ViewModel mantém estado e fornece dados para a view, que reage por binding. Os padrões podem coexistir na arquitetura MVC+VM do Ext JS.\n\n> **Siglas e termos deste capítulo**\n> - **MVC**: Model-View-Controller, divisão entre dados, interface e coordenação de ações.\n> - **MVVM**: Model-View-ViewModel, divisão que acrescenta um estado de apresentação conectado declarativamente à view.\n> - **ViewController**: controlador associado ao ciclo de vida de uma view, com handlers e referências.\n> - **ViewModel**: objeto que gerencia dados de apresentação e fornece bindings à view e aos descendentes.\n> - **Binding**: vínculo que atualiza configurações de componentes quando os dados ligados mudam.\n\n### Controller e ViewController\n\nUma view pode declarar `controller` e associar um ViewController por alias, por exemplo `controller.main`. O ViewController recebe eventos da view por listeners e referências e concentra handlers locais, como a ação após seleção de uma linha. A relação com a view favorece encapsulamento: instâncias de telas diferentes podem ter controladoras próprias, e o ciclo de vida da controladora acompanha o componente associado.\n\n### ViewModel e binding\n\nA configuração `viewModel` fornece dados à view e aos seus descendentes. Com `bind`, uma configuração de componente pode acompanhar uma propriedade do ViewModel, desde que a configuração suporte setter. Um vínculo direto como `{nome}` preserva o tipo do valor; um template como `Olá, {nome}` produz texto. Fórmulas calculam valores derivados, como nome completo a partir de nome e sobrenome, sem obrigar a view a conter essa lógica. Views filhas podem herdar acesso ao ViewModel ancestral.\n\nAlguns campos e componentes suportam atualização nos dois sentidos: a mudança na interface pode voltar ao estado ligado. Isso depende de o componente publicar aquele estado; não se deve presumir que todo binding seja automaticamente bidirecional. Referências de componentes podem expor propriedades de estado para que outro componente as use em bindings.\n\n| Responsabilidade | MVC/MVVM no Ext JS |\n| --- | --- |\n| Estrutura visual e composição | View |\n| Reação a eventos da view | Controller / ViewController |\n| Estado e valores de apresentação ligados | ViewModel |\n| Entidade persistível e campos | `Ext.data.Model` |\n\n### Como cai na prova\n\n- ViewModel não é o controlador de eventos: administra dados ligados à interface.\n- ViewController oferece handlers e referências associados à view.\n- Binding elimina atualização manual repetitiva para configurações suportadas, mas não substitui toda lógica da aplicação.\n- Fórmula deriva valor; não é proxy de rede nem definição de layout."
+    },
+    {
+      "title": "4. Dados, Model, Store e Proxy",
+      "markdown": "### O problema que este assunto resolve\n\nUma grade precisa exibir registros e permitir ordenação e filtro; um formulário precisa carregar um registro e salvar alterações. O pacote de dados do Ext JS organiza essas tarefas em classes cooperantes. Model descreve um registro; Store mantém uma coleção de registros Model no cliente e oferece operações de consulta; Proxy define a comunicação com uma fonte de dados. Componentes como grids podem consumir Stores.\n\n> **Siglas e termos deste capítulo**\n> - **Model**: classe que representa registros, campos e identidade de uma entidade.\n> - **Store**: coleção/cache no cliente de registros Model, com consulta, filtro e ordenação.\n> - **Proxy**: mecanismo de leitura e gravação entre o pacote de dados e sua fonte.\n> - **Reader / Writer**: componentes do proxy que interpretam respostas e formatam gravações.\n> - **CRUD**: operações de criar, consultar, atualizar e remover registros.\n\n### Model e campos\n\nUm `Ext.data.Model` declara campos, tipos e, quando necessário, validações, valores padrão e conversões. Instâncias representam registros. O Store usa um model para transformar dados recebidos em registros estruturados. Declarar tipos e validações ajuda a manter consistência, embora o framework também possa receber dados sem uma lista explícita completa de campos.\n\n### Store e Proxy\n\nStore é um cache client-side de registros e concentra operações como carregar, filtrar, ordenar e consultar. A Store pode conter dados locais ou usar proxy. Proxies podem ser client-side (por exemplo, memória) ou remotos (por exemplo, Ajax/REST), conforme o caso. Num proxy JSON, o reader interpreta a resposta do servidor e pode extrair registros de uma propriedade raiz; operações de escrita podem usar a configuração correspondente do proxy e writer. A Store não é o servidor nem o banco de dados: é a camada client-side que organiza registros e coordena operações pela API de dados.\n\nUma grid ligada a uma Store apresenta os registros e pode solicitar ordenação ou filtros; dependendo do proxy e da configuração, essas operações são locais ou enviadas ao servidor. Não se deve assumir que qualquer filtro é remoto só porque há um proxy remoto.\n\n| Classe | Papel no fluxo |\n| --- | --- |\n| Model | Define a forma do registro e seus campos |\n| Store | Mantém e consulta um conjunto de registros |\n| Proxy | Transporta operações para ou da fonte de dados |\n| Reader | Converte resposta recebida em dados/registros |\n| Grid / form | Apresenta ou edita dados consumindo essas classes |\n\n### Como cai na prova\n\n- Model é o registro e sua estrutura; Store é a coleção; Proxy é o acesso à fonte.\n- Store pode filtrar e ordenar; o fato de haver proxy não torna toda operação necessariamente remota.\n- Reader interpreta a resposta; não define o layout da interface.\n- Formulário pode carregar Model e atualizar/salvar o registro, desde que a operação esteja configurada."
+    },
+    {
+      "title": "5. Ferramentas, componentes de negócio e integração",
+      "markdown": "### O problema que este assunto resolve\n\nProjetos de interface corporativa precisam de uma forma repetível de iniciar, organizar e publicar o código. Sencha Cmd cria e constrói aplicações Ext JS, processa configurações do projeto e produz artefatos para execução. A aplicação não consiste apenas em uma coleção de arquivos independentes: o processo de build conhece dependências e configurações, incluindo toolkit, tema e caminhos definidos no projeto.\n\n> **Siglas e termos deste capítulo**\n> - **Build**: processo que prepara arquivos e dependências para execução ou publicação.\n> - **Microloader / bootstrap**: mecanismo que inicia o carregamento dos arquivos da aplicação.\n> - **Grid**: componente tabular ligado normalmente a uma Store.\n> - **Form Panel**: painel que reúne campos e pode carregar/atualizar registros.\n\n### Componentes ricos ligados aos dados\n\nA grade é um exemplo clássico de componente Ext JS que exibe coleção de registros, com colunas e seleção. Formulários reúnem campos, validação e operações de leitura/gravação. A associação entre componentes e camada de dados evita que a view tenha de implementar manualmente todo o armazenamento, interpretação e consulta dos dados. Ainda assim, a aplicação deve tratar estados de carregamento, validação, erro e sucesso de maneira coerente com seu serviço.\n\n### Build e organização\n\nO `app.json` participa da configuração usada pelo Cmd. Em projetos padrão, o bootstrap carrega os arquivos necessários e o build de produção agrupa/prepara recursos para entrega. Arquivos gerados não devem ser confundidos com código-fonte principal da view. O Cmd também ajuda a criar a estrutura esperada; a lógica da interface costuma residir nas classes da aplicação, organizadas por namespace.\n\n### Boas práticas de integração\n\nMantenha responsabilidades legíveis: view cuida da composição, ViewController de eventos locais, ViewModel de estado ligado e Model/Store/Proxy dos dados. Use o toolkit escolhido de modo consistente. Prefira bindings para sincronizar valores de interface suportados e mantenha acesso remoto em proxies/serviços configurados, em vez de embutir chamadas de rede arbitrárias em cada componente. Confirme no servidor a validação e as regras de negócio: validação no cliente melhora a experiência, mas não protege por si só os dados persistidos.\n\n### Como cai na prova\n\n- Sencha Cmd cuida de geração e build; o servidor remoto continua sendo responsabilidade da aplicação/serviço integrado.\n- O `app.json` participa da configuração global, incluindo toolkit e tema.\n- Componentes de grade e formulário podem consumir Stores e Models sem serem a própria camada de persistência.\n- Validação de formulário no navegador não substitui a validação autoritativa no servidor."
+    }
+  ],
+  "summary": "Ext JS é um framework JavaScript da Sencha para interfaces web ricas, organizado em classes e componentes configuráveis. Containers agrupam componentes e layouts controlam a disposição. Aplicações podem usar MVC/MVVM: ViewController concentra handlers ligados à view; ViewModel administra estado de apresentação e alimenta bindings e fórmulas. O pacote de dados separa Model (registro e campos), Store (coleção client-side com consulta, ordenação e filtros) e Proxy (comunicação com fonte de dados). Sencha Cmd estrutura e constrói a aplicação, enquanto app.json mantém configurações globais como toolkit e tema.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza uma SPA Ext JS?",
+      "back": "A interface é atualizada principalmente pelo JavaScript dentro da página carregada, sem recarregar o documento inteiro a cada interação."
+    },
+    {
+      "front": "Qual é o papel de app.json?",
+      "back": "Reunir configurações globais do projeto, como toolkit, tema, classpath e recursos externos."
+    },
+    {
+      "front": "Para que serve Application.js?",
+      "back": "Configurar a aplicação e fornecer o ponto de inicialização, incluindo launch após carregar as classes necessárias."
+    },
+    {
+      "front": "O que significa xtype?",
+      "back": "Alias de tipo usado para declarar qual componente deve ser criado numa configuração."
+    },
+    {
+      "front": "O que é um container?",
+      "back": "Um componente que pode conter e gerenciar outros componentes filhos."
+    },
+    {
+      "front": "Quem determina a disposição dos filhos de um container?",
+      "back": "O layout configurado no container."
+    },
+    {
+      "front": "Qual é o comportamento geral de Auto Layout?",
+      "back": "É o layout padrão simples, sem regras especiais para posicionar ou dimensionar os filhos."
+    },
+    {
+      "front": "Qual a função de ViewController?",
+      "back": "Reunir handlers, listeners e referências associados a uma view e ao seu ciclo de vida."
+    },
+    {
+      "front": "Qual a função de ViewModel?",
+      "back": "Gerenciar dados de apresentação consumidos por bindings na view e em seus descendentes."
+    },
+    {
+      "front": "O que é data binding?",
+      "back": "Vínculo que atualiza configurações suportadas de componentes quando os dados ligados mudam."
+    },
+    {
+      "front": "O que faz uma fórmula de ViewModel?",
+      "back": "Calcula um valor derivado de outros dados do ViewModel, mantendo esse cálculo fora da estrutura visual."
+    },
+    {
+      "front": "Todo binding Ext JS é bidirecional?",
+      "back": "Não. A volta do componente para o ViewModel depende de o componente publicar aquele estado."
+    },
+    {
+      "front": "O que representa Ext.data.Model?",
+      "back": "Um tipo de registro com campos, valores e funções relacionadas à entidade representada."
+    },
+    {
+      "front": "O que mantém uma Store?",
+      "back": "Uma coleção/cache client-side de registros Model, com operações como filtro, ordenação e consulta."
+    },
+    {
+      "front": "Para que serve um Proxy?",
+      "back": "Definir como as operações de dados se comunicam com uma fonte local ou remota."
+    },
+    {
+      "front": "Qual é a função de um reader JSON?",
+      "back": "Interpretar a resposta JSON recebida pelo proxy e extrair dados para registros."
+    },
+    {
+      "front": "Grid e Store são a mesma coisa?",
+      "back": "Não. Grid apresenta dados tabulares; Store mantém e organiza os registros consumidos pela grid."
+    },
+    {
+      "front": "O que Sencha Cmd faz?",
+      "back": "Cria, configura e constrói projetos Ext JS, preparando dependências e artefatos de execução."
+    },
+    {
+      "front": "O que é toolkit no Ext JS?",
+      "back": "Conjunto de componentes e recursos visuais para uma família de interfaces, como Classic ou Modern."
+    },
+    {
+      "front": "Validação client-side basta para proteger a persistência?",
+      "back": "Não. O servidor precisa validar as regras antes de aceitar e persistir os dados."
+    }
+  ],
+  "tips": [
+    "Memorize a separação Model = registro, Store = coleção e Proxy = comunicação com a fonte.",
+    "Ao ler uma tela, identifique primeiro a árvore de componentes, o container pai e o layout que organiza os filhos.",
+    "Para questões sobre estado reativo da interface, procure ViewModel e bind; para eventos, procure ViewController e listeners.",
+    "Um bind com um único token preserva o valor; um template com texto ao redor produz uma string.",
+    "Quando aparecer app.json, associe-o às configurações globais de projeto, como toolkit e tema.",
+    "Considere filtros e ordenação como locais ou remotos conforme configuração da Store e do Proxy, sem presumir pelo nome do componente."
+  ],
+  "traps": [
+    "Trocar o papel do Store pelo Proxy: o Store organiza registros; o Proxy faz a mediação de operações com a fonte.",
+    "Tratar o ViewModel como se fosse a classe que recebe todos os cliques; handlers de tela pertencem normalmente ao ViewController.",
+    "Afirmar que qualquer configuração pode ser ligada: binding exige suporte apropriado, como setter, e nem toda propriedade publica seu estado.",
+    "Confundir xtype com identificador único: xtype indica tipo de componente, não distingue uma instância específica.",
+    "Presumir que um Proxy remoto torna filtros e ordenações sempre remotos; isso depende da configuração e do comportamento do Store.",
+    "Dizer que validação no navegador substitui validação de servidor; o cliente melhora a interação, mas não é autoridade de persistência."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como uma configuração de app.json difere de uma classe de view?",
+      "answer": "app.json registra opções globais do projeto; uma classe de view descreve os componentes e a composição de uma tela."
+    },
+    {
+      "question": "Qual sequência liga dados remotos a uma grade?",
+      "answer": "Proxy carrega e interpreta dados, Model representa registros, Store mantém a coleção e a grid apresenta os registros."
+    },
+    {
+      "question": "Como o layout participa do redimensionamento?",
+      "answer": "O layout do container recalcula posicionamento e dimensões dos filhos quando a área muda ou sua composição é alterada."
+    },
+    {
+      "question": "O que acontece com um binding quando muda o valor do ViewModel?",
+      "answer": "A configuração vinculada do componente é atualizada pelo mecanismo de binding se ela for suportada."
+    },
+    {
+      "question": "Como se relacionam ViewController e vida útil da view?",
+      "answer": "O ViewController associado é gerenciado com a view; outra instância de view pode ter sua própria controladora."
+    },
+    {
+      "question": "Quando usar uma fórmula em ViewModel?",
+      "answer": "Quando um valor de apresentação deve ser calculado a partir de outros dados e suas dependências acompanhadas."
+    },
+    {
+      "question": "O que o Model acrescenta além de guardar propriedades?",
+      "answer": "Pode definir campos, tipos, validações, valores padrão e conversões que descrevem o registro."
+    },
+    {
+      "question": "Por que uma validação de formulário não encerra a validação do dado?",
+      "answer": "O cliente é controlado pelo usuário e pode ser contornado; o servidor deve validar antes de persistir."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Papéis trocados entre Model, Store e Proxy",
+      "summary": "Model descreve o registro, Store organiza uma coleção no cliente e Proxy liga as operações à fonte de dados."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre ViewController e ViewModel",
+      "summary": "Controller trata ações e handlers associados à view; ViewModel mantém dados de apresentação e alimenta bindings."
+    },
+    {
+      "key": "e3",
+      "title": "Binding presumido como universal",
+      "summary": "O binding depende de configurações suportadas e a sincronização nos dois sentidos depende da publicação do estado pelo componente."
+    },
+    {
+      "key": "e4",
+      "title": "Layout confundido com componente de dados",
+      "summary": "Layouts controlam geometria dos filhos de containers; stores e proxies não determinam a organização visual."
+    },
+    {
+      "key": "e5",
+      "title": "Cliente tratado como autoridade de segurança",
+      "summary": "Validação e regras no navegador não substituem verificações confiáveis no servidor antes da persistência."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma aplicação Ext JS, qual arquivo costuma reunir configurações globais como toolkit e tema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "app.json, que declara opções gerais do projeto usadas pela aplicação e pelo build.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Application.js, que armazena exclusivamente o CSS final e as imagens do tema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "index.html, que descreve os campos de cada Model e as colunas de todas as grades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "bootstrap.js, que substitui as configurações de tema por handlers de eventos de tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Store.js, que configura globalmente o toolkit e define o layout de cada container.",
+          "correct": false
+        }
+      ],
+      "explanation": "app.json reúne configurações gerais do projeto, incluindo toolkit, tema, classpath e recursos externos. Application.js cuida da configuração e inicialização da aplicação; index.html é o documento inicial, e bootstrap e Store têm outras responsabilidades.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente uma SPA desenvolvida com Ext JS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A interface pode ser atualizada pelo JavaScript sem recarregar o documento inteiro a cada ação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A aplicação não pode fazer requisições ao servidor depois que o index.html termina de carregar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada clique precisa abrir um novo documento HTML, pois componentes não mudam a tela atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todo dado usado pela aplicação deve permanecer dentro do arquivo index.html inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor deixa de participar da aplicação e não pode validar nem persistir registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Numa SPA, as interações e mudanças de interface ocorrem principalmente dentro da página já carregada. Isso não impede chamadas ao servidor: proxies podem carregar e salvar dados remotamente, e o servidor continua responsável por suas regras e persistência.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve o alias xtype em uma configuração de componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indicar o tipo de componente a ser instanciado, como button ou textfield.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar um identificador universal que diferencia uma instância de todas as outras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir a URL remota usada por qualquer Proxy associado à aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar os campos persistentes que serão adicionados a cada Model do projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Selecionar o toolkit global do projeto depois que a aplicação já foi iniciada.",
+          "correct": false
+        }
+      ],
+      "explanation": "xtype é um alias de tipo para declarar um componente numa configuração. A identificação de uma instância específica pode usar configurações como itemId ou reference, e a seleção do toolkit ocorre na configuração do projeto.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo de inicialização de uma aplicação Ext JS, qual é o papel típico de Application.js?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fornecer configuração da aplicação e um launch executado após o carregamento das classes necessárias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Interpretar respostas JSON de todos os serviços e convertê-las diretamente em registros da Store.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir app.json e definir somente regras de posicionamento dos filhos na tela inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter uma instância global obrigatória de cada componente criado pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gerar o banco de dados remoto e executar as regras de validação de persistência do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Application.js é o centro da configuração da aplicação e pode fornecer o método launch, chamado depois que as classes requeridas foram carregadas. Interpretar resposta é papel de reader/proxy, e a persistência do banco cabe ao serviço remoto.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre os toolkits Classic e Modern do Ext JS, qual conclusão é adequada ao escolher componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A compatibilidade deve ser conferida, pois os toolkits têm conjuntos e comportamentos próprios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os toolkits diferem apenas no nome de pastas e aceitam qualquer componente de forma idêntica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classic serve apenas para dados locais, enquanto Modern é exclusivo para serviços REST.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O toolkit deve ser escolhido por cada Store e pode mudar durante qualquer consulta remota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modern elimina classes, layouts e componentes, construindo toda interface diretamente no DOM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Classic e Modern são toolkits com conjuntos e comportamentos de componentes adequados a diferentes interfaces. Conceitos gerais são compartilhados, mas não se deve presumir que componentes específicos sejam intercambiáveis; a escolha é feita na configuração do projeto.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor coloca vários componentes em items de um painel, mas precisa que eles sejam distribuídos em duas colunas. Qual recurso deve configurar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O layout do container, que controla posição e dimensionamento dos componentes filhos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O reader do Proxy, que define a quantidade de colunas visuais para a resposta recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Model de cada filho, que determina a posição de tela por meio dos nomes de campo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ViewModel, que substitui os layouts e escreve as coordenadas diretamente no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A configuração launch, que ordena todos os elementos e divide automaticamente a janela.",
+          "correct": false
+        }
+      ],
+      "explanation": "O layout de um container define como seus filhos são posicionados e dimensionados. A configuração items declara os filhos, mas a disposição em colunas pertence ao layout, não ao Model, ViewModel ou Proxy.",
+      "section": "2. Componentes, containers e layouts",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza um container no modelo de interface do Ext JS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um componente capaz de conter outros componentes e organizar seus filhos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É um registro Model que agrupa campos e envia-os ao servidor em cada evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um Proxy que mantém conexões simultâneas para os componentes de uma tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma fórmula do ViewModel usada exclusivamente para calcular valores numéricos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma folha de estilo que substitui a hierarquia de componentes por seletores CSS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Container é um tipo especial de componente com capacidade de conter outros componentes. Seu layout gerencia a disposição dos filhos; Model, Proxy, fórmula e folha CSS têm funções distintas.",
+      "section": "2. Componentes, containers e layouts",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao Auto Layout padrão de containers no Ext JS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele não impõe regras especiais de posicionamento ou dimensionamento aos componentes filhos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele organiza todos os filhos em abas e só mostra um painel de cada vez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele obriga cada filho a ocupar exatamente toda a área disponível no container.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele envia os filhos para o servidor e recupera sua ordem em cada atualização de tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele distribui necessariamente os filhos em linhas e colunas de tamanhos equivalentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Auto Layout é o padrão simples: não define regras especiais para posição ou tamanho dos filhos, que seguem o fluxo usual. Comportamentos como preencher a área, empilhar em abas ou dividir regiões exigem outro layout apropriado.",
+      "section": "2. Componentes, containers e layouts",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma janela contém vários painéis, e uma seleção no painel deve alternar qual painel ocupa a região principal. Que tipo de layout é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Card, que permite alternar entre componentes filhos apresentados na mesma região.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Auto, que converte cada painel filho em um registro ordenado pela data de criação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Proxy, que alterna a tela conforme o endereço remoto de cada registro carregado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Model, que esconde os filhos não selecionados e persiste a aba ativa no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reader, que interpreta o clique e redesenha os componentes na ordem do JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "O layout card é usado quando filhos ocupam a mesma área e a interface alterna qual deles está ativo. Proxy e reader tratam do fluxo de dados, não da navegação entre painéis.",
+      "section": "2. Componentes, containers e layouts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o container muda de tamanho, qual parte do Ext JS coordena o novo posicionamento dos filhos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sistema de layout do container recalcula tamanho e posição da hierarquia de componentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Store refaz o cálculo visual ao ordenar seus registros por identificador primário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O reader JSON transforma as dimensões da tela em novos campos de cada Model.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ViewModel assume o lugar do DOM e converte dados ligados em coordenadas absolutas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Proxy envia a nova largura ao servidor e aguarda uma resposta para posicionar os filhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sistema de layout cuida de dimensionar e posicionar os componentes filhos e pode executar novamente quando o container é redimensionado. Store, reader e Proxy não calculam a geometria da interface.",
+      "section": "2. Componentes, containers e layouts",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela tem um listener de seleção de grade e precisa executar uma ação associada somente àquela view. Qual classe é a candidata natural para o handler?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ViewController ligado à view, que reúne handlers e referências de seus eventos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O ViewModel, que recebe obrigatoriamente todos os eventos e salva cada clique como campo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O reader da Store, que converte eventos de seleção em objetos JSON persistidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Model da grade, que deve conter a composição visual e os listeners de todos os painéis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tema global, que define os métodos de negócio executados após cada interação.",
+          "correct": false
+        }
+      ],
+      "explanation": "ViewController é associado à view e pode concentrar listeners, handlers e referências, com vida útil ligada ao componente. ViewModel gerencia dados de apresentação, enquanto Model e reader não são controladores de eventos da tela.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual responsabilidade distingue o ViewModel do ViewController?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ViewModel gerencia dados de apresentação ligados à view e aos seus descendentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O ViewModel substitui o Proxy e abre conexões HTTP para toda Store automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ViewModel define a árvore de componentes e o ViewController armazena os registros remotos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ViewModel executa o build do projeto, enquanto o ViewController seleciona o toolkit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ViewModel controla exclusivamente o tema e o ViewController declara campos de Model.",
+          "correct": false
+        }
+      ],
+      "explanation": "ViewModel mantém dados de apresentação usados por bindings. ViewController concentra handlers, listeners e referências associados às interações da view; não são nomes intercambiáveis para uma única responsabilidade.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma propriedade de ViewModel ligada à configuração title de um painel muda. O que o binding pode fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar a configuração title do painel usando o mecanismo de binding suportado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar o nome da classe do painel e reconstruir o bundle de produção imediatamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modificar os campos do Model associado e executar uma gravação no servidor sem Proxy.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o toolkit da aplicação e reiniciar o navegador por meio do ViewController.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reordenar as migrações de layout e substituir a estrutura da página HTML inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Binding conecta dados do ViewModel a configurações de componentes suportadas. Como painel possui a configuração title, a atualização do dado pode atualizar o título por seu setter, sem reconstruir a aplicação ou salvar registros automaticamente.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença existe entre um binding direto {idade} e um template textual como Idade: {idade}?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O direto pode preservar o tipo do valor; o template com texto produz uma string.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O direto sempre grava no banco; o template textual só pode ler dados do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O direto só funciona com Stores, enquanto o template é exclusivo para eventos de clique.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O direto calcula uma fórmula e o template altera o Model sem passar pelo ViewModel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não há diferença: ambos convertem qualquer valor em texto antes de chegar ao componente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um descriptor composto apenas por um token passa seu valor sem conversão para string, preservando o tipo. Um template com texto ao redor interpola os tokens e resulta em texto, o que é relevante para configurações booleanas ou numéricas.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe liga um campo de texto ao ViewModel e espera que qualquer configuração vinculada seja sincronizada automaticamente nos dois sentidos. Essa expectativa é correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O binding pode atualizar uma configuração quando o valor de origem muda, mas a sincronização do componente de volta ao ViewModel depende de o componente publicar aquele estado. Não se deve presumir bidirecionalidade para toda configuração.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fórmula chamada nomeCompleto concatena nome e sobrenome armazenados no ViewModel e é consumida por vários componentes. O emprego da fórmula é adequado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Fórmulas de ViewModel calculam valores derivados de outros dados e acompanham suas dependências, permitindo que a view declare o que exibe sem duplicar esse cálculo em cada componente.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma view filha pode aproveitar dados de um ViewModel pertencente a um container ancestral, conforme a hierarquia de ViewModels do Ext JS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ViewModels associados podem formar uma hierarquia, e as views descendentes podem herdar acesso aos dados do ViewModel ancestral. Essa relação permite compartilhar estado de apresentação sem tornar os dados parte do controller.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe de dados declara nome como string e idade como inteiro. Qual conceito do pacote de dados está sendo usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Campos de um Ext.data.Model, que descrevem propriedades dos registros representados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Configurações de layout da Store, que definem como os registros aparecem em colunas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descritores de Proxy, que determinam os tipos de componentes da interface.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Listeners de ViewController, que convertem cada campo em um evento de clique.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Propriedades de app.json, que criam automaticamente as tabelas no banco remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ext.data.Model representa registros e declara seus campos, que podem ter tipos e regras. Layouts organizam componentes; Proxy trata transferência; listeners respondem a eventos e app.json não define diretamente um esquema de banco remoto.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve a função principal de uma Store?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter uma coleção client-side de registros Model e oferecer consulta, ordenação e filtros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Renderizar diretamente todos os componentes visuais e controlar o tema da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o serviço de servidor e funcionar como banco persistente compartilhado por usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter somente arquivos CSS em estilos e distribuir esses estilos pelo toolkit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Receber eventos da view e executar a inicialização global antes das classes carregarem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Store é um cache/coleção de registros Model no cliente e oferece operações de consulta, ordenação e filtragem. Não é componente visual, banco persistente compartilhado, tema nem ponto de inicialização global.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Store usa um endpoint remoto e precisa interpretar a resposta JSON para obter os registros. Que elemento participa dessa interpretação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um reader JSON associado ao Proxy, que extrai os dados da resposta recebida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um layout card, que transforma a resposta em Model antes de abrir cada painel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um ViewController, que substitui o parser e converte todos os campos por evento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um xtype, que define o formato de cada objeto serializado pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma fórmula do ViewModel, que assume obrigatoriamente a comunicação HTTP e a leitura do JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "O reader do Proxy interpreta a resposta e extrai os dados que serão materializados como registros. Layout organiza componentes, controller trata interações e fórmulas calculam valores de apresentação.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre Model, Store e Proxy está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Model descreve registros, Store mantém uma coleção e Proxy trata a comunicação com a fonte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Model envia HTTP, Store define os campos e Proxy posiciona os componentes na tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Model organiza layouts, Store valida o tema e Proxy recebe cliques de botões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Model desenha a grade, Store persiste em banco do servidor e Proxy substitui o controller.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Model e Store são aliases de componente, enquanto Proxy define o ciclo de vida da view.",
+          "correct": false
+        }
+      ],
+      "explanation": "Model representa a estrutura de cada registro; Store reúne e consulta registros; Proxy permite ler e gravar com uma fonte local ou remota. A alternativa correta mantém os três papéis distintos.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma grid ligada a uma Store solicita ordenação. É correto afirmar que essa operação será sempre executada no servidor por haver um Proxy remoto?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Store oferece ordenação e filtros, mas o destino da operação depende de sua configuração e do Proxy. A existência de um Proxy remoto, por si só, não prova que toda operação seja remota.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um formulário Ext JS pode carregar dados de um Model e, após atualizar o registro com os valores do formulário, solicitar que o registro seja salvo pela camada de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Formulários podem carregar um registro, atualizar esse registro com os valores dos campos e chamar a operação de salvamento do Model. A configuração de Proxy determina como a operação alcança a fonte de dados.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe afirma que a Store é o banco de dados persistente central compartilhado pelos usuários, pois ela contém todos os registros da grade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Store é uma coleção/cache no cliente de registros Model. Persistência compartilhada depende de uma fonte de dados remota, normalmente acessada por Proxy, e do serviço que opera sobre ela.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Proxy pode usar um reader para interpretar respostas recebidas e um writer para preparar dados de operações de gravação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Proxy medeia operações com a fonte de dados; readers interpretam respostas e writers formatam dados enviados em gravações, conforme o tipo e a configuração do proxy.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para criar e construir uma aplicação Ext JS com uma estrutura organizada e dependências conhecidas pelo projeto, qual ferramenta é usada no fluxo padrão da Sencha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sencha Cmd, que auxilia na criação, configuração e construção de aplicações Ext JS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ext.data.Store, que instala dependências e compila os arquivos JavaScript do projeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ViewController, que cria diretórios, seleciona o tema e gera bundles de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reader JSON, que resolve aliases de classe e produz o arquivo de configuração app.json.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Layout card, que executa a compilação incremental e registra o toolkit do aplicativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sencha Cmd é a ferramenta de linha de comando usada para criar, configurar e construir aplicações Ext JS. Store, ViewController, reader e layout pertencem ao framework em execução e não substituem o processo de build.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade típica do bootstrap gerado no projeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Iniciar o carregamento dos arquivos necessários à aplicação a partir do documento inicial.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir a estrutura de todas as tabelas persistidas no banco de dados remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o ViewModel e servir como armazenamento permanente dos dados dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interpretar eventos de formulário e executar validações autoritativas no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Selecionar a coluna da grade que será ordenada após cada resposta Ajax.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bootstrap participa do carregamento dos arquivos necessários à aplicação a partir do ponto inicial. Não define banco de dados, não substitui ViewModel e não implementa a validação autoritativa do servidor.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática mantém mais clara a divisão de responsabilidades numa aplicação Ext JS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar view para composição, ViewController para eventos, ViewModel para estado e Store/Proxy para dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar layout, comunicação HTTP, persistência e todos os handlers dentro de cada classe de Model.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar todas as telas e registros no app.json para evitar classes separadas no namespace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar ViewModel para executar o build e Store para selecionar o toolkit de cada componente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar a validação de servidor em cada botão e eliminar Models e Stores do fluxo de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar composição visual, eventos, estado de apresentação e acesso aos dados torna as responsabilidades mais legíveis e próximas das funções próprias das classes. Reunir tudo em Model ou app.json mistura camadas e dificulta manutenção.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre validação de formulários no cliente e validação no servidor é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A validação no cliente melhora a interação, mas o servidor ainda deve validar antes de persistir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A validação do cliente torna desnecessária qualquer regra no serviço que grava os dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ViewModel é uma fronteira segura que impede usuários de alterar requisições enviadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Proxy remoto garante que registros inválidos nunca chegarão ao endpoint do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A Store confirma a identidade do usuário e substitui autenticação e autorização remotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validações no formulário fornecem retorno rápido ao usuário, mas o cliente pode ser alterado ou contornado. O servidor precisa aplicar as regras de confiança antes de persistir os dados; ViewModel, Store e Proxy não são fronteiras de segurança.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O processo de build de produção pode preparar e agrupar recursos JavaScript da aplicação para entrega, considerando as configurações do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fluxo de build da Sencha prepara recursos e dependências para execução, podendo produzir um bundle para produção. Esse resultado é diferente da edição das classes fonte da aplicação.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo app.json é o local apropriado para escrever os handlers de clique e toda a lógica de negócio da view principal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. app.json descreve configurações gerais do projeto. Classes de view e ViewController são locais apropriados para composição e handlers de eventos; regras de negócio e persistência também devem respeitar as camadas da aplicação.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas instâncias de uma mesma classe de view podem ter instâncias próprias de ViewController, cujo ciclo de vida acompanha cada view associada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ViewControllers associados são gerenciados com as views. Uma segunda instância da mesma classe pode ter sua própria controladora, e a destruição da view descarta a controladora ligada a ela.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma declaração de classe Ext JS, qual configuração indica que a classe herda de uma classe-base?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A configuração extend, usada na declaração de classes com Ext.define.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A configuração bind, que faz a classe receber a herança do Proxy remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A configuração items, que transforma cada componente filho em uma superclasse.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A configuração reader, que seleciona a classe-pai a partir de uma resposta JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A configuração launch, que substitui a cadeia de protótipos ao iniciar a tela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nas declarações de classe Ext JS, extend identifica a classe-base da qual a nova classe deriva. bind liga dados a configurações, items compõe filhos, reader interpreta respostas e launch é um ponto de inicialização.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente de formulário precisa ser habilitado apenas quando uma caixa de seleção estiver marcada. Qual recurso pode expressar esse estado declarativamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar uma referência da caixa e ligar a configuração disabled ao estado checked no ViewModel.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mudar o xtype da caixa para o nome do campo e aguardar o reader converter o clique.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ordenar a Store pelo estado visual e deixar que o layout habilite automaticamente o campo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar um Proxy Ajax no campo, que alterará seu estado sem qualquer binding.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir o tema do projeto com o nome da caixa e recriar todas as views após cada clique.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma referência de componente pode publicar estado relevante no ViewModel, e outro componente pode ligar sua configuração disabled a esse estado, inclusive com negação booleana. Isso é binding de estado de interface, não operação de Store ou Proxy.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe Model pode declarar campos, validações, valores padrão ou conversões para descrever os registros da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Model descreve registros e seus campos; a declaração dos campos permite especificar tipos e também apoiar validações, valores padrão e conversões conforme a necessidade do modelo.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Listeners e referências ajudam o ViewController a conectar eventos da view aos handlers apropriados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A arquitetura de ViewController torna explícita a ligação da view a listeners, referências e handlers, mantendo a lógica de interação associada àquela view.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para interromper automaticamente o recálculo de layout enquanto um container recebe várias alterações em sequência, qual abordagem existe no framework?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suspender atualizações de layout durante o lote e solicitá-las ao final da sequência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar permanentemente todos os layouts e deixar a Store calcular coordenadas na próxima carga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o Proxy por um reader local, que consolida as mudanças visuais no cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover os componentes para o ViewModel e solicitar ao servidor uma nova árvore HTML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar os componentes filhos e reconstruí-los em outro toolkit a cada atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O container pode suspender atualizações de layout durante várias mudanças e recalcular quando o lote termina, evitando trabalho visual repetido. Isso é uma otimização pontual; em geral, o framework administra os layouts automaticamente.",
+      "section": "2. Componentes, containers e layouts",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo bootstrap.js é normalmente um arquivo-fonte em que se deve reescrever manualmente toda a aplicação para o build de produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No fluxo padrão, bootstrap é um artefato gerado que inicia o carregamento dos arquivos necessários. A implementação da aplicação fica nas classes-fonte organizadas no projeto, e o build prepara os artefatos de entrega.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Store pode ser mantido com dados locais em memória ou configurado para carregar dados por um Proxy remoto, conforme o desenho da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Stores podem conter dados locais ou utilizar proxies para transferi-los com uma fonte remota. A escolha muda a origem e o modo de operação, mas a Store continua organizando registros no cliente.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação descreve melhor o uso conjunto de uma grid e uma Store?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A grid apresenta registros em forma tabular e a Store mantém os registros que ela consome.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Store desenha cabeçalhos e colunas, enquanto a grid executa as requisições do Proxy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A grid define o esquema persistente do banco e a Store substitui o serviço remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A grid funciona como ViewModel e a Store concentra todos os listeners da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A grid e a Store são o mesmo objeto, com nomes diferentes para dados locais e remotos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A grid é um componente visual tabular e costuma consumir uma Store, que mantém e consulta registros. A Store não desenha a interface e a grid não substitui o proxy ou o serviço que persiste dados.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Store pode atuar como fonte de registros para componentes ligados a dados, como grids, árvores ou gráficos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Stores organizam registros Model e podem ser consumidas por componentes de interface ligados a dados, incluindo grades, árvores e gráficos.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a melhor interpretação da configuração `items` em um container?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela declara os componentes filhos que compõem a hierarquia interna do container.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela informa ao Proxy o conjunto de registros que deve gravar no banco remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela define os campos obrigatórios que serão validados em cada Model da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela substitui o layout e escolhe sozinha como todos os componentes serão dimensionados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela guarda os arquivos de classe que o Sencha Cmd deve compilar para produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "items descreve os componentes filhos de um container. A organização geométrica desses filhos depende da configuração layout do container, enquanto Proxy e Model lidam com o pacote de dados.",
+      "section": "2. Componentes, containers e layouts",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ViewModel pode oferecer dados para componentes descendentes e calcular valores derivados sem colocar toda a transformação na classe visual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ViewModels podem ter dados e fórmulas, e a hierarquia permite que descendentes consumam dados ancestrais. Isso mantém transformações de apresentação fora da estrutura puramente visual da view.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de componente só pode ser ligada a dados quando existe uma forma suportada de aplicar o novo valor, como um setter correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O binding atualiza configurações para as quais o componente oferece suporte de atualização, como um setter. Não é correto presumir que qualquer atributo arbitrário de qualquer objeto participa automaticamente do binding.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual situação um Proxy remoto é mais diretamente útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando operações da camada de dados precisam alcançar um serviço externo à aplicação cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quando um container precisa distribuir painéis entre linhas e colunas sem consultar dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando o ViewController precisa herdar automaticamente os campos do Model associado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando o bootstrap deve escolher qual toolkit será compilado após iniciar a página.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando uma fórmula precisa alterar o tema global sem atualizar configurações de projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Proxy é a abstração de acesso à fonte de dados e pode transportar operações entre a aplicação cliente e um serviço remoto. Layout, herança de classes, bootstrap e fórmulas não substituem esse papel.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Ext JS pode usar componentes e configurações globais sem que a classe de cada view precise implementar diretamente o mecanismo de carregamento de todos os arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fluxo de aplicação gerado e seu bootstrap organizam o carregamento, enquanto as classes de view descrevem a interface e suas configurações. Isso separa infraestrutura de inicialização da composição das telas.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção apresenta uma sequência conceitual consistente para exibir dados JSON remotos numa grade Ext JS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proxy obtém a resposta, reader a interpreta, Model representa registros, Store os organiza e grid os exibe.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Layout obtém a resposta, ViewController cria o banco, grid converte campos e Proxy ordena a tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ViewModel compila o JSON, Model desenha as colunas, Store controla o servidor e grid autentica usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sencha Cmd consulta a API em cada interação, bootstrap transforma dados e app.json salva os registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reader define o toolkit, Store contém o HTML, Proxy executa handlers e Model escolhe o tema.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Proxy conversa com a fonte, o reader interpreta o formato da resposta, Model representa cada registro, Store mantém o conjunto e a grid apresenta os registros. As demais opções atribuem tarefas de visualização, build ou persistência às classes erradas.",
+      "section": "4. Dados, Model, Store e Proxy",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tratamento de eventos em um ViewController pode ficar encapsulado em relação à view que o referencia, em vez de exigir um controlador global único para todas as instâncias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ViewControllers são associados a views específicas e acompanhados em seu ciclo de vida. Isso permite encapsular handlers e referências por instância de tela em vez de centralizar todo evento num controlador global.",
+      "section": "3. MVC, MVVM e comunicação entre telas e lógica",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente a view da camada de dados de uma aplicação Ext JS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "View compõe interface; Model, Store e Proxy representam e movimentam os dados usados por ela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "View persiste diretamente os registros, enquanto Model define exclusivamente cores e tipografia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "View é um arquivo de configuração global, enquanto Proxy descreve os botões de navegação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ViewModel substitui toda a árvore visual e Store define o HTML entregue pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "View e Proxy são equivalentes; ambos exibem registros e controlam layouts de containers.",
+          "correct": false
+        }
+      ],
+      "explanation": "A view descreve a composição visual. Model, Store e Proxy fazem parte da organização e do transporte dos dados consumidos pela interface. O ViewModel conecta estado de apresentação à view, mas também não substitui sua árvore de componentes.",
+      "section": "5. Ferramentas, componentes de negócio e integração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de toolkit no projeto deve ser tratada como escolha global coerente com os componentes utilizados, e não como propriedade isolada de cada Store.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O toolkit é uma configuração do projeto que determina o conjunto de componentes e recursos de interface. Stores fazem parte da camada de dados e não escolhem toolkits por consulta.",
+      "section": "1. O framework e a estrutura da aplicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Ext JS 7.9 — Intro to App Architecture",
+      "publisher": "Sencha",
+      "reference": "View, ViewController, ViewModel, Model e Store na arquitetura de aplicação",
+      "url": "https://docs.sencha.com/extjs/7.9.0/guides/application_architecture/application_architecture.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ext JS 7.9 — Layouts and Containers",
+      "publisher": "Sencha",
+      "reference": "Componentes, containers, items, layouts e atualização da disposição visual",
+      "url": "https://docs.sencha.com/extjs/7.9.0/guides/core_concepts/layouts.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ext JS 6.7 — View Models & Binding",
+      "publisher": "Sencha",
+      "reference": "ViewModel, bindings, dois sentidos, fórmulas, referências e dados herdados",
+      "url": "https://docs.sencha.com/extjs/6.7.0/guides/application_architecture/view_models_data_binding.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ext.data.Store — Classic Toolkit",
+      "publisher": "Sencha",
+      "reference": "Store como cache client-side de Models, operações de consulta e uso de Proxy e Reader",
+      "url": "https://docs.sencha.com/extjs/7.6.0/classic/Ext.data.Store.html",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ext JS 7.9 — Understand the generated app",
+      "publisher": "Sencha",
+      "reference": "index.html, bootstrap, Application.js, app.json e estrutura de aplicação SPA",
+      "url": "https://docs.sencha.com/extjs/7.9.0/guides/tutorials/quick_start/Set_Up_Start_Coding_the_App/Whats_All_That_Stuff.html",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}
