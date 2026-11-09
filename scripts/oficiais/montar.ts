@@ -62,7 +62,16 @@ for (const arquivo of arquivos) {
     if (String(it.alerta ?? "").trim() && !alertasLiberados.has(String(it.id))) { contagem.alerta++; alertas.push({ id: q.id, alerta: it.alerta, explicacao }); continue; }
     if (explicacao.length < 120) { contagem.curtas++; continue; }
     const ce = q.alternativas.length === 0;
-    const statement = `${q.base && q.base.length > 20 && !/^\(?Dispon[ií]vel em/i.test(q.base) ? `${q.base.trim()}\n\n` : ""}${String(q.enunciado).trim()}`;
+    // Tira só o cabeçalho/rodapé de caderno que a extração colou no texto ("658001_01N770539 CEBRASPE | IBAMA – Edital:
+    // 2021 -- CONHECIMENTOS ESPECÍFICOS --", "Página 3 de 20"). O texto da questão não muda (09/11).
+    const limpo = (s: string) => s
+      // Cabeçalho em linha própria no meio (página nova): o que vem antes é sobra da página anterior ("resposta.").
+      .replace(/^[\s\S]{0,200}?\n\s*(?:[\d_]*[A-Z0-9]{6,}\s*\n\s*)?(?:CEBRASPE|FGV|FUNDATEC|CESGRANRIO|AOCP)\s*\|\s*[^\n]{1,60}Edital:\s*\d{4}\s*\n/i, "")
+      .replace(/^\s*(?:[\d_]*[A-Z0-9]{6,}\s+)?(?:CEBRASPE|FGV|FUNDATEC|CESGRANRIO|AOCP)\s*\|\s*[^\n–-]{1,60}[–-]\s*Edital:\s*\d{4}\s*/i, "")
+      .replace(/^\s*--\s*CONHECIMENTOS\s+(?:B[ÁA]SICOS|ESPEC[ÍI]FICOS|GERAIS|COMPLEMENTARES)\s*--\s*/i, "")
+      .replace(/\s*P[áa]gina\s+\d+\s*(?:de|\/)\s*\d+\s*/gi, " ")
+      .trim();
+    const statement = `${q.base && q.base.length > 20 && !/^\(?Dispon[ií]vel em/i.test(q.base) ? `${limpo(q.base)}\n\n` : ""}${limpo(String(q.enunciado))}`;
     // O validador aceita enunciado de 20 a 4.000 caracteres (texto-base longo de inglês passava disso, 07/11).
     if (statement.length < 20 || statement.length > 4000) { contagem.curtas++; continue; }
     const questao: Json = {
