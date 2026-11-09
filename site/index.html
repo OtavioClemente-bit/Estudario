@@ -24,7 +24,8 @@
   --bg: #F7F5F0; --surface: #FFFFFF; --ink: #1C1B2E; --body: #45435A; --muted: #6E6B82;
   --line: #E5E1D8; --line-strong: #D3CEC2;
   --accent: #4B3FD9; --accent-ink: #3428B0; --accent-soft: #EEECFD; --on-accent: #FFFFFF;
-  --ok: #1E8E68;
+  --ok: #1E8E68; --bad: #C6402F;
+  --dot: rgba(120, 110, 90, .11); --primary: #4B3FD9; --hl: #FFD23F; --hl-soft: #FFDD66;
   --radius: 10px;
   color-scheme: light;
 }
@@ -32,18 +33,20 @@
   --bg: #121120; --surface: #1A1930; --ink: #F1F0FA; --body: #C7C5DA; --muted: #9894B3;
   --line: #2A2846; --line-strong: #3A3760;
   --accent: #8F86FF; --accent-ink: #B3ADFF; --accent-soft: #23214A; --on-accent: #12102E;
-  --ok: #4CC79A;
+  --ok: #4CC79A; --bad: #FF8A7A; --dot: rgba(160, 155, 255, .07); --primary: #8F86FF; --hl-soft: rgba(255, 210, 63, .30);
   color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #121120; --surface: #1A1930; --ink: #F1F0FA; --body: #C7C5DA; --muted: #9894B3;
   --line: #2A2846; --line-strong: #3A3760;
   --accent: #8F86FF; --accent-ink: #B3ADFF; --accent-soft: #23214A; --on-accent: #12102E;
-  --ok: #4CC79A; color-scheme: dark;
+  --ok: #4CC79A; --bad: #FF8A7A; --dot: rgba(160, 155, 255, .07); --primary: #8F86FF; --hl-soft: rgba(255, 210, 63, .30); color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--bg); color: var(--body); font: 17px/1.65 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+:where(body > *:not(.ambient-canvas)) { position: relative; z-index: 1; }
+::selection { background: #FFD23F; color: #1C1B2E; }
 img { max-width: 100%; display: block; }
 a { color: inherit; }
 p { margin: 0; }
@@ -235,9 +238,83 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
 .sticky .btn { flex: 1; height: 44px; padding: 0 10px; }
 @media (max-width: 760px) { .sticky { display: flex; } footer { padding-bottom: 100px; } }
 
+/* ===== A parte viva ===== */
+/* Grifo de marca-texto nos títulos: pinta quando o título aparece. */
+.hl { color: inherit; background: linear-gradient(transparent 60%, var(--hl-soft) 60% 93%, transparent 93%) no-repeat 0 0 / 100% 100%; padding: 0 .06em; margin: 0 -.06em; transition: background-size 1s cubic-bezier(.2, .8, .2, 1) .35s; }
+.anim .reveal:not(.in) .hl { background-size: 0% 100%; }
+
+/* Fala do Folha */
+.bubble { position: absolute; z-index: 5; max-width: 230px; width: max-content; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink); font: 600 14.5px/1.4 "Inter", sans-serif; box-shadow: 0 14px 30px -16px rgba(28, 27, 46, .5); transition: opacity .25s, scale .25s cubic-bezier(.2, 1.5, .4, 1); transform-origin: var(--tail-x, 30%) 100%; }
+.bubble::after { content: ""; position: absolute; left: var(--tail-x, 30%); bottom: -7px; width: 12px; height: 12px; background: var(--surface); border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); rotate: 45deg; }
+.bubble:empty { opacity: 0; scale: .8; }
+
+/* O Folha do topo e a turma em volta das telas */
+.hero { overflow-x: clip; }
+.hero-shots .device, .shots .device { transform: perspective(1100px) rotateY(var(--ry, 0deg)) rotateX(var(--rx, 0deg)); transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
+.hero-folha { position: absolute; left: -72px; bottom: -48px; width: 176px; height: 176px; z-index: 4; cursor: pointer; }
+.hero-folha estudario-folha { width: 100%; height: 100%; display: block; }
+.hero-shots .bubble { left: -56px; bottom: 132px; }
+.orb { position: absolute; width: 60px; height: 60px; z-index: 3; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; translate: calc(var(--px, 0px) + var(--dx, 0px)) calc(var(--py, 0px) + var(--dy, 0px)); transition: translate .55s cubic-bezier(.2, 1.5, .4, 1), scale .25s, opacity .25s; }
+.orb.drag { transition: scale .2s; cursor: grabbing; scale: 1.18; z-index: 6; }
+.orb.gone { scale: 0; opacity: 0; }
+.orb > span { display: block; width: 100%; height: 100%; animation: orb-float var(--d, 5s) ease-in-out var(--delay, 0s) infinite; }
+.orb svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 8px 10px rgba(28, 27, 46, .22)); pointer-events: none; }
+@keyframes orb-float { 50% { transform: translateY(-9px) rotate(4deg); } }
+.orb.o1 { top: -26px; left: -10px; } .orb.o2 { top: 8px; right: -22px; --d: 6s; --delay: -1s; }
+.orb.o3 { bottom: 64px; right: -34px; --d: 5.5s; --delay: -2s; } .orb.o4 { top: 38%; left: -58px; --d: 6.5s; --delay: -3s; }
+.orb.o5 { bottom: -34px; right: 34%; --d: 4.8s; --delay: -1.5s; }
+.hero .hint { margin-top: 14px; font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+.hero .hint[hidden] { display: none; }
+.hero .hint i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--hl); box-shadow: 0 0 0 4px color-mix(in srgb, var(--hl) 30%, transparent); animation: pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px transparent; } }
+@media (max-width: 900px) {
+  .hero-folha { left: -18px; bottom: -40px; width: 128px; height: 128px; }
+  .hero-shots .bubble { left: -12px; bottom: 96px; max-width: 190px; font-size: 13.5px; }
+  .orb { width: 46px; height: 46px; } .orb.o4 { left: -14px; } .orb.o3 { right: -8px; } .orb.o2 { right: -4px; } .orb.o1 { left: 4px; }
+  .hero-shots { margin-bottom: 30px; }
+}
+@media (pointer: coarse) { .hero .hint .mouse { display: none; } }
+@media (pointer: fine) { .hero .hint .touch { display: none; } }
+
+/* Questão para responder na própria página */
+.quiz { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 26px; box-shadow: 0 30px 60px -40px rgba(28, 27, 46, .4); }
+.quiz:not(.live) { background: none; border: 0; padding: 0; box-shadow: none; }
+.quiz .meta { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.quiz .meta b { color: var(--accent); letter-spacing: .06em; text-transform: uppercase; }
+.quiz .ask { margin-top: 14px; color: var(--ink); font-weight: 500; font-size: 16.5px; line-height: 1.5; }
+.quiz .opts { display: grid; gap: 8px; margin-top: 18px; }
+.quiz .opt { display: grid; grid-template-columns: 26px 1fr; gap: 4px 12px; align-items: start; text-align: left; width: 100%; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--ink); font: 500 15.5px/1.45 "Inter", sans-serif; cursor: pointer; transition: border-color .15s, background .15s, translate .15s, opacity .2s; }
+.quiz .opt i { font-style: normal; font-weight: 700; font-size: 13px; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.quiz .opt span { padding-top: 2px; }
+.quiz:not(.done) .opt:hover { border-color: var(--ink); translate: 3px 0; }
+.quiz .opt small { display: none; grid-column: 2; font-size: 14px; color: var(--body); font-weight: 400; }
+.quiz.done .opt { cursor: default; }
+.quiz.done .opt.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 9%, transparent); }
+.quiz.done .opt.right i { background: var(--ok); color: var(--surface); }
+.quiz.done .opt.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); animation: shake .4s; }
+.quiz.done .opt.wrong i { background: var(--bad); color: var(--surface); }
+.quiz.done .opt.right small, .quiz.done .opt.wrong small { display: block; }
+.quiz.done .opt:not(.right):not(.wrong) { opacity: .5; }
+@keyframes shake { 20% { translate: -5px 0; } 45% { translate: 5px 0; } 70% { translate: -3px 0; } }
+.quiz .foot { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); min-height: 38px; }
+.quiz .foot button { visibility: hidden; }
+.quiz.done .foot button { visibility: visible; }
+
+/* O Folha que acompanha a leitura, no canto */
+.buddy { position: fixed; right: 22px; bottom: 18px; z-index: 45; width: 96px; height: 96px; translate: 0 170%; transition: translate .5s cubic-bezier(.2, 1.3, .4, 1); }
+.buddy.show { translate: 0 0; }
+.buddy estudario-folha { width: 100%; height: 100%; display: block; cursor: pointer; }
+.buddy .bubble { right: 30px; bottom: 104px; --tail-x: 78%; }
+.buddy:not(.show) .bubble { opacity: 0; }
+.buddy .x { position: absolute; top: -4px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); font: 600 13px/1 "Inter", sans-serif; cursor: pointer; opacity: 0; transition: opacity .15s; display: grid; place-items: center; padding: 0; }
+.buddy:hover .x, .buddy .x:focus-visible { opacity: 1; }
+@media (max-width: 900px), (pointer: coarse) { .buddy { display: none; } }
+
+.btn-primary { transition: background .15s, border-color .15s, color .15s, translate .2s cubic-bezier(.2, .8, .2, 1); }
+
 .anim .reveal { opacity: 0; translate: 0 16px; transition: opacity .6s ease, translate .6s cubic-bezier(.2, .8, .2, 1); }
 .anim .reveal.in { opacity: 1; translate: 0 0; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .anim .reveal { opacity: 1; translate: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .anim .reveal { opacity: 1; translate: none; transition: none; } .orb > span, .hero .hint i { animation: none; } .hl { transition: none; } .anim .reveal:not(.in) .hl { background-size: 100% 100%; } }
 </style>
 </head>
 <body>
@@ -262,7 +339,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
   <div class="wrap">
     <div class="reveal">
       <p class="eyebrow">Plano de estudo para concursos</p>
-      <h1 style="margin-top:16px">Seu edital vira um plano. Todo dia você sabe o que estudar.</h1>
+      <h1 style="margin-top:16px">Seu edital vira <span class="hl">um plano</span>. Todo dia você sabe o que estudar.</h1>
       <p class="lead">Escolha o concurso, diga quanto tempo tem por dia e quando é a prova. O Estudário distribui as matérias pelo peso de cada uma, entrega o material de cada tópico e traz de volta o que você estudou na hora de revisar.</p>
       <div class="actions">
         <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=br.com.estudario">
@@ -272,10 +349,18 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
         <a class="btn btn-secondary" href="https://app.estudario.com.br">Usar no navegador</a>
       </div>
       <p class="fine">Grátis para começar. Quer ver antes? <a class="text-link" href="https://app.estudario.com.br/?demo">Abra o app em modo demonstração</a>, sem cadastro.</p>
+      <p class="hint" id="hint" hidden><i></i><span class="mouse">Clique em qualquer canto da página. Os adesivos em volta das telas são de arrastar.</span><span class="touch">Toque em qualquer canto da página, e no Folha também.</span></p>
     </div>
-    <div class="hero-shots reveal" aria-hidden="true">
+    <div class="hero-shots reveal" id="scene" data-tilt>
       <div class="device"><img src="assets/shots/plano.webp" alt="" width="780" height="1732"></div>
       <div class="device"><img src="assets/shots/home.webp" alt="" width="780" height="1732"></div>
+      <div class="orb o1 tu-hover" data-g="Calendar" data-depth="26" aria-hidden="true"></div>
+      <div class="orb o2 tu-hover" data-g="Target" data-depth="-20" aria-hidden="true"></div>
+      <div class="orb o3 tu-hover" data-g="Fire" data-depth="18" aria-hidden="true"></div>
+      <div class="orb o4 tu-hover" data-g="Trophy" data-depth="-28" aria-hidden="true"></div>
+      <div class="orb o5 tu-hover" data-g="Star" data-depth="14" aria-hidden="true"></div>
+      <div class="bubble" id="hero-bubble" aria-live="polite"></div>
+      <div class="hero-folha"><estudario-folha id="hero-folha" mood="wave" size="176" clickable></estudario-folha></div>
     </div>
   </div>
 </div>
@@ -293,7 +378,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
   <section id="como-funciona">
     <div class="section-head reveal">
       <p class="eyebrow">Como funciona</p>
-      <h2>Quatro passos, e do terceiro em diante é a sua rotina.</h2>
+      <h2>Quatro passos, e do terceiro em diante é <span class="hl">a sua rotina</span>.</h2>
     </div>
     <div class="steps reveal">
       <div class="step"><h3>Escolha o edital</h3><p>Procure pelo órgão, cargo ou sigla no catálogo. Se o seu não estiver lá, mande o PDF e as matérias saem organizadas.</p></div>
@@ -306,7 +391,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
   <section id="recursos">
     <div class="section-head reveal">
       <p class="eyebrow">Recursos</p>
-      <h2>Tudo o que a preparação pede, num lugar só.</h2>
+      <h2>Tudo o que a preparação pede, <span class="hl">num lugar só</span>.</h2>
     </div>
 
     <div class="feature reveal">
@@ -319,7 +404,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
           <li><b>Previsão honesta</b><span>Mostra em que dia o edital inteiro é visto no seu ritmo e avisa quando não cabe até a prova.</span></li>
         </ul>
       </div>
-      <div class="shots">
+      <div class="shots" data-tilt>
         <div class="device"><img src="assets/shots/plano.webp" alt="Plano de estudo com a semana e a missão de hoje" loading="lazy" width="780" height="1732"></div>
         <div class="device"><img src="assets/shots/home.webp" alt="Início do Estudário com o estudo de agora em destaque" loading="lazy" width="780" height="1732"></div>
       </div>
@@ -335,7 +420,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
           <li><b>Grife e anote</b><span>Os grifos vão para o seu caderno de estudo e levam de volta ao ponto exato da teoria.</span></li>
         </ul>
       </div>
-      <div class="shots">
+      <div class="shots" data-tilt>
         <div class="device"><img src="assets/shots/topico.webp" alt="Página do tópico com domínio, leitura e acerto" loading="lazy" width="780" height="1732"></div>
         <div class="device"><img src="assets/shots/teoria.webp" alt="Teoria em capítulos, com fonte de livro" loading="lazy" width="780" height="1732"></div>
       </div>
@@ -351,8 +436,8 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
           <li><b>Simulados</b><span>Com cronômetro e nota por matéria, no formato do seu concurso.</span></li>
         </ul>
       </div>
-      <div class="shots">
-        <div class="device"><img src="assets/shots/questao.webp" alt="Questão respondida, com a explicação" loading="lazy" width="780" height="1732"></div>
+      <div class="quiz" id="quiz">
+        <div class="shots"><div class="device"><img src="assets/shots/questao.webp" alt="Questão respondida, com a explicação" loading="lazy" width="780" height="1732"></div></div>
       </div>
     </div>
 
@@ -366,7 +451,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
           <li><b>O edital inteiro à vista</b><span>Matérias e tópicos na ordem do edital, com o que pesa mais na prova em destaque.</span></li>
         </ul>
       </div>
-      <div class="shots">
+      <div class="shots" data-tilt>
         <div class="device"><img src="assets/shots/revisoes.webp" alt="Revisões espaçadas do dia" loading="lazy" width="780" height="1732"></div>
         <div class="device"><img src="assets/shots/edital.webp" alt="Edital organizado por matéria, com o que pesa mais em destaque" loading="lazy" width="780" height="1732"></div>
       </div>
@@ -376,7 +461,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
   <section id="onde">
     <div class="section-head reveal">
       <p class="eyebrow">Onde usar</p>
-      <h2>No celular e no computador, com a mesma conta.</h2>
+      <h2>No celular e no computador, com <span class="hl">a mesma conta</span>.</h2>
       <p>Estude no ônibus pelo app e continue em casa, no computador ou no tablet, do ponto onde parou.</p>
     </div>
     <div class="platforms">
@@ -406,7 +491,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
     <p class="note reveal"><b>Tem iPhone?</b> Use pelo navegador, em <a class="text-link" href="https://app.estudario.com.br">app.estudario.com.br</a>, com tudo o que o site tem. O app para iPhone está nos nossos planos.</p>
   </section>
 
-  <section>
+  <section id="folha">
     <div class="folha reveal">
       <div class="folha-stage"><estudario-folha id="meet-folha" mood="idle" size="220" clickable></estudario-folha></div>
       <div>
@@ -436,7 +521,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
   <section id="planos">
     <div class="section-head reveal">
       <p class="eyebrow">Planos</p>
-      <h2>Comece grátis. Assine quando quiser ir além do plano.</h2>
+      <h2><span class="hl">Comece grátis.</span> Assine quando quiser ir além do plano.</h2>
       <p>No grátis, a matéria do plano de hoje é sempre livre, pronta da biblioteca do Estudário. Nos planos pagos, você estuda além do plano e o material que ainda não está pronto é escrito na hora.</p>
     </div>
     <div class="plans reveal">
@@ -511,7 +596,7 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
     </div>
   </section>
 
-  <div class="closing reveal">
+  <div class="closing reveal" id="fim">
     <div>
       <h2>Comece pelo edital do seu concurso.</h2>
       <p>Baixe grátis, escolha o edital e o plano da semana já fica pronto.</p>
@@ -541,7 +626,15 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
   <a class="btn btn-secondary" href="https://app.estudario.com.br/?demo">Ver por dentro</a>
 </div>
 
+<div class="buddy" id="buddy">
+  <div class="bubble" id="buddy-bubble" aria-live="polite"></div>
+  <estudario-folha id="buddy-folha" mood="idle" size="96" clickable noscene></estudario-folha>
+  <button type="button" class="x" id="buddy-x" aria-label="Esconder o Folha">×</button>
+</div>
+
+<script src="assets/turma.js"></script>
 <script src="assets/folha-live.js"></script>
+<script src="assets/ambient.js"></script>
 <script>
 (function () {
   // O Folha troca de humor e de visual pelos botões.
@@ -557,9 +650,276 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
     document.querySelectorAll(".looks button").forEach((x) => x.classList.toggle("on", x === b));
   }));
 
-  // No celular, depois do topo, uma barra fixa com o próximo passo.
-  const sticky = document.getElementById("sticky"), hero = document.querySelector(".hero");
-  new IntersectionObserver(([e]) => sticky.classList.toggle("show", !e.isIntersecting)).observe(hero);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const fine = matchMedia("(pointer: fine)").matches;
+  const $ = (id) => document.getElementById(id);
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = (list) => list[(Math.random() * list.length) | 0];
+
+  // O papel pontilhado e o marca-texto que segue o mouse (os adesivos do clique são os daqui de baixo).
+  if (window.estudarioAmbient) estudarioAmbient(document.body, { stamps: false });
+
+  // ---- Adesivos que pulam do clique: saem do ponto, caem com peso, quicam no pé da tela e somem.
+  const fx = (function () {
+    const names = ["Star", "Heart", "Fire", "Bolt", "Trophy", "Check", "Bulb", "Medal", "Gem", "Books", "Pencil", "Target", "Cap", "Calendar"];
+    const imgs = [];
+    if (window.estudarioGlyphUri) names.forEach((n) => { const u = estudarioGlyphUri(n); if (u) { const i = new Image(); i.src = u; imgs.push(i); } });
+    const canvas = document.createElement("canvas");
+    canvas.setAttribute("aria-hidden", "true");
+    canvas.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:70";
+    document.body.appendChild(canvas);
+    const g = canvas.getContext("2d");
+    let W = 0, H = 0, raf = 0, last = 0;
+    const parts = [], rings = [];
+    function size() {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      W = innerWidth; H = innerHeight;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    addEventListener("resize", size); size();
+    function frame(now) {
+      raf = 0;
+      const dt = Math.min(2.2, (now - last) / 16.7 || 1); last = now;
+      g.clearRect(0, 0, W, H);
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const r = rings[i], t = (now - r.t) / 520;
+        if (t >= 1) { rings.splice(i, 1); continue; }
+        g.globalAlpha = (1 - t) * .7; g.strokeStyle = r.color; g.lineWidth = 3 * (1 - t) + .5;
+        g.beginPath(); g.arc(r.x, r.y, 10 + t * 46, 0, 6.283); g.stroke();
+      }
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i], age = now - p.t;
+        if (age >= p.life) { parts.splice(i, 1); continue; }
+        p.vy += .5 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+        const floor = H - p.s * .42;
+        if (p.y > floor && p.vy > 0) { p.y = floor; p.vy *= -.48; p.vx *= .72; p.vr *= .6; if (Math.abs(p.vy) < 1.2) p.vy = 0; }
+        if (p.x < p.s * .4 && p.vx < 0 || p.x > W - p.s * .4 && p.vx > 0) p.vx *= -.6;
+        const pop = Math.min(1, age / 130), s = p.s * (pop < 1 ? .4 + pop * .75 : 1);
+        g.globalAlpha = Math.min(1, (p.life - age) / 380);
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r);
+        if (p.img.complete && p.img.naturalWidth) g.drawImage(p.img, -s / 2, -s / 2, s, s);
+        g.restore();
+      }
+      g.globalAlpha = 1;
+      if (parts.length || rings.length) raf = requestAnimationFrame(frame);
+    }
+    function burst(x, y, n, power) {
+      if (reduce || !imgs.length) return;
+      n = n || 7; power = power || 1;
+      const now = performance.now();
+      rings.push({ x, y, t: now, color: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#4B3FD9" });
+      for (let k = 0; k < n; k++) {
+        const ang = -Math.PI / 2 + rand(-1.25, 1.25), sp = rand(7, 14) * power;
+        parts.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 2, r: rand(-.5, .5), vr: rand(-.22, .22), s: rand(30, 52), img: pick(imgs), t: now, life: rand(1500, 2400) });
+      }
+      while (parts.length > 110) parts.shift();
+      if (!raf) { last = now; raf = requestAnimationFrame(frame); }
+    }
+    return { burst };
+  })();
+
+  // ---- A fala do Folha: o do topo enquanto ele está na tela, o do canto depois.
+  const hero = document.querySelector(".hero"), sticky = $("sticky");
+  const heroFolha = $("hero-folha"), heroBubble = $("hero-bubble");
+  const buddy = $("buddy"), buddyFolha = $("buddy-folha"), buddyBubble = $("buddy-bubble");
+  let heroOn = true, buddyOff = false, holdUntil = 0;
+  try { buddyOff = sessionStorage.getItem("folha-canto") === "0"; } catch (e) {}
+  const typers = new Map();
+  function type(el, line) {
+    clearInterval(typers.get(el));
+    if (reduce || !line) { el.textContent = line; return; }
+    let n = 0; el.textContent = line.slice(0, 1);
+    typers.set(el, setInterval(() => { n++; el.textContent = line.slice(0, n); if (n >= line.length) clearInterval(typers.get(el)); }, 26));
+  }
+  let buddyTimer = 0;
+  function speak(line, mood, ms) {
+    if (heroOn) {
+      holdUntil = performance.now() + (ms || 4200);
+      heroFolha.setAttribute("mood", mood || "talking");
+      type(heroBubble, line);
+    } else if (buddy.classList.contains("show")) {
+      buddyFolha.setAttribute("mood", mood || "talking");
+      type(buddyBubble, line);
+      clearTimeout(buddyTimer);
+      buddyTimer = setTimeout(() => { type(buddyBubble, ""); buddyFolha.setAttribute("mood", "idle"); }, ms || 5200);
+    }
+  }
+  const dress = (look) => [heroFolha, buddyFolha].forEach((el) => {
+    Object.keys(look).forEach((k) => look[k] ? el.setAttribute(k, look[k]) : el.removeAttribute(k));
+    el.poke && el.poke();
+  });
+
+  // O Folha do topo conta o que faz enquanto ninguém mexe com ele.
+  const script = [
+    ["wave", "Oi! Eu sou o Folha. Vou estudar com você."],
+    ["thinking", "Lendo o seu edital, tópico por tópico…"],
+    ["point", "Hoje: Direito Constitucional, 45 min e 10 questões."],
+    ["ecstatic", "Acertou! Cinco seguidas!"],
+    ["thinking", "Separando o que volta na revisão de amanhã…"],
+    ["relieved", "Errou uma e acertou a próxima? É assim que se aprende."],
+    ["proud", "Sete dias seguidos: medalha no capelo!"],
+    ["wink", "Psiu: me arrasta um adesivo desses aqui em volta."],
+  ];
+  let step = 0;
+  function next() { const [mood, line] = script[step++ % script.length]; heroFolha.setAttribute("mood", mood); type(heroBubble, line); }
+  next();
+  setInterval(() => { if (!document.hidden && heroOn && performance.now() > holdUntil) next(); }, 4400);
+
+  const pokes = ["Ei! Faz cócegas.", "Opa! Tô aqui.", "De novo? Tá bom, eu gosto.", "Bora estudar? Eu já separei o tópico de hoje.", "Clica na página também, fora de mim."];
+  let poked = 0;
+  [heroFolha, buddyFolha].forEach((el) => el.addEventListener("click", (e) => {
+    const r = el.getBoundingClientRect();
+    fx.burst(r.left + r.width / 2, r.top + r.height * .3, 5, .8);
+    speak(pokes[poked++ % pokes.length], pick(["surprised", "happy", "wink"]));
+    e.stopPropagation();
+  }));
+
+  // ---- Clique em qualquer canto: adesivos. De tanto clicar, o Folha ganha roupa (como as conquistas no app).
+  let stamped = 0;
+  const prizes = {
+    1: ["Isso! Clica mais.", "happy"],
+    5: ["Cinco adesivos. Continua que tem prêmio.", "wink"],
+    12: ["Doze! Ganhei um chapéu de explorador. No app é assim: conquista libera peça.", "proud", { hat: "explorador", hand: "lupa" }],
+    25: ["Vinte e cinco! Agora eu virei mago.", "ecstatic", { cover: "ametista", hat: "mago", hand: "varinha", eyes: "estrela" }],
+    45: ["Quarenta e cinco. Lendário! Imagina essa garra toda no edital.", "ecstatic", { cover: "ouro", ribbon: "dourada", hat: "coroa", hand: "trofeu", aura: "brilhos", eyes: "" }],
+  };
+  addEventListener("click", (e) => {
+    if (e.button !== 0 || e.target.closest("a,button,summary,input,label,estudario-folha,.orb,.quiz,.buddy")) return;
+    if (String(getSelection && getSelection()).length) return;
+    fx.burst(e.clientX, e.clientY);
+    const prize = prizes[++stamped];
+    if (!prize) return;
+    if (prize[2]) { dress(prize[2]); fx.burst(e.clientX, e.clientY, 14, 1.25); }
+    speak(prize[0], prize[1], 6000);
+  });
+
+  // ---- A turma em volta das telas: acompanha o mouse em camadas, dá para arrastar e entregar ao Folha.
+  const scene = $("scene");
+  const orbs = [...scene.querySelectorAll(".orb")];
+  orbs.forEach((o) => { if (window.estudarioGlyph) o.innerHTML = "<span>" + (estudarioGlyph(o.dataset.g) || "") + "</span>"; });
+  const fed = ["Guardei no caderno!", "Nhac. Esse era de foco.", "Mais um pra coleção!", "Valeu! Devolvo já, já."];
+  let fedN = 0;
+  orbs.forEach((o) => {
+    let sx = 0, sy = 0, drag = false;
+    o.addEventListener("pointerdown", (e) => { drag = true; sx = e.clientX; sy = e.clientY; o.setPointerCapture(e.pointerId); o.classList.add("drag"); e.preventDefault(); });
+    o.addEventListener("pointermove", (e) => { if (!drag) return; o.style.setProperty("--dx", (e.clientX - sx) + "px"); o.style.setProperty("--dy", (e.clientY - sy) + "px"); });
+    const back = () => { o.style.setProperty("--dx", "0px"); o.style.setProperty("--dy", "0px"); };
+    const end = () => {
+      if (!drag) return;
+      drag = false; o.classList.remove("drag");
+      const a = o.getBoundingClientRect(), b = heroFolha.getBoundingClientRect();
+      const cx = a.left + a.width / 2, cy = a.top + a.height / 2;
+      if (Math.hypot(cx - (b.left + b.width / 2), cy - (b.top + b.height / 2)) < b.width * .6) {
+        o.classList.add("gone");
+        fx.burst(cx, cy, 6, .8);
+        heroFolha.poke && heroFolha.poke();
+        speak(fed[fedN++ % fed.length], "happy");
+        setTimeout(back, 500);
+        setTimeout(() => o.classList.remove("gone"), 2400);
+      } else back();
+    };
+    o.addEventListener("pointerup", end); o.addEventListener("pointercancel", end);
+  });
+  if (fine && !reduce) {
+    addEventListener("pointermove", (e) => {
+      if (!heroOn) return;
+      const r = scene.getBoundingClientRect();
+      const nx = (e.clientX - (r.left + r.width / 2)) / innerWidth, ny = (e.clientY - (r.top + r.height / 2)) / innerHeight;
+      orbs.forEach((o) => { const d = +o.dataset.depth; o.style.setProperty("--px", (nx * d * 2).toFixed(1) + "px"); o.style.setProperty("--py", (ny * d * 2).toFixed(1) + "px"); });
+    }, { passive: true });
+    // As telas inclinam de leve na direção do mouse.
+    document.querySelectorAll("[data-tilt]").forEach((p) => {
+      p.addEventListener("pointermove", (e) => {
+        const r = p.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+        p.style.setProperty("--ry", (x * 10).toFixed(2) + "deg"); p.style.setProperty("--rx", (-y * 8).toFixed(2) + "deg");
+      });
+      p.addEventListener("pointerleave", () => { p.style.setProperty("--ry", "0deg"); p.style.setProperty("--rx", "0deg"); });
+    });
+    // Os botões principais puxam um pouco para o mouse.
+    document.querySelectorAll(".hero .btn-primary, .closing .btn-primary, header .btn-primary").forEach((b) => {
+      b.addEventListener("pointermove", (e) => { const r = b.getBoundingClientRect(); b.style.translate = ((e.clientX - r.left - r.width / 2) * .14).toFixed(1) + "px " + ((e.clientY - r.top - r.height / 2) * .22).toFixed(1) + "px"; });
+      b.addEventListener("pointerleave", () => { b.style.translate = ""; });
+    });
+  }
+  if (!reduce) $("hint").hidden = false;
+
+  // ---- Uma questão para responder aqui mesmo: explicação em cada alternativa e ordem nova a cada vez.
+  (function () {
+    const box = $("quiz");
+    const ask = "Segundo o caput do art. 37 da Constituição Federal, a administração pública obedece a princípios expressos. Qual das alternativas traz um princípio que NÃO está nesse rol?";
+    const options = [
+      ["Razoabilidade", true, "Certa. A razoabilidade é aceita como princípio da administração, mas não está escrita no caput do art. 37. Lá estão cinco: legalidade, impessoalidade, moralidade, publicidade e eficiência."],
+      ["Legalidade", false, "Está no caput: o agente público só pode fazer o que a lei autoriza. O que ficou de fora do rol é a razoabilidade."],
+      ["Impessoalidade", false, "Está no caput: a atuação busca o interesse público, sem favorecer nem perseguir ninguém. O que ficou de fora é a razoabilidade."],
+      ["Moralidade", false, "Está no caput: além de legal, o ato precisa ser honesto e de boa-fé. O que ficou de fora é a razoabilidade."],
+      ["Eficiência", false, "Está no caput, e foi o último a entrar, com a reforma administrativa de 1998. O que ficou de fora é a razoabilidade."],
+    ];
+    let tries = 0;
+    function draw() {
+      const order = options.map((o) => [Math.random(), o]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+      box.className = "quiz live";
+      box.innerHTML = '<div class="meta"><b>Experimente</b><span>Direito Constitucional · princípios</span></div><p class="ask"></p><div class="opts"></div>' +
+        '<div class="foot"><span class="msg">Escolha uma alternativa.</span><button type="button" class="btn btn-secondary btn-sm">Tentar em outra ordem</button></div>';
+      box.querySelector(".ask").textContent = ask;
+      const opts = box.querySelector(".opts"), msg = box.querySelector(".msg");
+      order.forEach((o, i) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "opt";
+        const l = document.createElement("i"); l.textContent = "ABCDE"[i];
+        const t = document.createElement("span"); t.textContent = o[0];
+        const x = document.createElement("small"); x.textContent = o[2];
+        b.append(l, t, x);
+        b.addEventListener("click", () => {
+          if (box.classList.contains("done")) return;
+          box.classList.add("done"); tries++;
+          [...opts.children].forEach((c, k) => { if (order[k][1]) c.classList.add("right"); });
+          const r = b.getBoundingClientRect();
+          if (o[1]) {
+            msg.textContent = "Acertou. No app, cada acerto conta para o domínio do tópico.";
+            fx.burst(r.left + 30, r.top + r.height / 2, 12, 1.15);
+            speak(tries > 1 ? "Agora foi! Errar e voltar também é estudar." : "Acertou de primeira!", "ecstatic");
+          } else {
+            b.classList.add("wrong");
+            msg.textContent = "Não foi dessa vez. A explicação está em cada alternativa.";
+            speak("Quase. Lê a explicação e tenta de novo.", "relieved");
+          }
+        });
+        opts.appendChild(b);
+      });
+      box.querySelector(".foot button").addEventListener("click", draw);
+    }
+    draw();
+  })();
+
+  // ---- O Folha do canto acompanha a leitura e comenta cada parte.
+  const lines = {
+    "como-funciona": ["point", "Quatro passos. Do terceiro em diante a gente faz junto, todo dia."],
+    "recursos": ["thinking", "Essas telas são do app de verdade. Passa o mouse nelas."],
+    "quiz": ["wink", "Responde essa aí. Eu torço daqui."],
+    "onde": ["happy", "No ônibus pelo celular, em casa pelo computador."],
+    "folha": ["surprised", "Olha eu ali! Troca a minha roupa."],
+    "planos": ["talking", "Dá para começar no grátis e assinar só se fizer sentido."],
+    "duvidas": ["thinking", "Ficou dúvida? Manda um e-mail que a gente responde."],
+    "fim": ["wave", "Te espero lá dentro!"],
+  };
+  const said = new Set();
+  const watch = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (!e.isIntersecting || heroOn || said.has(e.target.id)) return;
+    said.add(e.target.id);
+    const [mood, line] = lines[e.target.id];
+    speak(line, mood);
+  }), { rootMargin: "-35% 0px -45% 0px" });
+  Object.keys(lines).forEach((id) => { const el = $(id); if (el) watch.observe(el); });
+  $("buddy-x").addEventListener("click", () => { buddyOff = true; buddy.classList.remove("show"); try { sessionStorage.setItem("folha-canto", "0"); } catch (e) {} });
+
+  // Depois do topo: no celular entra a barra fixa; no computador, o Folha do canto.
+  new IntersectionObserver(([e]) => {
+    heroOn = e.isIntersecting;
+    sticky.classList.toggle("show", !heroOn);
+    buddy.classList.toggle("show", !heroOn && !buddyOff);
+    if (heroOn) type(buddyBubble, "");
+  }).observe(hero);
 
   // As seções entram suavemente ao aparecer. Sem script, tudo aparece normalmente.
   document.documentElement.classList.add("anim");
