@@ -1,0 +1,504 @@
+{
+  "id": "informatica.algoritmos-grafos",
+  "subject": "Informática",
+  "title": "Algoritmos em grafos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Algoritmos em grafos",
+    "Grafos: algoritmos e complexidade",
+    "Busca em largura e busca em profundidade",
+    "Algoritmos BFS e DFS em grafos",
+    "Caminho mínimo: Dijkstra, Bellman-Ford e Floyd-Warshall",
+    "Árvore geradora mínima: Prim e Kruskal",
+    "Fluxo máximo: Ford-Fulkerson",
+    "Ordenação topológica",
+    "Teoria dos grafos para computação"
+  ],
+  "scope": {
+    "covers": "Conceitos de grafo (dirigido, não dirigido, ponderado, conexo, acíclico, DAG), representação por matriz e lista de adjacência; busca em largura (BFS) e em profundidade (DFS) e suas aplicações; ordenação topológica (DFS e Kahn); componentes conexos; caminho mínimo com Dijkstra, Bellman-Ford e Floyd-Warshall; árvore geradora mínima com Prim e Kruskal (union-find); fluxo máximo com Ford-Fulkerson e Edmonds-Karp, corte mínimo; complexidades de tempo e espaço.",
+    "excludes": "Estruturas de dados básicas (pilha, fila, heap) em detalhe, algoritmos de casamento de cadeias (KMP), problemas NP-completos em grafos (caixeiro-viajante, coloração) além de menção, provas formais de corretude e teoria espectral de grafos."
+  },
+  "theoryTitle": "Algoritmos em grafos: teoria para concursos",
+  "chapters": [
+    {
+      "title": "1. Conceitos e representação de grafos",
+      "markdown": "Um **grafo** G = (V, E) é formado por um conjunto de **vértices** V e um conjunto de **arestas** E que ligam pares de vértices. Nas provas, usa-se n = |V| e m = |E|.\n\n### Classificações que caem\n\n- **Não dirigido:** a aresta {u, v} vale nos dois sentidos. **Dirigido (dígrafo):** o arco (u, v) vai só de u para v.\n- **Ponderado:** cada aresta tem um peso (custo, distância, capacidade).\n- **Grau:** número de arestas incidentes ao vértice. Em grafo não dirigido, a soma dos graus é 2m (cada aresta conta duas vezes). Em dígrafo há grau de entrada e grau de saída.\n- **Conexo:** existe caminho entre qualquer par de vértices. Em dígrafo, **fortemente conexo** exige caminho nos dois sentidos.\n- **Árvore:** grafo conexo e acíclico com exatamente n − 1 arestas.\n- **DAG:** grafo dirigido acíclico; é o único tipo que admite ordenação topológica.\n- **Denso x esparso:** denso tem m próximo de n²; esparso tem m bem menor (próximo de n).\n\n### Matriz de adjacência\n\nMatriz n × n em que a posição [i][j] indica se há aresta (ou guarda o peso). Ocupa **Θ(n²)** de memória, independentemente de m. Vantagem: testar se a aresta (u, v) existe em **O(1)**. Desvantagem: listar os vizinhos de um vértice custa O(n). Em grafo não dirigido a matriz é simétrica.\n\n### Lista de adjacência\n\nVetor de n listas; a lista de u contém seus vizinhos. Ocupa **Θ(n + m)**, ideal para grafos esparsos. Percorrer todos os vizinhos de todos os vértices custa O(n + m). Testar se uma aresta específica existe custa O(grau(u)).\n\n| Operação | Matriz | Lista |\n|---|---|---|\n| Memória | Θ(n²) | Θ(n + m) |\n| Existe (u, v)? | O(1) | O(grau(u)) |\n| Vizinhos de u | O(n) | O(grau(u)) |\n| BFS/DFS completa | O(n²) | O(n + m) |\n\n**Pegadinha:** a complexidade de BFS e DFS depende da representação. A banca escreve \"BFS é sempre O(n + m)\": isso só vale com lista de adjacência; com matriz é O(n²)."
+    },
+    {
+      "title": "2. Buscas em largura e em profundidade",
+      "markdown": "### Busca em largura (BFS)\n\nA BFS parte de um vértice origem s e visita os vértices **por camadas**: primeiro todos à distância 1, depois os à distância 2 e assim por diante. Usa uma **fila** (FIFO). Ao retirar u da fila, cada vizinho ainda não descoberto recebe distância d[u] + 1, tem u como pai e entra na fila.\n\nPropriedade central: em grafo **não ponderado** (ou com todos os pesos iguais), a BFS encontra o **caminho mínimo em número de arestas** a partir de s. Ela também gera a árvore de BFS e serve para testar se um grafo é **bipartido** (colorindo camadas alternadas).\n\n### Busca em profundidade (DFS)\n\nA DFS avança o mais fundo possível antes de recuar. Usa uma **pilha**, explícita ou pela recursão. Cada vértice recebe tempo de **descoberta** e de **término**. As arestas são classificadas em:\n\n- **de árvore:** levam a vértice recém-descoberto;\n- **de retorno (back edge):** levam a um ancestral ainda em processamento; sua presença indica **ciclo**;\n- **de avanço** e **de cruzamento:** aparecem em dígrafos.\n\nAplicações da DFS: detectar ciclos, ordenação topológica, componentes fortemente conexos (Kosaraju e Tarjan), pontes e pontos de articulação.\n\n### Complexidade\n\nAmbas visitam cada vértice uma vez e examinam cada aresta um número constante de vezes: **O(n + m)** com lista de adjacência e **O(n²)** com matriz.\n\n### Componentes conexos\n\nEm grafo não dirigido, rodar BFS ou DFS a partir de cada vértice ainda não visitado separa os componentes conexos: cada nova busca iniciada é um novo componente.\n\n**Exemplo:** num mapa de estações em que todas as ligações têm o mesmo custo, a BFS a partir da estação Centro dá o menor número de trechos até cada estação. Se os trechos tiverem tempos diferentes, a BFS deixa de garantir o menor tempo; aí entra Dijkstra.\n\n**Pegadinha:** trocar a fila por pilha transforma a lógica em DFS e perde a garantia de caminho mínimo."
+    },
+    {
+      "title": "3. Ordenação topológica",
+      "markdown": "A **ordenação topológica** de um DAG é uma sequência linear dos vértices tal que, para todo arco (u, v), u aparece antes de v. Modela dependências: pré-requisitos de disciplinas, etapas de compilação, tarefas de projeto.\n\n### Condição de existência\n\nSó existe se o grafo for **dirigido e acíclico**. Se houver ciclo, nenhuma ordem satisfaz todas as dependências. Um DAG pode ter **várias** ordenações topológicas válidas; ela é única somente quando há um caminho que passa por todos os vértices.\n\n### Método por DFS\n\nExecuta-se a DFS em todo o grafo e, quando um vértice **termina**, ele é inserido no início de uma lista. A lista final, em ordem decrescente de tempo de término, é uma ordenação topológica. Se aparecer aresta de retorno, o grafo tem ciclo.\n\n### Algoritmo de Kahn\n\n1. Calcula o grau de entrada de cada vértice.\n2. Coloca numa fila todos os vértices com grau de entrada zero.\n3. Retira um vértice, anexa-o à saída e decrementa o grau de entrada dos vizinhos; quem chegar a zero entra na fila.\n4. Se ao final a saída tiver menos de n vértices, há ciclo.\n\nAmbos custam **O(n + m)** com lista de adjacência.\n\n### Exemplo\n\nDisciplinas: Cálculo I → Cálculo II → Cálculo III e Cálculo I → Física I. Uma ordem válida é Cálculo I, Física I, Cálculo II, Cálculo III; outra é Cálculo I, Cálculo II, Física I, Cálculo III. As duas respeitam todas as setas.\n\n### Caminho mínimo em DAG\n\nProcessando os vértices em ordem topológica e relaxando as arestas de saída de cada um, obtêm-se caminhos mínimos (mesmo com pesos negativos, já que não há ciclos) em O(n + m). O mesmo raciocínio, maximizando, dá o **caminho crítico** de projetos (CPM).\n\n**Pegadinha:** ordenação topológica não é ordenação de valores; não se aplica a grafo não dirigido nem a dígrafo com ciclo."
+    },
+    {
+      "title": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall",
+      "markdown": "Todos se baseiam em **relaxamento**: se d[u] + w(u, v) < d[v], atualiza-se d[v] e o predecessor de v passa a ser u.\n\n### Dijkstra (origem única, pesos não negativos)\n\nMantém um conjunto de vértices com distância definitiva. A cada passo escolhe o vértice não fechado de **menor distância provisória** (estratégia **gulosa**), fecha-o e relaxa suas arestas. Exige **pesos não negativos**: com aresta negativa, um vértice já fechado poderia ter distância menor descoberta depois.\n\nComplexidade: **O(n²)** com vetor simples (bom para grafo denso); **O((n + m) log n)** com heap binário; O(m + n log n) com heap de Fibonacci.\n\n### Bellman-Ford (origem única, aceita pesos negativos)\n\nRelaxa **todas as arestas n − 1 vezes**. Como um caminho mínimo simples tem no máximo n − 1 arestas, isso basta. Uma **n-ésima rodada** que ainda melhore alguma distância revela **ciclo de peso negativo** alcançável a partir da origem, caso em que o caminho mínimo não está definido. Complexidade: **O(n · m)**. É a base de protocolos de roteamento por vetor de distância (RIP).\n\n### Floyd-Warshall (todos os pares)\n\nProgramação dinâmica sobre uma matriz de distâncias: para cada vértice intermediário k, testa se ir de i a j passando por k melhora: d[i][j] = min(d[i][j], d[i][k] + d[k][j]). Três laços aninhados: **O(n³)** de tempo e **O(n²)** de memória. Aceita pesos negativos, mas não ciclos negativos (que aparecem como d[i][i] < 0 na diagonal).\n\n| Algoritmo | Problema | Pesos negativos | Tempo |\n|---|---|---|---|\n| BFS | origem única, sem peso | não se aplica | O(n + m) |\n| Dijkstra | origem única | não | O((n + m) log n) |\n| Bellman-Ford | origem única | sim, detecta ciclo negativo | O(n · m) |\n| Floyd-Warshall | todos os pares | sim, sem ciclo negativo | O(n³) |\n\n**Exemplo de falha do Dijkstra:** arestas A→B (2), A→C (5) e C→B (−4). Dijkstra fecha B com 2, mas o caminho A→C→B custa 1.\n\n**Pegadinha:** somar uma constante a todos os pesos para eliminar negativos **não** preserva os caminhos mínimos, porque penaliza caminhos com mais arestas."
+    },
+    {
+      "title": "5. Árvore geradora mínima: Prim e Kruskal",
+      "markdown": "Uma **árvore geradora** de um grafo conexo não dirigido liga todos os n vértices com n − 1 arestas e sem ciclos. A **árvore geradora mínima (AGM ou MST)** é a de menor soma de pesos. Aplicações: projeto de redes elétricas, cabeamento, agrupamento.\n\n### Propriedade do corte\n\nPara qualquer divisão dos vértices em dois grupos, a aresta mais leve que cruza a divisão pertence a alguma AGM. Por isso estratégias **gulosas** funcionam aqui.\n\n### Kruskal\n\n1. Ordena todas as arestas por peso crescente.\n2. Percorre a lista e aceita a aresta se ela **não formar ciclo** com as já escolhidas.\n3. Para quando tiver n − 1 arestas.\n\nO teste de ciclo usa a estrutura **union-find** (conjuntos disjuntos): duas pontas no mesmo conjunto formam ciclo. A ordenação domina: **O(m log m) = O(m log n)**. Durante a execução, a solução é uma **floresta** que vai se unindo.\n\n### Prim\n\nCresce **uma única árvore** a partir de um vértice qualquer: a cada passo adiciona a aresta mais leve que liga a árvore a um vértice de fora. Lembra o Dijkstra, mas a chave de cada vértice é o peso da **aresta** que o liga à árvore, e não a distância desde a origem. Complexidade: **O(n²)** com vetor (bom para grafos densos) ou **O(m log n)** com heap binário.\n\n### Observações de prova\n\n- Se todos os pesos forem distintos, a AGM é **única**.\n- Pesos negativos não atrapalham Prim nem Kruskal.\n- A AGM **não** dá caminhos mínimos entre pares de vértices: são problemas diferentes.\n- Num grafo desconexo, Kruskal produz uma floresta geradora mínima.\n\n**Exemplo:** arestas A-B (1), B-C (2), A-C (3), C-D (4). Kruskal aceita A-B e B-C, rejeita A-C (fecharia ciclo) e aceita C-D: custo 7."
+    },
+    {
+      "title": "6. Fluxo máximo: Ford-Fulkerson",
+      "markdown": "Uma **rede de fluxo** é um dígrafo com fonte s, sumidouro t e **capacidade** c(u, v) ≥ 0 em cada arco. Um fluxo válido respeita duas regras: **restrição de capacidade** (fluxo do arco entre 0 e c) e **conservação** (em todo vértice diferente de s e t, o que entra é igual ao que sai). O objetivo é maximizar o fluxo que sai de s.\n\n### Rede residual e caminhos aumentantes\n\nA **rede residual** mostra quanto ainda se pode mudar em cada arco: capacidade restante c − f no sentido original e um arco **reverso** com valor f, que permite **desfazer** fluxo. Um **caminho aumentante** é um caminho de s a t na rede residual; seu **gargalo** é a menor capacidade residual do caminho.\n\n### Método de Ford-Fulkerson\n\n1. Começa com fluxo zero.\n2. Enquanto existir caminho aumentante, envia o gargalo por ele e atualiza a rede residual.\n3. Quando não houver mais caminho, o fluxo é máximo.\n\nCom capacidades inteiras, termina em **O(m · F)**, sendo F o valor do fluxo máximo; a escolha arbitrária do caminho pode ser lenta e, com capacidades irracionais, pode nem terminar.\n\n### Edmonds-Karp\n\nÉ Ford-Fulkerson escolhendo o caminho aumentante por **BFS** (menor número de arestas). Garante **O(n · m²)**, independentemente das capacidades.\n\n### Teorema do fluxo máximo e corte mínimo\n\nUm **corte (S, T)** separa s de t; sua capacidade é a soma das capacidades dos arcos de S para T. O valor do **fluxo máximo é igual à capacidade do corte mínimo**. Ao final do algoritmo, os vértices alcançáveis a partir de s na rede residual formam o lado S do corte mínimo.\n\n**Aplicações:** emparelhamento máximo em grafos bipartidos, escoamento em redes de dutos e de tráfego, alocação de tarefas.\n\n**Pegadinha:** os arcos reversos são indispensáveis; sem eles, o algoritmo guloso pode parar num fluxo que não é máximo."
+    }
+  ],
+  "summary": "Grafo G = (V, E) com n vértices e m arestas. Matriz de adjacência ocupa Θ(n²) e testa aresta em O(1); lista de adjacência ocupa Θ(n + m) e é melhor para grafos esparsos. BFS usa fila, percorre por camadas e dá caminho mínimo em número de arestas em grafo não ponderado; DFS usa pilha ou recursão, classifica arestas e detecta ciclo pela aresta de retorno. Ambas custam O(n + m) com lista e O(n²) com matriz. Ordenação topológica existe só em DAG, por DFS (ordem decrescente de término) ou Kahn (graus de entrada zero), em O(n + m), e pode não ser única. Caminho mínimo: Dijkstra é guloso, exige pesos não negativos e custa O((n + m) log n) com heap ou O(n²) com vetor; Bellman-Ford relaxa todas as arestas n − 1 vezes, aceita pesos negativos e detecta ciclo negativo, em O(n · m); Floyd-Warshall resolve todos os pares por programação dinâmica em O(n³). Árvore geradora mínima: Kruskal ordena arestas e usa union-find, O(m log n); Prim cresce uma árvore, O(n²) ou O(m log n); AGM é única se os pesos forem distintos. Fluxo máximo: Ford-Fulkerson envia fluxo por caminhos aumentantes na rede residual (com arcos reversos), O(m · F); Edmonds-Karp usa BFS e custa O(n · m²); fluxo máximo é igual ao corte mínimo.",
+  "flashcards": [
+    { "front": "Memória da matriz e da lista de adjacência", "back": "Matriz: Θ(n²), independentemente do número de arestas. Lista: Θ(n + m), preferível em grafos esparsos." },
+    { "front": "Estrutura auxiliar da BFS e da DFS", "back": "BFS usa fila (FIFO) e avança por camadas. DFS usa pilha, explícita ou pela recursão, e vai fundo antes de recuar." },
+    { "front": "Quando a BFS dá caminho mínimo?", "back": "Em grafo não ponderado ou com todos os pesos iguais: ela encontra o menor número de arestas da origem a cada vértice." },
+    { "front": "O que indica uma aresta de retorno na DFS?", "back": "Que existe ciclo: a aresta chega a um ancestral que ainda está em processamento." },
+    { "front": "Condição para existir ordenação topológica", "back": "O grafo precisa ser dirigido e acíclico (DAG). A ordem pode não ser única." },
+    { "front": "Algoritmo de Kahn", "back": "Remove repetidamente vértices com grau de entrada zero; se sobrarem vértices, há ciclo. Custa O(n + m)." },
+    { "front": "Restrição do Dijkstra", "back": "Pesos não negativos. Com aresta negativa, um vértice já fechado pode ter distância menor descoberta depois." },
+    { "front": "Complexidade do Dijkstra", "back": "O(n²) com vetor simples; O((n + m) log n) com heap binário; O(m + n log n) com heap de Fibonacci." },
+    { "front": "Como Bellman-Ford detecta ciclo negativo?", "back": "Depois das n − 1 rodadas de relaxamento, uma rodada extra que ainda melhore alguma distância indica ciclo negativo alcançável." },
+    { "front": "Floyd-Warshall: problema e custo", "back": "Caminhos mínimos entre todos os pares, por programação dinâmica com vértice intermediário k; O(n³) de tempo e O(n²) de memória." },
+    { "front": "Kruskal em uma frase", "back": "Ordena as arestas por peso e aceita cada uma que não forme ciclo, testando com union-find; O(m log n)." },
+    { "front": "Prim em uma frase", "back": "Cresce uma árvore a partir de um vértice, sempre adicionando a aresta mais leve que sai dela; O(n²) ou O(m log n) com heap." },
+    { "front": "Quando a árvore geradora mínima é única?", "back": "Quando todos os pesos das arestas são distintos." },
+    { "front": "Teorema do fluxo máximo e corte mínimo", "back": "O valor do fluxo máximo de s a t é igual à capacidade do corte mínimo que separa s de t." },
+    { "front": "Edmonds-Karp", "back": "Ford-Fulkerson escolhendo o caminho aumentante por BFS; complexidade O(n · m²)." },
+    { "front": "Soma dos graus em grafo não dirigido", "back": "É igual a 2m, porque cada aresta é contada nas duas pontas." }
+  ],
+  "tips": [
+    "Associe a estrutura auxiliar: BFS-fila, DFS-pilha, Dijkstra e Prim-fila de prioridade, Kruskal-union-find.",
+    "Viu peso negativo em caminho mínimo de origem única, pense em Bellman-Ford; viu todos os pares, pense em Floyd-Warshall.",
+    "Para lembrar complexidades: Bellman-Ford tem dois fatores (n · m), Floyd tem três laços (n³).",
+    "Prim e Dijkstra têm a mesma estrutura; diferem na chave: peso da aresta (Prim) e distância acumulada (Dijkstra).",
+    "Em fluxo, procure as palavras rede residual, arco reverso, gargalo e corte mínimo."
+  ],
+  "traps": [
+    "Afirmar que BFS e DFS são sempre O(n + m): com matriz de adjacência passam a O(n²).",
+    "Dizer que Dijkstra funciona com pesos negativos desde que não haja ciclo negativo: quem aceita isso é Bellman-Ford.",
+    "Afirmar que a ordenação topológica é única ou que vale para grafo com ciclo.",
+    "Confundir árvore geradora mínima com árvore de caminhos mínimos: são problemas distintos.",
+    "Somar uma constante a todos os pesos para usar Dijkstra com negativos: altera os caminhos mínimos.",
+    "Dizer que Ford-Fulkerson dispensa arcos reversos na rede residual."
+  ],
+  "activeRecall": [
+    { "question": "Por que a BFS não garante o menor custo em grafo ponderado?", "answer": "Porque ela minimiza o número de arestas, não a soma dos pesos; um caminho com mais arestas leves pode custar menos que um com poucas arestas pesadas." },
+    { "question": "Explique por que Bellman-Ford faz n − 1 rodadas.", "answer": "Um caminho mínimo simples tem no máximo n − 1 arestas; cada rodada garante pelo menos mais uma aresta correta do caminho, então n − 1 rodadas bastam sem ciclo negativo." },
+    { "question": "Como obter uma ordenação topológica pela DFS?", "answer": "Rodar a DFS em todo o grafo e listar os vértices em ordem decrescente de tempo de término, inserindo cada um no início da lista quando termina." },
+    { "question": "Qual a diferença de funcionamento entre Kruskal e Prim?", "answer": "Kruskal escolhe arestas globalmente pela ordem de peso e mantém uma floresta; Prim cresce uma única árvore a partir de um vértice, sempre pela aresta mais leve da fronteira." },
+    { "question": "Para que servem os arcos reversos na rede residual?", "answer": "Permitem desfazer fluxo enviado antes, redistribuindo-o; sem eles o método pode parar em fluxo que não é máximo." },
+    { "question": "Quando preferir matriz de adjacência?", "answer": "Em grafos densos ou quando é preciso testar muitas vezes se uma aresta existe, já que a consulta custa O(1)." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Complexidade ligada à representação", "summary": "BFS e DFS custam O(n + m) com lista de adjacência e O(n²) com matriz; a matriz ocupa Θ(n²) sempre." },
+    { "key": "e2", "title": "Pesos negativos em caminho mínimo", "summary": "Dijkstra exige pesos não negativos; Bellman-Ford aceita negativos e detecta ciclo negativo; Floyd-Warshall aceita negativos sem ciclo negativo." },
+    { "key": "e3", "title": "Ordenação topológica fora de DAG", "summary": "Só existe em grafo dirigido acíclico, pode haver várias e o ciclo é detectado por aresta de retorno ou por Kahn não esgotar os vértices." },
+    { "key": "e4", "title": "AGM confundida com caminho mínimo", "summary": "Prim e Kruskal minimizam a soma total da árvore, não a distância entre dois vértices; AGM é única com pesos distintos." },
+    { "key": "e5", "title": "Fluxo máximo mal compreendido", "summary": "Ford-Fulkerson usa rede residual com arcos reversos; fluxo máximo é igual ao corte mínimo; Edmonds-Karp usa BFS e custa O(n · m²)." }
+  ],
+  "questions": [
+    {
+      "statement": "Em um grafo não dirigido com n vértices e m arestas representado por matriz de adjacência, a memória ocupada é proporcional a n², qualquer que seja o número de arestas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A matriz reserva uma posição para cada par de vértices, ou seja, n × n células, mesmo que quase todas fiquem vazias. Por isso ela desperdiça espaço em grafos esparsos, nos quais a lista de adjacência, com Θ(n + m), é mais econômica.",
+      "section": "1. Conceitos e representação de grafos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A busca em largura utiliza uma pilha para armazenar os vértices descobertos, o que a faz explorar primeiro os caminhos mais profundos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A busca em largura usa fila (primeiro a entrar, primeiro a sair) e visita o grafo por camadas de distância a partir da origem. Quem usa pilha, ou recursão, e avança o mais fundo possível antes de recuar é a busca em profundidade.",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em grafo não ponderado, a busca em largura a partir de um vértice s determina, para cada vértice alcançável, o caminho com o menor número de arestas desde s.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Como a busca em largura descobre primeiro todos os vértices à distância 1, depois os à distância 2 e assim por diante, cada vértice recebe a menor distância em arestas no momento em que é descoberto. Isso deixa de valer quando as arestas têm pesos diferentes.",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Todo grafo dirigido admite pelo menos uma ordenação topológica de seus vértices.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A ordenação topológica só existe em grafo dirigido acíclico. Se houver ciclo, por exemplo A→B→C→A, cada vértice teria de vir antes do próximo e, ao mesmo tempo, depois dele, o que é impossível.",
+      "section": "3. Ordenação topológica", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo de Dijkstra exige que os pesos das arestas sejam não negativos para garantir o cálculo correto dos caminhos mínimos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Dijkstra fecha definitivamente o vértice de menor distância provisória. Com aresta negativa, um caminho descoberto depois poderia reduzir a distância de um vértice já fechado, e o algoritmo não voltaria para corrigi-la.",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma árvore geradora de um grafo conexo com n vértices possui exatamente n − 1 arestas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Toda árvore com n vértices tem n − 1 arestas: menos que isso deixaria o grafo desconexo, e qualquer aresta a mais criaria um ciclo. Por isso Prim e Kruskal param exatamente ao escolher n − 1 arestas.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede de fluxo, exceto na fonte e no sumidouro, a quantidade de fluxo que entra em cada vértice deve ser igual à quantidade que sai dele.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Essa é a regra de conservação de fluxo: os vértices intermediários não produzem nem acumulam fluxo. Junto com a restrição de capacidade de cada arco, ela define o que é um fluxo válido na rede.",
+      "section": "6. Fluxo máximo: Ford-Fulkerson", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A busca em profundidade executada sobre um grafo representado por lista de adjacência tem complexidade O(n + m).",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Cada vértice é descoberto uma única vez e cada lista de vizinhos é percorrida uma vez, de modo que o total de trabalho soma os n vértices e as m arestas. Com matriz, examinar os vizinhos custaria O(n) por vértice, e o total subiria para O(n²).",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na busca em profundidade de um grafo dirigido, a existência de uma aresta de retorno indica que o grafo possui ciclo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A aresta de retorno liga um vértice a um ancestral que ainda está em processamento na recursão. Somada ao caminho da árvore do ancestral até esse vértice, ela fecha um ciclo; por isso a DFS é usada para testar se o grafo é acíclico.",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um grafo dirigido acíclico sempre tem uma única ordenação topológica possível.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Vértices sem dependência entre si podem aparecer em qualquer ordem relativa. Com arcos A→B e A→C, tanto A, B, C quanto A, C, B são válidas. A ordem só é única quando existe um caminho que passa por todos os vértices.",
+      "section": "3. Ordenação topológica", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo de Bellman-Ford calcula caminhos mínimos de origem única mesmo com arestas de peso negativo e consegue identificar ciclo de peso negativo alcançável a partir da origem.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Ele relaxa todas as arestas n − 1 vezes, o que basta para qualquer caminho simples. Se uma rodada adicional ainda reduzir alguma distância, existe ciclo negativo alcançável e o caminho mínimo não está definido.",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo de Kruskal constrói a árvore geradora mínima mantendo, a cada passo, uma única árvore conexa que cresce a partir de um vértice inicial.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Essa descrição é do algoritmo de Prim. Kruskal escolhe as arestas pela ordem global de peso e, no meio da execução, forma uma floresta de várias árvores que vão sendo unidas, até restar uma só com n − 1 arestas.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Pelo teorema do fluxo máximo e corte mínimo, o valor máximo de fluxo entre a fonte e o sumidouro é igual à menor capacidade entre todos os cortes que separam esses dois vértices.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Todo fluxo precisa atravessar qualquer corte, logo nunca supera a capacidade do corte mínimo. O teorema garante que esse limite é atingido; ao final de Ford-Fulkerson, os vértices ainda alcançáveis da fonte na rede residual formam um corte mínimo.",
+      "section": "6. Fluxo máximo: Ford-Fulkerson", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um grafo não dirigido, a soma dos graus de todos os vértices é igual ao dobro do número de arestas.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Cada aresta liga duas pontas e soma uma unidade ao grau de cada uma delas. Assim, ao somar os graus de todos os vértices, cada aresta é contada duas vezes, e o total é 2m. Daí decorre que o número de vértices de grau ímpar é sempre par.",
+      "section": "1. Conceitos e representação de grafos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo de Floyd-Warshall, que calcula caminhos mínimos entre todos os pares de vértices, possui complexidade de tempo O(n³).",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A programação dinâmica percorre cada vértice intermediário k e, para cada um, todos os pares i, j, testando se passar por k encurta o caminho. São três laços aninhados de n iterações, com matriz de distâncias de tamanho n².",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para aplicar Dijkstra a um grafo com arestas negativas, basta somar a todos os pesos o módulo do menor peso negativo, pois isso mantém os mesmos caminhos mínimos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Somar uma constante a cada aresta aumenta o custo de um caminho proporcionalmente ao número de arestas que ele tem, favorecendo caminhos curtos em arestas. O caminho mínimo original pode deixar de sê-lo; para pesos negativos usa-se Bellman-Ford.",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se todos os pesos das arestas de um grafo conexo forem distintos, a árvore geradora mínima desse grafo é única.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Com pesos distintos, em cada corte há uma única aresta mais leve, e pela propriedade do corte ela pertence obrigatoriamente à árvore mínima. Empates de peso é que podem gerar mais de uma árvore com o mesmo custo total.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A árvore geradora mínima de um grafo ponderado contém, entre quaisquer dois vértices, o caminho de menor custo existente no grafo original.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A árvore mínima minimiza a soma total das arestas escolhidas, não a distância entre um par específico. Num triângulo com arestas 1, 1 e 1,5, a árvore usa as duas de peso 1, e o caminho entre as pontas da aresta 1,5 passa a custar 2.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A variante de Edmonds-Karp do método de Ford-Fulkerson escolhe os caminhos aumentantes por busca em largura e tem complexidade O(n · m²), independentemente dos valores das capacidades.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Escolher sempre o caminho aumentante com menos arestas limita o número de aumentos a O(n · m), e cada busca custa O(m). Assim o tempo deixa de depender do valor do fluxo máximo, como ocorre no método genérico, que é O(m · F).",
+      "section": "6. Fluxo máximo: Ford-Fulkerson", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Processar os vértices de um grafo dirigido acíclico em ordem topológica, relaxando as arestas de saída de cada um, fornece os caminhos mínimos de origem única em tempo linear, mesmo com pesos negativos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Na ordem topológica, quando um vértice é processado todos os seus predecessores já têm distância final, então cada aresta é relaxada uma só vez. Como não há ciclos, pesos negativos não causam problema, e o custo total é O(n + m).",
+      "section": "3. Ordenação topológica", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede social tem 2 milhões de usuários e, em média, cada um tem 150 amizades. Qual representação é mais adequada para armazenar esse grafo e por quê?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Matriz de adjacência, porque permite percorrer os amigos de cada usuário em tempo constante", "correct": false },
+        { "key": "B", "text": "Lista de adjacência, porque o grafo é esparso e ela ocupa espaço proporcional a n + m", "correct": true },
+        { "key": "C", "text": "Matriz de incidência, porque ocupa espaço proporcional apenas ao número de vértices", "correct": false },
+        { "key": "D", "text": "Matriz de adjacência, porque grafos não dirigidos geram matriz simétrica e econômica", "correct": false },
+        { "key": "E", "text": "Lista de arestas ordenada, porque permite testar a existência de amizade em O(1)", "correct": false }
+      ],
+      "explanation": "Cada usuário tem poucas conexões em relação ao total, então o grafo é esparso. A matriz exigiria cerca de 4 trilhões de células, quase todas vazias, enquanto a lista guarda apenas os vértices e as arestas existentes, com espaço proporcional a n + m.",
+      "section": "1. Conceitos e representação de grafos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura de dados auxiliar caracteriza a busca em largura?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Pilha, que mantém o último vértice descoberto no topo", "correct": false },
+        { "key": "B", "text": "Fila de prioridade ordenada pela distância acumulada", "correct": false },
+        { "key": "C", "text": "Fila, que processa os vértices na ordem de descoberta", "correct": true },
+        { "key": "D", "text": "Union-find, que agrupa os vértices em conjuntos disjuntos", "correct": false },
+        { "key": "E", "text": "Tabela hash, que sorteia o próximo vértice a visitar", "correct": false }
+      ],
+      "explanation": "A busca em largura retira os vértices na mesma ordem em que foram descobertos, e isso é exatamente o comportamento de uma fila. É o que garante a visita por camadas. Pilha leva à busca em profundidade, fila de prioridade é usada em Dijkstra e Prim, e union-find em Kruskal.",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de matrícula precisa listar as disciplinas numa sequência que respeite todos os pré-requisitos. Qual técnica resolve esse problema?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Árvore geradora mínima pelo algoritmo de Prim", "correct": false },
+        { "key": "B", "text": "Fluxo máximo pelo método de Ford-Fulkerson", "correct": false },
+        { "key": "C", "text": "Caminhos mínimos entre todos os pares por Floyd", "correct": false },
+        { "key": "D", "text": "Ordenação topológica do grafo de dependências", "correct": true },
+        { "key": "E", "text": "Coloração dos vértices com o menor número de cores", "correct": false }
+      ],
+      "explanation": "Os pré-requisitos formam um grafo dirigido em que cada arco aponta da disciplina exigida para a que depende dela. Uma ordenação topológica desse grafo lista cada disciplina depois de todas as suas exigências. Os demais algoritmos resolvem problemas de custo, de capacidade ou de conflito.",
+      "section": "3. Ordenação topológica", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer ligar todas as suas filiais por fibra óptica gastando o mínimo possível de cabo, sabendo o custo de cada ligação possível. Que problema de grafos é esse?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Caminho mínimo de origem única a partir da matriz", "correct": false },
+        { "key": "B", "text": "Árvore geradora mínima do grafo de ligações", "correct": true },
+        { "key": "C", "text": "Fluxo máximo entre a matriz e a filial mais distante", "correct": false },
+        { "key": "D", "text": "Ordenação topológica das filiais por custo", "correct": false },
+        { "key": "E", "text": "Busca em largura para contar componentes", "correct": false }
+      ],
+      "explanation": "O objetivo é conectar todos os vértices com a menor soma de custos e sem ligações redundantes, o que define uma árvore geradora mínima, resolvida por Prim ou Kruskal. Caminho mínimo otimiza a distância a partir de um ponto, não o custo total da rede.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No método de Ford-Fulkerson, como se chama o caminho da fonte ao sumidouro na rede residual pelo qual ainda é possível enviar mais fluxo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Caminho crítico", "correct": false },
+        { "key": "B", "text": "Caminho hamiltoniano", "correct": false },
+        { "key": "C", "text": "Caminho aumentante", "correct": true },
+        { "key": "D", "text": "Corte de capacidade", "correct": false },
+        { "key": "E", "text": "Ciclo de retorno", "correct": false }
+      ],
+      "explanation": "O caminho aumentante liga a fonte ao sumidouro usando só arcos com capacidade residual positiva. O algoritmo envia por ele o gargalo, isto é, a menor capacidade residual do trajeto, e repete até não existir nenhum. Caminho crítico é conceito de planejamento de projetos.",
+      "section": "6. Fluxo máximo: Ford-Fulkerson", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Sobre a busca em profundidade (DFS), assinale a afirmativa correta.",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Encontra o caminho de menor número de arestas entre a origem e cada vértice", "correct": false },
+        { "key": "B", "text": "Pode ser implementada por recursão e serve para detectar ciclos no grafo", "correct": true },
+        { "key": "C", "text": "Só pode ser aplicada a grafos dirigidos e acíclicos com uma única fonte", "correct": false },
+        { "key": "D", "text": "Exige que todas as arestas tenham peso positivo para terminar corretamente", "correct": false },
+        { "key": "E", "text": "Tem custo O(n log n) porque ordena os vizinhos antes de visitá-los", "correct": false }
+      ],
+      "explanation": "A recursão faz o papel da pilha, levando a busca o mais fundo possível antes de recuar. Ao encontrar aresta para um ancestral ainda em processamento, revela ciclo. Menor número de arestas é propriedade da BFS, e a DFS funciona em qualquer grafo, ponderado ou não.",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No algoritmo de Kahn para ordenação topológica, o que indica que o grafo dirigido contém um ciclo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A fila inicial de vértices com grau de entrada zero tem mais de um elemento", "correct": false },
+        { "key": "B", "text": "Algum vértice tem grau de saída maior que o seu grau de entrada", "correct": false },
+        { "key": "C", "text": "A saída final contém todos os vértices em ordem diferente da numeração", "correct": false },
+        { "key": "D", "text": "A fila se esvazia antes que todos os vértices tenham sido colocados na saída", "correct": true },
+        { "key": "E", "text": "Um vértice é inserido na fila duas vezes durante o processamento", "correct": false }
+      ],
+      "explanation": "Os vértices de um ciclo dependem uns dos outros e nunca chegam a grau de entrada zero, então não entram na fila. Quando ela se esvazia sem que todos tenham saído, sobram justamente esses vértices. Fila inicial com vários elementos só mostra que a ordem não é única.",
+      "section": "3. Ordenação topológica", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual a complexidade de tempo do algoritmo de Dijkstra implementado com heap binário sobre lista de adjacência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O(n · m)", "correct": false },
+        { "key": "B", "text": "O(n³)", "correct": false },
+        { "key": "C", "text": "O((n + m) log n)", "correct": true },
+        { "key": "D", "text": "O(n + m)", "correct": false },
+        { "key": "E", "text": "O(m · log m · n)", "correct": false }
+      ],
+      "explanation": "Cada vértice sai do heap uma vez e cada aresta pode provocar uma atualização de prioridade; essas operações custam O(log n) cada, somando O((n + m) log n). O(n · m) é Bellman-Ford, O(n³) é Floyd-Warshall e O(n + m) é o custo das buscas simples.",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um roteador precisa calcular rotas de menor custo a partir de si mesmo, e alguns enlaces têm custo negativo por política de incentivo. Qual algoritmo é apropriado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Dijkstra com heap binário, por ser o mais rápido", "correct": false },
+        { "key": "B", "text": "Bellman-Ford, que aceita pesos negativos", "correct": true },
+        { "key": "C", "text": "Prim, que trata cada enlace isoladamente", "correct": false },
+        { "key": "D", "text": "Busca em largura, ignorando o custo dos enlaces", "correct": false },
+        { "key": "E", "text": "Kruskal, ordenando os enlaces por custo crescente", "correct": false }
+      ],
+      "explanation": "O problema é de caminho mínimo de origem única com arestas negativas. Bellman-Ford relaxa todas as arestas n − 1 vezes, funciona com pesos negativos e ainda acusa ciclo negativo. Dijkstra falharia, a busca em largura ignora custos, e Prim e Kruskal tratam de árvores geradoras.",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No algoritmo de Kruskal, qual estrutura permite verificar de forma eficiente se a próxima aresta candidata formaria um ciclo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Fila simples com os vértices já visitados", "correct": false },
+        { "key": "B", "text": "Matriz de distâncias entre todos os pares", "correct": false },
+        { "key": "C", "text": "Pilha de recursão com tempos de término", "correct": false },
+        { "key": "D", "text": "Conjuntos disjuntos com união e busca", "correct": true },
+        { "key": "E", "text": "Rede residual com arcos reversos", "correct": false }
+      ],
+      "explanation": "Cada componente da floresta parcial é um conjunto. Se as duas pontas da aresta candidata estão no mesmo conjunto, aceitá-la fecharia ciclo; caso contrário, a aresta entra e os conjuntos se unem. Com compressão de caminho, essas operações são quase constantes.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Arestas não dirigidas: A-B (1), B-C (2), A-C (3), C-D (4), B-D (5). Qual o custo da árvore geradora mínima?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "6", "correct": false },
+        { "key": "B", "text": "8", "correct": false },
+        { "key": "C", "text": "7", "correct": true },
+        { "key": "D", "text": "10", "correct": false },
+        { "key": "E", "text": "9", "correct": false }
+      ],
+      "explanation": "Pela ordem de peso, aceitam-se A-B (1) e B-C (2); A-C (3) é rejeitada porque fecharia ciclo com as duas; C-D (4) liga o último vértice. Com três arestas para quatro vértices, a árvore está completa e soma 1 + 2 + 4. B-D (5) nem precisa ser examinada.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Arcos com capacidade: s→a (10), s→b (5), a→b (15), a→t (4), b→t (10). Qual o valor do fluxo máximo de s para t?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "15", "correct": false },
+        { "key": "B", "text": "10", "correct": false },
+        { "key": "C", "text": "4", "correct": false },
+        { "key": "D", "text": "14", "correct": true },
+        { "key": "E", "text": "19", "correct": false }
+      ],
+      "explanation": "Chegam a t no máximo 4 por a→t e 10 por b→t, então o corte em torno de t tem capacidade 14. Esse valor é atingido: s→a leva 10, dos quais 4 vão direto a t e 6 seguem por a→b; s→b leva 4; b recebe 10 e envia os 10 a t. O fluxo máximo é 14.",
+      "section": "6. Fluxo máximo: Ford-Fulkerson", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Arcos com pesos: A→B (2), A→C (5), C→B (−4). Executando Dijkstra a partir de A, qual problema ocorre?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O algoritmo entra em laço infinito por causa do peso negativo", "correct": false },
+        { "key": "B", "text": "B é fechado com distância 2, embora o caminho por C custe 1", "correct": true },
+        { "key": "C", "text": "C recebe distância −4, pois o algoritmo soma pesos ao contrário", "correct": false },
+        { "key": "D", "text": "O algoritmo detecta ciclo negativo e interrompe a execução", "correct": false },
+        { "key": "E", "text": "Nenhum, pois só há problema quando existem ciclos no grafo", "correct": false }
+      ],
+      "explanation": "Dijkstra fecha primeiro o vértice de menor distância provisória, que é B com 2. Ao processar C, com 5, descobre A→C→B custando 1, mas B já está definitivo e não é revisto. O algoritmo termina com resposta errada; não há ciclo, então ele não entra em laço nem acusa nada.",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o algoritmo de Floyd-Warshall, assinale a afirmativa correta.",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "É um algoritmo guloso que fecha um vértice por vez, como Dijkstra", "correct": false },
+        { "key": "B", "text": "Exige pesos positivos e lista de adjacência para funcionar", "correct": false },
+        { "key": "C", "text": "Valor negativo na diagonal da matriz final revela ciclo negativo", "correct": true },
+        { "key": "D", "text": "Calcula apenas caminhos de uma origem, em tempo O(n · m)", "correct": false },
+        { "key": "E", "text": "Produz a árvore geradora mínima como resultado intermediário", "correct": false }
+      ],
+      "explanation": "A distância de um vértice a ele mesmo começa em zero e só pode cair abaixo disso se houver um ciclo de soma negativa passando por ele. O método é programação dinâmica para todos os pares, trabalha sobre matriz, aceita pesos negativos e custa O(n³).",
+      "section": "4. Caminhos mínimos: Dijkstra, Bellman-Ford e Floyd-Warshall", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um grafo denso, com m próximo de n², qual implementação do algoritmo de Prim tende a ser a mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Com heap binário, em O(m log n), que fica próximo de O(n² log n)", "correct": false },
+        { "key": "B", "text": "Com vetor de chaves e matriz, em O(n²), sem custo de heap", "correct": true },
+        { "key": "C", "text": "Com union-find, em O(m), dispensando a escolha da aresta mínima", "correct": false },
+        { "key": "D", "text": "Com fila simples, em O(n + m), igual à busca em largura", "correct": false },
+        { "key": "E", "text": "Com ordenação prévia das arestas, em O(n³) no pior caso", "correct": false }
+      ],
+      "explanation": "Com vetor, achar o vértice de menor chave custa O(n) a cada uma das n iterações, totalizando O(n²), o que já é linear no tamanho de um grafo denso. Com heap, o termo m log n vira n² log n, pior nesse caso. Union-find e ordenação de arestas pertencem ao Kruskal.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual a função dos arcos reversos na rede residual do método de Ford-Fulkerson?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Representar arestas de retorno que denunciam ciclos no grafo", "correct": false },
+        { "key": "B", "text": "Duplicar a capacidade de cada arco para acelerar a convergência", "correct": false },
+        { "key": "C", "text": "Permitir desfazer fluxo enviado antes e redistribuí-lo na rede", "correct": true },
+        { "key": "D", "text": "Indicar os arcos que pertencem ao corte mínimo desde o início", "correct": false },
+        { "key": "E", "text": "Garantir que o fluxo que entra no sumidouro volte para a fonte", "correct": false }
+      ],
+      "explanation": "O arco reverso tem valor igual ao fluxo já enviado e permite que um caminho aumentante posterior cancele parte dele, redirecionando a quantidade para outro trajeto. Sem essa possibilidade, uma escolha gulosa ruim no início pode travar o método abaixo do fluxo máximo.",
+      "section": "6. Fluxo máximo: Ford-Fulkerson", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Assinale a associação correta entre algoritmo e complexidade de tempo usual.",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Bellman-Ford: O(n + m)", "correct": false },
+        { "key": "B", "text": "Floyd-Warshall: O(n² log n)", "correct": false },
+        { "key": "C", "text": "Kruskal: O(m log n)", "correct": true },
+        { "key": "D", "text": "Edmonds-Karp: O(m log n)", "correct": false },
+        { "key": "E", "text": "Ordenação topológica: O(n · m)", "correct": false }
+      ],
+      "explanation": "Kruskal gasta o tempo principal ordenando as arestas, O(m log m), que equivale a O(m log n), já que m é no máximo n². Bellman-Ford custa O(n · m), Floyd-Warshall O(n³), Edmonds-Karp O(n · m²) e a ordenação topológica é linear, O(n + m).",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um grafo não dirigido é bipartido quando seus vértices podem ser divididos em dois grupos sem aresta interna. Como testar essa propriedade de forma eficiente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Calcular a árvore geradora mínima e verificar se ela tem n − 1 arestas", "correct": false },
+        { "key": "B", "text": "Executar Floyd-Warshall e procurar distâncias negativas na diagonal", "correct": false },
+        { "key": "C", "text": "Rodar fluxo máximo entre dois vértices escolhidos ao acaso", "correct": false },
+        { "key": "D", "text": "Ordenar topologicamente o grafo e comparar vértices vizinhos", "correct": false },
+        { "key": "E", "text": "Colorir as camadas da BFS alternadamente e buscar conflito de cor", "correct": true }
+      ],
+      "explanation": "Na busca em largura, vértices de camadas consecutivas recebem cores opostas. Se alguma aresta ligar dois vértices da mesma cor, existe ciclo de comprimento ímpar e o grafo não é bipartido. O teste custa O(n + m), enquanto as outras propostas nem se aplicam ao problema.",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num grafo não ponderado com milhões de vértices, deseja-se apenas saber quantos componentes conexos existem. Qual a abordagem mais simples e eficiente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Rodar Floyd-Warshall e contar as distâncias infinitas entre pares", "correct": false },
+        { "key": "B", "text": "Executar Dijkstra a partir de cada vértice e comparar os resultados", "correct": false },
+        { "key": "C", "text": "Iniciar BFS ou DFS em cada vértice ainda não visitado e contar", "correct": true },
+        { "key": "D", "text": "Aplicar Ford-Fulkerson entre todos os pares de vértices do grafo", "correct": false },
+        { "key": "E", "text": "Ordenar topologicamente e contar os vértices de grau de entrada zero", "correct": false }
+      ],
+      "explanation": "Cada busca iniciada num vértice não visitado marca exatamente um componente inteiro, e o número de buscas iniciadas é o número de componentes. O total custa O(n + m). Floyd-Warshall seria O(n³), inviável com milhões de vértices, e a ordenação topológica não se aplica.",
+      "section": "2. Buscas em largura e em profundidade", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Prim e Dijkstra têm estrutura parecida, com fila de prioridade e um vértice incluído por vez. Em que eles diferem essencialmente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Prim usa pilha, enquanto Dijkstra usa fila simples", "correct": false },
+        { "key": "B", "text": "Prim só funciona em dígrafos; Dijkstra, em grafos não dirigidos", "correct": false },
+        { "key": "C", "text": "A chave de Prim é o peso da aresta; a de Dijkstra, a distância acumulada", "correct": true },
+        { "key": "D", "text": "Dijkstra aceita pesos negativos, e Prim não aceita", "correct": false },
+        { "key": "E", "text": "Prim calcula todos os pares; Dijkstra, uma origem", "correct": false }
+      ],
+      "explanation": "Em Prim, a prioridade de um vértice fora da árvore é o peso da aresta mais leve que o liga a ela; em Dijkstra, é a soma dos pesos desde a origem. Por isso o primeiro minimiza o custo total da árvore e o segundo, a distância de cada vértice à origem.",
+      "section": "5. Árvore geradora mínima: Prim e Kruskal", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    { "kind": "COMPLEMENTAR", "title": "Introduction to Algorithms (4th ed.), partes VI — Graph Algorithms", "publisher": "MIT Press (Cormen, Leiserson, Rivest e Stein)", "reference": "BFS, DFS, ordenação topológica, AGM, caminhos mínimos e fluxo máximo", "url": "https://mitpress.mit.edu/9780262046305/introduction-to-algorithms/", "accessedAt": "2026-11-09" },
+    { "kind": "COMPLEMENTAR", "title": "Algorithms, 4th Edition — Graphs", "publisher": "Princeton University (Sedgewick e Wayne)", "reference": "Representações, buscas, MST, caminhos mínimos e fluxo", "url": "https://algs4.cs.princeton.edu/40graphs/", "accessedAt": "2026-11-09" }
+  ]
+}
