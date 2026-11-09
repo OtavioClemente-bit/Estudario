@@ -296,7 +296,9 @@ fun QuizScreen(
                     }
                 }
             }
-        } else shuffledOptions(current.options, shuffleSeed + current.question.id * 7919, fixed = simulation).forEach { (option, shownLetter) ->
+        // Ordem fixa só para questão de prova real no simulado (mantém as letras da banca); as demais
+        // embaralham também no simulado, senão um recorte com a certa concentrada numa letra aparecia assim (09/11).
+        } else shuffledOptions(current.options, shuffleSeed + current.question.id * 7919, fixed = simulation && current.question.questionSourceType == br.com.estudario.data.local.QuestionSourceType.REAL).forEach { (option, shownLetter) ->
             item(key = "opt-${current.question.id}-${option.id}") {
               Box(enterLayer) {
                 val reveal = confirmed && !simulation
@@ -408,7 +410,7 @@ fun QuizScreen(
                                 },
                             )
                         }
-                        if (showExplanation) MarkdownText(shuffledExplanation(current.question.explanation, current.options, shuffleSeed + current.question.id * 7919, fixed = simulation))
+                        if (showExplanation) MarkdownText(shuffledExplanation(current.question.explanation, current.options, shuffleSeed + current.question.id * 7919, fixed = simulation && current.question.questionSourceType == br.com.estudario.data.local.QuestionSourceType.REAL))
                         else Text("Explicação oculta pela sua configuração.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (correct == false) {
                             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

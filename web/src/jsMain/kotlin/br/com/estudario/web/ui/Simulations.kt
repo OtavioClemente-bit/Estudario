@@ -509,7 +509,7 @@ private fun ExamView(simulation: Simulation) {
             }
             QuestionStatement(question.statement)
             Div({ classes("stack", "tight") }) {
-                question.options.sortedBy { it.position }.forEach { option ->
+                examOrder(simulation.id, question).forEachIndexed { shown, option ->
                     androidx.compose.runtime.key(question.id, option.key) {
                         // Riscar como no treino: o botão ao lado ou o clique direito. Só ajuda a pensar.
                         val crossKey = "${question.id}:${option.key}"
@@ -524,7 +524,7 @@ private fun ExamView(simulation: Simulation) {
                                 onClick { if (isCrossed) crossed = crossed - crossKey else answers = answers + (question.id to option.key) }
                                 addEventListener("contextmenu") { e -> e.preventDefault(); toggleCross() }
                             }) {
-                                Span({ classes("key") }) { Text(option.key) }
+                                Span({ classes("key") }) { Text("ABCDEF".getOrNull(shown)?.toString() ?: option.key) }
                                 Span({ classes("grow") }) { Inline(option.text) }
                             }
                             Button({
@@ -655,16 +655,36 @@ private fun ResultView(simulation: Simulation) {
                     Div({ classes("stack", "tight"); attr("style", "border-top:1px solid var(--line);padding-top:14px") }) {
                         B { Text("Questão ${i + 1}") }
                         QuestionStatement(q.statement); StatementSource(q.statement)
-                        q.options.sortedBy { it.position }.forEach { o ->
+                        val shownOptions = examOrder(simulation.id, q)
+                        shownOptions.forEachIndexed { shown, o ->
                             Div({ classes(*listOfNotNull("option", if (o.key == correctKey) "right" else if (o.key == chosen) "wrong" else null).toTypedArray()) }) {
-                                Span({ classes("key") }) { Text(o.key) }
+                                Span({ classes("key") }) { Text("ABCDEF".getOrNull(shown)?.toString() ?: o.key) }
                                 Span { Inline(o.text) }
                             }
                         }
-                        if (q.explanation.isNotBlank()) Div({ classes("card", "soft") }) { Markdown(q.explanation) }
+                        if (q.explanation.isNotBlank()) Div({ classes("card", "soft") }) { Markdown(examExplanation(simulation.id, q)) }
                     }
                 }
             }
         }
     }
+}
+
+// Ordem das alternativas no simulado: questão de prova real (com órgão e ano) fica na ordem da banca; as
+// demais embaralham com semente fixa por simulado e questão, para a prova e o resultado mostrarem as mesmas
+// letras (09/11: recortes com a certa concentrada numa letra apareciam assim no simulado).
+private fun examIsReal(q: br.com.estudario.web.data.Question) = q.year != null && !q.agency.isNullOrBlank()
+private fun examOrderIndices(simulationId: Long, q: br.com.estudario.web.data.Question): List<Int> {
+    val original = q.options.sortedBy { it.position }
+    return if (examIsReal(q)) original.indices.toList()
+    else br.com.estudario.domain.OptionShuffle.order(original.map { it.text }, simulationId * 1_000_003L + q.id)
+}
+private fun examOrder(simulationId: Long, q: br.com.estudario.web.data.Question): List<br.com.estudario.web.data.QuestionOption> {
+    val original = q.options.sortedBy { it.position }
+    return examOrderIndices(simulationId, q).map { original[it] }
+}
+private fun examExplanation(simulationId: Long, q: br.com.estudario.web.data.Question): String {
+    if (examIsReal(q)) return q.explanation
+    val original = q.options.sortedBy { it.position }
+    return br.com.estudario.domain.OptionShuffle.relabel(q.explanation, original.map { it.key }, examOrderIndices(simulationId, q))
 }

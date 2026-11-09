@@ -1,0 +1,709 @@
+{
+  "id": "informatica.mysql",
+  "subject": "Informática",
+  "title": "MySQL: comandos, tipos, usuários, backup, engines e índices",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Tecnologias para Programação: MySQL",
+    "Banco de dados MySQL",
+    "MySQL e MariaDB",
+    "SGBD MySQL"
+  ],
+  "scope": {
+    "covers": "Uso prático do MySQL 8 em prova de técnico: cliente mysql e servidor mysqld, porta padrão, USE e comandos SHOW/DESCRIBE; tipos de dados numéricos, texto, data e hora, conjunto de caracteres utf8mb4; CREATE TABLE com PRIMARY KEY, AUTO_INCREMENT e ENGINE; LIMIT e OFFSET, funções comuns, INSERT IGNORE, REPLACE e ON DUPLICATE KEY UPDATE, LAST_INSERT_ID, autocommit e transações; CREATE USER, GRANT, REVOKE e contas usuário@host; backup lógico com mysqldump e restauração pelo cliente mysql; storage engines InnoDB, MyISAM e MEMORY; índices PRIMARY, UNIQUE, INDEX, FULLTEXT, índice composto, EXPLAIN; conexão PHP com mysqli e PDO.",
+    "excludes": "Fundamentos gerais de banco relacional e normalização (ver Banco de dados e SQL), Oracle, MongoDB, replicação e cluster em profundidade, ajuste fino de parâmetros do servidor."
+  },
+  "theoryTitle": "MySQL na prática: do cliente ao backup, passando por tipos, permissões, engines e índices",
+  "chapters": [
+    {
+      "title": "1. Cliente, servidor e comandos de navegação (USE, SHOW, DESCRIBE)",
+      "markdown": "**Mapa da matéria**\n\n| O edital pede \"MySQL\" | Onde está |\n| --- | --- |\n| conectar, escolher banco, listar e descrever objetos | 1 |\n| tipos de dados, CREATE TABLE, AUTO_INCREMENT | 2 |\n| LIMIT, funções, INSERT especiais, transações | 3 |\n| usuários, GRANT/REVOKE, mysqldump | 4 |\n| engines (InnoDB × MyISAM), índices, PHP | 5 |\n\n> **Termos explicados**\n> - **mysqld**: o **servidor** (o \"d\" é de *daemon*, programa que roda em segundo plano). É ele que guarda os dados.\n> - **mysql**: o **cliente** de linha de comando, por onde você digita SQL.\n> - **Porta padrão**: **3306** (TCP).\n> - **MariaDB**: derivação (*fork*) do MySQL, muito compatível nos comandos básicos.\n>\n> **Imagem:** o servidor é a **cozinha**; o cliente `mysql` é o **garçom** que leva o pedido (o comando SQL) e traz o prato (o resultado).\n\n## Conectando\n\n```\nmysql -u ana -p -h 10.0.0.5 -P 3306 loja\n```\n\n| Opção | Significa |\n| --- | --- |\n| `-u ana` | usuário |\n| `-p` | **pede a senha** (sem escrevê-la na linha) |\n| `-h` | host (servidor) |\n| `-P` (maiúsculo) | porta |\n| último argumento | banco que já abre selecionado |\n\n> **Pegadinha:** `-p` minúsculo é **senha**; `-P` maiúsculo é **porta**.\n\nCada comando termina com **ponto e vírgula** (`;`) ou `\\G` (mostra o resultado na vertical, uma coluna por linha).\n\n## Navegação\n\n| Comando | O que faz |\n| --- | --- |\n| `SHOW DATABASES;` | lista os bancos que o usuário pode ver |\n| `CREATE DATABASE loja;` | cria o banco |\n| `USE loja;` | **seleciona** o banco atual (não cria nem apaga) |\n| `SELECT DATABASE();` | mostra qual banco está selecionado |\n| `SHOW TABLES;` | lista as tabelas **do banco atual** |\n| `DESCRIBE clientes;` ou `DESC clientes;` | colunas: nome, tipo, `NULL`, chave, padrão, extra |\n| `SHOW COLUMNS FROM clientes;` | o mesmo que `DESCRIBE` |\n| `SHOW CREATE TABLE clientes;` | o **comando completo** que recria a tabela (com engine, índices, charset) |\n| `SHOW INDEX FROM clientes;` | índices da tabela |\n| `SHOW TABLE STATUS;` | engine, nº aproximado de linhas, tamanho |\n| `SHOW PROCESSLIST;` | conexões e consultas em execução |\n| `SHOW VARIABLES LIKE 'version%';` | variáveis do servidor |\n| `SHOW ENGINES;` | engines disponíveis e qual é a padrão |\n| `SHOW GRANTS FOR 'ana'@'localhost';` | permissões de uma conta |\n| `DROP DATABASE loja;` | **apaga** o banco com tudo dentro |\n\n> **Truque:** **SHOW** = \"me mostre a lista\"; **DESCRIBE** = \"me descreva **uma** tabela\".\n\n## Detalhes de sintaxe que caem\n\n| Assunto | Regra no MySQL |\n| --- | --- |\n| nomes com espaço ou palavra reservada | crase invertida: `` `order` `` |\n| comentários | `-- ` (com espaço depois), `#` e `/* ... */` |\n| texto | aspas simples `'Ana'` (padrão SQL) |\n| maiúsculas em comandos | indiferente (`select` = `SELECT`) |\n| maiúsculas em nomes de tabela | depende do sistema: no Linux costuma diferenciar, no Windows não |\n\n**Resumo para a prova**\n- `mysqld` é o servidor; `mysql` é o cliente; porta 3306.\n- `USE` seleciona; `SHOW TABLES` lista as tabelas do banco atual; `DESCRIBE` mostra as colunas.\n- `SHOW CREATE TABLE` devolve o comando de criação, inclusive o `ENGINE`.\n",
+      "content": ""
+    },
+    {
+      "title": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "markdown": "## Tipos numéricos\n\n| Tipo | Bytes | Faixa com sinal | `UNSIGNED` |\n| --- | --- | --- | --- |\n| `TINYINT` | 1 | -128 a 127 | 0 a 255 |\n| `SMALLINT` | 2 | -32.768 a 32.767 | 0 a 65.535 |\n| `MEDIUMINT` | 3 | cerca de ±8 milhões | 0 a ~16 milhões |\n| `INT` | 4 | cerca de ±2,1 bilhões | 0 a ~4,2 bilhões |\n| `BIGINT` | 8 | enorme | enorme |\n\n| Decimal | Uso |\n| --- | --- |\n| `DECIMAL(10,2)` | **exato**: 10 dígitos no total, 2 depois da vírgula. **Dinheiro.** |\n| `FLOAT`, `DOUBLE` | **aproximado** (ponto flutuante): medições, cálculos científicos |\n\n> **Pegadinha:** `BOOLEAN` (ou `BOOL`) não é um tipo à parte: é **sinônimo de `TINYINT(1)`**. `TRUE` vale 1 e `FALSE` vale 0.\n\n## Tipos de texto\n\n| Tipo | Como guarda |\n| --- | --- |\n| `CHAR(n)` | tamanho **fixo** (até 255 caracteres); completa com espaços. Bom para UF, CEP |\n| `VARCHAR(n)` | tamanho **variável**; guarda só o que foi digitado + 1 ou 2 bytes de comprimento |\n| `TEXT` (e `MEDIUMTEXT`, `LONGTEXT`) | textos longos |\n| `BLOB` | dados binários (imagem, arquivo) |\n| `ENUM('P','M','G')` | **um** valor de uma lista |\n| `SET('a','b','c')` | **zero ou mais** valores da lista |\n| `JSON` | documento JSON validado |\n\n**Conjunto de caracteres:** no MySQL 8 o padrão é **`utf8mb4`** (até 4 bytes por caractere, aceita emoji). O antigo `utf8` é na verdade `utf8mb3` (até 3 bytes) e **não guarda emoji**.\n\n## Data e hora\n\n| Tipo | Formato | Observação |\n| --- | --- | --- |\n| `DATE` | `'2026-11-09'` | só data |\n| `TIME` | `'14:30:00'` | só hora (ou duração) |\n| `DATETIME` | `'2026-11-09 14:30:00'` | faixa larga (anos 1000 a 9999); guarda como foi gravado |\n| `TIMESTAMP` | igual | converte para **UTC** ao gravar e volta para o fuso da sessão ao ler; faixa de 1970 a 2038 |\n| `YEAR` | `2026` | só ano |\n\n> **Truque:** **TIMESTAMP** \"viaja\" com o fuso horário; **DATETIME** fica parado como foi escrito.\n\n## CREATE TABLE completo\n\n```\nCREATE TABLE alunos (\n  id        INT UNSIGNED NOT NULL AUTO_INCREMENT,\n  matricula CHAR(10)     NOT NULL,\n  nome      VARCHAR(100) NOT NULL,\n  email     VARCHAR(120),\n  nota      DECIMAL(4,2) DEFAULT 0,\n  criado_em DATETIME     DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (id),\n  UNIQUE KEY uk_matricula (matricula),\n  INDEX idx_nome (nome)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\n```\n\n## AUTO_INCREMENT\n\n| Regra | Detalhe |\n| --- | --- |\n| o que faz | gera o próximo número inteiro sozinho na inserção |\n| quantas por tabela | **só uma** coluna |\n| exigência | a coluna precisa ser **indexada** (normalmente é a `PRIMARY KEY`) |\n| como disparar | omitir a coluna ou inserir `NULL` |\n| depois de `DELETE` | o contador **não volta**: números apagados não são reaproveitados |\n| depois de `TRUNCATE TABLE` | o contador **reinicia** |\n| mudar o próximo valor | `ALTER TABLE alunos AUTO_INCREMENT = 1000;` |\n| saber o id gerado | `SELECT LAST_INSERT_ID();` (da **sua** conexão) |\n\n> **Exemplo:** ids 1, 2, 3; você faz `DELETE FROM alunos WHERE id = 3;` e insere outro aluno → ele recebe **4**, não 3.\n\n## Alterando a estrutura\n\n| Comando | Efeito |\n| --- | --- |\n| `ALTER TABLE alunos ADD COLUMN fone VARCHAR(20);` | nova coluna |\n| `ALTER TABLE alunos MODIFY nome VARCHAR(150);` | muda o tipo |\n| `ALTER TABLE alunos CHANGE fone telefone VARCHAR(20);` | **renomeia** e redefine |\n| `ALTER TABLE alunos DROP COLUMN email;` | remove coluna |\n| `RENAME TABLE alunos TO estudantes;` | renomeia a tabela |\n| `TRUNCATE TABLE alunos;` | esvazia (rápido, reinicia o contador) |\n| `DROP TABLE alunos;` | apaga estrutura e dados |\n\n**Resumo para a prova**\n- `DECIMAL` para dinheiro; `FLOAT/DOUBLE` são aproximados.\n- `CHAR` fixo × `VARCHAR` variável; `utf8mb4` aceita emoji.\n- Uma só coluna `AUTO_INCREMENT`, indexada; `DELETE` não reinicia, `TRUNCATE` reinicia.\n",
+      "content": ""
+    },
+    {
+      "title": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "markdown": "## LIMIT e OFFSET\n\nO MySQL usa **`LIMIT`** para limitar o número de linhas (no SQL Server seria `TOP`; no padrão SQL, `FETCH FIRST`).\n\n| Forma | Significa |\n| --- | --- |\n| `LIMIT 5` | as **5 primeiras** linhas |\n| `LIMIT 10, 5` | **pula 10** e traz **5** (linhas 11 a 15) |\n| `LIMIT 5 OFFSET 10` | o mesmo que `LIMIT 10, 5` |\n\n> **Pegadinha:** na forma com vírgula, o **primeiro** número é o **deslocamento** e o **segundo** é a **quantidade**. Na forma com `OFFSET`, a ordem se inverte na escrita.\n\n**Paginação:** página *p* com *n* itens → `LIMIT (p-1)*n, n`. Página 3 com 10 por página → `LIMIT 20, 10`.\n\n> **Atenção:** sem `ORDER BY`, \"as 5 primeiras\" não têm ordem garantida. Para \"as 3 maiores notas\": `ORDER BY nota DESC LIMIT 3`.\n\nOrdem lógica da consulta: `FROM` → `WHERE` → `GROUP BY` → `HAVING` → `SELECT` → `ORDER BY` → `LIMIT`.\n\n## Funções que caem\n\n| Função | Exemplo | Resultado |\n| --- | --- | --- |\n| `CONCAT()` | `CONCAT('Ana', ' ', 'Silva')` | `Ana Silva` |\n| `UPPER()`, `LOWER()` | `UPPER('uft')` | `UFT` |\n| `LENGTH()` × `CHAR_LENGTH()` | `'ção'` | bytes × caracteres |\n| `SUBSTRING()` | `SUBSTRING('Palmas', 1, 3)` | `Pal` |\n| `IFNULL()` | `IFNULL(email, 'sem e-mail')` | troca nulo |\n| `NOW()`, `CURDATE()` | — | data e hora atuais; só a data |\n| `DATE_FORMAT()` | `DATE_FORMAT(d, '%d/%m/%Y')` | `09/11/2026` |\n| `DATEDIFF()` | `DATEDIFF('2026-11-10','2026-11-01')` | `9` (dias) |\n\n> **Pegadinha:** no MySQL, por padrão, `||` é **OU lógico**, não concatenação. Para juntar textos use `CONCAT()`.\n\n## INSERT com conflito de chave\n\n| Comando | Se a chave (PK ou UNIQUE) já existe |\n| --- | --- |\n| `INSERT` comum | **erro** de chave duplicada |\n| `INSERT IGNORE` | **ignora** a linha (vira aviso) e segue |\n| `REPLACE INTO` | **apaga** a linha antiga e **insere** a nova |\n| `INSERT ... ON DUPLICATE KEY UPDATE qtd = qtd + 1` | **atualiza** a linha existente |\n\n```\nINSERT INTO estoque (produto, qtd) VALUES ('caneta', 1)\nON DUPLICATE KEY UPDATE qtd = qtd + 1;\n```\n\nInserção de várias linhas de uma vez: `INSERT INTO t (a, b) VALUES (1,'x'), (2,'y');`\n\n## UPDATE e DELETE com cuidado\n\n| Comando | Alerta |\n| --- | --- |\n| `UPDATE alunos SET nota = 10;` | sem `WHERE`, altera **todas** as linhas |\n| `DELETE FROM alunos;` | sem `WHERE`, apaga **todas**, mas mantém a tabela e o contador |\n| `UPDATE ... ORDER BY ... LIMIT 1` | o MySQL aceita `LIMIT` em `UPDATE` e `DELETE` de uma tabela |\n\n## Transações\n\n| Ponto | Regra |\n| --- | --- |\n| `autocommit` | **ligado** por padrão: cada comando é confirmado sozinho na hora |\n| abrir transação | `START TRANSACTION;` (ou `BEGIN;`) |\n| confirmar | `COMMIT;` |\n| desfazer | `ROLLBACK;` (só o que ainda não foi confirmado) |\n| ponto intermediário | `SAVEPOINT s1;` e `ROLLBACK TO s1;` |\n| quem suporta | **InnoDB**; MyISAM **não** tem transação |\n| nível de isolamento padrão do InnoDB | `REPEATABLE READ` |\n\n> **Exemplo:** com autocommit ligado, você roda `UPDATE contas SET saldo = 0;` e depois `ROLLBACK;` → **nada volta**, porque o `UPDATE` já foi confirmado.\n\n**Resumo para a prova**\n- `LIMIT desloc, qtd` = `LIMIT qtd OFFSET desloc`.\n- `CONCAT` junta textos; `||` é OU.\n- `IGNORE` pula, `REPLACE` apaga e insere, `ON DUPLICATE KEY UPDATE` atualiza.\n- Autocommit ligado: só dá para desfazer dentro de `START TRANSACTION`.\n",
+      "content": ""
+    },
+    {
+      "title": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "markdown": "## Conta = usuário + host\n\nNo MySQL a conta é sempre **`'usuário'@'host'`**.\n\n| Conta | Pode entrar de |\n| --- | --- |\n| `'ana'@'localhost'` | só da própria máquina do servidor |\n| `'ana'@'10.0.0.%'` | qualquer máquina da rede 10.0.0.x |\n| `'ana'@'%'` | **qualquer** host (`%` é curinga) |\n\n> **Pegadinha:** `'ana'@'localhost'` e `'ana'@'%'` são **duas contas diferentes**, com senhas e permissões próprias.\n\n## Criar, alterar e remover\n\n```\nCREATE USER 'ana'@'localhost' IDENTIFIED BY 'SenhaForte#1';\nALTER USER  'ana'@'localhost' IDENTIFIED BY 'OutraSenha#2';\nRENAME USER 'ana'@'localhost' TO 'ana.souza'@'localhost';\nDROP USER   'ana.souza'@'localhost';\n```\n\n> **MySQL 8:** o `GRANT` **não cria** mais o usuário sozinho. Primeiro `CREATE USER`, depois `GRANT`.\n\n## GRANT e REVOKE\n\n| Comando | Efeito |\n| --- | --- |\n| `GRANT SELECT, INSERT ON loja.* TO 'ana'@'localhost';` | ler e inserir em **todas as tabelas** do banco `loja` |\n| `GRANT SELECT ON loja.clientes TO 'bia'@'%';` | só ler uma tabela |\n| `GRANT SELECT (nome, email) ON loja.clientes TO 'bia'@'%';` | só certas **colunas** |\n| `GRANT ALL PRIVILEGES ON *.* TO 'dba'@'localhost' WITH GRANT OPTION;` | tudo em tudo e ainda pode **repassar** permissões |\n| `REVOKE INSERT ON loja.* FROM 'ana'@'localhost';` | **retira** a permissão |\n| `SHOW GRANTS FOR 'ana'@'localhost';` | lista o que a conta pode |\n\n| Nível | Escrita |\n| --- | --- |\n| global | `*.*` |\n| banco | `loja.*` |\n| tabela | `loja.clientes` |\n| coluna | `SELECT (col)` |\n\n**Papéis (roles), MySQL 8:** `CREATE ROLE 'leitura';` → `GRANT SELECT ON loja.* TO 'leitura';` → `GRANT 'leitura' TO 'ana'@'localhost';` (e ativar com `SET DEFAULT ROLE`).\n\n> **Pegadinha:** `FLUSH PRIVILEGES` **não** é necessário depois de `GRANT`, `REVOKE` ou `CREATE USER`; esses comandos já valem na hora. Ele só é preciso quando alguém altera as tabelas internas de permissão diretamente com `INSERT/UPDATE`.\n\n**Boa prática:** menor privilégio. A aplicação web recebe só `SELECT, INSERT, UPDATE, DELETE` no banco dela, nunca `ALL ON *.*` nem a conta `root`.\n\n## mysqldump: backup lógico\n\n`mysqldump` é um programa **cliente** que gera um **arquivo texto com comandos SQL** (`CREATE TABLE`, `INSERT`) capazes de recriar os dados. É backup **lógico**, não cópia dos arquivos do disco (isso seria backup **físico**).\n\n| Objetivo | Comando |\n| --- | --- |\n| um banco | `mysqldump -u root -p loja > loja.sql` |\n| alguns bancos | `mysqldump -u root -p --databases loja rh > dois.sql` |\n| todos | `mysqldump -u root -p --all-databases > tudo.sql` |\n| uma tabela | `mysqldump -u root -p loja clientes > clientes.sql` |\n| só estrutura | `--no-data` |\n| só dados | `--no-create-info` |\n| consistente sem travar (InnoDB) | `--single-transaction` |\n| incluir procedures e funções | `--routines` (os gatilhos já vão por padrão) |\n\n**Restaurar:** com o **cliente** `mysql`, redirecionando a entrada:\n\n```\nmysql -u root -p loja < loja.sql\n```\n\nou, já dentro do cliente: `SOURCE /caminho/loja.sql;`\n\n> **Truque:** **dump** sai com `>` (o arquivo **recebe**); **restaurar** entra com `<` (o arquivo **alimenta** o `mysql`).\n\n| Outros utilitários | Função |\n| --- | --- |\n| `mysqladmin` | administração: `status`, `shutdown`, `create`, `drop` |\n| `mysqlimport` | carga de arquivos texto (equivale a `LOAD DATA`) |\n| `mysqlcheck` | verifica e repara tabelas |\n\n**Resumo para a prova**\n- Conta é `usuário@host`; `%` = qualquer host.\n- `GRANT ... ON banco.* TO conta`; `REVOKE ... FROM conta`; `WITH GRANT OPTION` repassa.\n- `mysqldump` gera SQL (lógico); restaura-se com `mysql < arquivo.sql`.\n",
+      "content": ""
+    },
+    {
+      "title": "5. Storage engines, índices e conexão com PHP",
+      "markdown": "## Storage engines\n\nNo MySQL, cada **tabela** escolhe seu **motor de armazenamento** (*storage engine*), que decide como os dados são gravados, travados e recuperados.\n\n| Característica | **InnoDB** | **MyISAM** |\n| --- | --- | --- |\n| padrão | **sim** (desde a 5.5) | não (era antes) |\n| transações (`COMMIT`/`ROLLBACK`) | **sim** (ACID) | **não** |\n| chave estrangeira | **sim** | **não** (aceita a sintaxe, mas não garante) |\n| bloqueio | por **linha** | por **tabela** inteira |\n| recuperação após queda | automática (log de refazer) | pode exigir reparo (`REPAIR TABLE`) |\n| índice agrupado | sim: os dados ficam ordenados pela PK | não |\n| FULLTEXT | sim (desde a 5.6) | sim |\n| arquivos | tablespace `.ibd` | `.MYD` (dados) e `.MYI` (índices) |\n\n| Outros engines | Quando |\n| --- | --- |\n| **MEMORY** | tabela na **RAM**: muito rápida, mas os **dados somem** ao reiniciar o servidor (a estrutura fica) |\n| **CSV** | grava como arquivo de valores separados por vírgula |\n| **ARCHIVE** | compacta, só insere e lê; bom para histórico |\n\n```\nCREATE TABLE log (... ) ENGINE=MyISAM;\nALTER TABLE log ENGINE=InnoDB;      -- converte\nSHOW ENGINES;                        -- qual é a padrão\n```\n\n> **Truque:** **InnoDB = I de Íntegro** (transação, FK, linha). **MyISAM = M de Mais simples** (tabela inteira, sem transação).\n\n## Índices\n\n| Tipo | Regra |\n| --- | --- |\n| `PRIMARY KEY` | única, **não aceita NULL**, uma por tabela |\n| `UNIQUE` | sem repetição, mas **aceita vários NULL** |\n| `INDEX` (ou `KEY`) | comum, só acelera |\n| `FULLTEXT` | busca por palavras com `MATCH ... AGAINST` |\n| `SPATIAL` | dados geográficos |\n\nCriar: `CREATE INDEX idx_cidade ON clientes (cidade);` ou dentro do `CREATE TABLE`. Remover: `DROP INDEX idx_cidade ON clientes;`. A estrutura padrão do InnoDB é a **árvore B** (B-tree); o engine MEMORY aceita também **hash**.\n\n**Índice composto e prefixo à esquerda.** O índice `(sobrenome, nome)` funciona como uma lista telefônica: ajuda buscas por `sobrenome` e por `sobrenome + nome`, mas **não** ajuda uma busca só por `nome`.\n\n| Consulta | Usa o índice em `nome`? |\n| --- | --- |\n| `WHERE nome = 'Ana'` | sim |\n| `WHERE nome LIKE 'Ana%'` | sim (começo fixo) |\n| `WHERE nome LIKE '%Ana'` | **não** (curinga no início) |\n| `WHERE UPPER(nome) = 'ANA'` | **não** (função sobre a coluna) |\n\n**EXPLAIN** antes do `SELECT` mostra o **plano de execução**: que índice será usado (`key`), quantas linhas serão lidas (`rows`) e o tipo de acesso (`type`; `ALL` = varredura completa).\n\n> **Custo:** índice acelera leitura, mas ocupa espaço e deixa `INSERT/UPDATE/DELETE` mais lentos.\n\n## PHP com MySQL\n\nAs antigas funções `mysql_*` foram **removidas no PHP 7**. Hoje se usa **mysqli** (só MySQL) ou **PDO** (vários bancos).\n\n```\n$pdo = new PDO('mysql:host=localhost;dbname=loja;charset=utf8mb4', $usuario, $senha);\n$st  = $pdo->prepare('SELECT nome FROM clientes WHERE id = ?');\n$st->execute([$id]);\n$linha = $st->fetch(PDO::FETCH_ASSOC);\n$novo = $pdo->lastInsertId();\n```\n\n```\n$db = new mysqli('localhost', $usuario, $senha, 'loja');\n$st = $db->prepare('INSERT INTO clientes (nome, idade) VALUES (?, ?)');\n$st->bind_param('si', $nome, $idade);   // s = string, i = inteiro\n$st->execute();\n```\n\n> **Segurança:** a **consulta preparada** (com `?` ou `:nome`) envia o dado separado do comando, o que impede a **injeção de SQL**. Montar o SQL concatenando `$_GET` é o erro clássico.\n\n**Resumo para a prova**\n- InnoDB: padrão, transação, FK, bloqueio por linha. MyISAM: sem transação nem FK, bloqueio por tabela. MEMORY perde os dados no reinício.\n- PK não aceita NULL; UNIQUE aceita vários NULL.\n- Índice composto segue o prefixo à esquerda; `LIKE '%x'` não usa índice; `EXPLAIN` mostra o plano.\n- PHP: mysqli ou PDO com consultas preparadas.\n",
+      "content": ""
+    }
+  ],
+  "summary": "## Síntese de revisão\n**Cliente e servidor:** `mysqld` é o servidor, `mysql` o cliente; porta 3306. `mysql -u ana -p -h host -P 3306 banco` (`-p` senha, `-P` porta). `USE` seleciona o banco; `SHOW DATABASES`, `SHOW TABLES`, `DESCRIBE`/`SHOW COLUMNS`, `SHOW CREATE TABLE`, `SHOW INDEX`, `SHOW PROCESSLIST`, `SHOW GRANTS`, `SHOW ENGINES`.\n\n**Tipos:** TINYINT 1 byte (0 a 255 sem sinal), INT 4, BIGINT 8; `DECIMAL` exato para dinheiro, `FLOAT/DOUBLE` aproximados; `BOOLEAN` = `TINYINT(1)`. `CHAR` fixo, `VARCHAR` variável, `TEXT`, `BLOB`, `ENUM`, `SET`, `JSON`. `DATETIME` guarda como foi escrito; `TIMESTAMP` converte para UTC e vai até 2038. Charset padrão `utf8mb4` (aceita emoji); `utf8` antigo = 3 bytes.\n\n**AUTO_INCREMENT:** uma coluna por tabela, indexada; `DELETE` não reinicia, `TRUNCATE` reinicia; `LAST_INSERT_ID()` devolve o último id da conexão.\n\n**Consultas:** `LIMIT 10, 5` = pula 10 e traz 5 = `LIMIT 5 OFFSET 10`. `CONCAT` junta textos (`||` é OU). `INSERT IGNORE` pula duplicada, `REPLACE` apaga e insere, `ON DUPLICATE KEY UPDATE` atualiza. Autocommit ligado: só dá `ROLLBACK` dentro de `START TRANSACTION`.\n\n**Usuários:** conta `'usuário'@'host'`, `%` = qualquer host. `CREATE USER` antes do `GRANT` (MySQL 8). `GRANT SELECT ON loja.* TO ...`, `REVOKE ... FROM ...`, `WITH GRANT OPTION`. `FLUSH PRIVILEGES` só após mexer direto nas tabelas de permissão.\n\n**Backup:** `mysqldump` gera arquivo SQL (backup lógico): `mysqldump -u root -p loja > loja.sql`; restaura com `mysql -u root -p loja < loja.sql`. `--single-transaction` (InnoDB sem travar), `--no-data`, `--all-databases`, `--routines`.\n\n**Engines e índices:** InnoDB padrão, ACID, FK, bloqueio por linha; MyISAM sem transação e FK, bloqueio por tabela; MEMORY perde dados ao reiniciar. PK sem NULL; UNIQUE aceita NULLs. Índice composto: prefixo à esquerda; `LIKE '%x'` não usa índice; `EXPLAIN` mostra o plano. PHP: mysqli ou PDO com consulta preparada contra injeção de SQL.",
+  "flashcards": [
+    { "front": "Porta padrão do MySQL", "back": "3306 (TCP). No cliente, a porta é informada com -P maiúsculo; o -p minúsculo pede a senha." },
+    { "front": "SHOW TABLES × DESCRIBE", "back": "SHOW TABLES lista as tabelas do banco selecionado; DESCRIBE tabela (ou SHOW COLUMNS FROM) mostra as colunas, tipos, nulos e chaves." },
+    { "front": "Para que serve SHOW CREATE TABLE?", "back": "Mostra o comando CREATE TABLE completo que recria a tabela, com índices, ENGINE e charset." },
+    { "front": "Tipo certo para valores em dinheiro", "back": "DECIMAL(p,s), que é exato. FLOAT e DOUBLE são aproximados e geram erros de arredondamento." },
+    { "front": "utf8 × utf8mb4", "back": "utf8mb4 usa até 4 bytes e aceita emoji; é o padrão no MySQL 8. O utf8 antigo (utf8mb3) vai até 3 bytes." },
+    { "front": "Regras do AUTO_INCREMENT", "back": "Só uma coluna por tabela, que precisa ser indexada. DELETE não reinicia o contador; TRUNCATE reinicia." },
+    { "front": "LIMIT 20, 10", "back": "Pula as 20 primeiras linhas e devolve as 10 seguintes (21 a 30). Equivale a LIMIT 10 OFFSET 20." },
+    { "front": "INSERT IGNORE × REPLACE × ON DUPLICATE KEY UPDATE", "back": "IGNORE descarta a linha duplicada; REPLACE apaga a antiga e insere a nova; ON DUPLICATE KEY UPDATE altera a existente." },
+    { "front": "O que muda com autocommit ligado?", "back": "Cada comando é confirmado na hora. Para poder desfazer, abra START TRANSACTION e termine com COMMIT ou ROLLBACK." },
+    { "front": "'ana'@'%' × 'ana'@'localhost'", "back": "São contas diferentes. % aceita conexão de qualquer host; localhost só da própria máquina do servidor." },
+    { "front": "Como restaurar um arquivo gerado pelo mysqldump?", "back": "Com o cliente mysql redirecionando a entrada: mysql -u root -p banco < arquivo.sql (ou SOURCE dentro do cliente)." },
+    { "front": "InnoDB × MyISAM em uma linha", "back": "InnoDB tem transação, chave estrangeira e bloqueio por linha; MyISAM não tem transação nem FK e bloqueia a tabela inteira." },
+    { "front": "Prefixo à esquerda", "back": "Um índice (sobrenome, nome) ajuda buscas por sobrenome ou por sobrenome e nome, mas não por nome sozinho." },
+    { "front": "Para que serve EXPLAIN?", "back": "Mostra o plano de execução da consulta: índice usado, tipo de acesso e estimativa de linhas lidas." }
+  ],
+  "tips": [
+    "Em questão de LIMIT com vírgula, escreva na margem \"pula, pega\": o primeiro número é quanto pular e o segundo é quanto trazer.",
+    "Quando a questão falar em transação, chave estrangeira ou bloqueio por linha, a resposta é InnoDB; tabela inteira travada e sem ROLLBACK é MyISAM.",
+    "Em backup, olhe a seta: mysqldump grava com > no arquivo; a restauração usa o cliente mysql com < lendo o arquivo."
+  ],
+  "traps": [
+    "A prova diz que USE loja cria o banco quando ele não existe. Erra: USE só seleciona; quem cria é CREATE DATABASE.",
+    "A prova afirma que DELETE FROM tabela reinicia o AUTO_INCREMENT. Erra: DELETE mantém o contador; quem reinicia é TRUNCATE TABLE.",
+    "A prova afirma que é preciso FLUSH PRIVILEGES após todo GRANT. Erra: GRANT e REVOKE valem na hora; FLUSH só é necessário após editar direto as tabelas de permissão."
+  ],
+  "activeRecall": [
+    { "question": "Quais comandos você usaria, em ordem, para descobrir as colunas da tabela alunos do banco escola?", "answer": "USE escola; SHOW TABLES; DESCRIBE alunos (ou SHOW COLUMNS FROM alunos)." },
+    { "question": "Escreva a consulta da página 3 de uma listagem com 10 alunos por página, ordenada por nome.", "answer": "SELECT * FROM alunos ORDER BY nome LIMIT 20, 10 (ou LIMIT 10 OFFSET 20)." },
+    { "question": "Como dar à conta ana, que acessa só do servidor, permissão de ler e inserir em todas as tabelas do banco loja?", "answer": "CREATE USER 'ana'@'localhost' IDENTIFIED BY '...'; depois GRANT SELECT, INSERT ON loja.* TO 'ana'@'localhost'." },
+    { "question": "Qual opção do mysqldump gera cópia consistente de tabelas InnoDB sem travar as escritas?", "answer": "--single-transaction, que lê tudo dentro de uma única transação com fotografia consistente dos dados." },
+    { "question": "Por que um índice em nome não ajuda em WHERE nome LIKE '%silva'?", "answer": "Porque o curinga no início impede usar a ordem do índice; só o começo fixo (LIKE 'silva%') aproveita a árvore B." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Cliente, servidor e comandos SHOW/DESCRIBE", "summary": "Confundir USE com CREATE DATABASE, SHOW TABLES com DESCRIBE, ou -p (senha) com -P (porta)." },
+    { "key": "e2", "title": "Tipos de dados e AUTO_INCREMENT", "summary": "Usar FLOAT para dinheiro, achar que BOOLEAN é tipo próprio, esquecer que TIMESTAMP converte fuso, ou que DELETE não reinicia o contador." },
+    { "key": "e3", "title": "LIMIT, INSERT especiais e transações", "summary": "Inverter deslocamento e quantidade no LIMIT, confundir IGNORE, REPLACE e ON DUPLICATE KEY, ou achar que ROLLBACK desfaz comando já confirmado pelo autocommit." },
+    { "key": "e4", "title": "Usuários, GRANT/REVOKE e mysqldump", "summary": "Esquecer que a conta inclui o host, achar FLUSH PRIVILEGES obrigatório, ou tratar mysqldump como cópia física dos arquivos." },
+    { "key": "e5", "title": "Engines, índices e PHP", "summary": "Atribuir transação ou FK ao MyISAM, achar que MEMORY guarda dados após reinício, ignorar o prefixo à esquerda ou montar SQL por concatenação." }
+  ],
+  "questions": [
+    {
+      "statement": "Um técnico conectou-se ao servidor MySQL, executou USE patrimonio; e quer ver quais tabelas existem nesse banco. Qual comando atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "SHOW DATABASES;", "correct": false },
+        { "key": "B", "text": "SHOW TABLES;", "correct": true },
+        { "key": "C", "text": "DESCRIBE DATABASE patrimonio;", "correct": false },
+        { "key": "D", "text": "LIST TABLES FROM CURRENT;", "correct": false },
+        { "key": "E", "text": "SELECT * FROM patrimonio.TABLES;", "correct": false }
+      ],
+      "explanation": "SHOW TABLES lista as tabelas do banco selecionado pelo USE. SHOW DATABASES lista bancos, não tabelas; DESCRIBE mostra colunas de uma tabela; LIST TABLES não existe, e não há tabela TABLES dentro do banco patrimonio.",
+      "section": "1. Cliente, servidor e comandos de navegação (USE, SHOW, DESCRIBE)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No cliente mysql, o comando DESCRIBE servidores; tem como resultado:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "o conteúdo de todas as linhas da tabela servidores, ordenado pela chave primária", "correct": false },
+        { "key": "B", "text": "a lista de contas que têm permissão sobre a tabela servidores", "correct": false },
+        { "key": "C", "text": "as colunas da tabela, com tipo, nulidade, chave e valor padrão", "correct": true },
+        { "key": "D", "text": "o plano de execução da última consulta feita sobre a tabela servidores", "correct": false },
+        { "key": "E", "text": "o comando de criação da tabela, com engine e conjunto de caracteres", "correct": false }
+      ],
+      "explanation": "DESCRIBE (ou DESC, ou SHOW COLUMNS FROM) descreve a estrutura: nome de cada coluna, tipo, se aceita NULL, chave, padrão e extra como auto_increment. O comando completo de criação vem de SHOW CREATE TABLE; o plano vem de EXPLAIN.",
+      "section": "1. Cliente, servidor e comandos de navegação (USE, SHOW, DESCRIBE)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para acessar um servidor MySQL instalado com a configuração padrão em outra máquina, o técnico digitou mysql -u suporte -p -h 192.168.0.20. Sobre a conexão, é correto afirmar que:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "a senha precisa vir colada ao -p, pois o cliente não a pede depois", "correct": false },
+        { "key": "B", "text": "o cliente usará a porta 5432, já que nenhuma porta foi informada", "correct": false },
+        { "key": "C", "text": "o -h indica o banco que será aberto logo após a autenticação do usuário", "correct": false },
+        { "key": "D", "text": "a porta usada será a 3306, e o cliente pedirá a senha sem exibi-la na tela", "correct": true },
+        { "key": "E", "text": "a conexão falha, porque o parâmetro -P com a porta é obrigatório no cliente", "correct": false }
+      ],
+      "explanation": "Sem -P, o cliente usa a porta padrão 3306; a 5432 é do PostgreSQL. O -p sem valor faz o cliente pedir a senha sem exibi-la. O -h é o host do servidor, e o banco, quando informado, vem como último argumento.",
+      "section": "1. Cliente, servidor e comandos de navegação (USE, SHOW, DESCRIBE)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A tabela chamados tem id INT AUTO_INCREMENT como chave primária e já recebeu os ids 1 a 50. O técnico executou DELETE FROM chamados; e, em seguida, inseriu um novo chamado sem informar o id. Que valor o novo registro recebe, em regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "1, porque a tabela ficou vazia e o contador acompanha a quantidade de linhas", "correct": false },
+        { "key": "B", "text": "0, valor inicial devolvido sempre que a tabela é esvaziada", "correct": false },
+        { "key": "C", "text": "NULL, pois a coluna perde o AUTO_INCREMENT após um DELETE geral", "correct": false },
+        { "key": "D", "text": "um erro, porque não se pode inserir em tabela esvaziada por DELETE", "correct": false },
+        { "key": "E", "text": "51, pois o DELETE apaga as linhas, mas não reinicia o contador da coluna", "correct": true }
+      ],
+      "explanation": "Apagar linhas com DELETE, mesmo todas, não volta o contador do AUTO_INCREMENT; o próximo número continua de onde parou. Só TRUNCATE TABLE ou um ALTER TABLE com novo AUTO_INCREMENT reiniciam a contagem.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O setor financeiro da universidade precisa guardar valores de diárias, como 1250,75, sem erros de arredondamento nas somas. Qual tipo de coluna é o mais adequado no MySQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "DECIMAL(10,2)", "correct": true },
+        { "key": "B", "text": "FLOAT", "correct": false },
+        { "key": "C", "text": "DOUBLE", "correct": false },
+        { "key": "D", "text": "VARCHAR(10) com vírgula", "correct": false },
+        { "key": "E", "text": "TINYINT UNSIGNED", "correct": false }
+      ],
+      "explanation": "DECIMAL guarda o número de forma exata, com precisão e escala definidas, o que evita diferenças de centavos nas somas. FLOAT e DOUBLE são aproximados; texto impede cálculo direto e TINYINT só guarda inteiros até 255.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Sobre os tipos CHAR(10) e VARCHAR(10) no MySQL, assinale a afirmativa correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Ambos ocupam sempre 10 caracteres, pois o tamanho declarado é reservado por inteiro.", "correct": false },
+        { "key": "B", "text": "CHAR aceita no máximo 10 bytes, e VARCHAR, no máximo 10 palavras.", "correct": false },
+        { "key": "C", "text": "CHAR tem tamanho fixo; VARCHAR guarda só o texto digitado e o comprimento.", "correct": true },
+        { "key": "D", "text": "VARCHAR tem tamanho fixo e completa com espaços; CHAR varia conforme o conteúdo.", "correct": false },
+        { "key": "E", "text": "Só VARCHAR pode receber índice, porque CHAR não aceita comparação de igualdade.", "correct": false }
+      ],
+      "explanation": "CHAR reserva o tamanho fixo e completa com espaços, sendo bom para dados de tamanho constante, como UF. VARCHAR armazena apenas o que foi gravado mais um ou dois bytes de comprimento. Os dois tipos aceitam índice e comparação.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de ouvidoria gravado em tabelas antigas com CHARSET=utf8 passou a receber mensagens com emoji, que são rejeitadas ou corrompidas. Qual é a causa e a correção usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O tipo TEXT não aceita emoji; é preciso trocar a coluna para BLOB e converter na aplicação.", "correct": false },
+        { "key": "B", "text": "O utf8 antigo usa até 3 bytes por caractere; deve-se converter as tabelas para utf8mb4.", "correct": true },
+        { "key": "C", "text": "O engine InnoDB não armazena emoji; a tabela deve ser convertida para MyISAM.", "correct": false },
+        { "key": "D", "text": "O MySQL não armazena emoji em nenhuma configuração; é preciso removê-los antes de gravar.", "correct": false },
+        { "key": "E", "text": "Basta aumentar o tamanho do VARCHAR, porque emoji ocupa mais caracteres que letras.", "correct": false }
+      ],
+      "explanation": "O charset utf8 do MySQL é, na prática, utf8mb3, limitado a 3 bytes por caractere, e emoji exige 4. O utf8mb4 aceita esses caracteres e é o padrão no MySQL 8. Engine e tamanho do VARCHAR não resolvem o problema.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação grava o horário de abertura de chamados. A equipe percebeu que, ao mudar o fuso horário da sessão, uma das colunas passou a exibir horários diferentes para o mesmo registro, enquanto a outra não mudou. Qual explicação é compatível com o MySQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "DATE guarda hora em UTC e DATETIME guarda só a data, por isso apenas uma delas muda.", "correct": false },
+        { "key": "B", "text": "DATETIME é convertido para UTC ao gravar e volta para o fuso da sessão na leitura.", "correct": false },
+        { "key": "C", "text": "As duas colunas deveriam mudar, e a diferença indica tabela corrompida que precisa de reparo.", "correct": false },
+        { "key": "D", "text": "TIMESTAMP é convertido para UTC e volta ao fuso da sessão; DATETIME não muda.", "correct": true },
+        { "key": "E", "text": "TIME guarda data e hora completas e sofre ajuste de fuso, ao contrário de DATETIME.", "correct": false }
+      ],
+      "explanation": "No MySQL, TIMESTAMP é armazenado em UTC e convertido para o fuso da sessão na leitura, por isso o valor exibido muda com o fuso. DATETIME guarda o valor exatamente como foi escrito. TIMESTAMP também tem faixa menor, até 2038.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Considere a consulta SELECT nome FROM candidatos ORDER BY nota DESC LIMIT 3; Ela retorna:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "os três candidatos com as menores notas", "correct": false },
+        { "key": "B", "text": "todos os candidatos, exceto os três primeiros da lista em ordem alfabética", "correct": false },
+        { "key": "C", "text": "o terceiro candidato com maior nota, apenas", "correct": false },
+        { "key": "D", "text": "três candidatos quaisquer, porque LIMIT ignora o ORDER BY", "correct": false },
+        { "key": "E", "text": "os três candidatos com as maiores notas, da maior para a menor", "correct": true }
+      ],
+      "explanation": "ORDER BY nota DESC coloca as maiores notas no topo, e o LIMIT, aplicado depois da ordenação, corta o resultado nas três primeiras linhas. Sem o ORDER BY, as três linhas não teriam ordem garantida.",
+      "section": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de biblioteca exibe 10 livros por página, em ordem de título. Qual cláusula, acrescentada ao final do SELECT ordenado, traz a terceira página?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "LIMIT 20, 10", "correct": true },
+        { "key": "B", "text": "LIMIT 10, 30", "correct": false },
+        { "key": "C", "text": "LIMIT 3, 10", "correct": false },
+        { "key": "D", "text": "LIMIT 10 OFFSET 30", "correct": false },
+        { "key": "E", "text": "TOP 10 OFFSET 20", "correct": false }
+      ],
+      "explanation": "A terceira página pula as 20 linhas das duas primeiras e traz as 10 seguintes. Na forma com vírgula, o primeiro número é o deslocamento e o segundo a quantidade. TOP é sintaxe do SQL Server, não do MySQL.",
+      "section": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A tabela acessos tem chave primária em usuario. O comando INSERT INTO acessos (usuario, total) VALUES ('joao', 1) ON DUPLICATE KEY UPDATE total = total + 1; é executado quando joao já existe com total 7. Qual é o efeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma segunda linha de joao é criada com total 1, mantendo a de total 7.", "correct": false },
+        { "key": "B", "text": "A linha antiga é apagada e substituída por outra com total 1, como no REPLACE.", "correct": false },
+        { "key": "C", "text": "A linha existente de joao é atualizada e o total passa de 7 para 8.", "correct": true },
+        { "key": "D", "text": "O comando é rejeitado com erro de chave duplicada e nada é alterado na tabela.", "correct": false },
+        { "key": "E", "text": "A linha nova é descartada em silêncio, como no INSERT IGNORE, e o total segue 7.", "correct": false }
+      ],
+      "explanation": "Quando a inserção bate numa chave primária ou única já existente, ON DUPLICATE KEY UPDATE executa a atualização indicada na própria linha. REPLACE apagaria e reinseriria; INSERT IGNORE descartaria; o INSERT comum daria erro.",
+      "section": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois de inserir um novo servidor numa tabela cuja chave id é AUTO_INCREMENT, a aplicação precisa do id gerado para gravar os dependentes. Qual recurso do MySQL fornece esse valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "SELECT MAX(id) FROM servidores, que é sempre seguro mesmo com várias conexões simultâneas", "correct": false },
+        { "key": "B", "text": "SELECT LAST_INSERT_ID();", "correct": true },
+        { "key": "C", "text": "SHOW TABLE STATUS, que devolve o id da última linha inserida pela conexão", "correct": false },
+        { "key": "D", "text": "SELECT COUNT(*) FROM servidores", "correct": false },
+        { "key": "E", "text": "DESCRIBE servidores, na coluna Extra do campo id", "correct": false }
+      ],
+      "explanation": "LAST_INSERT_ID devolve o último valor AUTO_INCREMENT gerado pela própria conexão, sem interferência de outros usuários. MAX(id) pode pegar o registro de outra sessão, e COUNT não acompanha ids apagados.",
+      "section": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Numa sessão com a configuração padrão do MySQL e tabela InnoDB, um técnico executa UPDATE bolsas SET valor = 0; sem abrir transação e, em seguida, ROLLBACK;. O que acontece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Os valores voltam ao estado anterior, porque o ROLLBACK desfaz o último comando.", "correct": false },
+        { "key": "B", "text": "O ROLLBACK provoca erro, pois só é aceito em tabelas MyISAM.", "correct": false },
+        { "key": "C", "text": "Só metade das linhas volta, porque o UPDATE foi gravado em blocos.", "correct": false },
+        { "key": "D", "text": "Nada volta, pois o autocommit já confirmou o UPDATE.", "correct": true },
+        { "key": "E", "text": "O UPDATE nem chega a ser gravado enquanto não houver um COMMIT explícito na sessão.", "correct": false }
+      ],
+      "explanation": "O autocommit vem ligado por padrão, então cada comando isolado é confirmado assim que termina. Para poder desfazer, seria preciso abrir START TRANSACTION antes do UPDATE. MyISAM nem tem suporte a transações.",
+      "section": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando mysqldump -u root -p academico > academico.sql gera:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "uma cópia binária dos arquivos de dados do disco, que só abre na mesma versão", "correct": false },
+        { "key": "B", "text": "um relatório de desempenho das consultas executadas no banco academico", "correct": false },
+        { "key": "C", "text": "um arquivo de log com as transações confirmadas desde o último reinício do servidor", "correct": false },
+        { "key": "D", "text": "a remoção do banco academico após a cópia, liberando espaço no servidor", "correct": false },
+        { "key": "E", "text": "um arquivo de texto com comandos SQL capazes de recriar tabelas e dados do banco", "correct": true }
+      ],
+      "explanation": "O mysqldump faz backup lógico: escreve comandos CREATE TABLE e INSERT num arquivo texto, que pode ser lido por outro servidor. Copiar os arquivos do disco seria backup físico; o dump não apaga nada nem analisa desempenho.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo protocolo.sql foi gerado pelo mysqldump do banco protocolo. Qual comando, digitado no terminal, restaura esse conteúdo num banco protocolo já criado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "mysql -u root -p protocolo < protocolo.sql", "correct": true },
+        { "key": "B", "text": "mysqldump -u root -p protocolo < protocolo.sql", "correct": false },
+        { "key": "C", "text": "mysql -u root -p protocolo > protocolo.sql", "correct": false },
+        { "key": "D", "text": "mysqladmin -u root -p restore protocolo.sql", "correct": false },
+        { "key": "E", "text": "mysqldump --restore -u root -p protocolo protocolo.sql", "correct": false }
+      ],
+      "explanation": "A restauração é feita pelo cliente mysql, que lê os comandos SQL do arquivo redirecionado com o sinal de menor. O mysqldump só exporta; o sinal de maior sobrescreveria o arquivo; o mysqladmin não tem opção de restauração.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O banco de matrículas usa tabelas InnoDB e não pode ficar travado para escrita durante o backup noturno. Qual opção do mysqldump é indicada para obter cópia consistente nessa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "--no-data", "correct": false },
+        { "key": "B", "text": "--lock-all-tables", "correct": false },
+        { "key": "C", "text": "--single-transaction", "correct": true },
+        { "key": "D", "text": "--no-create-info", "correct": false },
+        { "key": "E", "text": "--all-databases", "correct": false }
+      ],
+      "explanation": "Com --single-transaction, o dump lê tudo dentro de uma transação com fotografia consistente do InnoDB, sem bloquear as escritas. Travar todas as tabelas pararia o sistema; --no-data e --no-create-info cortam partes do backup.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após GRANT SELECT, INSERT ON biblioteca.* TO 'estagiario'@'localhost'; a conta estagiario, conectada a partir do próprio servidor, pode:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "ler, inserir e apagar linhas em qualquer banco do servidor", "correct": false },
+        { "key": "B", "text": "ler e inserir linhas em todas as tabelas do banco biblioteca", "correct": true },
+        { "key": "C", "text": "ler e inserir apenas numa tabela chamada biblioteca, em qualquer banco existente", "correct": false },
+        { "key": "D", "text": "repassar suas permissões a outras contas, porque recebeu GRANT", "correct": false },
+        { "key": "E", "text": "conectar de qualquer máquina da rede, porque o banco foi informado", "correct": false }
+      ],
+      "explanation": "A notação biblioteca.* alcança todas as tabelas desse banco, e os privilégios dados foram só leitura e inserção. Repassar permissões exigiria WITH GRANT OPTION, e localhost limita a conexão à própria máquina do servidor.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No mesmo servidor MySQL existem as contas 'relatorio'@'localhost' e 'relatorio'@'%'. Sobre elas, é correto afirmar:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "São a mesma conta escrita de duas formas, e trocar a senha de uma troca a da outra.", "correct": false },
+        { "key": "B", "text": "A conta com % só aceita conexões locais, enquanto localhost aceita qualquer endereço.", "correct": false },
+        { "key": "C", "text": "O MySQL não permite repetir o nome de usuário, e a segunda criação teria falhado.", "correct": false },
+        { "key": "D", "text": "Ambas herdam as permissões da conta root por terem o mesmo nome de usuário.", "correct": false },
+        { "key": "E", "text": "São contas distintas, com senhas e permissões próprias; a com % aceita qualquer host.", "correct": true }
+      ],
+      "explanation": "No MySQL a conta é formada por usuário e host, então o mesmo nome com hosts diferentes gera contas separadas, cada uma com senha e permissões próprias. O símbolo % é curinga para qualquer host; localhost restringe à máquina local.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um bolsista deixou o setor, e o técnico precisa retirar dele apenas a permissão de apagar linhas no banco eventos, mantendo as demais. Qual comando cumpre isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "DROP USER 'bolsista'@'localhost';", "correct": false },
+        { "key": "B", "text": "GRANT NO DELETE ON eventos.* TO 'bolsista'@'localhost';", "correct": false },
+        { "key": "C", "text": "DELETE PRIVILEGES FROM 'bolsista'@'localhost' ON eventos;", "correct": false },
+        { "key": "D", "text": "REVOKE DELETE ON eventos.* FROM 'bolsista'@'localhost';", "correct": true },
+        { "key": "E", "text": "ALTER USER 'bolsista'@'localhost' DROP DELETE;", "correct": false }
+      ],
+      "explanation": "REVOKE retira privilégios específicos e usa FROM para indicar a conta, preservando o resto. DROP USER apagaria a conta inteira; GRANT NO DELETE, DELETE PRIVILEGES e ALTER USER com DROP DELETE não são comandos válidos.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar uma tabela no MySQL 8 sem informar a cláusula ENGINE, qual storage engine ela usa por padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "InnoDB", "correct": true },
+        { "key": "B", "text": "MyISAM", "correct": false },
+        { "key": "C", "text": "MEMORY", "correct": false },
+        { "key": "D", "text": "ARCHIVE", "correct": false },
+        { "key": "E", "text": "CSV", "correct": false }
+      ],
+      "explanation": "O InnoDB é o engine padrão desde a série 5.5 e segue assim no MySQL 8, por oferecer transações, chave estrangeira e bloqueio por linha. MyISAM foi o padrão em versões antigas; os demais servem a usos específicos.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de empenhos precisa que a gravação do pedido e de seus itens seja desfeita por inteiro se algo falhar, e que itens não apontem para pedidos inexistentes. Qual escolha de engine atende, e por quê?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "MyISAM, porque bloqueia a tabela inteira e assim dispensa transações e chaves estrangeiras", "correct": false },
+        { "key": "B", "text": "MEMORY, porque mantém tudo na RAM e garante a recuperação após queda", "correct": false },
+        { "key": "C", "text": "InnoDB, por oferecer transações com ROLLBACK e chave estrangeira entre tabelas", "correct": true },
+        { "key": "D", "text": "ARCHIVE, porque compacta os dados e permite atualizar e apagar linhas antigas", "correct": false },
+        { "key": "E", "text": "CSV, porque cada linha vira um arquivo independente que pode ser restaurado", "correct": false }
+      ],
+      "explanation": "Desfazer tudo em caso de falha exige transação com ROLLBACK, e impedir item órfão exige chave estrangeira; o InnoDB tem os dois. MyISAM não tem nenhum deles, MEMORY perde dados no reinício e ARCHIVE não permite atualizar.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A tabela pessoas tem o índice composto idx (sobrenome, nome). Qual das consultas tende a NÃO se beneficiar desse índice?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "WHERE sobrenome = 'Silva'", "correct": false },
+        { "key": "B", "text": "WHERE nome = 'Maria'", "correct": true },
+        { "key": "C", "text": "WHERE sobrenome = 'Silva' AND nome = 'Maria'", "correct": false },
+        { "key": "D", "text": "WHERE sobrenome LIKE 'Sil%'", "correct": false },
+        { "key": "E", "text": "WHERE sobrenome = 'Silva' ORDER BY nome", "correct": false }
+      ],
+      "explanation": "Pelo prefixo à esquerda, o índice composto é ordenado primeiro por sobrenome; buscar só pelo nome é como procurar alguém na lista telefônica pelo prenome. As outras consultas começam por sobrenome ou usam começo fixo.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta ao cadastro de alunos está lenta, e o técnico quer saber se o MySQL está usando algum índice ou varrendo a tabela inteira. Qual recurso ele deve usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "SHOW DATABASES, que informa o tempo médio das consultas de cada banco", "correct": false },
+        { "key": "B", "text": "DESCRIBE alunos, que mostra quantas linhas cada consulta leu", "correct": false },
+        { "key": "C", "text": "mysqldump --no-data, que exporta os índices usados pela consulta lenta", "correct": false },
+        { "key": "D", "text": "OPTIMIZE QUERY, que reescreve a consulta e cria o índice que falta", "correct": false },
+        { "key": "E", "text": "EXPLAIN antes do SELECT, que mostra o plano de execução e o índice escolhido", "correct": true }
+      ],
+      "explanation": "EXPLAIN mostra como o otimizador pretende executar a consulta: qual índice usará, o tipo de acesso e a estimativa de linhas; o tipo ALL indica varredura completa. Os demais comandos não exibem plano, e OPTIMIZE QUERY não existe.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um formulário PHP busca processos pelo número digitado pelo usuário. Qual implementação reduz o risco de injeção de SQL no MySQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Concatenar $_GET['num'] no texto do SELECT e executar com mysqli_query", "correct": false },
+        { "key": "B", "text": "Usar as funções mysql_query e mysql_connect, por serem mais simples e rápidas", "correct": false },
+        { "key": "C", "text": "Trocar a tabela para MyISAM, que não executa comandos vindos de formulários", "correct": false },
+        { "key": "D", "text": "Usar PDO com prepare e marcador ?, passando o valor no execute", "correct": true },
+        { "key": "E", "text": "Esconder a URL do formulário com o método POST, sem tratar o valor recebido", "correct": false }
+      ],
+      "explanation": "A consulta preparada envia o comando e o dado separadamente, de modo que o valor digitado nunca é interpretado como SQL. Concatenar a entrada é o erro clássico; as funções mysql_* foram removidas no PHP 7; POST não protege nada.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na tabela usuarios, a coluna id é PRIMARY KEY e a coluna email foi declarada UNIQUE, aceitando nulos. Assinale a afirmativa correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "id não aceita NULL; email aceita vários NULL, mas não repete e-mail", "correct": true },
+        { "key": "B", "text": "id e email aceitam um único NULL cada, desde que não se repitam valores", "correct": false },
+        { "key": "C", "text": "A tabela pode ter várias PRIMARY KEY, uma para cada coluna sem repetição de valores", "correct": false },
+        { "key": "D", "text": "UNIQUE e PRIMARY KEY são sinônimos e por isso as duas colunas se comportam igual", "correct": false },
+        { "key": "E", "text": "email não pode ter índice, porque coluna UNIQUE dispensa qualquer estrutura de busca", "correct": false }
+      ],
+      "explanation": "A chave primária é única, obrigatória e só existe uma por tabela. UNIQUE impede valores repetidos, mas aceita vários NULL, porque nulo não é igual a nulo; além disso, ele cria um índice próprio para garantir a unicidade.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No MySQL, o comando SHOW DATABASES lista os bancos de dados que a conta conectada tem permissão de enxergar no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SHOW DATABASES mostra os bancos visíveis para a conta: quem não tem o privilégio global correspondente vê só os bancos sobre os quais tem alguma permissão. Para listar tabelas de um banco, usa-se SHOW TABLES depois do USE.",
+      "section": "1. Cliente, servidor e comandos de navegação (USE, SHOW, DESCRIBE)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No cliente mysql, o comando USE almoxarifado cria o banco almoxarifado caso ele ainda não exista no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. USE apenas seleciona um banco já existente como padrão da sessão; se ele não existir, o cliente devolve erro de banco desconhecido. A criação é feita com CREATE DATABASE, e a remoção com DROP DATABASE.",
+      "section": "1. Cliente, servidor e comandos de navegação (USE, SHOW, DESCRIBE)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando SHOW CREATE TABLE devolve a instrução de criação da tabela, incluindo índices, engine e conjunto de caracteres definidos para ela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SHOW CREATE TABLE exibe o CREATE TABLE completo que recriaria a estrutura, com colunas, chaves, índices, ENGINE e charset. É útil para conferir qual engine a tabela usa ou copiar a estrutura para outro servidor.",
+      "section": "1. Cliente, servidor e comandos de navegação (USE, SHOW, DESCRIBE)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela MySQL pode ter duas ou mais colunas AUTO_INCREMENT, cada uma com contador independente, desde que sejam de tipos inteiros diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O MySQL admite apenas uma coluna AUTO_INCREMENT por tabela, e ela precisa fazer parte de um índice, normalmente a chave primária. Tentar declarar uma segunda coluna com esse atributo gera erro na criação da tabela.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna declarada como TINYINT UNSIGNED armazena valores inteiros de 0 a 255, ocupando um byte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. TINYINT usa um byte, ou seja, 256 valores possíveis. Com sinal, a faixa vai de -128 a 127; com UNSIGNED, os negativos deixam de existir e a faixa passa a ser de 0 a 255. É usado para idade, status e sinalizadores.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No MySQL, BOOLEAN não é um tipo de armazenamento próprio: ele é tratado como TINYINT(1), em que TRUE corresponde a 1 e FALSE a 0.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Ao declarar BOOLEAN ou BOOL, o MySQL cria a coluna como TINYINT(1); as palavras TRUE e FALSE são apenas apelidos de 1 e 0. Por isso a coluna aceita outros inteiros, como 5, o que surpreende quem espera um tipo lógico estrito.",
+      "section": "2. Tipos de dados, CREATE TABLE e AUTO_INCREMENT",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No MySQL, a cláusula LIMIT 5 OFFSET 10 produz o mesmo resultado que LIMIT 10, 5 aplicada à mesma consulta ordenada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As duas formas pulam 10 linhas e trazem 5. Na escrita com vírgula, o deslocamento vem primeiro e a quantidade depois; com OFFSET, a quantidade vem no LIMIT e o deslocamento após a palavra OFFSET.",
+      "section": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração padrão do MySQL, a expressão 'Pal' || 'mas' concatena os textos e devolve Palmas, como prevê o padrão SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Por padrão, o MySQL trata || como OU lógico, e a expressão vira uma comparação booleana. Para juntar textos usa-se CONCAT('Pal', 'mas'); o comportamento do padrão SQL só aparece com o modo PIPES_AS_CONCAT ativado.",
+      "section": "3. Consultas e comandos próprios: LIMIT, funções, INSERT especiais e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O mysqldump é uma ferramenta de backup físico, que copia diretamente os arquivos de dados e de índices gravados no disco do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O mysqldump faz backup lógico: conecta-se como cliente e escreve comandos SQL, como CREATE TABLE e INSERT, que recriam os dados. Backup físico é a cópia dos arquivos do disco, feita com outras ferramentas e cuidados.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No MySQL 8, o comando GRANT não cria implicitamente uma conta inexistente; ela deve ser criada antes com CREATE USER.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Versões antigas aceitavam GRANT ... IDENTIFIED BY criando a conta na hora, mas o MySQL 8 removeu esse atalho. Agora o caminho é CREATE USER com a senha e, depois, GRANT com os privilégios desejados.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois de cada GRANT ou REVOKE, é obrigatório executar FLUSH PRIVILEGES para que a mudança de permissão passe a valer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. GRANT, REVOKE, CREATE USER e ALTER USER atualizam as permissões em memória imediatamente. FLUSH PRIVILEGES só é necessário quando alguém altera as tabelas internas de permissão diretamente, com INSERT ou UPDATE.",
+      "section": "4. Usuários, permissões (GRANT e REVOKE) e backup com mysqldump",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em operações de escrita, o engine MyISAM bloqueia a tabela inteira, enquanto o InnoDB trabalha com bloqueio em nível de linha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No MyISAM, quem grava trava a tabela toda, o que derruba o desempenho com muitos usuários escrevendo ao mesmo tempo. O InnoDB bloqueia só as linhas afetadas, permitindo que outras sessões gravem em linhas diferentes.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Os dados de uma tabela criada com ENGINE=MEMORY permanecem disponíveis depois que o servidor MySQL é reiniciado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O engine MEMORY guarda as linhas na memória RAM, o que o torna muito rápido, mas o conteúdo se perde quando o servidor para ou reinicia; só a definição da tabela continua. Serve para dados temporários e de consulta rápida.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um índice comum na coluna nome tende a ser aproveitado em WHERE nome LIKE '%souza', mas não em WHERE nome LIKE 'souza%'.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado, a relação é a inversa. Com o começo fixo, como em 'souza%', o MySQL percorre a árvore B a partir daquele ponto. Com o curinga no início, não há por onde entrar no índice, e a busca tende a varrer todas as linhas.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "As antigas funções mysql_connect e mysql_query foram removidas no PHP 7, e o acesso ao MySQL passou a ser feito pelas extensões mysqli ou PDO.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A extensão mysql original foi descontinuada e retirada no PHP 7. O mysqli atende só ao MySQL, com estilo procedural ou orientado a objetos, e o PDO é uma camada comum a vários bancos; ambos oferecem consultas preparadas.",
+      "section": "5. Storage engines, índices e conexão com PHP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MySQL 8.0 Reference Manual",
+      "publisher": "Oracle Corporation",
+      "reference": "Capítulos de tipos de dados, SQL statements (SHOW, GRANT, CREATE USER), mysqldump, storage engines e otimização com índices",
+      "url": "https://dev.mysql.com/doc/refman/8.0/en/",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MySQL 8.0 Reference Manual — mysqldump",
+      "publisher": "Oracle Corporation",
+      "reference": "Opções --single-transaction, --no-data, --routines e restauração com o cliente mysql",
+      "url": "https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html",
+      "accessedAt": "2026-11-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — PDO e MySQLi",
+      "publisher": "The PHP Group",
+      "reference": "Consultas preparadas, PDO_MYSQL e remoção da extensão mysql no PHP 7",
+      "url": "https://www.php.net/manual/pt_BR/book.pdo.php",
+      "accessedAt": "2026-11-09"
+    }
+  ]
+}
