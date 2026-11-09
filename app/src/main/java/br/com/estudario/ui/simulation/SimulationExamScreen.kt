@@ -162,7 +162,7 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
             }
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MarkdownText(question.question.statement)
+            MarkdownText(br.com.estudario.text.StatementLayout.separateCommand(question.question.statement))
             val trueFalse = question.options.map { it.key }.toSet() == setOf("C", "E")
             if (!trueFalse) Text("Arraste uma alternativa para o lado para riscar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             question.options.sortedBy { it.position }.forEach { option ->

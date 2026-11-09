@@ -246,7 +246,7 @@ fun QuizScreen(
                 if (current.question.questionSourceType != br.com.estudario.data.local.QuestionSourceType.AUTHORIAL) current.question.board?.let { AssistChip(onClick = {}, label = { Text(listOfNotNull(it, current.question.year?.toString()).joinToString(" • ")) }) }
                 Spacer(Modifier.height(8.dp))
                 // O enunciado é o protagonista: letra maior que as alternativas.
-                br.com.estudario.ui.components.StudyMarkdown(current.question.statement, Modifier.fillMaxWidth(), textSizeSp = 19f)
+                br.com.estudario.ui.components.StudyMarkdown(br.com.estudario.text.StatementLayout.separateCommand(current.question.statement), Modifier.fillMaxWidth(), textSizeSp = 19f)
                 Spacer(Modifier.height(8.dp))
                 QuestionProvenance(current.question)
                 if (!confirmed && current.options.size > 2 && index == 0) Text(

@@ -13,7 +13,8 @@ data class StatementParts(val label: String?, val title: String?, val base: Stri
 private val sourceParen = Regex("""\s*\(((?:[^()]|\([^()]*\))*?(?:fonte|https?://|adapta|dispon[ií]vel)(?:[^()]|\([^()]*\))*)\)""", RegexOption.IGNORE_CASE)
 private val header = Regex("""^\s*\**\s*(TEXTO[- ]BASE(?:\s*[IVX\d]+)?|TEXTO\s+[IVX\d]+)\s*\**\s*[—–:-]?\s*""", RegexOption.IGNORE_CASE)
 
-fun splitStatement(statement: String): StatementParts {
+fun splitStatement(rawStatement: String): StatementParts {
+    val statement = br.com.estudario.text.StatementLayout.separateCommand(rawStatement)
     var text = statement.replace("\r\n", "\n").trim()
     // Fonte entre parênteses (com link ou "adaptação de fonte real"): sai do texto e vai para o fim.
     var source: String? = null

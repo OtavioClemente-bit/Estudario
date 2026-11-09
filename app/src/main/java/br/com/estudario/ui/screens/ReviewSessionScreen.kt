@@ -307,7 +307,7 @@ fun ReviewSessionScreen(
                 // A questão inteira num papel só, como no site: enunciado, alternativas, a reação do Folha e o porquê.
                 item(key = "rv-q-${question.question.id}") {
                     PaperCard("QUESTÃO ${questionIndex + 1} DE ${questions.size}") {
-                        MarkdownText(question.question.statement)
+                        MarkdownText(br.com.estudario.text.StatementLayout.separateCommand(question.question.statement))
                         QuestionProvenance(question.question)
                         Spacer(Modifier.height(4.dp))
                         order.forEachIndexed { pos, i ->

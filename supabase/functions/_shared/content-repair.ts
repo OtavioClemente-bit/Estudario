@@ -62,7 +62,8 @@ function contradictsTrueFalseKey(q: Record<string, unknown>): boolean {
  */
 // Comando final das questões de itens ("Estão corretas:", "Está correto o que se afirma em", "A sequência correta é"):
 // vai para um parágrafo próprio. Antes só pegava o masculino ("corretos") e o comando colava no último item (04/11).
-const COMANDO = /\s+(?=(?:Assinale|Indique|Marque|Considerando|Quais|Pode-se afirmar|A sequ[êe]ncia correta|A ordem correta|A associa[çc][ãa]o correta|(?:Est[áa]|Est[ãa]o|[ÉE]|S[ãa]o)\s+(?:apenas\s+)?(?:corret|incorret|verdadeir|fals|cert)[oa]s?)\b)/;
+const COMANDO_NO_ITEM = /[.;]\s+(?=(?:Associe|Relacione|Correlacione|Ordene|Classifique|Julgue|Identifique|Assinale|Indique|Marque|Considerando|Quais|Pode-se afirmar|A sequ[êe]ncia correta|A ordem correta|A associa[çc][ãa]o correta|(?:Est[áa]|Est[ãa]o|[ÉE]|S[ãa]o)\s+(?:apenas\s+)?(?:corret|incorret|verdadeir|fals|cert)[oa]s?)\b)/;
+const COMANDO = /\s+(?=(?:Associe|Relacione|Correlacione|Ordene|Classifique|Julgue|Identifique|Assinale|Indique|Marque|Considerando|Quais|Pode-se afirmar|A sequ[êe]ncia correta|A ordem correta|A associa[çc][ãa]o correta|(?:Est[áa]|Est[ãa]o|[ÉE]|S[ãa]o)\s+(?:apenas\s+)?(?:corret|incorret|verdadeir|fals|cert)[oa]s?)\b)/;
 
 /**
  * Assertivas na mesma linha ("Avalie: I. ... II. ... III. ..."): um parágrafo por item e o comando
@@ -84,6 +85,18 @@ export function breakAssertivas(statement: string): string {
   // Primeira coluna numerada "1. ... 2. ... 3. ..." (ou "(1)") na mesma linha.
   if (/(^|\s)\(?1[.)]\s/.test(s) && /\s\(?2[.)]\s/.test(s) && /\s\(?3[.)]\s/.test(s) && !/\n\(?2[.)]/.test(s)) {
     s = s.replace(/\s+(?=\(?[1-9][.)]\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g, "\n");
+  }
+  // Itens já em parágrafos, mas o comando colado no último ("IV. Domínios. Associe os conjuntos..."):
+  // separa só dentro do último item, depois de um ponto.
+  const items = [...s.matchAll(/(?:^|\s)(?:[IVX]{1,4}|\d{1,2})[.)]\s/g)];
+  if (items.length >= 2) {
+    const last = items[items.length - 1];
+    const start = last.index! + last[0].length;
+    const hit = s.slice(start).match(COMANDO_NO_ITEM);
+    if (hit && hit.index !== undefined) {
+      const cut = start + hit.index + 1;
+      s = s.slice(0, cut).trimEnd() + "\n\n" + s.slice(cut).trimStart();
+    }
   }
   return s;
 }

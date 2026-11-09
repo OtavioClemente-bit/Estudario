@@ -515,7 +515,7 @@ private fun MissionItem(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(meta, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant)
             Ladder(step.coerceIn(0, ErrorRetryLadder.days.size))
-            MarkdownText(question.question.statement)
+            MarkdownText(br.com.estudario.text.StatementLayout.separateCommand(question.question.statement))
             // Tocar só escolhe; vale ao confirmar. A marcação antiga aparece só depois de responder.
             br.com.estudario.ui.components.AnswerOptions(
                 options = question.options,

@@ -476,7 +476,7 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     Text("Uma que você errou: e agora?", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
-    br.com.estudario.ui.components.MarkdownText(question.question.statement)
+    br.com.estudario.ui.components.MarkdownText(br.com.estudario.text.StatementLayout.separateCommand(question.question.statement))
     br.com.estudario.ui.components.AnswerOptions(
         options = question.options,
         picked = picked,

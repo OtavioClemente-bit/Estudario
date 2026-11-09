@@ -99,3 +99,12 @@ Deno.test("assertivas: comando no feminino vai para parágrafo próprio e coluna
   assert(colunas.includes("\n2. Eficiência") && colunas.includes("\n( ) atingir metas"));
   assert(colunas.endsWith("\n\nA sequência correta é:"));
 });
+
+Deno.test("comando colado no último item já em parágrafos vai para parágrafo próprio", async () => {
+  const { breakAssertivas } = await import("./content-repair.ts");
+  const s = "Manuela separa:\n\nI. Tipo;\n\nII. Propriedades;\n\nIV. Domínios de segurança. Associe os conjuntos, na ordem: a; b.";
+  const out = breakAssertivas(s);
+  if (!out.endsWith("IV. Domínios de segurança.\n\nAssocie os conjuntos, na ordem: a; b.")) throw new Error(out);
+  const ok = "I. A.\n\nII. B.\n\nAssinale a correta.";
+  if (breakAssertivas(ok) !== ok) throw new Error(breakAssertivas(ok));
+});

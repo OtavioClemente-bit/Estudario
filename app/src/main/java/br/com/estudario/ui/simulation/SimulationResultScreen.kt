@@ -270,7 +270,7 @@ private fun CorrectionCard(number: Int, row: QuestionWithOptions, selected: Stri
                 Text(br.com.estudario.ui.components.plainFormulaText(row.question.statement), maxLines = 3, style = MaterialTheme.typography.bodySmall, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 return@Column
             }
-            MarkdownText(row.question.statement)
+            MarkdownText(br.com.estudario.text.StatementLayout.separateCommand(row.question.statement))
             row.options.sortedBy { it.position }.forEach { option ->
                 val color = when {
                     option.isCorrect -> estudarioColors().completed
