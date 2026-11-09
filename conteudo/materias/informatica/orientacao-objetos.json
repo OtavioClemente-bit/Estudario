@@ -16,7 +16,7 @@
     "Orientação a objetos: classes, objetos, métodos, herança, polimorfismo, interfaces, estados, pacotes e mensagens."
   ],
   "scope": {
-    "covers": "Abstração, encapsulamento, herança e polimorfismo; identidade, estado e comportamento; associação, agregação, composição e dependência; coesão, acoplamento e SOLID; regras de Java para inicialização, super, Object, sobrecarga, sobrescrita, métodos static, conversões de referência, interfaces, classes abstratas e métodos default; comparação conceitual limitada entre organização orientada a objetos e programação procedural e funcional.",
+    "covers": "Abstração, encapsulamento, herança e polimorfismo; identidade, estado e comportamento; associação, agregação, composição e dependência; coesão, acoplamento e SOLID; regras de Java para inicialização, super, Object, sobrecarga, sobrescrita, métodos static, conversões de referência, interfaces, classes abstratas e métodos default; comparação conceitual limitada entre organização orientada a objetos e programação procedural e funcional. Para editais de desenvolvimento de software, inclui visão de prova das metodologias (cascata, incremental, espiral, RUP, Scrum, XP, Kanban), das ferramentas (CASE, UML, controle de versão, integração contínua) e do projeto de interface com o usuário (usabilidade, heurísticas de Nielsen, acessibilidade).",
     "excludes": "Sintaxe introdutória de Java, operadores e laços em detalhe, exceções em geral, generics avançados, diagramas UML detalhados, padrões GoF e GRASP, TDD/BDD, algoritmos de estruturas de dados e ensino independente e aprofundado dos paradigmas procedural e funcional."
   },
   "theoryTitle": "Orientação a objetos em Java: modelo conceitual, relacionamentos, polimorfismo e contratos",
@@ -40,9 +40,13 @@
     {
       "title": "5. Interfaces, classes abstratas, métodos default e projeto consistente",
       "markdown": "### Vocabulário antes de começar\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| Classe abstrata | Classe que não pode ser instanciada | Um \"modelo incompleto\" que as filhas completam |\n| Método abstrato | Método sem corpo | \"Toda filha tem de saber fazer isso\" |\n| Interface | Contrato de tipo | Lista de capacidades que uma classe promete |\n| Método default | Método de interface com implementação | Comportamento \"de fábrica\", que pode ser trocado |\n| Método static de interface | Método da própria interface | Chamado pelo nome da interface |\n| Método private de interface | Auxiliar interno | Ajuda os default/static, fora do contrato público |\n| `X.super.metodo()` | Chamada ao default de uma interface específica | \"Use a versão da interface X\" |\n| JLS cap. 9 | Capítulo da especificação sobre interfaces | Onde estão as regras de conflito |\n\n### Classe abstrata x interface\n**Classe abstrata**: não pode ser instanciada diretamente; pode reunir **estado de instância**, **construtores**, métodos **concretos** e métodos **abstratos**.\n- A classe **concreta** que herda métodos abstratos precisa implementá-los para poder ser instanciada.\n- Uma subclasse que ainda não os implementa pode continuar **abstrata**.\n\n**Interface**: contrato de tipo que classes **sem relação de herança** podem implementar; uma classe pode implementar **várias** interfaces. Pode declarar:\n- métodos **abstratos**;\n- métodos **default** (implementação de instância);\n- métodos **static**;\n- métodos **private** auxiliares;\n- **constantes** (campos são implicitamente `public static final`).\n\nInterfaces **não guardam campos comuns de instância**. Ter método default não transforma a interface em classe abstrata.\n\nJava mantém herança **simples de classes**, mas aceita **múltiplas interfaces**, com regras para conflitos.\n\nAnalogia: a classe abstrata é a **franquia** que entrega a loja meio montada (estoque, balcão, regras) e só pede que você complete alguns detalhes; a interface é a **certificação** (\"sabe dirigir\", \"sabe cozinhar\"): várias pessoas, sem parentesco, podem ter a mesma, e uma pessoa pode ter várias.\n\n| | Classe abstrata | Interface |\n| --- | --- | --- |\n| Instanciar diretamente | Não | Não |\n| Estado de instância | Sim | Não (só constantes) |\n| Construtor | Sim | Não |\n| Quantas por classe | Uma superclasse direta | Várias |\n| Métodos com corpo | Sim | default, static e private |\n\n> **Pegadinha:** \"Com métodos default, a interface passou a ser uma classe abstrata.\" Errado: continua sem estado de instância e sem construtor.\n\n### Default, static e private em interfaces\n```java\ninterface Auditavel {\n    default String status() { return \"ativo\"; }  // de instância: herdado e sobrescrevível\n    static String versao()  { return \"1\"; }      // da interface: Auditavel.versao()\n    private String ajuda()  { return \"...\"; }    // apoio interno, fora do contrato\n}\n\nobj.status();          // ok, num implementador\nAuditavel.versao();    // forma correta de chamar o static\nobj.versao();          // NÃO é a forma de chamar o static de interface\n```\n\n- O método **default** é de instância e pode ser herdado ou sobrescrito pelo implementador.\n- O método **static** pertence à interface e é chamado **pelo nome dela**; **não é herdado** como método de instância pelas classes implementadoras.\n- Métodos **private** dão suporte interno aos default/static e não fazem parte do contrato público.\n\n### Conflitos de default\n```java\ninterface A { default String id() { return \"A\"; } }\ninterface B { default String id() { return \"B\"; } }\nclass C implements A, B { }    // ERRO: dois defaults igualmente candidatos\n```\n\nRegras da resolução:\n1. **A classe ganha**: se uma **superclasse** fornece método de instância com a mesma assinatura, ele **prevalece** sobre o default da interface.\n2. **A interface mais específica ganha**: se uma interface estende a outra, a implementação mais específica prevalece.\n3. **Senão, a classe tem de resolver** explicitamente, implementando o método; pode delegar com `A.super.id()` ou `B.super.id()`.\n\n**Não é verdade** que o compilador escolhe a primeira interface escrita no `implements`.\n\n### Exemplo de conflito resolvido\n```java\ninterface X { default String ler() { return \"X\"; } }\ninterface Y { default String ler() { return \"Y\"; } }\nclass Z implements X, Y {\n    public String ler() { return X.super.ler(); }   // resolve delegando a X\n}\nnew Z().ler();   // \"X\"\n```\n- Tirando `ler()` de Z: **erro de compilação** (dois defaults candidatos).\n- Se Z herdasse `public String ler()` de uma **superclasse**, a regra \"classe ganha\" resolveria sem método novo em Z.\n\nEsses comportamentos estão definidos na **JLS, capítulo 9**; não são coincidências de compilador.\n\n### Assinaturas, abstração e substituibilidade\n- Os métodos da interface são públicos: a implementação deve ser **`public`** (não pode reduzir a visibilidade).\n- Uma classe **abstrata** pode implementar só parte de uma interface e deixar o resto para as subclasses concretas.\n- As regras de **retorno covariante** e de **não ampliar exceções verificadas** também valem para a implementação de métodos de interface.\n- Uma interface focada numa ação (`Exportavel.exportar()`) favorece **ISP e DIP** quando substitui dependências concretas.\n- Criar uma interface para **cada** classe, sem nenhum consumidor que dependa da abstração, aumenta a complexidade sem benefício.\n- Uma classe pode implementar duas capacidades (`Auditavel`, `Exportavel`) sem herdar o estado de duas superclasses.\n\n### Composição em vez de ramificações de herança\nUma biblioteca precisa salvar documentos em arquivo local, remoto e num simulador para testes:\n\n```java\ninterface Repositorio { void salvar(Documento d); }\n\nclass Servico {\n    private final Repositorio repo;                 // \"tem um\" colaborador\n    Servico(Repositorio repo) { this.repo = repo; } // recebe pronto (injeção pelo construtor)\n    void registrar(Documento d) { repo.salvar(d); } // delega\n}\n// new Servico(new RepositorioLocal()), new Servico(new RepositorioRemoto()), new Servico(new RepositorioFalso())\n```\n\nIsso atende o **DIP** e reduz o **acoplamento**, pois as implementações podem ser trocadas; o serviço **tem um** colaborador, não **é um** repositório. Classes abstratas continuam adequadas quando há estado e lógica comuns com semântica compartilhada.\n\nO contrato da interface **não garante sozinho** idempotência, segurança ou persistência: essas propriedades precisam ser especificadas e cumpridas pelas implementações.\n\n### Matriz de resolução para questões\n| O enunciado mostra | O que verificar |\n| --- | --- |\n| `implements` com dois defaults | Há método concreto herdado de classe ou subinterface mais específica? Se não, a classe precisa resolver |\n| Construtor de subclasse | Existe construtor compatível na superclasse? Qual a versão do Java (prólogo no 25+)? |\n| `Base x = new Sub()` | Overload pela referência (compilação); override pela classe real (execução) |\n| `equals` e `hashCode` | Iguais exigem hash igual; colisões são permitidas; `toString` não define igualdade |\n| Relação todo–parte | Parte sem existência independente indica composição, não herança |\n\n| Necessidade | Escolha mais adequada | Ressalva |\n| --- | --- | --- |\n| Compartilhar estado de instância e implementação | Classe abstrata | Uma única superclasse direta |\n| Compartilhar contrato entre tipos diferentes | Interface | Múltiplas interfaces permitidas |\n| Fornecer comportamento opcional comum em interface | Método default | Resolver colisões |\n| Oferecer operação da própria interface sem objeto | Método static | Acesso pelo nome da interface |\n| Variar colaboradores de um serviço | Composição com interface | Contratos devem ser coerentes |\n\n### Como o tema costuma ser cobrado\nA prova troca **abstração** por `abstract`, **encapsulamento** por `private` sem invariantes, **herança** por \"tem um\", **agregação** por composição, **sobrecarga** por sobrescrita, **tipo declarado** por classe real em todas as operações e **ocultação static** por polimorfismo. Explora também que o contrato `equals`/`hashCode` é de mão única, que `instanceof` com null é falso, que casts não mudam a classe do objeto, que a subclasse concreta deve implementar os métodos abstratos e que conflito entre defaults exige resolução. Em Java 25+, `super(...)` aceita prólogo controlado, contrariando resumos antigos. Para SOLID, identifique a responsabilidade, a dependência e o contrato efetivamente violados antes de escolher a sigla.\n\n### Resumo para a prova\n- Classe abstrata: não instanciável, pode ter estado, construtor, métodos concretos e abstratos; uma só superclasse direta.\n- Interface: contrato; abstratos, default, static, private e constantes; sem estado de instância; várias por classe.\n- Default é de instância e sobrescrevível; static de interface é chamado pelo nome da interface e não é herdado.\n- Conflito de defaults: classe ganha; interface mais específica ganha; senão, a classe resolve (pode usar `X.super.m()`).\n- O compilador não escolhe \"a primeira interface do implements\".\n- Implementação de método de interface deve ser public.\n- Composição com interface (injeção pelo construtor) atende DIP e reduz acoplamento."
+    },
+    {
+      "title": "6. Metodologias, ferramentas e projeto de interface com o usuário",
+      "markdown": "> **Termos explicados**\n> - **Processo (metodologia) de software**: o roteiro de fases e atividades para construir um sistema.\n> - **Iterativo**: o trabalho é repetido em ciclos; **incremental**: cada ciclo entrega uma parte nova e utilizável.\n> - **Usabilidade**: grau em que o usuário consegue atingir seus objetivos com **eficácia, eficiência e satisfação**.\n>\n> **Imagem:** a cascata é a escada (só se sobe um degrau depois do outro); o RUP e os ágeis são a espiral de ciclos curtos, em que cada volta entrega um pedaço do sistema.\n\n## Modelos clássicos\n| Modelo | Ideia central | Quando cai bem |\n|---|---|---|\n| **Cascata** | fases **sequenciais**: requisitos, projeto, implementação, testes, manutenção | requisitos estáveis e bem conhecidos |\n| **Incremental** | entregas parciais que somam o sistema | entregar valor cedo |\n| **Espiral** (Boehm) | ciclos guiados pela **análise de riscos** | projetos grandes e arriscados |\n| **Prototipação** | protótipo para descobrir requisitos | usuário não sabe explicar o que quer |\n\n> **Pegadinha:** a cascata **não** é proibida nem \"errada\"; o problema é a mudança tardia de requisitos, que custa caro porque o teste só vem no fim.\n\n## RUP (Rational Unified Process)\n- **Iterativo e incremental**, **guiado por casos de uso**, **centrado na arquitetura** e usa a **UML**.\n- Quatro **fases**: **Concepção** (escopo e viabilidade), **Elaboração** (arquitetura e riscos principais), **Construção** (desenvolver a maior parte) e **Transição** (entregar ao usuário).\n- **Disciplinas** (fluxos de trabalho) atravessam as fases: modelagem de negócio, requisitos, análise e projeto, implementação, teste, implantação, além das de apoio (configuração e mudança, gerência de projeto, ambiente).\n\n> **Pegadinha:** as **fases** do RUP não são as disciplinas. \"Implementação\" é disciplina; \"Construção\" é fase.\n\n## Métodos ágeis\nO **Manifesto Ágil** (2001) valoriza: indivíduos e interações mais que processos e ferramentas; software funcionando mais que documentação abrangente; colaboração com o cliente mais que negociação de contratos; responder a mudanças mais que seguir um plano. Os itens da direita **continuam tendo valor**.\n\n| Método | Elementos que caem |\n|---|---|\n| **Scrum** | papéis: **Product Owner**, **Scrum Master**, **desenvolvedores**; eventos: **Sprint** (até um mês), Planning, Daily (15 min), Review, Retrospectiva; artefatos: **Product Backlog**, **Sprint Backlog**, **Incremento** |\n| **XP** | programação em **par**, **TDD**, integração contínua, refatoração, pequenas entregas, propriedade coletiva do código |\n| **Kanban** | quadro visual, **limite de trabalho em andamento (WIP)**, fluxo contínuo sem sprints obrigatórias |\n\n## Ferramentas de desenvolvimento\n- **CASE**: ferramentas que apoiam a engenharia de software (modelagem UML, geração de código, documentação).\n- **UML**: linguagem de **modelagem**, não metodologia. Diagramas mais cobrados: casos de uso, classes, sequência, atividades.\n- **Controle de versão**: **Git** (distribuído: cada cópia tem o histórico completo) e SVN (centralizado). Comandos: `commit`, `branch`, `merge`, `push`, `pull`.\n- **IDE** (Eclipse, NetBeans, VS Code), **integração contínua** e testes automatizados.\n\n## Projeto de interface com o usuário\n| Conceito | Conteúdo |\n|---|---|\n| Usabilidade (ISO 9241-11) | **eficácia**, **eficiência**, **satisfação** num contexto de uso |\n| Heurísticas de **Nielsen** | visibilidade do estado do sistema; correspondência com o mundo real; controle e liberdade do usuário; consistência e padrões; prevenção de erros; reconhecer em vez de lembrar; flexibilidade e eficiência; design estético e minimalista; ajudar a reconhecer e corrigir erros; ajuda e documentação |\n| Design centrado no usuário | envolver usuários desde o início, prototipar e avaliar em ciclos |\n| Avaliação | **heurística** (especialistas, sem usuários) × **teste de usabilidade** (usuários reais executando tarefas) |\n| Acessibilidade | contraste, texto alternativo em imagens, navegação por teclado; referência **WCAG** e, no governo, **eMAG** |\n\n> **Pegadinha:** avaliação heurística é feita por **especialistas**, sem usuários; quem observa usuários reais é o teste de usabilidade.\n\n**Resumo para a prova**\n- Cascata sequencial; espiral guiada por riscos; incremental entrega por partes.\n- RUP: iterativo, casos de uso, arquitetura; fases Concepção, Elaboração, Construção, Transição.\n- Scrum: PO, Scrum Master, desenvolvedores; Sprint até um mês; Daily de 15 min.\n- XP: par, TDD, integração contínua; Kanban: limite de WIP.\n- UML é linguagem, não processo; Git é distribuído.\n- Interface: eficácia, eficiência e satisfação; 10 heurísticas de Nielsen; WCAG e eMAG."
     }
   ],
-  "summary": "## Fundamentos\n**Classe** especifica atributos e operações; **objeto** possui identidade, estado e comportamento. Os quatro pilares: **abstração** seleciona operações essenciais; **encapsulamento** protege invariantes e controla acesso; **herança** especializa um tipo em relação 'é um'; **polimorfismo** permite comportamentos distintos sob uma operação comum. Programação procedural pode modularizar por funções e estruturas; OO associa estado e operações ao objeto. Funções puras e imutabilidade podem coexistir com OO, sem exigir mudança de paradigma.\n\n## Relacionamentos e projeto\n**Associação** é vínculo, **agregação** é todo–parte com existência independente, **composição** envolve parte cujo ciclo de vida depende do todo, **dependência** é uso de colaborador. Relação 'tem um' favorece composição em vez de extends quando não há verdadeira especialização. **Coesão alta** reúne responsabilidades relacionadas; **acoplamento baixo** reduz dependências indevidas. **SOLID:** SRP (uma razão coerente de mudança), OCP (extensão sem alterar clientes consolidados repetidamente), LSP (substituição de subtipo sem quebrar contrato), ISP (interfaces menores conforme necessidade), DIP (núcleo e detalhes dependem de abstrações).\n\n## Inicialização e Object\nO construtor da superclasse é encadeado antes da conclusão da inicialização da subclasse; se não houver `super(...)` explícito, pressupõe-se `super()` compatível. **Java 25** permite prólogo restrito antes da chamada explícita, de acordo com JLS § 8.8.7: a regra antiga 'super sempre primeiro' não vale incondicionalmente. `==` compara identidade de referência; `equals(Object)` pode comparar valores. Se `a.equals(b)`, **hashes devem ser iguais**; hashes iguais não exigem igualdade. `toString()` produz representação textual e pode ser sobrescrito.\n\n## Ligações e conversões\n**Sobrescrita** troca implementação de método de instância com assinatura compatível, despachada pela classe real; retorno de referência pode ser covariante, visibilidade não pode diminuir e checked exceptions não podem ser ampliadas. **Sobrecarga** usa parâmetros diferentes e é selecionada conforme tipos estáticos na compilação. **Métodos static** são ocultados e **campos** são ocultados: não há despacho dinâmico. **Upcast** para tipo-base preserva instância; **downcast** requer objeto compatível e pode gerar `ClassCastException`. `null instanceof Tipo` retorna false.\n\n## Interfaces\nClasse abstrata pode ter estado, construtor e métodos abstratos/concretos, mas não é instanciável diretamente. Interface define contrato, aceita métodos `default`, `static`, métodos privados auxiliares e constantes, sem campos de estado de instância. Método `static` de interface é chamado pela própria interface. Se duas interfaces não relacionadas fornecem o mesmo default, o implementador concreto deve resolver o conflito; método concreto de superclasse apropriado prevalece. Verifique sempre primeiro o tipo declarado, depois o overload selecionado e, finalmente, a implementação virtual.",
+  "summary": "## Fundamentos\n**Classe** especifica atributos e operações; **objeto** possui identidade, estado e comportamento. Os quatro pilares: **abstração** seleciona operações essenciais; **encapsulamento** protege invariantes e controla acesso; **herança** especializa um tipo em relação 'é um'; **polimorfismo** permite comportamentos distintos sob uma operação comum. Programação procedural pode modularizar por funções e estruturas; OO associa estado e operações ao objeto. Funções puras e imutabilidade podem coexistir com OO, sem exigir mudança de paradigma.\n\n## Relacionamentos e projeto\n**Associação** é vínculo, **agregação** é todo–parte com existência independente, **composição** envolve parte cujo ciclo de vida depende do todo, **dependência** é uso de colaborador. Relação 'tem um' favorece composição em vez de extends quando não há verdadeira especialização. **Coesão alta** reúne responsabilidades relacionadas; **acoplamento baixo** reduz dependências indevidas. **SOLID:** SRP (uma razão coerente de mudança), OCP (extensão sem alterar clientes consolidados repetidamente), LSP (substituição de subtipo sem quebrar contrato), ISP (interfaces menores conforme necessidade), DIP (núcleo e detalhes dependem de abstrações).\n\n## Inicialização e Object\nO construtor da superclasse é encadeado antes da conclusão da inicialização da subclasse; se não houver `super(...)` explícito, pressupõe-se `super()` compatível. **Java 25** permite prólogo restrito antes da chamada explícita, de acordo com JLS § 8.8.7: a regra antiga 'super sempre primeiro' não vale incondicionalmente. `==` compara identidade de referência; `equals(Object)` pode comparar valores. Se `a.equals(b)`, **hashes devem ser iguais**; hashes iguais não exigem igualdade. `toString()` produz representação textual e pode ser sobrescrito.\n\n## Ligações e conversões\n**Sobrescrita** troca implementação de método de instância com assinatura compatível, despachada pela classe real; retorno de referência pode ser covariante, visibilidade não pode diminuir e checked exceptions não podem ser ampliadas. **Sobrecarga** usa parâmetros diferentes e é selecionada conforme tipos estáticos na compilação. **Métodos static** são ocultados e **campos** são ocultados: não há despacho dinâmico. **Upcast** para tipo-base preserva instância; **downcast** requer objeto compatível e pode gerar `ClassCastException`. `null instanceof Tipo` retorna false.\n\n## Interfaces\nClasse abstrata pode ter estado, construtor e métodos abstratos/concretos, mas não é instanciável diretamente. Interface define contrato, aceita métodos `default`, `static`, métodos privados auxiliares e constantes, sem campos de estado de instância. Método `static` de interface é chamado pela própria interface. Se duas interfaces não relacionadas fornecem o mesmo default, o implementador concreto deve resolver o conflito; método concreto de superclasse apropriado prevalece. Verifique sempre primeiro o tipo declarado, depois o overload selecionado e, finalmente, a implementação virtual. Metodologias: cascata (fases sequenciais), incremental e espiral (riscos), RUP (iterativo, guiado por casos de uso, fases concepção, elaboração, construção e transição) e ágeis (Scrum com papéis, eventos e artefatos; XP com programação em par e TDD; Kanban com limite de trabalho em andamento). Interface: usabilidade (eficácia, eficiência, satisfação), heurísticas de Nielsen e acessibilidade.",
   "flashcards": [
     {
       "front": "O que é identidade de objeto?",
@@ -131,6 +135,18 @@
     {
       "front": "Conflito de dois métodos default?",
       "back": "Se não houver implementação mais específica ou método de classe que resolva, a classe concreta deve sobrescrever explicitamente."
+    },
+    {
+      "front": "Quais são as fases do RUP?",
+      "back": "Concepção, Elaboração, Construção e Transição."
+    },
+    {
+      "front": "Quais os três papéis do Scrum?",
+      "back": "Product Owner, Scrum Master e desenvolvedores."
+    },
+    {
+      "front": "Quais os três componentes da usabilidade?",
+      "back": "Eficácia, eficiência e satisfação, num contexto de uso específico."
     }
   ],
   "tips": [
@@ -183,6 +199,10 @@
     {
       "question": "Quando interfaces com defaults iguais compilam em uma classe?",
       "answer": "Quando uma implementação de classe ou regra de especificidade resolve o conflito, ou a classe declara sua própria sobrescrita."
+    },
+    {
+      "question": "Qual a diferença entre avaliação heurística e teste de usabilidade?",
+      "answer": "A heurística é feita por especialistas com base em princípios, sem usuários; o teste observa usuários reais executando tarefas."
     }
   ],
   "errorConcepts": [
@@ -5206,6 +5226,166 @@
       ],
       "explanation": "Um método default pode reutilizar operações abstratas da própria interface, delegando a informação variável às implementações concretas. Assim, a interface oferece uma rotina padrão sem impor campos ou construtores.",
       "section": "5. Interfaces, classes abstratas, métodos default e projeto consistente",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Rational Unified Process (RUP), a fase em que se define e estabiliza a arquitetura do sistema e se tratam os principais riscos técnicos é a de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concepção, que delimita escopo e viabilidade do negócio",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elaboração",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Construção, em que se desenvolve a maior parte do código",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transição, em que o produto é entregue aos usuários",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Implementação, que encerra o ciclo de vida do projeto",
+          "correct": false
+        }
+      ],
+      "explanation": "Na Elaboração o RUP fixa a arquitetura de referência e ataca os riscos principais. Concepção define escopo, Construção produz a maior parte do software e Transição entrega ao usuário; Implementação é disciplina, não fase.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o Scrum, assinale a alternativa correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Scrum Master define a prioridade dos itens do Product Backlog.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A Sprint tem duração fixa de três meses, para permitir entregas completas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A Daily Scrum dura até 15 minutos e serve à inspeção do progresso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O Manifesto Ágil eliminou a documentação, que deixou de ter qualquer valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Kanban é um evento do Scrum realizado ao final de cada Sprint.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Daily é o evento diário de até 15 minutos para inspecionar o avanço rumo à meta da Sprint. Quem prioriza o backlog é o Product Owner; a Sprint dura até um mês; o Manifesto ainda valoriza a documentação, e Kanban é outro método.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema tem requisitos muito estáveis e o contrato exige que cada etapa seja concluída e aprovada antes da seguinte. O modelo de processo mais aderente a essa situação é o:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "cascata",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "espiral, guiado pela análise de riscos a cada volta",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Scrum, com entregas a cada Sprint de até um mês",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kanban, com fluxo contínuo e limite de trabalho em andamento",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "XP, com programação em par e pequenas entregas frequentes",
+          "correct": false
+        }
+      ],
+      "explanation": "A cascata organiza o trabalho em fases sequenciais, cada uma concluída antes da próxima, e funciona bem quando os requisitos são estáveis. Espiral, Scrum, Kanban e XP são iterativos e pensados para mudança frequente.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar a interface de um sistema acadêmico, a equipe passa a exibir uma barra de progresso durante o envio de arquivos, para o usuário saber o que está acontecendo. Essa decisão atende à heurística de Nielsen da:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "prevenção de erros, que evita ações perigosas por confirmação",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "visibilidade do estado do sistema",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "flexibilidade e eficiência, com atalhos para usuários avançados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "estética minimalista, que retira informação irrelevante da tela",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ajuda e documentação, com manual de uso acessível no sistema",
+          "correct": false
+        }
+      ],
+      "explanation": "A visibilidade do estado do sistema pede que a interface informe o que ocorre, com retorno em tempo razoável, como uma barra de progresso. As demais heurísticas tratam de evitar erros, atalhos, enxugar a tela e oferecer ajuda.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
       "errorConceptKey": null,
       "sourceType": "AUTHORIAL",
       "board": null,
