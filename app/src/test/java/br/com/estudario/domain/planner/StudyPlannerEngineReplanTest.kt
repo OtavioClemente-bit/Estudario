@@ -51,6 +51,18 @@ class StudyPlannerEngineReplanTest {
     }
 
     @Test
+    fun `concluir a teoria do dia nao puxa a atrasada nem tira as questoes de hoje`() {
+        val late = task("late-theory", monday.minusDays(2), 50)
+        val done = task("today-theory", monday, 50, PlanTaskStatus.CONCLUIDA)
+        val questions = (1..4).map { task("q$it", monday, 20) }
+        val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 120, tasks = listOf(late, done) + questions), ReplanReason.TASK_COMPLETED)
+
+        assertTrue(proposal.transitions.isEmpty())
+        assertTrue(proposal.newTasks.none { it.date == monday })
+        assertTrue(proposal.preservedTaskIds.containsAll(listOf("late-theory", "q1", "q2", "q3", "q4")))
+    }
+
+    @Test
     fun `completed task is preserved and never generated again`() {
         val completed = task("done", monday, 60, PlanTaskStatus.CONCLUIDA)
         val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 120, tasks = listOf(completed)), ReplanReason.TASK_COMPLETED)

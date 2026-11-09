@@ -23,8 +23,14 @@ class StudyPlannerEngine(
         // tarefas remarcadas em 4 dias numa conta real) e o que a pessoa via ontem mudava hoje. Só o
         // que vem depois da janela se reorganiza; mudar horas, matérias ou recriar o plano refaz tudo.
         val stableUntil = if (reason in stableReasons) snapshot.today.plusDays(STABLE_DAYS.toLong()) else null
+        // Concluir, pular ou fazer parte de uma tarefa não mexe no resto do dia nem nas atrasadas: o que
+        // falta hoje fica hoje, e a atrasada espera a pessoa escolher (fazer agora, encaixar ou empurrar).
+        // Antes, concluir a teoria do dia puxava a teoria atrasada para hoje e as questões do dia iam
+        // para a semana seguinte, sem ninguém pedir (caso real de 09/11).
+        val dayKeeping = reason in dayKeepingReasons
         val fixedTasks = snapshot.tasks.filter { task ->
             task.status == PlanTaskStatus.CONCLUIDA ||
+                (dayKeeping && task.date <= snapshot.today && task.status == PlanTaskStatus.PLANEJADA) ||
                 (stableUntil != null && task.status == PlanTaskStatus.PLANEJADA && task.date > snapshot.today && task.date < stableUntil) ||
                 task.locked ||
                 snapshot.dayOverrides[task.date]?.locked == true ||
