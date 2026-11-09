@@ -38,9 +38,13 @@
     {
       "title": "4. Armazenamento, pacotes, inicialização e suporte",
       "markdown": "### O problema que este assunto resolve\n\nO sistema operacional organiza arquivos em diretórios e associa volumes a pontos de acesso. Windows usa letras de unidade e caminhos como `C:\\Users`; Linux apresenta uma árvore única iniciada em `/`, com volumes montados em diretórios. No Linux, `/etc` concentra configuração, `/home` costuma conter diretórios pessoais, `/var/log` pode guardar logs e `/boot` contém componentes de inicialização conforme a instalação. `mount` associa um sistema de arquivos a um ponto de montagem; `/etc/fstab` pode declarar montagens persistentes. Uma entrada inválida ali pode atrasar a inicialização ou deixar o volume indisponível, portanto valide antes de reiniciar.\n\nNTFS oferece permissões ACL, journaling e recursos de metadados usados por Windows. EXT2 não tem journaling; EXT3 acrescenta journaling; EXT4 amplia capacidade e desempenho e é comum em Linux. Os detalhes variam conforme montagem, kernel e implementação. LVM cria volumes lógicos sobre volumes físicos agrupados em grupos de volumes, oferecendo flexibilidade de alocação e expansão. LVM não é, por si só, um sistema de arquivos, e expansão do volume lógico não garante automaticamente que o sistema de arquivos foi ampliado também. Faça backup antes de operações de particionamento, formatação ou redimensionamento.\n\n> **Siglas e termos deste capítulo**\n> - **NTFS**: sistema de arquivos nativo de uso amplo no Windows.\n> - **EXT2/3/4**: famílias de sistemas de arquivos usados em Linux.\n> - **LVM**: Logical Volume Manager, camada de volumes lógicos sobre dispositivos físicos.\n> - **RPM/DEB**: formatos de pacotes usados em famílias Red Hat e Debian, respectivamente.\n> - **initramfs**: sistema de arquivos temporário carregado para preparar o acesso ao sistema raiz.\n> - **BCD**: Boot Configuration Data, repositório de opções de inicialização do Windows.\n\n### Pacotes e firewall\n\nDistribuições da família Debian/Ubuntu usam pacotes DEB e ferramentas como `apt`; distribuições da família Red Hat usam RPM e gerenciadores como DNF ou, em versões antigas, YUM. O gerenciador resolve dependências a partir de repositórios configurados e assinados. `dpkg` e `rpm` operam em baixo nível e não substituem por completo a resolução de dependências do gerenciador de distribuição. Não misture pacotes de versões ou distribuições incompatíveis. Para suporte, identifique distribuição e versão, origem do pacote, dependências e registros da operação.\n\niptables é uma interface tradicional para configurar regras de filtragem e tradução de endereços no subsistema Netfilter Linux; em sistemas modernos pode coexistir com backend nftables e abstrações como firewalld/ufw. Regras devem refletir política explícita: origem, destino, protocolo e porta necessários. Uma regra ampla de aceitação pode expor serviços; uma regra de bloqueio aplicada remotamente pode interromper a sessão de administração. Verifique a política ativa e a persistência por distribuição, sem presumir que editar uma tabela manualmente sobreviva à reinicialização.\n\n### Inicialização e arquivos de configuração\n\nEm um PC, firmware BIOS ou UEFI seleciona um dispositivo e carrega o gerenciador de boot. No Linux, bootloader como GRUB seleciona kernel e initramfs; o kernel inicializa hardware essencial e monta a raiz, depois o sistema init (frequentemente systemd) inicia unidades e alvos. No Windows, Windows Boot Manager lê a configuração BCD e transfere controle ao carregador do sistema; modificar BCD exige cuidado, pois uma entrada inválida pode impedir o boot. Logs de kernel e serviços ajudam a distinguir falha de bootloader, montagem, driver e serviço iniciado posteriormente. Arquivos de inicialização e scripts não têm uma única localização universal entre versões.\n\n### Suporte e solução de problemas\n\nRegistre sintomas, horário, mensagens exatas, mudanças recentes e alcance do impacto. Em Windows, Event Viewer organiza logs de sistema, segurança e aplicativos; no Linux, journal e arquivos de log registram eventos de kernel e serviços. Confirme espaço, estado do disco, serviço, conectividade e permissões antes de reinstalar. Faça uma alteração por vez, documente a reversão e valide com o usuário ou teste funcional. Aplicativos de escritório, navegadores, antivírus e clientes SSH devem vir de origem confiável, manter suporte e receber atualizações. macOS compartilha conceitos UNIX (processos, arquivos, permissões e shell), mas tem ferramentas, arquitetura de segurança e administração próprias.\n\n### Como cai na prova\n\nAs confusões recorrentes são pacote versus gerenciador de pacotes, volume LVM versus sistema de arquivos, compartilhamento versus sistema de arquivos local, bootloader versus kernel e `systemctl enable` versus `start`. Para investigar inicialização, identifique em que etapa o erro aparece. Para armazenamento cheio, verifique ponto de montagem e espaço do sistema de arquivos, não apenas o tamanho do disco virtual. Para regras de firewall, considere a direção e a porta do serviço, preservando o acesso de administração."
+    },
+    {
+      "title": "5. Shell Script em Bash: sintaxe que cai em prova",
+      "markdown": "### O problema que este assunto resolve\n\nEm CentOS, Red Hat e Oracle Linux, o shell padrão é o **Bash**. As questões mostram um trecho de script e perguntam o que ele imprime, por que dá erro ou qual variável guarda tal valor. Quase sempre a resposta está em poucos detalhes: espaço na atribuição, aspas, parâmetros especiais e sintaxe do teste.\n\n> **Siglas e termos deste capítulo**\n> - **Shebang**: primeira linha, iniciada por `#!`, que indica o interpretador (`#!/bin/bash`).\n> - **Código de saída**: número devolvido por um comando; **0** significa sucesso e qualquer outro valor, falha.\n> - **Substituição de comando**: `$(comando)`, que troca o trecho pela saída do comando.\n\n## Executar o script\n\n- `bash script.sh` executa sem precisar de permissão de execução.\n- `./script.sh` exige permissão: `chmod +x script.sh`. O `./` é necessário porque o diretório atual normalmente não está no PATH.\n- `source script.sh` (ou `. script.sh`) roda no **shell atual**: variáveis criadas continuam valendo depois.\n\n## Variáveis e aspas\n\n- Atribuição **sem espaços**: `NOME=Ana`. Escrever `NOME = Ana` faz o shell procurar um comando chamado NOME.\n- Leitura com cifrão: `echo $NOME` ou `${NOME}`.\n- **Aspas duplas** expandem variáveis: `\"Olá $NOME\"` vira Olá Ana. **Aspas simples** não expandem nada: `'Olá $NOME'` imprime literalmente Olá $NOME.\n- `export NOME` torna a variável visível para os processos filhos.\n- `HOJE=$(date +%F)` guarda a saída do comando; a forma antiga com crases faz o mesmo.\n\n## Parâmetros especiais\n\n| Símbolo | Significado |\n| --- | --- |\n| `$0` | nome do script |\n| `$1`, `$2`… | primeiro, segundo argumento |\n| `$#` | quantidade de argumentos |\n| `$@` | todos os argumentos, um a um |\n| `$?` | código de saída do último comando |\n| `$$` | PID do shell atual |\n\n> **Exemplo:** `./backup.sh /home /etc` → `$0` = ./backup.sh, `$1` = /home, `$2` = /etc, `$#` = 2.\n\n## Condições\n\n```bash\nif [ -f /etc/hosts ]; then\n  echo existe\nelif [ -d /etc ]; then\n  echo diretorio\nelse\n  echo nada\nfi\n```\n\n- Os **espaços** dentro dos colchetes são obrigatórios: `[ -f arq ]`.\n- Arquivos: `-f` arquivo comum, `-d` diretório, `-e` existe, `-r/-w/-x` permissões.\n- Números: `-eq`, `-ne`, `-gt`, `-lt`, `-ge`, `-le`. Textos: `=`, `!=`, `-z` (vazio), `-n` (não vazio).\n- `case $op in start) ... ;; stop) ... ;; *) ... ;; esac` escolhe por padrão de texto.\n\n> **Pegadinha:** dentro de `[ ]`, `-gt` compara **números**; o sinal `>` seria entendido como redirecionamento.\n\n## Laços\n\n```bash\nfor arq in *.log; do\n  gzip \"$arq\"\ndone\n\nwhile read linha; do\n  echo \"$linha\"\ndone < lista.txt\n```\n\n## Encadear e redirecionar\n\n- `cmd1 && cmd2`: cmd2 só roda se cmd1 der **sucesso**. `cmd1 || cmd2`: cmd2 só roda se cmd1 **falhar**. `;` roda os dois sempre.\n- `>` sobrescreve o arquivo; `>>` acrescenta ao fim; `2>` redireciona erros; `2>&1` junta erros à saída; `|` passa a saída para o próximo comando.\n- `exit 0` encerra com sucesso; `exit 1` sinaliza falha a quem chamou o script.\n\n> **Truque:** script de agendamento (cron) não herda seu ambiente interativo. Use caminhos completos e redirecione a saída para um log."
     }
   ],
-  "summary": "A administração de estações integra contas, permissões, políticas, atualizações e configuração de rede. DHCP fornece parâmetros IP e DNS resolve nomes; AD/GPO e WSUS centralizam identidade, políticas e atualização no ambiente Windows. Em Linux, systemd, logs, gerenciadores de pacotes e ferramentas de rede variam por distribuição. NFS e SMB/Samba compartilham arquivos e impressão; LDAP/AD fornecem diretórios; SSH protege acesso remoto. NTFS e EXT são sistemas de arquivos, enquanto LVM gerencia volumes. Diagnostique por camadas, aplique privilégios mínimos, teste mudanças gradualmente e preserve logs e possibilidade de reversão.",
+  "summary":"A administração de estações integra contas, permissões, políticas, atualizações e configuração de rede. DHCP fornece parâmetros IP e DNS resolve nomes; AD/GPO e WSUS centralizam identidade, políticas e atualização no ambiente Windows. Em Linux, systemd, logs, gerenciadores de pacotes e ferramentas de rede variam por distribuição. NFS e SMB/Samba compartilham arquivos e impressão; LDAP/AD fornecem diretórios; SSH protege acesso remoto. NTFS e EXT são sistemas de arquivos, enquanto LVM gerencia volumes. Diagnostique por camadas, aplique privilégios mínimos, teste mudanças gradualmente e preserve logs e possibilidade de reversão.",
   "flashcards": [
     {
       "front": "O que DHCP entrega normalmente a uma estação?",
@@ -3349,6 +3353,86 @@
       ],
       "explanation": "Editais misturam versões históricas e atuais. Conceitos como contas, arquivos e TCP/IP persistem, mas suporte, ferramentas, defaults e segurança variam; instruções devem ser compatíveis com a versão real.",
       "section": "1. Estações, contas, políticas e atualizações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash foi executado com o comando ./copia.sh /var/log /backup. Dentro dele, as variáveis $1 e $# valem, respectivamente,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "./copia.sh e 3", "correct": false, "comentario": "Incorreta. O nome do script fica em $0 e não entra na contagem de $#." },
+        { "key": "B", "text": "/var/log e 2", "correct": true, "comentario": "Correta. $1 é o primeiro argumento e $# conta os argumentos passados, que são dois." },
+        { "key": "C", "text": "/backup e 2, pois os argumentos são lidos do último para o primeiro", "correct": false, "comentario": "Incorreta. Os argumentos são numerados da esquerda para a direita; /backup é $2." },
+        { "key": "D", "text": "/var/log e o código de saída do último comando executado", "correct": false, "comentario": "Incorreta. O código de saída do último comando fica em $?, não em $#." },
+        { "key": "E", "text": "/var/log /backup e o PID do processo do script", "correct": false, "comentario": "Incorreta. Todos os argumentos ficam em $@ e o PID do shell em $$." }
+      ],
+      "explanation": "No Bash, $0 guarda o nome do script, $1 e $2 os argumentos em ordem e $# a quantidade de argumentos, sem contar o nome do script. Também cabe lembrar: $@ reúne todos os argumentos, $? traz o código de saída e $$ o PID.",
+      "section": "5. Shell Script em Bash: sintaxe que cai em prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script Bash, a linha DESTINO = /backup provocou a mensagem de erro DESTINO: command not found. A causa do erro é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "a falta de aspas duplas em volta de /backup", "correct": false, "comentario": "Incorreta. Um caminho sem espaços pode ser atribuído sem aspas; o problema está em outro ponto." },
+        { "key": "B", "text": "a ausência da palavra export antes do nome da variável", "correct": false, "comentario": "Incorreta. export só torna a variável visível para processos filhos; não é exigido para criar a variável." },
+        { "key": "C", "text": "o uso de espaços ao redor do sinal de igual", "correct": true, "comentario": "Correta. Com espaços, o shell trata DESTINO como comando e = e /backup como argumentos." },
+        { "key": "D", "text": "o fato de nomes de variáveis em Bash precisarem começar com cifrão na atribuição", "correct": false, "comentario": "Incorreta. O cifrão é usado para ler a variável, não para atribuir valor a ela." },
+        { "key": "E", "text": "a falta de permissão de execução, que deveria ter sido dada com chmod +x", "correct": false, "comentario": "Incorreta. Sem permissão o script nem começaria; a mensagem aponta um comando inexistente." }
+      ],
+      "explanation": "No Bash, a atribuição não admite espaços em volta do sinal de igual: o correto é DESTINO=/backup. Com espaços, o shell entende a primeira palavra como nome de comando, que não existe, e aponta command not found. Para ler, usa-se $DESTINO.",
+      "section": "5. Shell Script em Bash: sintaxe que cai em prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere NOME=Ana em um script Bash. O comando echo 'Bem-vinda, $NOME' exibe",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Bem-vinda, Ana", "correct": false, "comentario": "Incorreta. Esse seria o resultado com aspas duplas, que expandem variáveis." },
+        { "key": "B", "text": "Bem-vinda, $NOME", "correct": true, "comentario": "Correta. Aspas simples impedem a expansão; o texto sai literalmente, com o cifrão." },
+        { "key": "C", "text": "Bem-vinda, seguido de uma linha vazia, pois a variável não foi exportada", "correct": false, "comentario": "Incorreta. A variável existe no próprio script; export só importa para processos filhos." },
+        { "key": "D", "text": "uma mensagem de erro, porque echo não aceita texto entre aspas simples", "correct": false, "comentario": "Incorreta. echo aceita aspas simples normalmente; elas só mudam a expansão." },
+        { "key": "E", "text": "Bem-vinda, NOME, sem o cifrão, que o shell remove automaticamente", "correct": false, "comentario": "Incorreta. Entre aspas simples nada é alterado, nem mesmo o cifrão." }
+      ],
+      "explanation": "Entre aspas simples, o Bash não expande variáveis nem substituições de comando: o texto é impresso como está, incluindo $NOME. Com aspas duplas, a variável seria trocada pelo valor e a saída seria Bem-vinda, Ana.",
+      "section": "5. Shell Script em Bash: sintaxe que cai em prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script, o administrador escreveu tar -czf /backup/etc.tgz /etc && echo OK || echo FALHOU. Se o comando tar terminar com código de saída diferente de zero, o resultado é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "a exibição de OK, pois o operador && só verifica se o comando foi iniciado", "correct": false, "comentario": "Incorreta. O && depende do código de saída; com falha, o echo OK não roda." },
+        { "key": "B", "text": "a exibição de OK e de FALHOU, em sequência", "correct": false, "comentario": "Incorreta. Esse seria o comportamento com ponto e vírgula, que executa tudo sempre." },
+        { "key": "C", "text": "nenhuma mensagem, porque o script é encerrado imediatamente", "correct": false, "comentario": "Incorreta. Sem set -e, o script segue, e o operador || trata a falha." },
+        { "key": "D", "text": "a exibição de FALHOU", "correct": true, "comentario": "Correta. Com falha, o trecho após && é pulado e o trecho após || é executado." },
+        { "key": "E", "text": "a regravação do arquivo com o operador >>, acrescentando OK ao final do backup", "correct": false, "comentario": "Incorreta. Não há redirecionamento no comando; && e || só decidem o que executar." }
+      ],
+      "explanation": "Código de saída zero indica sucesso. O operador && executa o comando seguinte só em caso de sucesso, e || só em caso de falha. Como o tar falhou, echo OK é pulado e echo FALHOU é executado. O ponto e vírgula, ao contrário, executaria tudo.",
+      "section": "5. Shell Script em Bash: sintaxe que cai em prova",
       "errorConceptKey": null,
       "sourceType": "AUTHORIAL",
       "board": null,
