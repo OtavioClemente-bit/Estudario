@@ -364,6 +364,8 @@ private fun NavLink(entry: NavEntry, active: Boolean) {
 
 @Composable
 private fun SaveIndicator() {
+    // Sincronizando e sincronizado já aparecem na animação; aqui fica só o que pede ação (sem conexão).
+    if (!Store.demo && Store.save != SaveState.Offline) return
     val (css, text) = when {
         Store.demo -> "pending" to "Demonstração"
         Store.save == SaveState.Saved -> "" to "Sincronizado"
