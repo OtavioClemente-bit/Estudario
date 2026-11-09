@@ -1,0 +1,2476 @@
+{
+  "id": "geoprocessamento.calculo-coordenadas-locais",
+  "subject": "Geoprocessamento",
+  "title": "Execução de cálculos de coordenadas locais",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Execução de cálculos de coordenadas locais",
+    "Cálculo de coordenadas cartesianas locais",
+    "Coordenadas locais em geoprocessamento",
+    "Sistema Geodésico Local e coordenadas",
+    "Transformação geocêntrica para local",
+    "Transformação local para geocêntrica",
+    "Cálculos no Sistema Geodésico Local",
+    "Coordenadas locais em topografia",
+    "Cálculo de coordenadas topográficas locais",
+    "Rotação e translação de coordenadas",
+    "Coordenadas e, n, u no SGL",
+    "Sistema cartesiano topográfico local"
+  ],
+  "scope": {
+    "covers": "Definição e eixos do Sistema Geodésico Local (SGL); escolha e uso da origem; transformação de coordenadas cartesianas geocêntricas (X,Y,Z) em locais (e,n,u) por translação e rotações com latitude e longitude da origem; transformação inversa; aplicação das coordenadas locais em cálculos topográficos, geometria analítica, área de parcelas e projetos de parcelamento; cálculo de área pelo método de Gauss; distância horizontal; azimute e controles de unidade, sinal, orientação e consistência.",
+    "excludes": "Ajustamento completo de redes geodésicas, determinação de coordenadas GNSS, cálculo detalhado de projeções cartográficas e UTM, propagação avançada de covariâncias e levantamento de limites de imóveis rurais."
+  },
+  "theoryTitle": "Do referencial geocêntrico ao plano topográfico local",
+  "chapters": [
+    {
+      "title": "1. O sistema de coordenadas locais",
+      "markdown": "### O problema que este assunto resolve\n\nCoordenadas geocêntricas descrevem posições em três eixos cartesianos cuja origem fica no centro de massa da Terra. Seus valores são da ordem do raio terrestre e não são práticos para desenhar uma parcela ou calcular uma distância curta diretamente no plano. Para o trabalho local, transforma-se a posição para um referencial cartesiano tangente à Terra perto da área de interesse.\n\nO Manual Técnico para o Georreferenciamento de Imóveis Rurais do Incra define o Sistema Geodésico Local (SGL) com três eixos mutuamente ortogonais: **e** aponta para leste; **n** aponta para norte geodésico; **u** acompanha a normal ao elipsoide na origem. Os eixos e eixos n ficam no plano topográfico local, enquanto u é perpendicular a esse plano. A origem determina onde o plano toca a superfície de referência.\n\n> **Siglas e termos deste capítulo**\n> - **SGL**: Sistema Geodésico Local, com coordenadas cartesianas (e,n,u).\n> - **SGB**: Sistema Geodésico Brasileiro, referencial ao qual se vinculam posições geodésicas no Brasil.\n> - **Elipsoide**: superfície matemática usada como referência para coordenadas geodésicas.\n> - **Normal ao elipsoide**: reta perpendicular à superfície elipsoidal no ponto considerado.\n> - **Geocêntrica (X,Y,Z)**: coordenada cartesiana em eixos com origem no centro de massa terrestre.\n\n### Eixos, origem e sentido\n\nO SGL não é apenas um par de valores arbitrários. Para interpretar (e,n,u), é necessário conhecer a origem e a orientação adotadas. Com e positivo para leste e n positivo para norte, o quadrante nordeste tem e e n positivos; um deslocamento para oeste torna e negativo; um deslocamento para sul torna n negativo. A coordenada u representa a componente perpendicular ao plano local, não um segundo nome para altitude geodésica.\n\nA transformação entre (X,Y,Z) e (e,n,u) contém duas operações conceituais. Primeiro, subtraem-se as coordenadas geocêntricas da origem, para expressar o vetor relativamente a ela. Depois, giram-se os eixos para alinhar as componentes com leste, norte e vertical local. A latitude e longitude da origem definem essa orientação.\n\n| Referencial | Origem | Coordenadas | Uso típico |\n| --- | --- | --- | --- |\n| Geocêntrico | Centro de massa da Terra | X, Y, Z | Posicionamento global e conversões |\n| Geodésico | Elipsoide de referência | latitude, longitude, altitude elipsoidal | Descrição de posição sobre o elipsoide |\n| Geodésico local | Ponto escolhido na superfície | e, n, u | Cálculo local e representação topográfica |\n\n### Como cai na prova\n\nA banca pode trocar o sentido dos eixos: no SGL descrito pelo Incra, e é leste, n é norte geodésico e u segue a normal ao elipsoide na origem. Também pode confundir o sistema local com coordenadas UTM ou com a latitude e longitude. O SGL tem origem e orientação próprias e suas coordenadas são cartesianas locais."
+    },
+    {
+      "title": "2. Transformação entre coordenadas geocêntricas e locais",
+      "markdown": "### O problema que este assunto resolve\n\nUm levantamento pode fornecer coordenadas cartesianas geocêntricas, mas a análise de uma parcela requer valores locais em torno de uma origem manejável. O procedimento do Incra combina uma translação pela subtração da origem e rotações dependentes da latitude e longitude da origem. É essencial usar a mesma origem e os mesmos ângulos em todos os pontos do conjunto.\n\n> **Siglas e termos deste capítulo**\n> - **Translação**: subtração do vetor da origem (X₀,Y₀,Z₀) ao vetor do ponto.\n> - **Rotação**: mudança da orientação das componentes sem mudar a posição física.\n> - **φ₀**: latitude geodésica da origem do SGL.\n> - **λ₀**: longitude geodésica da origem do SGL.\n> - **Matriz de rotação**: arranjo de coeficientes seno e cosseno que converte componentes entre eixos.\n\n### Geocêntricas para locais\n\nPara um ponto P, forme primeiro o vetor relativo à origem: ΔX=X−X₀, ΔY=Y−Y₀ e ΔZ=Z−Z₀. Em seguida, aplique a rotação de longitude e depois a de latitude conforme o modelo funcional do manual. Na convenção ali adotada:\n\n`[e,n,u]ᵀ = Rφ(φ₀) · Rλ(λ₀) · [X−X₀,Y−Y₀,Z−Z₀]ᵀ`\n\ncom\n\n`Rλ = [[−sen λ₀, cos λ₀, 0], [−cos λ₀, −sen λ₀, 0], [0, 0, 1]]`\n\n`Rφ = [[1, 0, 0], [0, sen φ₀, cos φ₀], [0, −cos φ₀, sen φ₀]]`.\n\nOs símbolos dos ângulos devem ser calculados em unidade angular compatível com a função trigonométrica utilizada. Em calculadora configurada em graus, use os ângulos em graus; em ambiente que espera radianos, converta antes. A matriz atua sobre um vetor coluna; trocar a ordem das matrizes ou transpor os eixos sem adaptar a convenção pode inverter ou misturar componentes.\n\n### Locais para geocêntricas\n\nA transformação inversa desfaz as rotações na ordem inversa e soma de volta as coordenadas da origem. O manual apresenta: `[X,Y,Z]ᵀ = Rλᵀ(λ₀) · Rφᵀ(φ₀) · [e,n,u]ᵀ + [X₀,Y₀,Z₀]ᵀ`, equivalente à matriz inversa exibida no texto técnico. Não se deve somar a origem antes de converter o vetor local para a orientação geocêntrica.\n\nA operação inversa serve, por exemplo, para retornar coordenadas locais dos vértices projetados num desenho de parcelamento às coordenadas geocêntricas. Preserve a origem e os parâmetros usados na conversão de ida: arredondar ou trocar a origem no retorno pode deslocar os pontos.\n\n### Como cai na prova\n\nReconheça as três etapas: subtrair a origem, girar com latitude/longitude da origem e obter e,n,u. No sentido inverso, desfazer os giros e adicionar X₀,Y₀,Z₀. Se a origem coincide com o ponto, o vetor relativo é nulo e as coordenadas locais desse ponto são zero."
+    },
+    {
+      "title": "3. Escolha da origem e fluxo de processamento",
+      "markdown": "### O problema que este assunto resolve\n\nUma origem mal escolhida ou esquecida durante a volta torna os cálculos incoerentes. Para áreas de trabalho, o manual orienta usar como origem do SGL a média das coordenadas dos vértices da parcela; para os cálculos analíticos baseados em pontos de referência, usa-se a média das coordenadas dos vértices de referência. O conjunto pertinente deve ser identificado antes de calcular a média.\n\n> **Siglas e termos deste capítulo**\n> - **Vértice de apoio**: ponto de coordenadas conhecidas usado como referência para determinar outros pontos.\n> - **Vértice de limite**: ponto que materializa um limite ou vértice de uma parcela.\n> - **Geometria analítica**: determinação indireta de posições por relações e cálculos geométricos.\n> - **Processamento**: cálculo das coordenadas a partir das observações.\n> - **Ajustamento**: compatibilização estatística de observações redundantes para estimar coordenadas.\n\n### Sequência em levantamento topográfico clássico\n\nO manual descreve um fluxo claro: determinar as coordenadas geocêntricas dos vértices de apoio; convertê-las para coordenadas locais usando como origem a média das coordenadas geocêntricas desses apoios; processar e ajustar as observações topográficas (ângulos e distâncias) para calcular as coordenadas locais dos vértices; por fim, converter os resultados locais de volta a geocêntricas, reutilizando exatamente a origem da conversão inicial.\n\nA orientação da estação e os ângulos observados devem usar uma referência coerente. Na irradiação, por exemplo, um ponto conhecido, uma distância e um ângulo ou azimute permitem obter o ponto de interesse; observá-lo a partir de mais de um ponto de referência pode oferecer redundância para ajustamento. A transformação de sistema não substitui o processamento dessas observações.\n\n### Aplicações do SGL\n\nO manual aponta três usos concretos: cálculo de área com coordenadas cartesianas locais; emprego de coordenadas de referência no posicionamento por geometria analítica; e projeto de parcelamento ou desmembramento. Neste último, convertem-se os pontos geocêntricos para locais para desenhar parcelas, definir áreas e gerar vértices. Finalizado o projeto, convertem-se os vértices locais novamente para geocêntricos, com a origem original.\n\nA altitude também pode influir nas grandezas físicas derivadas. O manual explica que, nos métodos de geometria analítica, atribuir altitudes aos vértices reduz distorções em área, distância e azimute. Se não houver altitude individual disponível, o procedimento ali descrito prevê atribuir a altitude média dos vértices de referência ou obter valor em modelo de terreno.\n\n### Como cai na prova\n\nNão confunda origem da parcela com origem arbitrária de um desenho. A origem é parte do sistema e precisa acompanhar os dados. Em questão de fluxo, a média dos apoios origina a conversão das referências; os pontos calculados retornam ao geocêntrico com essa mesma origem."
+    },
+    {
+      "title": "4. Cálculos derivados e conferência dos resultados",
+      "markdown": "### O problema que este assunto resolve\n\nCom as coordenadas locais calculadas, podem-se obter área, distância horizontal e orientação entre vértices. Esses resultados dependem de coordenadas no mesmo referencial, da ordem dos vértices e de unidades declaradas. Um cálculo aritmético correto sobre coordenadas incompatíveis ainda produz uma resposta espacial errada.\n\n> **Siglas e termos deste capítulo**\n> - **Método de Gauss (shoelace)**: cálculo de área de polígono a partir da sequência de coordenadas dos vértices.\n> - **Distância horizontal**: separação projetada no plano horizontal, sem componente de desnível.\n> - **Azimute**: ângulo de direção contado segundo uma convenção de orientação e expresso aqui no sistema sexagesimal.\n> - **Altitude elipsoidal (h)**: altura relativa ao elipsoide, usada em fórmulas geodésicas.\n> - **Fechamento**: retorno ao ponto inicial ao percorrer o contorno ou circuito.\n\n### Área pelo método de Gauss\n\nPara vértices ordenados em torno do contorno, com coordenadas (eᵢ,nᵢ), calcula-se a área assinada por `½ Σ(eᵢ nᵢ₊₁ − nᵢ eᵢ₊₁)`, repetindo o primeiro vértice após o último. A área geométrica é o valor absoluto. A troca do sentido de percurso muda o sinal da área assinada, mas não o tamanho da área. Coordenadas em metros produzem área em metros quadrados; para expressar em hectares, converte-se a unidade dividindo o resultado em m² por 10.000.\n\nO manual do Incra determina que, no contexto do georreferenciamento de imóveis rurais tratado nele, o cálculo da área use coordenadas cartesianas locais referenciadas ao SGL e a fórmula de Gauss, com resultado em hectares. A orientação sequencial dos pontos é necessária: uma sequência cruzada pode representar outro polígono.\n\n### Distância horizontal e azimute\n\nNo manual, a distância horizontal entre A e B é calculada pelas diferenças geocêntricas X,Y,Z, descontando o quadrado da diferença de altitude elipsoidal: `dₕ=√[(X_A−X_B)²+(Y_A−Y_B)²+(Z_A−Z_B)²−(h_A−h_B)²]`, com resultado em metros. Isso distingue a distância espacial que inclui desnível da distância horizontal. Em operações planas locais, a distância entre projeções horizontais também pode ser calculada por `√[(e_B−e_A)²+(n_B−n_A)²]`, quando esse plano e a convenção forem os aplicáveis ao problema.\n\nPara o georreferenciamento rural no manual, o azimute é calculado pelo problema geodésico inverso segundo Puissant e expresso no sistema sexagesimal. Em exercícios cartesianos planos, pode-se obter uma direção a partir de Δe e Δn, mas o quadrante e a convenção precisam ser aplicados; a função arco-tangente simples, sem correção de quadrante, não basta em todos os casos.\n\n### Conferência prática\n\nAntes de aceitar o resultado, verifique: mesmas unidades; mesma origem e rotação; ordem e sinal das componentes; fechamento e ordenação do contorno; configuração de graus ou radianos; precisão preservada nos cálculos intermediários; e unidade final de área ou distância. Diferenças entre e,n,u e X,Y,Z não são erro por si só: indicam referenciais diferentes.\n\n### Como cai na prova\n\nA área de Gauss exige vértices ordenados e fechamento da sequência; inverter o contorno apenas troca o sinal do valor assinado. A fórmula de distância horizontal retira o efeito da diferença de altitude. E, em conversões, a mesma origem deve ser preservada para que os resultados possam ser comparados ou revertidos."
+    }
+  ],
+  "summary": "O Sistema Geodésico Local (SGL) descreve posições próximas à origem em eixos cartesianos e,n,u: leste, norte geodésico e normal ao elipsoide. Para transformar X,Y,Z em e,n,u, subtraia as coordenadas geocêntricas da origem e aplique as rotações dadas pela latitude e longitude dessa origem. Para voltar, desfaça as rotações e some a origem. O manual do Incra orienta usar médias dos vértices pertinentes como origem em aplicações de parcelas e pontos de apoio, preservando a mesma origem no retorno. O fluxo topográfico parte dos apoios geocêntricos, transforma-os para locais, processa e ajusta ângulos e distâncias, calcula vértices locais e retorna a geocêntricas. A área de parcela é obtida pelo método de Gauss com coordenadas locais ordenadas; distância horizontal e azimute exigem convenções e unidades consistentes.",
+  "flashcards": [
+    {
+      "front": "Quais são os eixos do Sistema Geodésico Local?",
+      "back": "e aponta a leste, n ao norte geodésico e u acompanha a normal ao elipsoide na origem; são eixos mutuamente ortogonais."
+    },
+    {
+      "front": "Onde fica a origem do sistema geocêntrico?",
+      "back": "No centro de massa da Terra."
+    },
+    {
+      "front": "O que define a orientação do SGL no modelo de transformação?",
+      "back": "A latitude φ₀ e a longitude λ₀ da origem, usadas nas rotações."
+    },
+    {
+      "front": "Qual é a etapa de translação de geocêntricas para locais?",
+      "back": "Subtrair X₀,Y₀,Z₀: formar X−X₀, Y−Y₀ e Z−Z₀."
+    },
+    {
+      "front": "O que a rotação faz na conversão de coordenadas?",
+      "back": "Reexpressa o vetor relativo à origem nos eixos leste, norte geodésico e normal local."
+    },
+    {
+      "front": "O que acontece às coordenadas locais da origem?",
+      "back": "São e=n=u=0, pois o vetor relativo à própria origem é nulo."
+    },
+    {
+      "front": "Como se reverte de e,n,u para X,Y,Z?",
+      "back": "Desfazem-se as rotações na ordem inversa e adicionam-se X₀,Y₀,Z₀."
+    },
+    {
+      "front": "Que origem o manual recomenda para calcular área de uma parcela no SGL?",
+      "back": "A média das coordenadas da parcela usada como origem do sistema."
+    },
+    {
+      "front": "Que origem se usa para converter apoios destinados a cálculos analíticos?",
+      "back": "A média das coordenadas geocêntricas dos vértices de referência usados."
+    },
+    {
+      "front": "Qual é a sequência essencial do cálculo com topografia clássica?",
+      "back": "Calcular apoios geocêntricos, convertê-los ao SGL, processar e ajustar observações para obter pontos locais e convertê-los de volta com a mesma origem."
+    },
+    {
+      "front": "Quais observações topográficas alimentam o cálculo local?",
+      "back": "Ângulos e distâncias, processados e ajustados para determinar coordenadas locais."
+    },
+    {
+      "front": "Que método calcula a área a partir de coordenadas dos vértices?",
+      "back": "Método de Gauss, também chamado regra do cadarço ou shoelace."
+    },
+    {
+      "front": "Por que a ordem dos vértices importa na área de Gauss?",
+      "back": "Ela precisa seguir o contorno; sequência cruzada pode representar geometria errada."
+    },
+    {
+      "front": "O que muda ao inverter o sentido do polígono no cálculo de Gauss?",
+      "back": "O sinal da área assinada; o valor absoluto da área permanece igual."
+    },
+    {
+      "front": "Como converter área em m² para hectares?",
+      "back": "Dividir por 10.000."
+    },
+    {
+      "front": "Que unidade o manual atribui à distância horizontal?",
+      "back": "Metros."
+    },
+    {
+      "front": "Que componente a fórmula de distância horizontal exclui?",
+      "back": "A diferença de altitude elipsoidal entre os pontos, subtraída da distância espacial ao quadrado."
+    },
+    {
+      "front": "Como o manual especifica o cálculo de azimute para o georreferenciamento tratado?",
+      "back": "Pelo problema geodésico inverso segundo Puissant, expresso no sistema sexagesimal."
+    },
+    {
+      "front": "O que deve ser verificado ao usar seno e cosseno em uma planilha?",
+      "back": "Se os ângulos estão na unidade esperada pela função, graus ou radianos."
+    },
+    {
+      "front": "Por que não se pode trocar a origem na transformação inversa?",
+      "back": "Porque o vetor local foi formado relativamente à origem anterior; outra origem desloca o resultado."
+    }
+  ],
+  "tips": [
+    "Memorize e como leste, n como norte e u como normal ao elipsoide na origem.",
+    "Separe a conversão em translação da origem e rotação dos eixos.",
+    "Marque a origem no enunciado e reutilize-a no caminho de volta.",
+    "Em área de Gauss, percorra os vértices em sequência e repita o primeiro no fim.",
+    "Converta metros quadrados em hectares dividindo por 10.000.",
+    "Confira a unidade angular usada pela calculadora antes de aplicar seno e cosseno."
+  ],
+  "traps": [
+    "Confundir e,n,u com coordenadas geocêntricas X,Y,Z: são referenciais e orientações diferentes.",
+    "Esquecer de subtrair a origem antes de aplicar as rotações: a rotação deve agir no vetor relativo ao ponto de origem.",
+    "Aplicar na volta uma origem diferente da usada na ida: o resultado deixa de corresponder ao mesmo SGL.",
+    "Tratar u como se fosse automaticamente altitude elipsoidal: u é componente no eixo normal local.",
+    "Somar áreas assinadas sem conferir a ordem dos vértices: inversão de percurso pode trocar os sinais.",
+    "Usar arco-tangente simples para azimute sem identificar quadrante e convenção de orientação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva os eixos e a origem do SGL.",
+      "answer": "É um sistema cartesiano ortogonal local, tangente à superfície na origem. e aponta leste, n norte geodésico e u acompanha a normal ao elipsoide na origem."
+    },
+    {
+      "question": "Explique como se transforma um vetor geocêntrico em local.",
+      "answer": "Subtrai-se o vetor geocêntrico da origem para formar o vetor relativo e aplicam-se as rotações de longitude e latitude da origem, na convenção definida, para obter e,n,u."
+    },
+    {
+      "question": "Que dados de origem são necessários à transformação?",
+      "answer": "X₀,Y₀,Z₀ da origem para a translação, além da latitude φ₀ e longitude λ₀ para orientar as rotações."
+    },
+    {
+      "question": "Como se faz a transformação inversa?",
+      "answer": "Aplicam-se as rotações inversas na ordem inversa ao vetor e,n,u e depois somam-se X₀,Y₀,Z₀."
+    },
+    {
+      "question": "Resuma o fluxo de cálculo de coordenadas locais com topografia clássica.",
+      "answer": "Determinam-se apoios geocêntricos, convertem-se ao SGL usando a média dos apoios, processam-se e ajustam-se ângulos e distâncias para determinar pontos locais e convertem-se os pontos calculados de volta, usando a mesma origem."
+    },
+    {
+      "question": "Como se determina a área de uma parcela por coordenadas?",
+      "answer": "Ordenam-se os vértices do contorno, fecha-se a sequência e aplica-se a fórmula de Gauss às coordenadas locais; toma-se o valor absoluto e converte-se a unidade se necessário."
+    },
+    {
+      "question": "Diferencie distância espacial de horizontal.",
+      "answer": "A espacial contém diferenças em três dimensões. A horizontal remove o efeito da diferença de altitude e é expressa em metros no procedimento indicado."
+    },
+    {
+      "question": "Quais verificações reduzem erros em conversões e cálculos locais?",
+      "answer": "Conferir referencial, origem, orientação, ordem e sinal dos eixos, unidade linear, graus ou radianos, sequência dos vértices, unidade final e precisão intermediária."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Mistura de referenciais",
+      "summary": "Interpretar e,n,u como se fossem X,Y,Z ou latitude e longitude, ignorando a origem e orientação do sistema local."
+    },
+    {
+      "key": "e2",
+      "title": "Translação ou rotação incorreta",
+      "summary": "Omitir a subtração da origem, trocar a ordem da transformação ou usar parâmetros angulares que não pertencem à origem adotada."
+    },
+    {
+      "key": "e3",
+      "title": "Perda da origem no retorno",
+      "summary": "Converter coordenadas locais de volta usando origem diferente daquela usada na transformação inicial."
+    },
+    {
+      "key": "e4",
+      "title": "Erro em área e unidades",
+      "summary": "Ordenar mal os vértices, ignorar o sinal da área assinada ou converter m² e hectares de forma equivocada."
+    },
+    {
+      "key": "e5",
+      "title": "Confusão entre grandezas planas e espaciais",
+      "summary": "Usar distância inclinada como horizontal ou obter azimute sem tratar orientação, quadrante e convenção angular."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No SGL descrito pelo manual do Incra, o eixo e aponta para leste, n para norte geodésico e u acompanha a normal ao elipsoide na origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O manual define esses sentidos e afirma que os três eixos são mutuamente ortogonais; e e n estão no plano topográfico local e u coincide com a normal ao elipsoide na origem.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em coordenadas cartesianas geocêntricas, a origem dos eixos X, Y e Z fica no ponto escolhido para o levantamento local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A origem geocêntrica é o centro de massa da Terra. O ponto escolhido para o levantamento pode ser a origem do sistema local, cujas coordenadas são definidas relativamente à origem geocêntrica.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher a origem como um ponto do levantamento, suas coordenadas e,n,u nesse mesmo SGL são nulas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A conversão começa subtraindo da posição as coordenadas da origem; para o próprio ponto, as três diferenças são zero e a rotação de um vetor nulo continua nula.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A conversão de geocêntricas para locais usa a latitude e longitude do ponto de interesse para orientar os eixos locais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No modelo funcional, φ₀ e λ₀ são a latitude e longitude adotadas como origem do sistema. Usar as coordenadas de cada ponto de interesse mudaria a orientação local a cada transformação.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A altitude elipsoidal h e a componente local u são sempre o mesmo valor numérico, pois ambas indicam altura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. h é uma coordenada geodésica relativa ao elipsoide; u é a componente cartesiana ao longo da normal ao elipsoide na origem do SGL. Elas pertencem a descrições diferentes e não são intercambiáveis por definição.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para transformar X,Y,Z em e,n,u, a primeira etapa é subtrair do ponto as coordenadas geocêntricas da origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O vetor relativo é [X−X₀,Y−Y₀,Z−Z₀]. As rotações seguintes expressam esse vetor nos eixos locais, sem carregar a grande magnitude das coordenadas absolutas da origem.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na transformação local para geocêntrica, basta girar e,n,u; as coordenadas X₀,Y₀,Z₀ da origem não voltam a participar do cálculo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Depois de desfazer as rotações, é necessário adicionar X₀,Y₀,Z₀ para retornar ao referencial geocêntrico absoluto. Sem essa translação, o resultado permanece relativo à origem.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O manual recomenda empregar a média dos vértices de referência como origem ao converter esses apoios para o sistema local usado em cálculos de geometria analítica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para referências obtidas por GNSS destinadas à geometria analítica, o manual orienta convertê-las ao SGL usando como origem a média das coordenadas dos vértices de referência.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto de parcelamento, os vértices locais calculados devem ser convertidos para geocêntricas usando uma origem diferente, escolhida após concluir o desenho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O manual determina que o retorno use a mesma origem empregada na conversão inicial. Trocar a origem muda a relação entre as coordenadas locais e geocêntricas e desloca os pontos retornados.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sequência topográfica do manual converte apoios para o SGL antes de processar observações e converte os vértices locais calculados de volta ao sistema geocêntrico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Primeiro se obtêm apoios geocêntricos, depois se convertem a locais; ângulos e distâncias são processados e ajustados para determinar os vértices; por fim, os resultados retornam a geocêntricas com a origem original.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No método de irradiação, a posição de um ponto pode ser determinada a partir de um vértice conhecido, uma distância e um ângulo ou azimute observado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O manual descreve a irradiação como determinação de coordenadas a partir de ângulos e distâncias, ou de azimutes e distâncias, referidos a um vértice conhecido. Mais de uma referência pode permitir ajustamento de observações.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cálculo de área de parcelas descrito no manual usa coordenadas locais referenciadas ao SGL e a fórmula de Gauss.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O manual especifica coordenadas cartesianas locais do SGL e fórmula de Gauss para cálculo da área, expressa em hectares no contexto ali tratado.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na fórmula de Gauss, inverter o percurso dos vértices de um mesmo contorno altera o sinal da área assinada, mas conserva seu valor absoluto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A orientação do percurso determina o sinal algébrico da soma. A área geométrica é o módulo do resultado e, portanto, não muda quando apenas se inverte a ordem do mesmo contorno.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No cálculo de distância horizontal indicado pelo manual, a diferença de altitude elipsoidal é incorporada como parcela adicional da distância espacial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A fórmula subtrai o quadrado da diferença de altitude elipsoidal do quadrado da distância espacial entre as coordenadas geocêntricas, removendo a componente vertical para obter a distância horizontal.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para o georreferenciamento rural tratado no manual, o azimute é expresso no sistema sexagesimal e calculado pelo problema geodésico inverso segundo Puissant.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa é a especificação do capítulo de cálculos do manual. Uma solução cartesiana plana de exercício pode usar outro procedimento, mas não substitui automaticamente o método indicado para aquele contexto.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe recebeu pontos em X,Y,Z e precisa analisá-los num referencial local. Qual procedimento faz a conversão de forma coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somar as coordenadas da origem e aplicar as rotações definidas pelo ponto de interesse.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Subtrair as coordenadas da origem e aplicar as rotações definidas pela latitude e longitude dela.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir X,Y,Z por latitude, longitude e altitude sem alterar o referencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dividir X,Y,Z pela altitude da origem e manter os eixos geocêntricos originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular apenas a distância ao centro da Terra e atribuí-la ao eixo leste local.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conversão usa o vetor relativo [X−X₀,Y−Y₀,Z−Z₀] e depois rotações orientadas pela latitude e longitude da origem. Somar primeiro, usar ângulos de cada ponto ou mudar para coordenadas geodésicas não executa essa transformação.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve corretamente os sentidos dos eixos locais no SGL do manual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "e para norte, n para leste e u pelo eixo de rotação terrestre na origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "e para oeste, n para sul geodésico e u pelo eixo do meridiano de Greenwich.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "e para leste, n para norte geodésico e u pela normal ao elipsoide na origem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "e para o centro da Terra, n para a vertical e u ao longo do Equador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "e para o norte magnético, n para o norte da grade e u pelo eixo polar global.",
+          "correct": false
+        }
+      ],
+      "explanation": "O manual define e como direção leste, n como norte geodésico e u como a normal ao elipsoide que passa pelo vértice escolhido como origem. Norte magnético e norte de grade não substituem essas definições.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ponto P tem as mesmas coordenadas geocêntricas da origem do SGL. Quais são as coordenadas locais de P?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "e=φ₀, n=λ₀ e u=h₀, pois se usam os parâmetros geodésicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "e=X₀, n=Y₀ e u=Z₀, pois a origem é copiada ao sistema local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "e=1, n=1 e u=1, pois cada eixo recebe a unidade de referência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "e=0, n=0 e u=0, pois o vetor transladado é nulo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "e=0, n=0 e u=h₀, pois a altura permanece sem translação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para o ponto que coincide com a origem, X−X₀, Y−Y₀ e Z−Z₀ são todos zero. Qualquer rotação do vetor nulo continua nula, logo e,n,u valem zero.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No retorno de coordenadas locais para geocêntricas, qual operação completa a rotação inversa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar a latitude e a longitude da estação aos eixos cartesianos locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Subtrair novamente X₀,Y₀,Z₀ para manter o ponto relativo à origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Multiplicar as coordenadas locais pela média das latitudes do levantamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a componente u por altitude elipsoidal e descartar a rotação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar as coordenadas geocêntricas X₀,Y₀,Z₀ da origem do sistema.",
+          "correct": true
+        }
+      ],
+      "explanation": "A transformação inversa primeiro desfaz a orientação dos eixos e depois soma o vetor geocêntrico da origem. Subtrair outra vez deixaria o resultado relativo, e latitude e longitude não são translações cartesianas.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para transformar apoios geocêntricos em coordenadas locais destinadas à geometria analítica, que origem o manual indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O vértice de limite mais distante, escolhido para ampliar a escala dos eixos locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A média das coordenadas geocêntricas dos vértices de referência usados no cálculo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O centro de massa da Terra, repetido como origem independente em cada ponto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A média das distâncias observadas, convertida em latitude e longitude de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ponto de menor altitude, mesmo que não integre o conjunto de referências.",
+          "correct": false
+        }
+      ],
+      "explanation": "O manual prevê como origem a média das coordenadas dos vértices de referência. Essa escolha centraliza o sistema em torno do conjunto usado; não se confunde com o centro terrestre nem com uma média de distâncias.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma parcela tem vértices definidos em SGL e área calculada pela fórmula de Gauss em metros quadrados. Qual conversão fornece hectares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dividir o valor em metros quadrados por 100 para obter hectares.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Multiplicar o valor em metros quadrados por 1.000 para obter hectares.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dividir o valor em metros quadrados por 10.000 para obter hectares.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somar 10.000 ao valor em metros quadrados para obter hectares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o número sem conversão, pois m² e hectares têm a mesma escala.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um hectare corresponde a 10.000 m². Portanto, a área expressa em m² deve ser dividida por 10.000 para ser apresentada em hectares, unidade indicada para a área no manual.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No método de Gauss, que sequência de dados permite calcular a área do contorno corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pontos de apoio misturados aos vértices, sem fechamento da sequência final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Vértices em qualquer ordem, usando apenas as maiores coordenadas de cada eixo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pares de coordenadas classificados por altitude, sem identificar o contorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Vértices ordenados ao redor do polígono, repetindo o primeiro ao final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Distâncias entre vértices somadas e multiplicadas pela altitude média do terreno.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fórmula usa produtos cruzados entre vértices consecutivos, portanto a sequência deve percorrer o contorno e ser fechada pela repetição do primeiro ponto. Uma ordem arbitrária pode criar cruzamentos e alterar a área calculada.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao calcular seno e cosseno de φ₀ e λ₀ numa planilha, que controle evita um erro sistemático na rotação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar seno por cosseno quando o ângulo estiver expresso em graus sexagesimais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter latitude em metros e longitude em hectares antes da multiplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a unidade angular mais conveniente sem verificar a configuração do programa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Arredondar todos os ângulos para números inteiros antes de calcular as funções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confirmar se a função espera graus ou radianos e fornecer ângulos nessa unidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Funções trigonométricas podem receber graus ou radianos conforme a ferramenta. Uma incompatibilidade altera os coeficientes da rotação, mesmo que as demais operações estejam corretas; a configuração deve ser verificada.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área de 32.000 m² foi obtida em coordenadas locais. Qual resultado corresponde à conversão de unidade para hectares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "32 ha, pois basta deslocar a vírgula três posições à esquerda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "3,2 ha, pois 32.000 dividido por 10.000 corresponde à área em hectares.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "320 ha, pois cada hectare contém cem metros quadrados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,32 ha, pois a conversão exige dividir o valor por cem mil.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "32.000 ha, pois a unidade local já é equivalente ao hectare.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conversão correta é 32.000 m² ÷ 10.000 m²/ha = 3,2 ha. A alternativa que usa fator 100 ou 100.000 confunde as unidades e a que mantém o mesmo número ignora a conversão.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ponto tem coordenadas locais (12,−5,2) m no SGL de origem O. O que o sinal negativo da componente n indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A componente está a oeste, pois o eixo n representa a direção leste local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A componente está no sentido oposto ao norte geodésico definido para n.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A componente indica altitude abaixo do elipsoide, pois n é o eixo vertical.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A componente demonstra que a origem foi transladada para o centro terrestre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A componente deve ser descartada, pois coordenadas locais não aceitam sinais negativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "No SGL, n aponta para norte geodésico. Valor negativo indica componente no sentido oposto, isto é, para sul segundo a orientação do sistema. O eixo e é leste e u representa a normal local.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cálculo de área pelo método de Gauss, a mesma lista de vértices foi percorrida no sentido oposto. Qual efeito deve ser esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A área passa a zero, porque cada produto cruzado se anula em pares.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O perímetro dobra, mas a área permanece com o sinal e módulo originais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sinal da soma muda, mas o módulo da área do mesmo polígono permanece.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A unidade muda de metros quadrados para hectares sem conversão adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A origem local se desloca para o vértice inicial usado no percurso inverso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reverter a orientação inverte o sinal da área assinada pelo método de Gauss. Como área física é o módulo desse resultado, ela continua igual desde que o contorno e as coordenadas sejam os mesmos.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O técnico concluiu um projeto de desmembramento em coordenadas locais. Qual procedimento permite entregar novamente os vértices no referencial geocêntrico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somar a altitude média a cada eixo e conservar as rotações locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar a transformação inicial novamente e subtrair uma origem atualizada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar e,n,u como latitude, longitude e altitude e copiar os números.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar a transformação local para geocêntrica, usando a origem original do SGL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter apenas o primeiro vértice e deslocar os demais por distâncias acumuladas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O manual prevê que, concluído o parcelamento, as coordenadas locais sejam convertidas para geocêntricas utilizando a mesma origem adotada na conversão inicial. Isso preserva a posição absoluta definida pelo referencial.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O manual do Incra estabelece a mesma origem para qualquer parcela e proíbe que o conjunto de vértices do trabalho influencie a escolha do SGL.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; cada ponto usa suas próprias coordenadas como origem e não requer registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; o centro de massa terrestre é a origem obrigatória de todo sistema local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; a origem é sempre o marco mais antigo disponível no município do imóvel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; a origem deve ser escolhida depois do cálculo para reduzir a área obtida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; o manual usa médias dos vértices pertinentes como origem nas aplicações descritas.",
+          "correct": true
+        }
+      ],
+      "explanation": "O manual descreve médias de coordenadas como origem em situações específicas: média da parcela para o cálculo de sua área e média dos vértices de referência para conversões usadas em geometria analítica. Essa origem deve ser registrada e mantida na transformação inversa.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processamento usa X,Y,Z de um apoio conhecido, ângulos e distâncias observados e precisa produzir coordenadas locais de novos pontos. Qual encadeamento é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformar os ângulos em coordenadas geodésicas e usar distâncias como altitudes locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter os apoios ao SGL, processar e ajustar as observações e determinar pontos locais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Calcular a área antes das coordenadas e usar o resultado para orientar as estações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somar diretamente ângulos às coordenadas geocêntricas e evitar qualquer ajustamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todos os pontos para UTM e chamar os valores resultantes de e,n,u.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo descrito no manual converte apoios geocêntricos para locais, então usa as observações topográficas de ângulos e distâncias no processamento e ajustamento para calcular os vértices locais. UTM é outro referencial projetado.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois programas usam a mesma lista numérica de e,n,u, mas registram origens distintas para os respectivos SGL. O que explica a possível diferença ao converter para X,Y,Z?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diferença ocorre porque e,n,u são ângulos e não admitem conversão para cartesiano.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os valores locais dispensam origem, mas exigem que ambos usem o mesmo nome de camada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As coordenadas locais só definem posições quando origem e orientação do sistema também são conhecidas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "As origens distintas só alteram a unidade gráfica, sem mudar a posição geocêntrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As coordenadas e,n,u são absolutas e a origem é usada apenas para identificar o operador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um conjunto local é relativo a uma origem e à orientação definida por sua latitude e longitude. Se elas mudam, a transformação para X,Y,Z pode apontar para posições diferentes, mesmo com os mesmos números e,n,u.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista recebe coordenadas locais para retornar ao referencial global, mas não recebe latitude, longitude e X₀,Y₀,Z₀ da origem. Qual conclusão técnica é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É suficiente conhecer a escala do desenho, pois ela substitui todas as coordenadas de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É possível obter uma solução única porque e,n,u sempre usam a origem do centro terrestre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Basta supor latitude zero e longitude zero, pois as coordenadas locais são independentes delas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faltam parâmetros essenciais para identificar a orientação e a translação do SGL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Pode-se substituir os dados ausentes pelas médias das coordenadas locais já calculadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transformação inversa precisa dos parâmetros de orientação φ₀ e λ₀ e da posição geocêntrica X₀,Y₀,Z₀ da origem. Sem eles não se define como relacionar o vetor local ao referencial geocêntrico.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma planilha calcula a conversão com longitude em graus, mas a função trigonométrica está configurada para radianos. Qual consequência é provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nada se altera, pois seno e cosseno interpretam automaticamente qualquer notação angular.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Só a unidade final de área muda, pois a transformação permanece geometricamente idêntica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A translação desaparece, mas a orientação continua correta em todas as latitudes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A altitude elipsoidal assume o valor da longitude sem modificar e,n,u.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os coeficientes de rotação ficam errados e as componentes locais podem ser incompatíveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os valores numéricos de graus não equivalem aos mesmos valores numéricos em radianos. Como φ₀ e λ₀ compõem as matrizes de rotação, fornecer unidade incompatível altera os coeficientes e as componentes calculadas.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um polígono foi calculado com uma lista que alterna vértices opostos, fazendo as arestas cruzarem no interior. Por que o resultado de Gauss não deve ser aceito sem correção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fórmula aceita qualquer ordem, mas requer que todas as coordenadas tenham altitude igual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fórmula pressupõe vértices consecutivos no contorno, e a ordem cruzada descreve outra sequência de segmentos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O cruzamento altera apenas a orientação do norte e pode ser corrigido trocando os eixos e e n.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O problema é exclusivamente de unidade e se resolve convertendo metros para quilômetros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O método exige ordenar pontos por altitude crescente, não pelo contorno planimétrico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fórmula de Gauss associa produtos de coordenadas em sequência. Se os vértices não seguem o contorno, as arestas conectadas não são as do polígono pretendido e a área resultante não representa necessariamente essa parcela.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A distância espacial entre dois pontos foi calculada em 50 m e o desnível elipsoidal entre eles é 30 m. Conforme a decomposição em componentes, qual distância horizontal resulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "20 m, pois basta subtrair o desnível da distância espacial em linha reta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "80 m, pois a diferença de altitude deve ser somada à distância espacial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "40 m, pois √(50²−30²) remove a contribuição vertical da distância espacial.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "30 m, pois a componente horizontal é igual à diferença de altitude informada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "50 m, pois a distância horizontal conserva sempre o valor espacial medido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distância horizontal ao quadrado é a distância espacial ao quadrado menos o desnível ao quadrado: 2.500−900=1.600; a raiz é 40 m. Subtrair diretamente 30 de 50 não aplica a relação entre componentes ortogonais.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cálculo cartesiano plano, o analista obtém Δe=−8 e Δn=6 e usa arco-tangente sem qualquer tratamento de quadrante para reportar azimute. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O azimute é necessariamente norte, pois toda componente n positiva cancela a componente e.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O procedimento é completo, pois a função arco-tangente sempre devolve azimute de zero a 360 graus.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O resultado é uma distância horizontal, pois Δe e Δn substituem o valor de altitude.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O procedimento é insuficiente, pois a direção precisa considerar quadrante e convenção angular.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A componente negativa deve ser descartada antes da função para manter o azimute positivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A arco-tangente de uma razão pode não identificar por si só o quadrante. O cálculo de direção deve tratar os sinais de Δe e Δn e aplicar a convenção de origem e sentido angular; o método geodésico indicado pelo manual tem procedimento próprio.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe centraliza a origem na média dos vértices da parcela para o cálculo da área. Qual motivo geométrico justifica essa escolha no procedimento descrito pelo manual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média transforma automaticamente coordenadas geocêntricas em UTM sem rotação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A média das coordenadas da parcela serve como origem local para calcular área no SGL.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A média assegura que todas as altitudes elipsoidais sejam nulas nos vértices do limite.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A média substitui a fórmula de Gauss por uma soma simples de lados e ângulos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A média define a direção do norte magnético e dispensa a latitude da origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O manual especifica usar a média das coordenadas da parcela como origem do SGL para converter os vértices e calcular área. A média não converte para UTM, não elimina altitude e não substitui as fórmulas de cálculo.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação total mediu ângulos e distâncias, mas o processamento local ignorou as coordenadas dos vértices de apoio. O que falta para tornar os novos pontos vinculados ao SGL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A declinação magnética anual, usada para substituir qualquer coordenada de apoio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a área final da parcela, que determina as coordenadas absolutas dos vértices.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Referências posicionadas e convertidas ao sistema local para orientar e ancorar o cálculo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A escala impressa da planta, suficiente para estabelecer origem e orientação globais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A altitude média regional, que define sozinha os três eixos cartesianos locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ângulos e distâncias descrevem relações entre pontos, mas a rede precisa de apoios com coordenadas para fixar posição e orientação. O fluxo do manual começa por determinar coordenadas geocêntricas dos apoios e convertê-las ao SGL.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No cálculo local de área pelo manual, qual afirmação distingue adequadamente a área de Gauss de uma medida direta de área em mapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A área deve ser calculada em X,Y,Z sem converter para o plano local indicado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A área é a soma das escalas impressas, independentemente dos vértices e do sistema de referência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A área depende apenas do azimute inicial, mesmo que as coordenadas dos vértices sejam desconhecidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A área é derivada das coordenadas locais ordenadas do contorno, não da escala visual do desenho.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A área corresponde ao perímetro multiplicado pela diferença média de altitude elipsoidal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fórmula de Gauss utiliza as componentes planas locais dos vértices em sequência. A escala gráfica não substitui as coordenadas e, no contexto tratado pelo manual, os cálculos de área usam o SGL.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório fornece valores locais em milímetros, enquanto as fórmulas subsequentes pressupõem coordenadas em metros. Que ajuste deve ser feito antes de calcular distâncias e áreas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir a unidade linear por graus sexagesimais e manter os mesmos números.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter os valores mistos, pois a raiz quadrada corrige automaticamente a unidade usada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter apenas a coordenada e, pois n e u não participam de cálculos dimensionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somar mil unidades a cada valor para transformar milímetros diretamente em metros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todas as componentes para uma unidade linear comum antes de aplicar as fórmulas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Diferenças, distâncias e áreas só têm unidades coerentes quando todas as componentes lineares usam uma unidade consistente. Converter milímetros em metros requer aplicar o fator de escala correspondente antes dos cálculos; a raiz não corrige unidades incompatíveis.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao calcular as coordenadas locais de um ponto, o analista usa X₀,Y₀,Z₀ corretos, mas emprega latitude e longitude de outra origem na matriz de rotação. Qual erro conceitual ocorreu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conversão permanece correta porque as rotações dependem apenas das coordenadas do ponto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A translação e a orientação pertencem a origens incompatíveis e produzem componentes locais incorretas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Só a altitude elipsoidal muda, enquanto as componentes e e n conservam seus sentidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A matriz corrige automaticamente qualquer combinação de origens e parâmetros angulares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O erro só afeta hectares, pois a latitude não participa da orientação dos eixos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A posição geocêntrica e os ângulos φ₀,λ₀ devem descrever a mesma origem. Os valores angulares orientam os eixos locais; se forem de outro ponto, a translação e a rotação não definem um referencial coerente.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um projeto de desmembramento, qual uso das coordenadas locais é descrito pelo manual técnico do Incra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Determinar limites apenas com a média das altitudes, sem processar os vértices do imóvel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir permanentemente as coordenadas vinculadas ao SGB por números locais sem origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elaborar o projeto, definir áreas de parcelas e gerar vértices antes de converter resultados de volta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Evitar qualquer conversão de retorno, pois as coordenadas locais são absolutas no território.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar coordenadas em distâncias de campo e descartar os vértices gerados no projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O manual prevê converter geocêntricas para locais com origem definida para elaborar o projeto, estabelecer áreas e gerar vértices. Ao concluir, os vértices locais devem retornar a geocêntricas usando a mesma origem.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área extensa foi dividida em polígonos e a equipe nota que as distorções da área calculada tendem a crescer quando a superfície da parcela aumenta. Qual leitura coincide com o manual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O manual recomenda calcular área rural em coordenadas locais somente para parcelas pequenas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O manual afirma que a distorção desaparece em parcelas maiores porque a curvatura se anula.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O manual atribui a variação apenas à troca entre hectares e metros quadrados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O manual observa que distorções de área se tornam maiores à medida que a superfície da parcela aumenta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O manual estabelece que a precisão da área independe do sistema de coordenadas utilizado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A nota do manual registra que as distorções nos valores de área aumentam conforme cresce a superfície das parcelas. O documento recomenda cálculo em coordenadas cartesianas locais referenciadas ao SGL para expressar melhor a realidade física no contexto considerado.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SGL, a direção do eixo u é fixada pela normal ao elipsoide na origem escolhida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A definição do manual vincula u à normal ao elipsoide que passa pelo vértice escolhido como origem. A orientação é local, não simplesmente o eixo polar global.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A área física de um polígono muda quando se inverte somente a ordem de percurso de seus vértices no método de Gauss.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A inversão do percurso muda o sinal da área assinada, mas o valor absoluto, que representa a área geométrica do mesmo contorno, permanece igual.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao processar pontos de apoio para geometria analítica, é adequado converter as coordenadas locais de volta usando a origem inicialmente adotada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A transformação inversa depende da translação e orientação da origem original. Preservá-la mantém coerência entre os dados locais e suas coordenadas geocêntricas.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na aplicação descrita pelo manual, observações redundantes de topografia clássica podem ser processadas e ajustadas para determinar coordenadas dos vértices.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O manual prevê processamento e ajustamento das observações topográficas para determinação das coordenadas cartesianas locais. Observações redundantes permitem tratamento estatístico pelo método dos mínimos quadrados nos métodos indicados.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na matriz de conversão para o SGL, a latitude e a longitude usadas para as rotações devem pertencer a cada ponto de interesse, não à origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os ângulos φ₀ e λ₀ são da origem do sistema e determinam a orientação comum dos eixos locais. Usar ângulos diferentes por ponto faria cada ponto pertencer a uma orientação distinta.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com coordenadas locais em metros, a fórmula de Gauss produz numericamente uma área em metros quadrados antes de eventual conversão para hectares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada produto da fórmula combina duas coordenadas lineares e, portanto, tem unidade de área. Se as coordenadas estiverem em metros, o resultado é m²; hectares exigem conversão posterior.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O eixo n do SGL descrito pelo manual aponta para o norte magnético observado no instante do levantamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O manual define n na direção do norte geodésico. Norte magnético é uma referência diferente e variável, não a definição do eixo local n.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A distância horizontal e o azimute podem ser conferidos sem verificar a unidade ou a orientação das coordenadas de entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Distâncias dependem de unidades coerentes e azimutes dependem de eixos, sinais, quadrante e convenção angular. Valores sem referencial e orientação conhecidos não determinam resultados interpretáveis.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A transformação de coordenadas substitui o processamento das observações de ângulos e distâncias feitas pela equipe de topografia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A transformação apenas muda a representação entre referenciais. As observações topográficas ainda precisam ser processadas e ajustadas para determinar os pontos locais.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num projeto de parcelamento, o retorno a coordenadas geocêntricas mantém a rastreabilidade espacial quando se reutiliza a origem da transformação inicial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A origem define a posição e orientação do sistema local. Reutilizá-la na transformação inversa permite relacionar os vértices projetados à mesma base geocêntrica de entrada.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O manual orienta expressar em hectares a área calculada com coordenadas locais pelo método de Gauss no contexto tratado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O item de cálculo de área do manual indica coordenadas cartesianas locais referenciadas ao SGL, fórmula de Gauss e expressão do resultado em hectares.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No cálculo do SGL, basta conhecer X,Y,Z do ponto; a origem e a orientação não participam da determinação de e,n,u.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. São necessárias as coordenadas geocêntricas da origem para formar o vetor relativo e a latitude e longitude dessa origem para orientar as rotações. X,Y,Z isolados não definem componentes locais.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contexto do manual, a distância horizontal é expressa em metros e o azimute em unidades angulares sexagesimais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O manual especifica a distância horizontal em metros e determina que o azimute, calculado pelo problema geodésico inverso segundo Puissant, seja expresso no sistema sexagesimal.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento caracteriza corretamente a conversão de X,Y,Z para e,n,u?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Subtrair a origem geocêntrica e girar o vetor relativo para os eixos locais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somar a origem ao ponto e manter os eixos geocêntricos sem rotação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter X,Y,Z em graus e atribuir os graus aos eixos leste e norte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dividir as coordenadas pelo raio terrestre e usar o resultado como altitude.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular distância e área antes de estabelecer o referencial local.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conversão realiza primeiro a translação, subtraindo X₀,Y₀,Z₀, e depois as rotações definidas pela latitude e longitude da origem. Os outros procedimentos não mudam corretamente do sistema geocêntrico para o local.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual parâmetro informa a direção local da componente u?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A normal ao elipsoide que passa pela origem do sistema local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O norte magnético medido no ponto mais alto do levantamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O meridiano de Greenwich projetado no plano da parcela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A linha que liga a origem ao centro de massa terrestre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A direção do maior lado do polígono em coordenadas cartográficas.",
+          "correct": false
+        }
+      ],
+      "explanation": "No SGL descrito pelo manual, u coincide com a normal ao elipsoide que passa pelo vértice escolhido como origem. Não é o norte magnético nem uma direção escolhida conforme a forma da parcela.",
+      "section": "1. O sistema de coordenadas locais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto deve ser guardado para que uma conversão local possa ser revertida corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coordenadas da origem e parâmetros angulares que orientaram os eixos locais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o nome do arquivo e o número de vértices da parcela calculada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A área final e o perímetro, sem coordenadas de referência ou origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A altitude média regional e a escala gráfica usada para imprimir a planta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas a latitude do ponto de destino, sem longitude ou posição geocêntrica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transformação inversa precisa das coordenadas X₀,Y₀,Z₀ para recompor a posição absoluta e de φ₀,λ₀ para desfazer a orientação. Sem os parâmetros da origem, e,n,u não definem unicamente uma posição geocêntrica.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe vai calcular a área de uma parcela com coordenadas dos vértices. Qual preparação é necessária antes de aplicar a fórmula de Gauss?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Organizar os vértices na ordem do contorno e fechar a sequência pelo primeiro ponto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ordenar os pontos pela altitude e omitir os que tenham coordenada negativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Misturar vértices e apoios, escolhendo os pontos pela distância ao centro da Terra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somar as coordenadas leste e norte sem relacionar pontos consecutivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir as coordenadas por azimutes e aplicar a fórmula de distância horizontal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fórmula de Gauss usa pares consecutivos ao longo do contorno e a repetição do primeiro ponto fecha a figura. A ordenação por altitude ou uma soma sem correspondência entre vértices não reproduz a geometria do polígono.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o fluxo do manual usa observações de estação total para determinar pontos locais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Processa e ajusta ângulos e distâncias a partir de apoios convertidos ao SGL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converte cada ângulo em altitude e usa as distâncias como longitude dos pontos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcula os vértices somente pela área final e dispensa pontos de referência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usa as observações para substituir as rotações definidas pela origem local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte diretamente os dados em coordenadas UTM e os registra como e,n,u.",
+          "correct": false
+        }
+      ],
+      "explanation": "O manual prevê converter os vértices de apoio ao SGL e, com as observações de ângulos e distâncias, processar e ajustar para determinar os vértices locais. As observações não dispensam apoio nem redefinem os eixos.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha de origem é indicada para o cálculo de área da parcela descrito no manual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média das coordenadas da parcela, usada para estabelecer o sistema local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O vértice mais distante da parcela, para maximizar o tamanho dos valores locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ponto de menor latitude de todo o país, independentemente do levantamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O centro de massa da Terra, sem translação para um plano topográfico local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um ponto escolhido após conhecer o resultado da área para ajustar seu valor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para cálculo da área, o manual determina converter para o SGL usando como origem a média das coordenadas da parcela. A origem não é escolhida depois do cálculo nem substituída pelo centro geocêntrico.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de levantamento tem distância inclinada de 25 m e desnível de 7 m. Qual distância horizontal decorre da relação pitagórica entre as componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "24 m, pois √(25²−7²)=√576=24.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "18 m, pois a distância inclinada deve ser reduzida pelo desnível diretamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "32 m, pois a componente vertical deve ser adicionada à distância inclinada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "25 m, pois a distância horizontal coincide sempre com a distância inclinada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "7 m, pois o desnível determina a componente horizontal do segmento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A componente horizontal é √(L²−ΔH²): √(625−49)=√576=24 m. A subtração direta das grandezas lineares não corresponde à decomposição ortogonal do segmento.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O analista terminou um desmembramento em coordenadas locais e quer que os novos vértices permaneçam vinculados ao sistema de referência de entrada. O que deve fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter os vértices locais a geocêntricas com os mesmos parâmetros da origem inicial.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter apenas e,n,u e remover do projeto qualquer informação sobre a origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Refazer o projeto com origem diferente para cada vértice gerado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somar os valores locais à latitude e longitude em graus do vértice inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir os vértices novos pela média das coordenadas antigas da parcela.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo descrito converte as coordenadas locais de volta para geocêntricas com a mesma origem usada no início. Isso vincula os novos vértices ao referencial de entrada e mantém coerência espacial.",
+      "section": "3. Escolha da origem e fluxo de processamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa identifica corretamente a unidade do resultado da fórmula de Gauss quando e e n estão em metros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Metros quadrados, porque a expressão multiplica pares de coordenadas lineares.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Metros, porque a fórmula soma somente deslocamentos entre vértices consecutivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Graus, porque as coordenadas locais preservam a latitude e a longitude.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hectares automaticamente, independentemente da escala numérica de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Metros cúbicos, porque cada termo combina três eixos do sistema local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada termo eᵢnᵢ₊₁ ou nᵢeᵢ₊₁ tem unidade m×m, portanto o resultado tem unidade m². Para expressar hectares é necessário converter dividindo por 10.000.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usou latitude e longitude em graus numa biblioteca cujas funções trigonométricas esperam radianos. Qual resultado é tecnicamente provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma rotação com coeficientes incorretos, gerando coordenadas locais inconsistentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma translação correta com erro restrito à formatação final do relatório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma conversão de altitude elipsoidal para metros sem alterar os eixos locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um resultado idêntico, pois bibliotecas reconhecem automaticamente a unidade do número.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma inversão do sentido de percurso do polígono sem modificar as coordenadas dos pontos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Seno e cosseno precisam receber o ângulo na unidade esperada. Interpretar graus como radianos altera as matrizes de rotação e, consequentemente, as componentes e,n,u.",
+      "section": "2. Transformação entre coordenadas geocêntricas e locais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma parcela foi levantada com coordenadas locais e a área de Gauss saiu negativa. Qual ação interpreta corretamente o sinal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tomar o módulo para a área geométrica e conferir se a sequência percorreu o contorno.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar a origem até que a área assinada se torne positiva, sem conferir os vértices.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Multiplicar o resultado pela altitude média para remover a orientação do polígono.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar as unidades de e e n até que o sinal da soma seja invertido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descartar o resultado, pois área negativa prova que as coordenadas são inválidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma área assinada negativa pode decorrer apenas do sentido de percurso. A área geométrica é seu valor absoluto; ainda é prudente conferir a sequência e o fechamento do contorno para excluir erro de ordenação.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao calcular azimute com diferenças Δe e Δn, por que os sinais de ambas as componentes devem ser preservados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eles identificam o quadrante da direção e evitam uma orientação ambígua.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eles convertem as coordenadas para latitude e longitude sem parâmetros adicionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eles determinam a altitude elipsoidal mesmo que não exista coordenada vertical.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eles controlam apenas a unidade de área da parcela após o cálculo de Gauss.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eles substituem a origem do SGL e permitem omitir a translação inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os sinais de Δe e Δn indicam o quadrante do vetor. Uma arco-tangente simples pode não distinguir direções opostas, por isso o cálculo deve aplicar uma função e convenção que tratem o quadrante.",
+      "section": "4. Cálculos derivados e conferência dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Manual Técnico para o Georreferenciamento de Imóveis Rurais — 2ª edição",
+      "publisher": "Instituto Nacional de Colonização e Reforma Agrária (Incra)",
+      "reference": "Definição do Sistema Geodésico Local; conversão entre coordenadas geocêntricas e locais; sequência de processamento topográfico; cálculo de área, distância horizontal e azimute.",
+      "url": "https://www.gov.br/incra/pt-br/assuntos/governanca-fundiaria/Manual_Tecnico_de_Georreferenciamento_2_Edicao.pdf",
+      "accessedAt": "2026-11-05"
+    }
+  ]
+}

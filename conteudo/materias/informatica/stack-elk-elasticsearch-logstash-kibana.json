@@ -1,0 +1,2134 @@
+{
+  "id": "informatica.stack-elk-elasticsearch-logstash-kibana",
+  "subject": "Informática",
+  "title": "Elasticsearch, Logstash e Kibana (ELK): busca, indexação e análise de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Elasticsearch, Logstash e Kibana para busca, indexação e análise de dados",
+    "Stack ELK para análise de logs e eventos",
+    "ELK Stack: Elasticsearch, Logstash e Kibana",
+    "Busca e indexação com Elasticsearch",
+    "Coleta e transformação com Logstash",
+    "Análise e visualização com Kibana",
+    "Elasticsearch para pesquisa textual e agregações",
+    "Pipelines de dados do Logstash para Elasticsearch",
+    "Dashboards Kibana sobre índices Elasticsearch",
+    "Elastic Stack para pesquisa e observabilidade"
+  ],
+  "scope": {
+    "covers": "Funções complementares do Elasticsearch, Logstash e Kibana; documentos, índices, mappings, análise de texto, shards e réplicas; escrita e busca near real-time; consultas de texto completo e exatas, filtros e agregações; pipeline input-filter-output, codecs, Grok e envio ao Elasticsearch; data views, Discover, KQL, visualizações e dashboards do Kibana; fluxo integrado, qualidade dos dados e erros frequentes.",
+    "excludes": "Administração aprofundada de clusters, tuning de produção, segurança e licenciamento, instalação passo a passo, APIs completas, sintaxe avançada de plugins, recursos proprietários e comparações com ferramentas não citadas no escopo."
+  },
+  "theoryTitle": "Da coleta à busca e à análise: a stack ELK",
+  "chapters": [
+    {
+      "title": "1. O papel de cada componente",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações e servidores produzem logs e eventos em formatos diferentes: uma linha de texto, um objeto JSON, uma métrica ou um registro de acesso. Para investigar uma falha, a equipe precisa reunir esses dados, torná-los pesquisáveis e observar tendências sem abrir arquivo por arquivo. A stack ELK organiza esse percurso em três funções que se complementam.\n\n> **Siglas e termos deste capítulo**\n> - **ELK**: Elasticsearch, Logstash e Kibana, nomes dos três componentes centrais.\n> - **Evento**: registro individual recebido e processado, como uma linha de log.\n> - **Ingestão**: entrada e preparação dos dados para armazenamento.\n> - **Indexação**: organização de conteúdo e campos para permitir recuperação por consulta.\n> - **Observabilidade**: investigação do comportamento de sistemas usando sinais como logs, métricas e traces.\n\n| Componente | Responsabilidade principal | Exemplo concreto |\n| --- | --- | --- |\n| **Logstash** | Receber eventos, transformar/enriquecer e encaminhar | Extrair data, nível e endereço IP de uma linha de log |\n| **Elasticsearch** | Armazenar documentos indexados, pesquisar e agregar | Localizar erros por serviço e contar ocorrências por minuto |\n| **Kibana** | Interface para explorar e apresentar dados do Elasticsearch | Filtrar eventos no Discover e montar painel de erros |\n\nLogstash não é o mecanismo de pesquisa; ele prepara e encaminha eventos. Elasticsearch não é, por si só, o painel visual; ele indexa e atende consultas e agregações. Kibana não substitui o armazenamento: é uma interface que consulta o Elasticsearch. O fluxo comum é fonte → Logstash → Elasticsearch → Kibana, embora os produtos permitam outras fontes e destinos.\n\n### Um percurso de ponta a ponta\n\nConsidere uma aplicação que registra `2026-11-06T10:15:00Z WARN pagamento timeout pedido=731`. Um input de arquivo do Logstash pode ler a linha. Um filtro Grok pode capturar timestamp, nível, serviço e identificador do pedido em campos separados; filtros adicionais podem normalizar valores ou descartar eventos irrelevantes. Um output Elasticsearch envia o evento estruturado ao índice apropriado. Depois da indexação e do refresh, uma pessoa usa o Kibana para procurar `WARN`, restringir o período e agrupar ocorrências por serviço.\n\nA separação permite que formatos de entrada mudem sem reescrever a interface de análise. Também permite que o Elasticsearch receba dados de outros produtores; Logstash é um caminho de ingestão, não uma dependência obrigatória de toda busca.\n\n### Como cai na prova\n\n- “Coleta, filtros e encaminhamento” aponta para **Logstash**; “índice, documentos e consulta” para **Elasticsearch**; “exploração e dashboards” para **Kibana**.\n- A sequência típica é pipeline de ingestão, mecanismo de indexação e interface de análise. Não confunda função com ordem: a interface pode consultar dados que chegaram por outro caminho.\n- Kibana opera sobre dados disponíveis no Elasticsearch; um dashboard não cria os eventos que faltam nem corrige uma extração mal configurada."
+    },
+    {
+      "title": "2. Elasticsearch: documentos, índices e busca",
+      "markdown": "### O problema que este assunto resolve\n\nUm banco orientado à busca precisa responder tanto a perguntas textuais (“quais mensagens mencionam falha de pagamento?”) quanto a perguntas estruturadas (“quantos eventos vieram do serviço X nesta faixa de tempo?”). Elasticsearch armazena registros como documentos JSON e constrói estruturas de índice para localizar documentos e resumir campos.\n\n> **Siglas e termos deste capítulo**\n> - **Documento**: objeto JSON com campos e valores; unidade de dado recuperada em uma busca.\n> - **Índice**: conjunto lógico de documentos pesquisável como uma coleção.\n> - **Mapping**: definição ou inferência dos tipos e do tratamento dos campos.\n> - **Analyzer**: cadeia de análise que transforma texto em termos pesquisáveis.\n> - **Shard**: partição de um índice distribuída pelo cluster.\n> - **Refresh**: abertura de novos segmentos de índice para tornar operações recentes visíveis à busca.\n\nUm documento de log pode conter `@timestamp`, `service.name`, `log.level`, `message` e `http.response.status_code`. O índice organiza muitos documentos; `_id` identifica um documento dentro do índice e `_source` guarda o conteúdo de origem quando habilitado. Os mappings definem como cada campo será indexado e consultado. Com mapeamento dinâmico, campos novos podem ser inferidos automaticamente, o que facilita o início, mas a inferência pode não ser a desejada. O mapeamento explícito controla os tipos conhecidos.\n\n### Texto analisado e valor exato\n\nCampos `text` passam por análise textual: o analyzer pode dividir texto em tokens e normalizá-los, por exemplo convertendo maiúsculas em minúsculas. Isso favorece busca de texto completo, na qual uma consulta pode encontrar termos dentro de uma frase. Campos `keyword` preservam um valor para correspondência exata, ordenação ou agregação. Uma estratégia comum é manter o mesmo dado em subcampos `text` e `keyword`: a mensagem é pesquisável como texto e o nome de serviço pode ser agrupado como valor exato.\n\nNo índice invertido, em vez de percorrer cada documento para cada termo pesquisado, a estrutura associa termos aos documentos em que aparecem. O analyzer do campo influencia tanto a indexação quanto a análise da consulta; incompatibilidade de análise pode explicar resultados inesperados.\n\n### Consulta e análise\n\nA Query DSL é uma linguagem de consultas em JSON aceita pela Search API. `match` é apropriada para busca de texto analisado; `term` procura valor exato e costuma ser usada em `keyword`, identificadores, booleanos e valores numéricos. Uma consulta booleana pode combinar critérios obrigatórios, opcionais e de exclusão. Critérios em contexto de filtro restringem resultados sem contribuir para a pontuação de relevância, sendo adequados a condições como nível de log ou intervalo de data.\n\nAgregações resumem os documentos selecionados: agregação **metric** calcula valor como média ou soma; **bucket** agrupa por campo, intervalo ou critério; **pipeline** calcula a partir do resultado de outras agregações. Assim, pode-se filtrar erros e agrupar contagens por serviço e intervalo de tempo na mesma solicitação.\n\n### Shards e visibilidade\n\nUm índice é dividido em shards primários, que particionam seus dados; réplicas são cópias de shards primários. Distribuição ajuda a escalar e réplicas podem contribuir para tolerância a falhas e capacidade de leitura, mas não substituem backup. A escrita bem-sucedida não implica necessariamente que uma busca imediatamente subsequente já veja o documento: Elasticsearch oferece busca near real-time. Um refresh publica segmentos recentes para pesquisa; portanto, “near real-time” não significa consistência instantânea a cada escrita.\n\n### Como cai na prova\n\n- `text` é voltado a texto analisado; `keyword`, a valor exato e operações como agregação/ordenação. A escolha do mapping afeta o que a busca pode fazer.\n- `match` e `term` não são sinônimos: uma lida com análise de texto; a outra com correspondência exata.\n- Shards particionam; réplicas copiam shards. Refresh torna operações recentes visíveis à busca, sem ser um backup."
+    },
+    {
+      "title": "3. Logstash: pipeline de ingestão e transformação",
+      "markdown": "### O problema que este assunto resolve\n\nFontes distintas podem enviar eventos com campos ausentes, datas em formatos diferentes ou mensagens sem estrutura. Logstash recebe esses eventos e permite transformá-los antes de encaminhá-los. Uma configuração reúne plugins numa pipeline; o processamento conceitual tem três etapas: **input → filter → output**. Input e output são necessários; filter é opcional.\n\n> **Siglas e termos deste capítulo**\n> - **Input**: plugin que recebe eventos de uma fonte.\n> - **Filter**: plugin que altera, interpreta, enriquece ou descarta eventos.\n> - **Output**: plugin que envia eventos processados a um destino.\n> - **Codec**: codifica ou decodifica o fluxo na entrada ou saída.\n> - **Grok**: filtro que usa padrões para extrair campos de texto não estruturado.\n> - **ECS**: Elastic Common Schema, convenção de nomes para campos de eventos.\n\nInputs comuns incluem `file`, `beats`, `syslog` e `stdin`. Filtros podem ser condicionais e atuar apenas sobre eventos que satisfazem uma condição. `grok` estrutura texto; `mutate` renomeia, remove, substitui ou modifica campos; `drop` descarta um evento; `geoip` pode enriquecer informação de endereço IP. Outputs podem encaminhar para Elasticsearch ou gravar em arquivo, entre outros destinos. Um evento pode passar por mais de um output.\n\nCodec não é uma quarta etapa obrigatória. Ele opera junto de input ou output para tratar serialização. `json` interpreta ou produz JSON; `multiline` pode reunir linhas que formam um único evento, como partes de uma exceção Java. Se linhas relacionadas forem divididas incorretamente, a análise pode contar um erro como vários eventos; se linhas independentes forem fundidas, dados distintos se perdem.\n\n### Exemplo e decisão de parsing\n\nPara a linha `2026-11-06 ERROR api falha codigo=503`, um filtro Grok pode nomear partes como timestamp, nível, serviço e código HTTP. Depois, um filtro de data pode converter o timestamp para um campo de data e `mutate` pode padronizar o nome do serviço. Um condicional pode enviar apenas eventos de erro para um destino de alerta, enquanto todos seguem para o índice. A configuração deve refletir o formato real de entrada: um padrão que não corresponde não cria campos válidos por mágica.\n\nO uso de ECS, quando adotado, mantém nomes e formatos consistentes entre fontes. Sem padronização, o Kibana pode ter `service`, `serviceName` e `app` representando o mesmo conceito e exigir consultas separadas. Logstash pode centralizar tratamento, mas a normalização também pode ocorrer em outros componentes da plataforma.\n\n### Como cai na prova\n\n- Input recebe, filter transforma e output encaminha. Uma pipeline mínima precisa de input e output; filtro é opcional.\n- Grok estrutura texto; mutate altera campos; drop elimina eventos; codec trata serialização junto à entrada ou saída.\n- Elasticsearch é um output comum, não o único destino possível. Logstash é pipeline de processamento, não painel nem banco de busca."
+    },
+    {
+      "title": "4. Kibana: exploração, visualizações e dashboards",
+      "markdown": "### O problema que este assunto resolve\n\nUma consulta de baixo nível é útil para automação, mas analistas precisam explorar registros, filtrar períodos, comparar campos e comunicar padrões. Kibana fornece a interface web da stack para consultar e visualizar dados disponíveis no Elasticsearch.\n\n> **Siglas e termos deste capítulo**\n> - **Data view**: objeto do Kibana que indica quais índices, data streams ou aliases uma experiência deve consultar.\n> - **Discover**: área de exploração de documentos e campos.\n> - **KQL**: Kibana Query Language, linguagem de consulta e filtro usada no modo clássico do Discover.\n> - **Dashboard**: composição de painéis que reúne visualizações e métricas.\n> - **Lens**: editor visual para criar gráficos a partir dos dados.\n\nUma data view não copia nem armazena os documentos: ela informa ao Kibana quais índices, data streams ou aliases consultar. Um padrão pode apontar, por exemplo, a todos os índices de logs que sigam `logs-*`. O Discover permite pesquisar e filtrar documentos, examinar valores e campos, ajustar intervalo de tempo e salvar uma sessão. No modo clássico, usa data view com KQL ou Lucene; o modo ES|QL permite consultas sem data view. KQL é ferramenta de consulta da interface, não substitui os dados nem altera os documentos.\n\nVisualizações transformam campos agregáveis em gráficos, tabelas, métricas ou mapas. Um dashboard organiza vários painéis e permite analisar os dados combinados; controles e filtros podem ajudar a restringir a análise. Gráficos dependem de campos e mappings apropriados. Se um campo livre de texto não for agregável da forma pretendida, é necessário corrigir a modelagem/mapping ou escolher um campo adequado; o painel não muda a natureza do campo.\n\n### Análise com cuidado\n\nO intervalo temporal e os filtros ativos mudam o conjunto analisado. Um painel que parece não ter eventos pode estar filtrado para uma janela sem dados ou apontar para uma data view errada. Um pico de contagem não prova sozinho sua causa: é uma pista a cruzar com campos de serviço, nível, host ou status. Discover ajuda a inspecionar os documentos que sustentam o gráfico.\n\nSessões do Discover podem ser salvas e reutilizadas ou adicionadas a dashboards. Um dashboard é uma camada de apresentação interativa, não uma garantia de que os dados estejam corretos ou completos. A confiabilidade depende da coleta, transformação, indexação, mapping, seleção da data view, janela temporal e filtros.\n\n### Como cai na prova\n\n- Kibana explora e apresenta dados consultando Elasticsearch; data view seleciona conjuntos a consultar.\n- Discover serve para inspeção e busca de documentos; dashboards reúnem painéis e visualizações.\n- KQL filtra/consulta no modo clássico; não é um mecanismo separado de armazenamento. Um gráfico errado pode ter origem no mapping, na ingestão ou nos filtros ativos."
+    }
+  ],
+  "summary": "Na stack ELK, Logstash recebe eventos em inputs, transforma-os em filters e encaminha-os por outputs; Elasticsearch armazena documentos JSON em índices, aplica mappings e análise textual, atende buscas e agrega resultados; Kibana consulta os dados para exploração, visualização e dashboards. Campos text são analisados para busca de texto completo; keyword favorece correspondência exata, agregação e ordenação. Query DSL permite combinar busca, filtros e agregações. Shards particionam índices e réplicas copiam shards; refresh torna escritas recentes visíveis em busca near real-time. No Kibana, data views selecionam índices, data streams ou aliases; Discover inspeciona documentos e dashboards combinam painéis. O resultado da análise depende da qualidade do evento, do parsing, do mapping, da data view, do intervalo e dos filtros.",
+  "flashcards": [
+    {
+      "front": "Qual é a função do Logstash?",
+      "back": "Ingerir eventos, transformá-los ou enriquecê-los em filtros e encaminhá-los a destinos por outputs."
+    },
+    {
+      "front": "Qual é a unidade de dado armazenada pelo Elasticsearch?",
+      "back": "Documento, normalmente representado como objeto JSON com campos e valores."
+    },
+    {
+      "front": "O que é um índice no Elasticsearch?",
+      "back": "Conjunto lógico de documentos que pode ser alvo de operações de escrita e busca."
+    },
+    {
+      "front": "O que define um mapping?",
+      "back": "Os tipos e o tratamento dos campos dos documentos, influenciando indexação e consulta."
+    },
+    {
+      "front": "Para que serve um campo text?",
+      "back": "Para texto analisado e pesquisa de texto completo."
+    },
+    {
+      "front": "Para que serve keyword?",
+      "back": "Para valores exatos, frequentemente usados em filtros, ordenação e agregações."
+    },
+    {
+      "front": "O que faz um analyzer?",
+      "back": "Transforma texto em tokens e pode normalizá-los para apoiar a busca textual."
+    },
+    {
+      "front": "O que é o índice invertido?",
+      "back": "Estrutura que relaciona termos aos documentos que os contêm, permitindo localizar ocorrências sem varrer cada documento por termo."
+    },
+    {
+      "front": "O que faz um input do Logstash?",
+      "back": "Obtém eventos de uma fonte, como arquivo, Beats ou syslog."
+    },
+    {
+      "front": "O que faz Grok?",
+      "back": "Usa padrões para extrair campos estruturados de mensagens de texto."
+    },
+    {
+      "front": "O que faz mutate?",
+      "back": "Modifica campos de evento, como renomear, remover, substituir ou converter valores."
+    },
+    {
+      "front": "O que faz drop?",
+      "back": "Descarta o evento que alcança esse filtro."
+    },
+    {
+      "front": "Qual o papel de um codec?",
+      "back": "Codificar ou decodificar dados no fluxo de entrada ou saída."
+    },
+    {
+      "front": "O que é refresh no Elasticsearch?",
+      "back": "A operação que disponibiliza para busca as operações recentes do índice, criando e abrindo segmentos pesquisáveis."
+    },
+    {
+      "front": "O que particiona um índice?",
+      "back": "Shards primários."
+    },
+    {
+      "front": "O que é uma réplica?",
+      "back": "Cópia de um shard primário, que pode apoiar tolerância a falhas e leituras."
+    },
+    {
+      "front": "O que caracteriza near real-time?",
+      "back": "Uma escrita pode não aparecer imediatamente em busca; torna-se pesquisável após refresh."
+    },
+    {
+      "front": "Qual consulta DSL é típica para texto analisado?",
+      "back": "match."
+    },
+    {
+      "front": "Qual consulta DSL procura valor exato?",
+      "back": "term, normalmente aplicada a campos keyword ou valores estruturados."
+    },
+    {
+      "front": "Que tipos de agregação o Elasticsearch oferece?",
+      "back": "Metric, bucket e pipeline."
+    },
+    {
+      "front": "O que é uma data view?",
+      "back": "Configuração do Kibana que seleciona índices, data streams ou aliases a consultar."
+    },
+    {
+      "front": "O que se faz no Discover?",
+      "back": "Pesquisar e filtrar documentos, inspecionar campos e explorar dados do Elasticsearch."
+    },
+    {
+      "front": "O que reúne um dashboard?",
+      "back": "Painéis com visualizações, métricas e outros conteúdos para análise interativa."
+    },
+    {
+      "front": "O que uma data view não faz?",
+      "back": "Não armazena nem transforma documentos; orienta quais conjuntos o Kibana consulta."
+    }
+  ],
+  "tips": [
+    "Associe o verbo ao produto: receber e transformar é Logstash; indexar e pesquisar é Elasticsearch; explorar e visualizar é Kibana.",
+    "Leia o tipo do campo antes de escolher a consulta: texto analisado favorece match; valor exato favorece term.",
+    "Em questão de visibilidade de escrita, procure refresh: a busca é near real-time, não necessariamente imediata.",
+    "Input, filter e output são etapas distintas; input e output são obrigatórios na pipeline e filter é opcional.",
+    "Data view indica o alvo da consulta no Kibana; ela não é um índice nem cópia dos dados.",
+    "Ao diagnosticar um gráfico vazio ou estranho, confira período, filtros, data view, parsing e mapping."
+  ],
+  "traps": [
+    "Atribuir ao Kibana o armazenamento dos documentos: ele oferece a interface de análise sobre dados do Elasticsearch.",
+    "Tratar text e keyword como equivalentes: análise textual e valor exato têm usos diferentes.",
+    "Supor que uma escrita aceita aparece instantaneamente na busca: refresh produz visibilidade near real-time.",
+    "Dizer que réplicas particionam os documentos: quem particiona são os shards primários; réplicas são cópias.",
+    "Confundir codec com filter: codec trata serialização no fluxo; filter processa eventos da pipeline.",
+    "Atribuir a Grok o envio ao destino: Grok extrai estrutura; output é a etapa que encaminha."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o fluxo típico de um log desde o arquivo de origem até um painel.",
+      "answer": "Um input do Logstash lê o evento; filtros extraem e normalizam campos; um output envia o documento ao Elasticsearch; depois da indexação e refresh, Kibana consulta a data view e apresenta documentos e agregações."
+    },
+    {
+      "question": "Por que um campo pode precisar de mapping explícito?",
+      "answer": "Para controlar tipo e comportamento de indexação, evitar inferência inadequada e garantir uso correto em consultas, ordenação ou agregações."
+    },
+    {
+      "question": "Diferencie text e keyword com um exemplo de log.",
+      "answer": "message como text pode ser analisado para buscar palavras; service.name como keyword pode ser filtrado e agrupado pelo valor exato do serviço."
+    },
+    {
+      "question": "O que muda entre match e term?",
+      "answer": "match analisa texto de acordo com o campo; term procura um valor exato e é indicada para campos estruturados apropriados."
+    },
+    {
+      "question": "Como Grok e mutate podem ser usados em sequência?",
+      "answer": "Grok captura partes da mensagem em campos; mutate pode então renomear, remover ou ajustar campos extraídos."
+    },
+    {
+      "question": "Por que um evento escrito pode não aparecer ainda numa busca?",
+      "answer": "A visibilidade ocorre após refresh; a busca do Elasticsearch é near real-time."
+    },
+    {
+      "question": "Diferencie shard e réplica.",
+      "answer": "Shard primário é uma partição do índice; réplica é uma cópia de um shard primário."
+    },
+    {
+      "question": "O que verificar quando um dashboard Kibana mostra zero resultados inesperadamente?",
+      "answer": "Data view, intervalo temporal, filtros ativos, campos do mapping e se a pipeline realmente produziu e indexou os eventos esperados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Responsabilidades dos três produtos embaralhadas",
+      "summary": "Logstash processa e encaminha eventos; Elasticsearch indexa, pesquisa e agrega documentos; Kibana permite explorar e visualizar os dados."
+    },
+    {
+      "key": "e2",
+      "title": "Tipos de campo e consultas confundidos",
+      "summary": "text passa por análise para texto completo; keyword representa valor exato. match é típica para texto analisado e term para igualdade exata."
+    },
+    {
+      "key": "e3",
+      "title": "Visibilidade e distribuição interpretadas incorretamente",
+      "summary": "Refresh disponibiliza escritas recentes para busca; shards particionam índices e réplicas copiam shards, apoiando disponibilidade e leituras."
+    },
+    {
+      "key": "e4",
+      "title": "Elementos da pipeline e da análise confundidos",
+      "summary": "Input recebe, filter transforma e output encaminha; codec serializa no fluxo. Data view seleciona dados no Kibana, Discover explora e dashboard apresenta painéis."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa extrair campos de logs textuais, padronizar eventos e encaminhá-los a um mecanismo de busca. Qual componente atende diretamente a essa etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Kibana, que converte mensagens em eventos estruturados antes do armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elasticsearch, que coleta arquivos e executa filtros de parsing nos registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Logstash, que recebe, transforma e encaminha eventos por uma pipeline.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Discover, que atua como plugin de entrada para receber mensagens de servidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Data view, que normaliza campos e transporta os documentos até o índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logstash implementa pipelines de ingestão com inputs, filtros e outputs. Elasticsearch armazena e pesquisa documentos, enquanto Kibana e Discover são interfaces de exploração; data view indica os conjuntos consultados.",
+      "section": "1. O papel de cada componente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer pesquisar documentos JSON por palavras da mensagem e também contar erros por serviço. Qual produto fornece o mecanismo de indexação, busca e agregação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elasticsearch, que indexa documentos e executa consultas e agregações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Logstash, que mantém índices pesquisáveis e painéis para os usuários finais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Kibana, que armazena os documentos JSON e replica cada registro recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Grok, que gerencia o armazenamento permanente e calcula buckets de pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Discover, que é o cluster responsável por distribuir shards entre os nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "Elasticsearch é o mecanismo que armazena documentos indexados, atende buscas e calcula agregações. Logstash pode preparar eventos para ele; Kibana oferece a interface para consultar e visualizar esses resultados.",
+      "section": "1. O papel de cada componente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista deseja filtrar eventos por horário, examinar documentos individuais e montar gráficos numa interface web. Qual componente é mais diretamente associado a essas tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Logstash, que oferece o editor visual de dashboards sobre eventos de entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elasticsearch, que fornece uma interface web de painéis por padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Grok, que apresenta resultados tabulares e gráficos de séries temporais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kibana, que explora dados do Elasticsearch e organiza visualizações em painéis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um shard, que reúne controles interativos e sessões salvas do analista.",
+          "correct": false
+        }
+      ],
+      "explanation": "Kibana é a interface de exploração e visualização. No Discover, por exemplo, é possível filtrar e inspecionar documentos; dashboards agrupam painéis de análise.",
+      "section": "1. O papel de cada componente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um registro enviado ao Elasticsearch, qual descrição caracteriza melhor um documento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma partição física do índice distribuída por diversos clusters de busca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um objeto com campos e valores, normalmente representado em formato JSON.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma cópia completa de um nó criada para restaurar dados perdidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma regra visual que associa um gráfico a um conjunto de dashboards.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um filtro da pipeline que decide quais campos serão removidos da mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Elasticsearch serializa os dados como documentos JSON compostos por campos e valores. Shards são partições; filtros pertencem ao processamento do Logstash e visualizações ao Kibana.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa agrupar registros pela igualdade exata do nome do serviço e ainda permitir busca textual na mensagem. Qual modelagem de campos é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `text` para ambos, pois agregações e igualdade sempre analisam o texto do mesmo modo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `keyword` para a mensagem e `text` para agrupar valores exatos do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar somente `object`, pois esse tipo combina busca textual e igualdade em qualquer campo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `date` para o serviço e `long` para a mensagem, convertendo-os na consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `text` na mensagem e `keyword` no serviço para análise e agrupamento exato.",
+          "correct": true
+        }
+      ],
+      "explanation": "`text` é apropriado a conteúdo analisado para busca de texto completo; `keyword` preserva um valor para correspondência exata, ordenação e agregação. Se necessário, um mesmo dado pode ter subcampos com tratamentos distintos.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta deve encontrar mensagens que contenham termos relacionados, depois que o campo foi configurado como texto analisado. Qual tipo de consulta é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`term`, porque tokeniza o texto e calcula automaticamente a relevância sem análise.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`match`, porque analisa o texto consultado de acordo com o campo pesquisado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`drop`, porque converte palavras em tokens durante uma pesquisa textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`keyword`, porque é uma cláusula Query DSL que busca frases por aproximação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`refresh`, porque executa a consulta e agrupa os termos encontrados por mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A consulta `match` é voltada a campos de texto analisado. `term` procura um valor exato e não é a escolha equivalente para localizar termos dentro de texto analisado.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer selecionar documentos em que `log.level` seja exatamente `ERROR`. O campo foi mapeado como `keyword`. Que consulta corresponde à intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma consulta `match` que divide `ERROR` em tokens e procura qualquer prefixo correspondente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um filtro `term` sobre `log.level` com o valor exato `ERROR`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um filtro Grok que altera o mapping e transforma documentos antigos em eventos novos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma agregação metric que elimina os registros cujo valor seja diferente de `ERROR`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma data view que compara o nível sem consultar os documentos do Elasticsearch.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para igualdade exata em um campo `keyword`, `term` é apropriada. `match` atende texto analisado, enquanto Grok atua na ingestão e data view apenas aponta os conjuntos consultáveis.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer obter a média do tempo de resposta apenas dos registros que satisfazem uma busca por serviço. Como a agregação do Elasticsearch pode ser usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a agregação fora do mecanismo, pois buscas e resumos não podem compartilhar a mesma solicitação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar um bucket para calcular a média e uma métrica para particionar cada documento em grupos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar a busca e uma agregação metric sobre o campo numérico no contexto dos documentos selecionados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar uma data view de métricas, que executa consultas sem passar pelo Elasticsearch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar um codec no output do Logstash para calcular a média durante a codificação JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agregações podem ser executadas junto da busca e respeitam o conjunto de documentos selecionado. Média é agregação metric; bucket agrupa documentos e pipeline agrega resultados de outras agregações.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma escrita foi aceita, mas uma busca feita imediatamente ainda não encontrou o documento. Qual explicação é compatível com o comportamento near real-time do Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O documento só pode ser pesquisado depois que uma réplica o transformar em backup permanente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A Search API bloqueia novas escritas até que a aplicação reinicie o nó de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O índice precisa ser recriado porque um refresh apaga os documentos ainda não pesquisáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A alteração pode aguardar refresh, que abre segmentos recentes para torná-los pesquisáveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Kibana mantém uma cópia local atrasada e precisa receber o evento por um codec.",
+          "correct": false
+        }
+      ],
+      "explanation": "Refresh torna operações recentes visíveis para busca ao abrir segmentos pesquisáveis. Por isso a busca é near real-time, e uma escrita não precisa aparecer instantaneamente na consulta seguinte.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice foi dividido para distribuir seu conjunto de documentos entre unidades menores de armazenamento. Que estrutura desempenha esse papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Data views, que particionam fisicamente os documentos entre servidores de Kibana.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codecs, que separam cada campo do documento em volumes de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Réplicas, que dividem o índice original em partições sem copiar seus dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtros Grok, que distribuem eventos em segmentos de pesquisa do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Shards primários, que particionam o índice e podem ser distribuídos no cluster.",
+          "correct": true
+        }
+      ],
+      "explanation": "Shards primários são partições do índice distribuídas pelo cluster. Réplicas são cópias de shards primários, não a partição original.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa descreve corretamente a relação entre shard primário e réplica no Elasticsearch?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O shard primário contém uma partição do índice; a réplica é uma cópia desse shard. Réplicas podem ajudar na tolerância a falhas e em leituras, mas não substituem uma estratégia de backup.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A análise textual de um campo `text` só ocorre no momento da busca; durante a indexação, a frase original permanece sem tokenização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Elasticsearch analisa campos `text` tanto durante a indexação quanto ao processar consultas. Tokenização e normalização podem ocorrer nos dois momentos para que os termos sejam comparados de forma coerente.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mapping de um índice não interfere no tratamento dos campos: busca textual, igualdade exata e agregação dependem apenas da interface usada para consultá-los.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mapping define tipos e influencia como os campos são indexados e consultados. Por exemplo, `text` e `keyword` oferecem comportamentos diferentes; uma interface não consegue compensar qualquer tipo incorreto.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Query DSL do Elasticsearch usa uma sintaxe XML e aceita somente cláusulas de filtro, sem consultas textuais nem agregações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Query DSL é uma linguagem em estilo JSON aceita pela Search API. Ela permite buscas textuais, filtros e agregações; não se limita a filtros em XML.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma agregação metric agrupa documentos por categorias, enquanto uma agregação bucket calcula estatísticas numéricas como soma ou média.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Buckets agrupam documentos por campos, intervalos ou critérios; métricas calculam valores como soma e média. Agregações pipeline operam sobre resultados de outras agregações.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de Logstash precisa declarar input, filter e output, pois a ausência de qualquer etapa impede a execução da pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Input e output são os elementos obrigatórios de uma pipeline. Filter é opcional quando não há transformação intermediária necessária.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Logstash, inputs modificam os eventos, filters os enviam aos destinos e outputs são os plugins que recebem dados das fontes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Input recebe eventos, filter os modifica e output os encaminha. Uma pipeline mínima precisa de input e output; filter é opcional.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O codec `multiline` pode reunir linhas relacionadas, como linhas de uma exceção Java, para que sejam tratadas como um único evento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Codecs atuam no fluxo de entrada ou saída e podem tratar a serialização. O codec multiline combina várias linhas que representam uma única mensagem, como stack trace.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O filtro `drop` do Logstash remove campos escolhidos de um evento, mas preserva o próprio evento para o output.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `drop` descarta o evento por completo. Para remover ou alterar campos mantendo o evento, pode-se usar filtros de transformação como `mutate`.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de log contém texto livre e a equipe precisa extrair timestamp, nível e código de resposta em campos separados. Qual filtro é mais associado a essa extração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Grok, que aplica padrões para estruturar texto não estruturado em campos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mutate, que determina sozinho a estrutura de qualquer frase sem padrão de parsing.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Drop, que converte partes da mensagem em campos sem descartar o evento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Data view, que identifica campos do arquivo antes de enviá-lo ao Elasticsearch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Refresh, que interpreta expressões regulares e grava os campos no documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Grok combina padrões para extrair estrutura de texto arbitrário. Depois da extração, outros filtros, como mutate, podem normalizar os campos capturados.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento precisa ter um campo renomeado, outro removido e um valor substituído, sem descartar o evento. Qual filtro se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Grok, pois renomeia e substitui livremente qualquer campo já estruturado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Drop, pois apaga somente os campos escolhidos mantendo a estrutura restante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mutate, que oferece operações gerais de modificação dos campos do evento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Codec, que altera a semântica dos campos sem codificar ou decodificar o fluxo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Output, que transforma nomes de campos antes de selecionar o destino de gravação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mutate fornece operações de renomeação, remoção, substituição e modificação de campos. Drop descarta o evento inteiro, e Grok é usado principalmente para extrair estrutura de texto.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline recebe eventos de um arquivo, transforma somente os que têm nível ERROR e grava todos em Elasticsearch. Que recurso permite condicionar o filtro ao valor do evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um refresh condicional, que decide quais filtros são executados depois da indexação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma cláusula condicional da pipeline, que aplica processamento quando o evento satisfaz o critério.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma réplica do índice, que escolhe eventos com base no conteúdo dos campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma data view, que injeta instruções de parsing na configuração do input.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um bucket, que seleciona filtros antes de os eventos entrarem na pipeline.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logstash permite combinar filtros e condicionais para executar ações quando um evento atende a critérios. Refresh e réplicas pertencem ao Elasticsearch; data views e buckets são conceitos de consulta e análise.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adotou nomes consistentes para campos como serviço, host e timestamp, de modo que eventos de fontes diferentes possam ser analisados com convenções comuns. Que conceito da stack corresponde a essa padronização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "KQL, uma norma de nomenclatura aplicada automaticamente aos documentos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Grok, que define sozinho a semântica e os nomes universais de todos os campos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Shard routing, que converte campos heterogêneos em atributos de busca comuns.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elastic Common Schema, convenção de nomes para representar campos de eventos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Data view, que renomeia de forma permanente campos em todos os índices apontados.",
+          "correct": false
+        }
+      ],
+      "explanation": "ECS é uma convenção de nomes de campos para dados de eventos, facilitando consistência entre integrações e fontes. Ele não substitui os parsers nem renomeia automaticamente os documentos já indexados.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma pipeline Logstash, codecs podem operar junto a inputs e outputs para codificar ou decodificar o fluxo, sem constituir uma etapa obrigatória adicional entre filters e outputs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Codecs tratam serialização e podem ser associados à entrada ou à saída. As três etapas conceituais do processamento continuam sendo inputs, filters e outputs.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O output `elasticsearch` é o único destino possível de uma pipeline Logstash, pois todos os filtros gravam diretamente no mesmo tipo de índice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Elasticsearch é um destino comum, mas Logstash dispõe de outros outputs, como arquivo e serviços de métricas. Uma pipeline também pode encaminhar eventos para múltiplas saídas.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma data view informa ao Kibana quais índices, data streams ou aliases deve consultar, mas não é uma cópia dos documentos armazenados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Data view funciona como a seleção dos conjuntos consultáveis por experiências como Discover e Lens. Os documentos permanecem no Elasticsearch.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Kibana, o Discover é destinado à exploração de dados, com busca, filtros e inspeção de documentos e campos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Discover é uma das principais ferramentas para explorar dados do Elasticsearch, filtrar resultados, inspecionar documentos e observar estrutura de campos.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "KQL é uma linguagem que, ao filtrar documentos no Discover, reescreve os eventos e persiste a alteração em seus índices.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. KQL é usada para consulta e filtro no modo clássico do Discover; não modifica nem persiste mudanças nos documentos. Transformações de eventos pertencem à ingestão ou a operações explícitas de escrita.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dashboard apresenta zero eventos embora existam documentos recentes no cluster. Qual procedimento inicial ajuda a localizar a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de réplicas, pois filtros temporais são executados apenas nas cópias do índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter todos os campos em text, pois um painel vazio sempre indica falta de análise textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o refresh do índice, para que o Kibana consulte documentos ainda não publicados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar Logstash, pois dashboards consultam diretamente a memória da pipeline ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir data view, intervalo temporal e filtros ativos antes de alterar a coleta.",
+          "correct": true
+        }
+      ],
+      "explanation": "A análise depende da data view e do conjunto limitado por período e filtros. Primeiro verifique esses parâmetros e inspecione documentos no Discover; depois investigue parsing e ingestão caso estejam ausentes ou incorretos.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista quer compor num mesmo espaço gráfico uma série temporal de erros, uma tabela por serviço e um indicador de média de latência. Que recurso do Kibana atende a essa apresentação conjunta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma pipeline Logstash, que apresenta seus outputs como gráficos interativos permanentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um índice Elasticsearch, que organiza os gráficos como campos do documento JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um dashboard, composto por painéis com visualizações e métricas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um analyzer, que converte valores numéricos em tabelas na interface web.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma réplica, que agrupa gráficos sem consultar os documentos do índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dashboards organizam painéis com gráficos, métricas, tabelas e outros conteúdos. Eles consultam os dados disponíveis e oferecem uma apresentação integrada para análise.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modo clássico do Discover, data views podem ser usadas com KQL ou Lucene; o modo ES|QL permite consultar sem data view.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Discover possui modo clássico, que usa data views com KQL ou Lucene, e modo ES|QL, que não requer data view. A escolha do modo muda a forma de formular a consulta.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica de agregação que calcula a média de latência depende de um campo numérico adequado; um painel não converte por si só uma string em valor numérico agregável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Agregações e visualizações dependem do mapping e do tipo dos dados. Se latência foi indexada como texto, deve-se corrigir a modelagem ou preparar o valor corretamente antes de esperar uma agregação numérica.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gráfico mostra mais falhas em um serviço durante certa janela. Qual interpretação é metodologicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O aumento comprova que o último deploy causou as falhas, dispensando inspeção dos documentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O gráfico é uma pista; deve-se conferir documentos, período e campos relacionados antes de concluir a causa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O aumento indica que as réplicas duplicaram eventos e que a contagem não pode ser consultada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A contagem prova que Grok criou registros adicionais durante a visualização do painel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tendência só é válida se a data view tiver armazenado cópias independentes dos documentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma visualização resume os documentos sob os filtros e período selecionados, mas não estabelece sozinha causalidade. Discover permite inspecionar os registros e cruzar serviço, horário, nível e outros campos.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um fluxo ELK, os dados podem chegar ao Elasticsearch por produtores distintos de Logstash; a presença de Kibana não obriga todas as fontes a passar por um único tipo de pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Logstash é um caminho flexível de ingestão, mas Elasticsearch pode receber dados de outros produtores e integrações. Kibana consulta os dados disponíveis no Elasticsearch independentemente da origem.",
+      "section": "1. O papel de cada componente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice usa mapping dinâmico e passa a receber um campo novo chamado `latency`. Qual risco concreto decorre de depender apenas da inferência automática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo será automaticamente armazenado como shard de réplica, impedindo qualquer busca posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O campo será descartado porque mappings dinâmicos aceitam somente nomes já cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O campo será convertido em data view, que retém seu conteúdo fora do índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A inferência pode escolher um tipo inadequado ao uso pretendido e dificultar agregações ou consultas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A busca usará sempre Grok para inferir o tipo e corrigir os documentos já indexados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mapping dinâmico acelera a entrada de dados, mas infere tipos a partir dos valores observados. Se o tipo não corresponder ao uso futuro — por exemplo, latência tratada como texto — consultas e agregações esperadas podem falhar.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro de busca por nível de log é colocado em contexto de filtro, sem objetivo de aumentar a relevância textual dos documentos. Qual efeito descreve melhor essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringe documentos por critério de campo sem contribuir para pontuação de relevância textual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reescreve o mapping do índice para que os registros excluídos deixem de existir.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplica o filtro no Logstash depois da consulta e altera a ordem das mensagens de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte automaticamente um campo keyword em text para que haja correspondência aproximada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Força um refresh do índice antes de cada documento ser comparado com a consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filter context restringe resultados por condições de campo, sem calcular contribuição à pontuação de relevância. É adequado para condições como nível de log, estado ou intervalo temporal.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fonte envia a mesma mensagem em várias linhas e cada linha é indexada como evento separado, embora juntas formem um stack trace. Qual componente da ingestão pode ajudar a corrigir esse enquadramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma réplica, que reúne documentos distintos com base na semelhança do texto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma data view, que concatena linhas antes de a busca consultar o índice.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um filtro term, que concatena mensagens no índice durante a pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma agregação bucket, que altera a forma física dos dados durante a indexação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um codec multiline associado à entrada, para reunir as linhas que formam um único evento.",
+          "correct": true
+        }
+      ],
+      "explanation": "O codec multiline pode unir linhas que representam um único evento antes do processamento e envio. Uma agregação só resume dados na consulta e não corrige o enquadramento de eventos na ingestão.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A cadeia de análise textual pode atuar tanto durante a indexação como ao analisar a consulta de um campo `text`, influenciando quais termos coincidem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A análise de texto ocorre ao indexar campos `text` e também ao processar consultas de texto. Tokenização e normalização podem alterar a forma dos termos comparados.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica é um snapshot independente que substitui a necessidade de backup e permite restaurar qualquer versão anterior do índice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Réplica é uma cópia de shard usada para resiliência e, conforme a configuração, distribuição de leituras. Não oferece por si só recuperação histórica equivalente a backup ou snapshot.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca KQL no Discover altera o valor original de um campo `log.level` para que as consultas futuras usem o novo valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A consulta filtra o conjunto exibido, mas não grava mudanças no índice. Para alterar documentos, é necessária uma operação de escrita ou transformação apropriada.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para apresentar a contagem de falhas por serviço e por intervalo temporal, qual sequência de trabalho combina corretamente os componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Kibana recebe as linhas, Grok as indexa e uma data view cria os documentos de erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Logstash agrega os gráficos, Elasticsearch os apresenta e Discover grava o resultado no índice.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elasticsearch coleta os arquivos, dashboard define o mapping e Logstash filtra o gráfico final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Logstash prepara e encaminha eventos, Elasticsearch indexa e agrega, e Kibana apresenta a análise.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A réplica extrai os campos, o refresh cria a visualização e o analyzer salva o painel.",
+          "correct": false
+        }
+      ],
+      "explanation": "A divisão correta é preparar e encaminhar na pipeline, pesquisar e agregar no Elasticsearch e explorar ou apresentar no Kibana. Uma contagem por serviço e tempo pode ser feita com agregações e exibida em visualização.",
+      "section": "1. O papel de cada componente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao se investigar por que um evento não aparece no painel, qual hipótese deve ser considerada antes de concluir que o Elasticsearch perdeu o documento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O painel pode estar com data view, intervalo temporal ou filtros incompatíveis com o documento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O dashboard armazena todos os documentos e os apaga quando um gráfico é fechado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O analyzer impede que documentos sejam exibidos até a réplica se tornar data view.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O output do Logstash é aplicado depois do Discover, logo não influencia a indexação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O campo `_source` define a janela de tempo e substitui os filtros do Kibana.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface restringe os resultados conforme a data view, o período e os filtros ativos. Inspecionar o evento no Discover e verificar seus campos ajuda a separar problema de seleção de dados de falha de ingestão ou indexação.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa encontrar todos os logs de determinado nível e excluir os que pertencem a um serviço específico, sem alterar os documentos armazenados. Qual abordagem é compatível com a consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reindexar os dados com Grok, pois filtros de consulta não conseguem incluir ou excluir documentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Combinar critérios de inclusão e exclusão na consulta, em vez de modificar a ingestão ou o índice.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o serviço da data view, que removerá permanentemente seus registros do Elasticsearch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar réplica para a condição de inclusão e usar refresh como condição de exclusão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar mutate no dashboard, que reescreve os valores antes de renderizar os painéis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Consultas podem combinar critérios de inclusão e exclusão e restringir a visualização sem alterar documentos. Modificações de ingestão e escrita são operações diferentes das condições de busca.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe um campo `service.name` para agrupar contagens por serviço. Que propriedade desse campo favorece a agregação categórica esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ser um campo text analisado em tokens, sem representação exata para cada nome de serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ser uma data view, pois somente objetos do Kibana podem guardar categorias de serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ser do tipo keyword, permitindo tratar cada nome como valor categórico exato.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ser um codec JSON, que calcula buckets antes de os documentos chegarem ao índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ser um shard primário, que converte valores de texto em nomes de grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos `keyword` são adequados a valores exatos que serão usados como categorias em agregações. Um campo text é analisado e nem sempre é apropriado para agrupar pelo valor integral.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline de ingestão precisa encaminhar o mesmo evento processado tanto ao Elasticsearch quanto a um arquivo de auditoria. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A pipeline pode conter mais de um output, e o evento pode ser enviado a vários destinos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É obrigatório duplicar o evento em índices diferentes antes que Logstash permita dois outputs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um codec deve substituir o output do arquivo e executar a persistência do índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente filtros podem gravar eventos; outputs apenas definem nomes de campos de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Elasticsearch atua como broker de Logstash e encaminha o evento ao arquivo automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma pipeline pode incluir múltiplos outputs e encaminhar eventos a destinos diferentes. Cada output tem sua própria responsabilidade de escrita ou envio.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento contém campo `@timestamp`, `service.name` e `log.level`; o painel mostra eventos fora da faixa esperada. Qual cuidado é essencial na análise temporal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajustar as réplicas até que o timestamp seja automaticamente convertido ao fuso do painel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover o campo timestamp, pois dashboards sempre inferem o horário correto pela ordem dos shards.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o timestamp em keyword, já que campos de data não podem ser filtrados por intervalo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conferir o campo temporal selecionado e a interpretação/formato do timestamp do evento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aplicar drop a registros antigos, pois o intervalo é controlado durante o parsing da consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A análise temporal depende de um campo de data corretamente extraído, mapeado e selecionado para a data view, além do intervalo ativo. Campo ou formato incorreto pode posicionar eventos fora da faixa apresentada.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Logstash pode enriquecer eventos, por exemplo adicionando informação geográfica derivada de um endereço IP, antes de enviá-los ao Elasticsearch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O filtro geoip pode acrescentar informação de localização associada a endereços IP. Esses campos enriquecidos podem depois ser indexados e usados em análises geográficas.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma agregação pipeline opera sobre resultados de outras agregações, em vez de agrupar diretamente documentos como se fosse uma entrada do Logstash.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Agregações pipeline usam os resultados de agregações anteriores como entrada. Elas pertencem à análise de consultas do Elasticsearch, e não à pipeline de ingestão do Logstash.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma data view que corresponde a `logs-*` pode incluir mais de um índice que satisfaça o padrão, conforme os nomes disponíveis no Elasticsearch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma data view pode apontar para índices, data streams ou aliases, inclusive usando padrões que abrangem mais de um conjunto. Ela orienta as consultas da interface sem copiar os dados.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adiciona filtro de nível ERROR num dashboard. Os documentos de nível INFO são removidos do índice assim que o painel é salvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O filtro do dashboard restringe os resultados apresentados e analisados, mas não exclui documentos persistidos. A remoção de dados exige uma operação explícita no armazenamento.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe recebe logs de várias aplicações. Qual benefício concreto pode resultar de normalizar campos equivalentes antes de indexá-los?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elimina a necessidade de mapping, porque qualquer campo terá o mesmo tipo em todo documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permite que consultas e visualizações reutilizem convenções comuns para conceitos como serviço e timestamp.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Faz com que Kibana grave uma cópia unificada e dispense o índice do Elasticsearch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante que qualquer padrão Grok funcione em mensagens diferentes sem validação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transforma cada evento em uma réplica, impedindo divergência entre as fontes de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos consistentes facilitam consultas, filtros e painéis que abrangem múltiplas fontes. A normalização não elimina a necessidade de mapping nem dispensa testar parsing e qualidade dos eventos.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A escolha de um campo `keyword` para ordenação ou agregação e de um subcampo `text` para pesquisa integral pode oferecer tratamentos diferentes para o mesmo conteúdo lógico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um mesmo valor pode ser indexado de formas distintas por subcampos. Essa modelagem permite busca textual analisada e operações exatas ou agregáveis sem tratar os usos como idênticos.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline Logstash que recebe texto, aplica Grok e envia ao Elasticsearch usa, respectivamente, um input, um filter e um output.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O input recebe os eventos; Grok é filtro para estruturar texto; o output Elasticsearch encaminha os eventos processados ao mecanismo de busca e armazenamento.",
+      "section": "3. Logstash: pipeline de ingestão e transformação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento indexado precisa estar imediatamente visível para qualquer busca subsequente, pois Elasticsearch realiza refresh síncrono a cada operação de escrita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A busca é near real-time. Refresh torna as operações recentes pesquisáveis; a escrita pode ser aceita antes de sua visibilidade numa busca.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Kibana, salvar uma sessão do Discover pode permitir reutilizá-la ou adicioná-la a um dashboard sem alterar os documentos originais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sessões do Discover podem ser salvas para reuso, compartilhamento ou inclusão em dashboards. Elas registram uma forma de explorar os dados, não uma alteração aos documentos.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diagnóstico distingue corretamente uma falha de parsing de uma falha de visualização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se campos esperados não aparecem no documento inspecionado, investigue a extração; se aparecem, confira consultas, período e painel.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se o dashboard está vazio, altere sempre o codec do output, sem verificar a data view.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se Grok falha, recrie as réplicas, pois elas armazenam os campos capturados pelo filtro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se a consulta retorna resultados, os campos foram necessariamente extraídos com os tipos corretos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o painel mostra dados, a pipeline não precisa ser verificada mesmo com campos inconsistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inspecionar o documento separa problemas de ingestão e parsing de problemas de seleção e apresentação. Campos ausentes apontam para entrada ou filtro; documentos corretos que não aparecem no painel pedem revisão de data view, filtros, período e mapping usado pela visualização.",
+      "section": "4. Kibana: exploração, visualizações e dashboards",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta de texto completo e uma agregação por serviço podem ser executadas sobre a mesma coleção de documentos, usando campos preparados para cada finalidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Elasticsearch pode pesquisar texto, aplicar filtros e calcular agregações na mesma solicitação. Mappings apropriados, como mensagem em `text` e serviço em `keyword`, sustentam esses usos distintos.",
+      "section": "2. Elasticsearch: documentos, índices e busca",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Elasticsearch index fundamentals",
+      "publisher": "Elastic",
+      "reference": "Documentos, índices, mappings, settings, shards e réplicas",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/index-basics",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mapping in Elasticsearch",
+      "publisher": "Elastic",
+      "reference": "Tipos de campos, mapping dinâmico e explícito, tratamento de texto e keyword",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/mapping",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Text analysis",
+      "publisher": "Elastic",
+      "reference": "Tokenização, normalização e análise de texto na indexação e na busca",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/text-analysis",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Near real-time search",
+      "publisher": "Elastic",
+      "reference": "Segmentos e refresh para visibilidade de operações recentes em busca",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/near-real-time-search",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Query DSL overview",
+      "publisher": "Elastic",
+      "reference": "Consultas JSON, filtros e agregações metric, bucket e pipeline",
+      "url": "https://www.elastic.co/docs/explore-analyze/query-filter/languages/querydsl",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How Logstash Works",
+      "publisher": "Elastic",
+      "reference": "Etapas input, filter, output; plugins Grok, mutate, drop, codecs e destinos",
+      "url": "https://www.elastic.co/docs/reference/logstash/how-logstash-works",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Discover",
+      "publisher": "Elastic",
+      "reference": "Exploração, filtros, inspeção de campos e modos de consulta do Kibana",
+      "url": "https://www.elastic.co/docs/explore-analyze/discover",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Kibana data views",
+      "publisher": "Elastic",
+      "reference": "Seleção de índices, data streams e aliases para Discover e Lens",
+      "url": "https://www.elastic.co/docs/explore-analyze/find-and-organize/data-views",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dashboards",
+      "publisher": "Elastic",
+      "reference": "Painéis, visualizações, filtros, controles e compartilhamento de dashboards",
+      "url": "https://www.elastic.co/guide/en/kibana/current/visualize.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

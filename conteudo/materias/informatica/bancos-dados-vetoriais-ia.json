@@ -1,0 +1,2067 @@
+{
+  "id": "informatica.bancos-dados-vetoriais-ia",
+  "subject": "Informática",
+  "title": "Bancos de dados vetoriais para IA",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Bancos de dados vetoriais para IA",
+    "Banco vetorial para busca semântica",
+    "Banco de vetores para inteligência artificial",
+    "Armazenamento de embeddings vetoriais",
+    "Busca por similaridade em vetores",
+    "Índices vetoriais HNSW e IVFFlat",
+    "Recuperação vetorial para sistemas RAG",
+    "Pesquisa semântica com embeddings",
+    "Filtros de metadados em busca vetorial",
+    "Busca híbrida lexical e semântica"
+  ],
+  "scope": {
+    "covers": "Fundamentos de bancos de dados vetoriais aplicados à IA: embeddings densos e esparsos, dimensão e espaço vetorial, similaridade e distâncias, busca exata e aproximada, índices HNSW e IVFFlat, metadados e filtros, busca híbrida, ingestão e fragmentação de documentos, pipeline RAG, atualização e exclusão de vetores, avaliação de relevância, desempenho, privacidade e limites da tecnologia.",
+    "excludes": "Treinamento matemático aprofundado de redes neurais, implementação interna de modelos de embedding, administração detalhada de produtos comerciais e configuração específica de uma versão de SGBD."
+  },
+  "theoryTitle": "Representar, indexar e recuperar informação vetorial",
+  "chapters": [
+    {
+      "title": "1. Embeddings e representação vetorial",
+      "markdown": "### O problema que este assunto resolve\n\nUma busca textual tradicional encontra termos iguais ou próximos na grafia. Um usuário que procura \"trocar senha\" pode, porém, precisar de um documento intitulado \"recuperação de credenciais\". Modelos de IA transformam texto, imagem, áudio ou outros dados em listas de números chamadas **vetores de embedding**. Um banco vetorial guarda esses vetores, seus identificadores e, em geral, o conteúdo ou metadados relacionados; depois permite procurar registros próximos ao vetor de uma consulta.\n\n> **Siglas e termos deste capítulo**\n> - **Embedding**: representação numérica produzida por um modelo para um item, como texto ou imagem.\n> - **Dimensão**: quantidade de componentes numéricos do vetor.\n> - **Vetor denso**: vetor em que a maioria das posições tem valor diferente de zero.\n> - **Vetor esparso**: representação com poucos componentes não nulos, muitas vezes ligados a termos ou características.\n> - **Modelo de embedding**: modelo que converte entradas em vetores num espaço aprendido.\n\n### O que o vetor representa\n\nUm embedding não é um resumo legível nem uma lista universal de significados. É uma coordenada num espaço aprendido pelo modelo. A proximidade entre vetores pode refletir semelhança semântica, visual ou outra propriedade, conforme os dados e o objetivo de treinamento. Por exemplo, um sistema treinado para texto pode posicionar \"automóvel\" e \"carro\" perto, embora as palavras sejam diferentes. Isso é uma tendência estatística, não garantia de que todo par próximo seja equivalente ou verdadeiro.\n\nO número de componentes é a dimensão. Se o modelo escolhido gera vetores com 1.536 componentes, o campo e o índice precisam aceitar essa dimensão. Vetores de modelos ou espaços incompatíveis não devem ser comparados como se tivessem o mesmo significado: mesmo que tenham igual comprimento, foram produzidos por funções distintas.\n\n### Distância e similaridade\n\nA busca transforma a consulta no mesmo espaço vetorial e ordena registros por uma medida. Distância euclidiana (L2) mede separação geométrica; distância cosseno compara orientação e costuma ser útil quando importa a direção, não o comprimento; produto interno mede alinhamento e magnitude. Algumas APIs apresentam similaridade crescente, outras distância decrescente. É essencial saber qual convenção o mecanismo usa antes de interpretar o escore.\n\n| Medida | Interpretação comum | Cuidado\n| --- | --- | ---\n| L2 / euclidiana | Separação entre coordenadas | Magnitude dos vetores influencia o resultado\n| Cosseno | Ângulo ou orientação relativa | Similaridade cosseno e distância cosseno têm sentidos opostos\n| Produto interno | Alinhamento e magnitude | Pode ser negativo; conferir a ordenação usada pela API\n\n### Como cai na prova\n\n- Embedding é a representação numérica; o banco não cria por si só o entendimento semântico.\n- Dimensão precisa ser compatível com o modelo e com o esquema do índice.\n- Similaridade semântica é uma aproximação útil, não prova de equivalência lógica nem de veracidade.\n- Métrica e sentido do escore variam: não se deve afirmar que todo escore maior significa sempre maior distância ou maior relevância."
+    },
+    {
+      "title": "2. Busca vetorial, índices e desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nComparar a consulta com cada vetor armazenado pode encontrar os vizinhos mais próximos de forma exata, mas o custo cresce com o conjunto de dados. Para reduzir o tempo de resposta, bancos usam estruturas de índice e, em muitos casos, busca aproximada de vizinhos mais próximos (**ANN**, approximate nearest neighbors). ANN geralmente troca uma parcela de recall por velocidade e menor custo de consulta.\n\n> **Siglas e termos deste capítulo**\n> - **KNN**: busca dos k vizinhos mais próximos.\n> - **ANN**: busca aproximada de vizinhos próximos, que pode não retornar o vizinho matematicamente mais próximo.\n> - **Recall**: fração dos resultados relevantes ou dos vizinhos de referência recuperada.\n> - **HNSW**: grafo hierárquico de vizinhança navegável, usado como índice ANN.\n> - **IVFFlat**: índice que agrupa vetores em listas e pesquisa parte delas.\n\n### Busca exata e aproximada\n\nNa busca exata, o mecanismo calcula distâncias para todos os candidatos elegíveis e entrega a ordenação exata segundo a métrica. É uma referência útil para conjuntos menores e para medir a qualidade de um índice ANN. Um índice aproximado visita um subconjunto guiado por sua estrutura; a resposta pode omitir vizinhos verdadeiros, especialmente com parâmetros muito restritivos. Medir recall junto com latência ajuda a escolher os parâmetros com dados reais.\n\nO **HNSW** organiza conexões em camadas de grafos: camadas superiores ajudam a navegar rapidamente pelo conjunto e as inferiores refinam a busca. Em geral oferece bom equilíbrio entre velocidade e recall, mas consome memória e pode levar mais tempo para construir. O **IVFFlat** separa vetores em listas, normalmente por agrupamento, e consulta algumas listas próximas; costuma ter construção e uso de memória menores, mas qualidade depende da quantidade de dados e do número de listas e sondagens. São escolhas com compromissos, não garantias universais.\n\n| Aspecto | HNSW | IVFFlat\n| --- | --- | ---\n| Estrutura | Grafo em múltiplas camadas | Listas de grupos de vetores\n| Preparação | Não precisa treinar centróides | Depende de dados para formar grupos\n| Ajuste típico | Conexões e tamanho da lista de candidatos | Quantidade de listas e sondagens\n| Custo frequente | Mais memória e construção mais demorada | Construção mais simples, recall depende das listas visitadas\n\n### Filtros e índices\n\nMetadados como idioma, data, categoria, tenant ou permissões restringem o universo de busca. Um filtro por cliente, por exemplo, pode ser obrigatório para impedir que documentos de outro cliente entrem nos resultados. O filtro não é necessariamente incorporado ao embedding: ele define elegibilidade ou ordenação adicional. Em certos mecanismos ANN, candidatos são encontrados primeiro e filtros aplicados depois; se poucos candidatos sobreviverem, a consulta pode retornar menos itens do que o solicitado. Índices de metadados, busca iterativa ou ajuste de candidatos podem ajudar, conforme o produto.\n\n### Como cai na prova\n\n- Busca exata oferece resultado exato pela métrica; ANN pode perder recall em troca de eficiência.\n- HNSW é grafo navegável; IVFFlat divide o espaço em listas.\n- Aumentar candidatos, conexões ou sondagens costuma custar mais recursos e pode melhorar recall.\n- O resultado ANN deve ser avaliado em dados representativos, comparando-o com busca exata e medindo latência."
+    },
+    {
+      "title": "3. Ingestão, metadados e busca híbrida",
+      "markdown": "### O problema que este assunto resolve\n\nPara a busca responder bem, não basta guardar vetores: é preciso preparar documentos, gerar embeddings compatíveis e associar cada vetor ao trecho de origem. Em uma base documental, um arquivo grande costuma ser dividido em **chunks** (fragmentos). Fragmentos muito longos podem misturar assuntos; fragmentos muito curtos podem perder contexto. Tamanho, sobreposição e limites devem ser avaliados com perguntas reais e com o modelo escolhido.\n\n> **Siglas e termos deste capítulo**\n> - **Chunk**: fragmento de documento indexado separadamente.\n> - **Metadado**: atributo associado ao registro, como fonte, data, idioma ou permissão.\n> - **Busca lexical**: recuperação por termos e sinais textuais, como frequência de palavras.\n> - **Busca híbrida**: combinação de recuperação vetorial e lexical.\n> - **RRF**: Reciprocal Rank Fusion, técnica que combina listas usando as posições dos resultados.\n\n### Pipeline de ingestão\n\nUm fluxo comum extrai texto, normaliza o conteúdo sem apagar informação relevante, divide em chunks, gera embedding para cada chunk e grava vetor, texto, identificador estável e metadados. O identificador permite atualizar ou excluir o registro correto. A consulta passa pelo mesmo modelo e pelo mesmo espaço de embeddings; depois o mecanismo recupera os vizinhos e devolve trecho, escore e metadados para a aplicação.\n\nAtualizar o documento-fonte exige sincronizar os fragmentos anteriores: inserir novos sem remover os obsoletos deixa conteúdo duplicado ou desatualizado. Exclusão também precisa remover ou invalidar os vetores correspondentes. Metadados podem carregar proveniência e controlar filtros; não substituem validação de acesso no sistema que entrega os dados.\n\n### Busca vetorial e busca lexical\n\nBusca vetorial encontra paráfrases e relações semânticas; busca lexical é melhor para nomes, códigos, siglas, números de processo e expressões exatas. Uma busca híbrida combina candidatos das duas fontes. Uma estratégia possível é Reciprocal Rank Fusion (RRF), que combina posições em listas sem exigir que os escores brutos, de escalas diferentes, sejam diretamente comparáveis. A fusão deve ser avaliada: uma estratégia pode ajudar uma tarefa e piorar outra.\n\nFiltros e busca textual têm papéis diferentes. Um filtro restringe candidatos, por exemplo a `idioma = pt` ou `data >= ...`; uma busca lexical calcula correspondência e pode contribuir para a classificação. Um identificador de produto é frequentemente melhor procurado por correspondência textual exata do que por proximidade semântica.\n\n### Como cai na prova\n\n- Cada chunk precisa manter vínculo com documento, origem e metadados necessários para citações e atualização.\n- A busca vetorial não elimina busca lexical; termos raros e identificadores exatos favorecem recuperação lexical ou híbrida.\n- RRF combina rankings; não se deve somar escores brutos sem considerar escalas diferentes.\n- Filtros de acesso devem ser aplicados de forma confiável no caminho da recuperação."
+    },
+    {
+      "title": "4. Bancos vetoriais em IA generativa e RAG",
+      "markdown": "### O problema que este assunto resolve\n\nUm modelo generativo pode não conhecer documentos internos ou atualizados e pode produzir afirmações sem suporte. Em **RAG** (Retrieval-Augmented Generation, geração aumentada por recuperação), uma aplicação pesquisa fontes relevantes antes de pedir ao modelo que responda. Um banco vetorial é uma possível camada de recuperação: ajuda a localizar passagens similares à pergunta e entrega seu texto ao modelo como contexto.\n\n> **Siglas e termos deste capítulo**\n> - **RAG**: arquitetura que recupera conteúdo externo e o fornece ao modelo generativo.\n> - **Retriever**: componente que recupera documentos ou trechos candidatos.\n> - **Reranker**: componente que reordena candidatos com uma avaliação mais precisa.\n> - **Top-k**: quantidade limitada de resultados solicitados.\n> - **Grounding**: ancoragem da resposta em fontes fornecidas ou verificáveis.\n\n### Etapas e limites do RAG\n\nO fluxo típico tem ingestão e consulta. Na ingestão, conteúdo é extraído, fragmentado, vetorizado e armazenado com metadados. Na consulta, a pergunta é vetorizada, filtros pertinentes são aplicados, o retriever obtém candidatos, uma etapa opcional de reranking escolhe os mais úteis, e a aplicação constrói um prompt com passagens e referências. O modelo então redige uma resposta. O banco recupera candidatos; não garante que eles sejam verdadeiros, atuais, autorizados ou suficientes.\n\nEscolher `top-k` envolve contexto e relevância: poucos resultados podem omitir evidência; muitos podem acrescentar ruído e consumir janela de contexto. Um reranker pode melhorar a ordem dos candidatos, mas não recupera um documento que a etapa inicial nunca encontrou. Avaliação deve separar recall do retriever, qualidade do ranking, correção da resposta e qualidade das citações.\n\n### Segurança e governança\n\nPermissões, segregação entre clientes, retenção e exclusão precisam acompanhar o ciclo de vida de vetores e metadados. Dados pessoais ou sigilosos não ficam protegidos só porque foram convertidos em números: embeddings podem revelar informação e ainda estão ligados ao conteúdo original. Filtros de autorização devem ser impostos pelo serviço confiável, não depender de uma instrução escrita dentro do prompt. Conteúdo recuperado também é dado não confiável: pode incluir instruções maliciosas que o modelo deve tratar como conteúdo, não como comandos de sistema.\n\n### Como cai na prova\n\n- Banco vetorial participa da recuperação, não substitui o modelo gerador nem garante veracidade.\n- RAG injeta evidências recuperadas no contexto e pode incluir referências à fonte.\n- Reranking reordena candidatos; não corrige uma busca inicial que excluiu a evidência.\n- Avalie recuperação, resposta, citações, latência e isolamento de permissões em separado."
+    }
+  ],
+  "summary": "Bancos vetoriais armazenam embeddings e permitem recuperar registros próximos a uma consulta representada no mesmo espaço e produzida por modelo compatível. Métricas como L2, cosseno e produto interno não têm interpretação idêntica, e é necessário conhecer a convenção de ordenação do escore. Busca exata compara todos os candidatos; ANN usa índices para reduzir custo, com possível perda de recall. HNSW navega por grafo em camadas e costuma exigir mais memória; IVFFlat busca em listas e depende da formação dos grupos e do número de sondagens. Metadados e filtros restringem candidatos, inclusive por tenant, data, idioma e permissões. A ingestão extrai documentos, produz chunks, gera embeddings e mantém identificadores e proveniência; alterações e exclusões devem retirar fragmentos obsoletos. Busca vetorial captura semelhança semântica, enquanto busca lexical trata melhor termos e identificadores exatos; híbrida combina ambas, por exemplo com RRF. Em RAG, o retriever entrega trechos ao modelo generativo, podendo haver reranking e citações. O banco não garante verdade, atualização, autorização ou completude; recall, relevância, latência, segurança e resposta devem ser avaliados separadamente.",
+  "flashcards": [
+    {
+      "front": "O que é um embedding?",
+      "back": "Vetor numérico produzido por um modelo para representar uma entrada em um espaço aprendido."
+    },
+    {
+      "front": "O que é a dimensão de um vetor?",
+      "back": "A quantidade de componentes numéricos que compõem a representação."
+    },
+    {
+      "front": "Por que vetores de modelos diferentes podem ser incompatíveis?",
+      "back": "Cada modelo aprende seu próprio espaço e geometria, mesmo que as dimensões coincidam."
+    },
+    {
+      "front": "O que a busca por cosseno compara?",
+      "back": "A orientação ou ângulo entre vetores; similaridade cosseno e distância cosseno têm sentidos opostos."
+    },
+    {
+      "front": "O que é busca exata por vizinhos?",
+      "back": "Uma comparação com todos os candidatos elegíveis para obter a ordenação exata pela métrica escolhida."
+    },
+    {
+      "front": "Qual é o compromisso típico da busca ANN?",
+      "back": "Reduzir latência ou custo aceitando possível perda de recall."
+    },
+    {
+      "front": "Como funciona HNSW em linhas gerais?",
+      "back": "Navega por um grafo hierárquico de conexões para aproximar vizinhos."
+    },
+    {
+      "front": "Como funciona IVFFlat em linhas gerais?",
+      "back": "Divide vetores em listas e examina algumas listas próximas da consulta."
+    },
+    {
+      "front": "Por que a busca exata é útil ao avaliar ANN?",
+      "back": "Serve como referência para estimar quais vizinhos o índice aproximado deixou de recuperar."
+    },
+    {
+      "front": "O que é recall na recuperação vetorial?",
+      "back": "A fração dos itens relevantes ou de referência que a busca conseguiu recuperar."
+    },
+    {
+      "front": "O que representa um chunk?",
+      "back": "Um fragmento de documento que pode ser vetorizado e recuperado separadamente."
+    },
+    {
+      "front": "Por que associar identificador ao vetor?",
+      "back": "Para atualizar, substituir ou excluir com precisão o registro e seus fragmentos."
+    },
+    {
+      "front": "Para que servem metadados em busca vetorial?",
+      "back": "Para guardar proveniência e atributos que apoiam filtros, seleção e apresentação dos resultados."
+    },
+    {
+      "front": "Busca vetorial substitui pesquisa lexical?",
+      "back": "Não. Termos raros, códigos e expressões exatas costumam beneficiar-se da busca lexical."
+    },
+    {
+      "front": "O que caracteriza busca híbrida?",
+      "back": "Combina resultados semânticos e lexicais em uma recuperação."
+    },
+    {
+      "front": "O que faz RRF?",
+      "back": "Combina rankings usando as posições dos resultados de diferentes consultas."
+    },
+    {
+      "front": "O que significa RAG?",
+      "back": "Geração aumentada por recuperação: busca conteúdo e o fornece como contexto ao modelo."
+    },
+    {
+      "front": "Qual é o papel do retriever?",
+      "back": "Localizar documentos ou trechos candidatos relevantes para uma consulta."
+    },
+    {
+      "front": "Qual é o papel do reranker?",
+      "back": "Reordenar candidatos recuperados com um critério de classificação adicional."
+    },
+    {
+      "front": "Reranking recupera documentos ausentes da lista inicial?",
+      "back": "Não; ele reordena candidatos que o retriever já retornou."
+    },
+    {
+      "front": "O que pode acontecer com top-k pequeno?",
+      "back": "Evidências relevantes podem ficar de fora da lista entregue ao modelo."
+    },
+    {
+      "front": "O que pode acontecer com top-k muito grande?",
+      "back": "Aumenta o ruído e o consumo de contexto, potencialmente prejudicando a resposta."
+    },
+    {
+      "front": "Por que um filtro de tenant é importante?",
+      "back": "Limita a busca aos dados do cliente autorizado e evita mistura entre tenants."
+    },
+    {
+      "front": "Embeddings eliminam preocupações de privacidade?",
+      "back": "Não; continuam ligados ao conteúdo e podem carregar informação sensível."
+    },
+    {
+      "front": "Por que testar os chunks com consultas reais?",
+      "back": "Tamanho e sobreposição afetam contexto, precisão, recall, custo e qualidade da recuperação."
+    }
+  ],
+  "tips": [
+    "Confirme modelo, dimensão e métrica antes de criar ou consultar um índice vetorial.",
+    "Use busca exata em uma amostra para medir o recall de um índice aproximado.",
+    "Avalie HNSW e IVFFlat com volume, memória e padrão de consulta semelhantes à produção.",
+    "Guarde identificador, fonte, data e permissões junto a cada fragmento recuperável.",
+    "Use busca lexical ou híbrida quando consultas incluem códigos, nomes próprios ou termos raros.",
+    "Meça recuperação e qualidade da resposta separadamente em um conjunto de consultas rotuladas."
+  ],
+  "traps": [
+    "Proximidade vetorial não significa equivalência lógica nem garante que o documento seja verdadeiro.",
+    "ANN não garante retornar o vizinho exato; o compromisso depende do índice e dos parâmetros.",
+    "Similaridade maior e distância menor podem representar a mesma ordenação em convenções diferentes.",
+    "Filtro de metadados e busca lexical não são a mesma operação: um restringe, outra classifica por texto.",
+    "Reranker só reordena candidatos recebidos; não repara omissão do retriever.",
+    "Armazenar embeddings não remove obrigações de controle de acesso, retenção ou exclusão."
+  ],
+  "activeRecall": [
+    "Explique por que dois embeddings do mesmo comprimento podem pertencer a espaços incompatíveis.",
+    "Compare busca exata e ANN considerando recall, latência e custo computacional.",
+    "Descreva o funcionamento de HNSW e IVFFlat e um custo típico de cada um.",
+    "Explique por que um filtro aplicado depois da busca aproximada pode reduzir a quantidade de resultados.",
+    "Desenhe uma sequência de ingestão documental que preserve a proveniência de cada chunk.",
+    "Dê um exemplo de consulta em que busca lexical é melhor que busca vetorial e justifique.",
+    "Descreva as etapas de recuperação e geração em uma arquitetura RAG.",
+    "Explique por que recall, qualidade das citações e correção final devem ser avaliados em separado."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Embedding confundido com conhecimento",
+      "summary": "Embedding é coordenada num espaço aprendido; proximidade é evidência estatística de semelhança, não garantia de equivalência ou verdade."
+    },
+    {
+      "key": "e2",
+      "title": "Métricas e escores invertidos",
+      "summary": "L2, cosseno e produto interno medem aspectos diferentes; verificar se a API ordena por distância crescente ou similaridade decrescente."
+    },
+    {
+      "key": "e3",
+      "title": "Busca aproximada tratada como exata",
+      "summary": "ANN troca recall por eficiência; medir contra busca exata e ajustar índice e parâmetros conforme a carga real."
+    },
+    {
+      "key": "e4",
+      "title": "Recuperação confundida com geração",
+      "summary": "Banco e retriever localizam candidatos; modelo gera resposta. Reranking não recria candidatos que não foram recuperados."
+    },
+    {
+      "key": "e5",
+      "title": "Filtros e governança esquecidos",
+      "summary": "Metadados, permissões, atualização, exclusão, privacidade e isolamento de tenants precisam acompanhar os vetores."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um embedding é uma representação numérica produzida por um modelo, e sua dimensão corresponde à quantidade de componentes do vetor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada coordenada é um componente da representação, e o número total de coordenadas define a dimensão. O vetor é produzido pelo modelo de embedding; o banco o armazena e o consulta, mas não cria por conta própria a representação semântica.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois vetores com a mesma quantidade de componentes são sempre diretamente comparáveis, ainda que tenham sido gerados por modelos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A dimensão igual apenas indica o mesmo comprimento. Modelos distintos podem aprender espaços vetoriais diferentes, com geometria e significados incompatíveis. A comparação exige representações alinhadas e uma métrica adequada ao modelo e à tarefa.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A distância cosseno e a similaridade cosseno costumam expressar a mesma ordenação em sentidos opostos: menor distância corresponde a maior similaridade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A similaridade cosseno mede alinhamento e cresce quando os vetores apontam em direções próximas; a distância cosseno deriva dessa relação e diminui. Aplicações diferentes podem apresentar escores com convenções distintas, por isso a documentação precisa ser conferida.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca vetorial próxima prova que dois textos são logicamente equivalentes e que ambos estão corretos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A proximidade é uma estimativa aprendida de semelhança conforme dados e objetivo do modelo. Textos próximos podem divergir em negação, data, fonte ou conclusão. A recuperação não valida fatos nem demonstra equivalência lógica.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A busca exata por vizinhos compara a consulta com todos os candidatos elegíveis para encontrar os vizinhos mais próximos segundo a métrica escolhida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A comparação exaustiva oferece a ordenação exata segundo a métrica, entre os registros que satisfazem os filtros. O custo aumenta com o conjunto, razão pela qual índices aproximados são usados em coleções grandes.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice ANN acelera a consulta mantendo necessariamente o mesmo conjunto de resultados que a busca exata.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A busca aproximada pode deixar de visitar alguns vizinhos exatos. Essa perda de recall é parte do compromisso por menor latência ou custo. O grau do compromisso depende do índice e de seus parâmetros, devendo ser avaliado.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O HNSW usa conexões de grafo organizadas hierarquicamente para navegar pelo conjunto e aproximar os vizinhos de uma consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Camadas mais altas permitem saltos mais amplos, e níveis inferiores refinam a aproximação. Implementações e parâmetros variam, mas a estrutura central do HNSW é um grafo hierárquico de vizinhança navegável.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O IVFFlat organiza vetores em listas, mas sempre examina todas elas em qualquer consulta, sem parâmetro que altere o custo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O IVFFlat particiona os vetores em listas e pode consultar somente algumas delas. O número de sondagens afeta recall e custo; examinar todas as listas deixaria de obter a mesma economia da busca restrita. O índice também depende de agrupamentos formados com dados.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O HNSW sempre exige menos memória e tempo de construção que o IVFFlat, qualquer que seja o conjunto ou a configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma tendência comum é o HNSW consumir mais memória e ter construção mais custosa, enquanto IVFFlat usa listas e requer preparação dos grupos. Desempenho não é absoluto: dimensão, hardware, parâmetros, distribuição e carga mudam o resultado.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro aplicado após a coleta de candidatos ANN pode fazer a consulta devolver menos registros que o limite solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se o índice encontra um conjunto limitado de candidatos e o filtro elimina muitos deles depois, sobram poucos resultados. Aumentar candidatos, usar índices de metadados ou busca iterativa são estratégias possíveis, conforme o mecanismo empregado.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um chunk deve manter vínculo com a fonte e um identificador que permita atualizar ou excluir o fragmento correto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Identificadores estáveis ajudam a substituir fragmentos e remover versões antigas. Metadados de origem apoiam citações e auditoria; sem essa associação, fica difícil sincronizar a base vetorial com o documento de referência.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A busca lexical e a busca vetorial são equivalentes, pois ambas retornam resultados exclusivamente pela proximidade semântica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A busca lexical se baseia em termos e sinais textuais; a vetorial ordena representações numéricas por uma métrica. Uma encontra com precisão códigos e palavras raras, enquanto a outra pode recuperar paráfrases sem termos idênticos.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Filtros de metadados e consultas lexicais são operações distintas: o filtro pode restringir elegibilidade sem calcular uma classificação textual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma condição de idioma ou tenant elimina itens que não cumprem o critério; uma consulta lexical calcula correspondência textual e pode influenciar a ordem. Algumas plataformas combinam ambos, mas os papéis conceituais continuam distintos.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RRF combina listas de resultados usando posições relativas, o que evita somar diretamente escores brutos de escalas diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Reciprocal Rank Fusion combina os rankings com base nas posições em cada lista. A técnica evita depender de uma soma direta de valores brutos que podem ter escalas diferentes, embora seus parâmetros e resultados ainda devam ser avaliados.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em RAG, o banco vetorial localiza candidatos e, por si só, certifica que a resposta gerada é verdadeira e atualizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O banco oferece resultados de recuperação conforme seus dados e critérios; não certifica verdade, atualidade ou suficiência. A aplicação deve selecionar fontes confiáveis, controlar versões e avaliar a resposta gerada e suas citações.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um reranker reordena candidatos recuperados, mas não consegue trazer de volta um trecho que o estágio inicial nunca encontrou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O reranker avalia os candidatos recebidos e altera sua ordem. Se o retriever excluiu a evidência necessária, ela não está disponível para reordenação; portanto, recall do estágio inicial continua sendo um fator essencial.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Vetores derivados de conteúdo sigiloso deixam de exigir controle de acesso porque já não são texto legível por uma pessoa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Embeddings continuam ligados aos dados de origem e podem revelar informações. A aplicação deve impor permissões, segregação, retenção e exclusão no conteúdo, nos vetores e nos metadados associados.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe troca o modelo de embedding, mas mantém a dimensão do campo. Qual medida preserva a coerência da busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar novamente os vetores do corpus e das consultas com o modelo compatível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter os vetores antigos e alterar somente os nomes dos metadados de modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter os valores antigos para texto e ordená-los alfabeticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Misturar os dois modelos no mesmo índice e usar distância euclidiana.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir o limite de resultados para compensar o modelo diferente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo define o espaço e o significado geométrico dos embeddings. Revetorizar corpus e consultas com a representação compatível mantém as comparações coerentes. A dimensão coincidente não torna os espaços intercambiáveis; metadados, ordenação textual ou limite top-k não corrigem essa incompatibilidade.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma busca em que importa a direção dos vetores mais que seu comprimento, qual métrica é uma escolha comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distância cosseno, interpretando corretamente se a API retorna distância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distância euclidiana, pois ignora qualquer diferença de magnitude.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Similaridade cosseno, que compara a orientação relativa dos vetores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Contagem de componentes, que mede a distância entre dimensões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenação alfabética, que aproxima o ângulo sem normalização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A similaridade cosseno compara a orientação entre vetores e é frequentemente usada quando a direção é mais relevante que o comprimento. A distância euclidiana considera separação geométrica incluindo magnitude. Também é necessário distinguir similaridade cosseno de distância cosseno, pois a ordenação fica invertida.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema retorna distância cosseno, e a interface precisa exibir os itens mais próximos primeiro. Qual ordenação é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar pela distância em ordem decrescente para priorizar afastamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar pela distância em ordem crescente para priorizar menor separação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ordenar por dimensão crescente para priorizar vetores menores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar pelo identificador em ordem numérica para simular similaridade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar por data sem considerar o escore devolvido pela busca.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma distância menor indica que os vetores estão mais próximos segundo a métrica, então a lista deve ser ordenada crescentemente. Se a API apresentasse similaridade em vez de distância, a convenção poderia ser a oposta; sempre se deve confirmar o significado do escore.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa pesquisar o mesmo acervo com modelo textual atualizado. Qual procedimento evita misturar espaços incompatíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar todos os vetores juntos e escolher aleatoriamente a métrica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter os documentos antigos sem registrar qual modelo os produziu.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar apenas o vetor da pergunta e conservar o corpus anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar versão do modelo e reprocessar vetores no espaço de destino.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Comparar textos em comprimentos iguais, dispensando a etapa de embedding.",
+          "correct": false
+        }
+      ],
+      "explanation": "A busca exige consulta e corpus no mesmo espaço. Versionar o modelo e reprocessar os itens para a representação de destino preserva essa compatibilidade. Trocar só a consulta compara espaços distintos; mesclar registros sem procedência impede saber como interpretar cada vetor.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento fala de um tema semelhante, mas contradiz a pergunta em um detalhe importante. O que se pode concluir de sua proximidade vetorial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que os documentos tratam do mesmo tema e podem ser usados sem conferir ressalvas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o documento é verdadeiro, pois foi recuperado primeiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que toda divergência deve ser causada por metadados ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que o vetor substitui a leitura e a validação da fonte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que a proximidade é um sinal útil, mas exige verificação contextual.",
+          "correct": true
+        }
+      ],
+      "explanation": "A geometria do embedding é uma estimativa de similaridade aprendida, não uma prova lógica. Negação, datas e condições podem mudar conclusões apesar da proximidade temática. A fonte deve ser lida e validada antes de usar o trecho como evidência.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um corpus pequeno, qual escolha fornece uma referência direta para avaliar a qualidade de um índice ANN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar busca exata pela mesma métrica e comparar os vizinhos retornados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Comparar os resultados apenas com a ordem dos identificadores gravados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar somente o tempo médio sem observar quais itens foram achados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir as consultas por vetores escolhidos sem relação com usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar os metadados para presumir que todo índice tem recall perfeito.",
+          "correct": false
+        }
+      ],
+      "explanation": "A busca exata pela mesma métrica estabelece os vizinhos de referência. Comparar essa lista com o resultado ANN permite medir recall e identificar a perda de candidatos. Latência também deve ser medida, mas sozinha não informa se os resultados são adequados.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção precisa de índice que navegue entre vetores por conexões em camadas. Qual estrutura corresponde a esse perfil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IVFFlat, pois percorre todas as linhas em ordem alfabética.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HNSW, que constrói um grafo hierárquico de vizinhança navegável.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "RRF, que particiona o espaço em blocos de dimensões iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "BM25, que conecta termos por ângulos entre embeddings densos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Top-k, que grava conexões permanentes para cada documento indexado.",
+          "correct": false
+        }
+      ],
+      "explanation": "HNSW significa grafo hierárquico de vizinhança navegável e usa conexões em níveis para explorar o espaço vetorial. IVFFlat agrupa em listas; RRF combina rankings, BM25 calcula relevância lexical e top-k limita a quantidade de resultados.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção IVFFlat tem recall insuficiente, e a investigação confirma que só poucas listas são examinadas. Qual ajuste tende a recuperar mais candidatos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Diminuir a quantidade de sondagens para restringir ainda mais a pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir as consultas por nomes de arquivo sem vetorizar a pergunta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar as listas examinadas, avaliando o acréscimo de custo de consulta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Excluir os centróides do índice para evitar a seleção de grupos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir o limite top-k sem alterar o índice ou a sondagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Examinar mais listas tende a ampliar a região pesquisada e a possibilidade de achar vizinhos relevantes, com aumento do trabalho por consulta. O ajuste deve ser testado em carga real. Reduzir sondagens ou top-k não recupera candidatos que o índice não examinou.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base prioriza consultas rápidas e dispõe de memória ampla; medições mostram que HNSW atende melhor ao compromisso de recall adotado. Qual decisão é justificável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher IVFFlat, pois listas eliminam qualquer custo de memória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar o índice, pois busca aproximada não pode atender consultas rápidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher busca exata, pois ela sempre tem menor latência em grandes bases.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adotar HNSW e monitorar memória, construção, recall e latência observados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Misturar as duas estruturas em cada consulta sem comparar os resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma escolha fundamentada usa medições do perfil de carga e leva em conta os custos conhecidos. HNSW costuma oferecer bom equilíbrio de velocidade e recall, mas pode usar mais memória e demorar a construir. Monitorar essas dimensões valida que continua adequado.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A consulta requisita vinte itens, mas o filtro de idioma descarta muitos candidatos após a busca ANN. Qual explicação é plausível para receber menos de vinte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O filtro converte todos os vetores em representações de dimensão menor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modelo de embedding remove automaticamente itens sem idioma compatível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A métrica transforma o limite top-k em uma regra de exclusão de idioma.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todo filtro textual impede por definição a criação de índices ANN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A busca gerou poucos candidatos elegíveis antes de atingir o limite solicitado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando o filtro é aplicado depois da exploração aproximada, parte dos candidatos pode ser descartada e poucos itens permanecem. Ampliar candidatos ou integrar melhor os filtros pode ajudar, mas a solução depende do mecanismo e deve preservar as regras de acesso.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório contém manuais extensos que precisam ser recuperados por passagens. Qual fluxo representa uma ingestão coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Extrair texto, dividir em chunks, gerar embeddings e salvar fonte e identificador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gerar um vetor único para o servidor e descartar os documentos originais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fragmentar os documentos e guardar somente dimensão, modelo e data de indexação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indexar os nomes dos arquivos e pedir ao modelo para inferir as passagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar páginas por data e tratar cada data como representação semântica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ingestão prepara o texto, divide-o em fragmentos recuperáveis, produz um vetor por item e mantém vínculo por identificador e metadados de origem. Descartar o texto impede apresentar evidência e atualizar os trechos de forma confiável.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta procura o código exato de um produto, que aparece em poucos documentos. Qual recuperação tende a complementar melhor a busca semântica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Busca vetorial exclusiva, pois códigos raros sempre recebem os melhores embeddings.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Busca lexical, que pode corresponder diretamente ao identificador textual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Filtro por distância máxima, que reconhece automaticamente todos os códigos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reranking isolado, sem que qualquer etapa recupere documentos candidatos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Busca por cosseno em metadados numéricos do identificador textual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Códigos e identificadores exatos podem não ter semântica distribuída útil, enquanto uma busca lexical consegue localizar a cadeia de caracteres. Um sistema híbrido pode somar esse sinal à busca vetorial quando também se espera recuperar paráfrases.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer combinar rankings lexical e vetorial cujos escores brutos têm escalas incompatíveis. Qual abordagem atende diretamente ao problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somar os escores originais, pois toda métrica tem a mesma faixa numérica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar cada lista alfabeticamente e descartar posições relativas dos itens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Combinar as posições das listas por uma técnica como Reciprocal Rank Fusion.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir os filtros de metadados pelos valores brutos de cada escore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Selecionar somente a lista que retorna mais registros no total.",
+          "correct": false
+        }
+      ],
+      "explanation": "RRF usa posições relativas dos resultados e, assim, não exige somar diretamente escores brutos de escalas distintas. Isso não dispensa avaliação: conjuntos de consultas rotuladas ajudam a comparar técnicas de fusão e os pesos adotados.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento-fonte é atualizado, mas seus fragmentos anteriores permanecem na coleção junto com os novos. Qual risco deve ser tratado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A métrica cosseno passa automaticamente a medir a data da alteração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O índice substitui os trechos antigos ao observar texto semelhante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modelo elimina sozinho registros cujo conteúdo deixou de ser atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Resultados duplicados ou obsoletos podem continuar sendo recuperados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os metadados de origem tornam desnecessária a remoção de vetores antigos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma atualização exige sincronizar os registros derivados. Se os fragmentos antigos não forem substituídos ou removidos, a busca pode devolver versões obsoletas ou duplicadas. Identificadores e metadados de proveniência permitem localizar o conjunto que deve ser atualizado.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação atende clientes distintos e pesquisa documentos por similaridade. Como deve impedir que a consulta de um cliente receba dados de outro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar o tenant confiável como filtro obrigatório no serviço de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o cliente informado pelo navegador sem conferir identidade e vínculo dos registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o top-k para que resultados de todos os clientes se misturem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocultar o nome do cliente nos metadados, preservando a busca irrestrita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar a identidade no serviço e restringir candidatos aos dados autorizados.",
+          "correct": true
+        }
+      ],
+      "explanation": "A autorização deve ser aplicada pelo serviço confiável, vinculada à identidade autenticada e aos registros elegíveis. Uma instrução no prompt não é controle de acesso. O filtro precisa ser consistente também em consultas híbridas e caminhos de recuperação alternativos.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adiciona reranking após a recuperação inicial para melhorar a ordem dos trechos. Qual afirmação descreve corretamente seu alcance?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele reordena os candidatos recuperados usando uma avaliação mais refinada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele reconstrói automaticamente documentos que a busca inicial não encontrou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele substitui a geração de embeddings em todas as consultas futuras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele comprova a veracidade de cada trecho pela posição final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele remove a necessidade de controlar filtros de permissão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reranking reavalia e reorganiza a lista de candidatos, muitas vezes com um método mais preciso e custoso. Ele não acessa itens ausentes da lista inicial nem valida a verdade do conteúdo. A recuperação e a autorização continuam sendo necessárias.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na consulta de RAG, qual fluxo ordena adequadamente recuperação, seleção e geração da resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar a resposta, apagar as fontes e depois procurar evidências compatíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recuperar trechos, preparar contexto e então solicitar a resposta ao modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar somente reranking e usar a pontuação como resposta final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o texto gerado em vetor antes de receber a pergunta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Selecionar documentos por data e dispensar qualquer etapa de busca.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em RAG, a aplicação recupera passagens relevantes antes da geração, monta contexto e então pede ao modelo uma resposta. Algumas arquiteturas também filtram e reordenam candidatos. O banco de vetores é uma parte possível do retriever, não o gerador.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um RAG, qual ajuste pode aumentar o contexto fornecido ao modelo, mas também elevar ruído e consumo de tokens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Diminuir top-k até que nenhum trecho seja enviado ao modelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar metadados para aumentar o número de dimensões consultadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar top-k e avaliar o equilíbrio entre evidência e contexto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar todos os resultados por uma única instrução de sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a recuperação e manter a mesma garantia de grounding.",
+          "correct": false
+        }
+      ],
+      "explanation": "Top-k controla quantos candidatos são selecionados. Aumentá-lo pode incluir evidência adicional, mas também trechos irrelevantes, aumentar latência e ocupar mais janela de contexto. A escolha deve ser avaliada com perguntas e documentos representativos.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação de RAG precisa separar recall do retriever e correção da resposta gerada. Por que essa separação é útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o banco vetorial sempre elimina erros do modelo quando há mais resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque medir latência torna desnecessária a avaliação das fontes recuperadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque todas as respostas corretas dependem de uma única métrica de distância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque uma resposta pode falhar por recuperação ruim ou por geração incorreta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque o índice controla o conteúdo de cada resposta produzida pelo modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta incorreta pode ocorrer porque o retriever omitiu a fonte necessária ou porque o gerador interpretou mal um contexto correto. Métricas separadas localizam a etapa com problema; também convém avaliar ranking, citações, latência e segurança.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um texto recuperado contém uma instrução maliciosa direcionada ao assistente. Qual tratamento é adequado em uma arquitetura RAG?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratá-lo como conteúdo não confiável e manter separadas as instruções do sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar a instrução, pois a busca semântica confirma sua autorização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que metadados do texto sobrescrevam as regras de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a instrução em vetor novamente para remover seu significado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exibir o resultado como comando confiável, pois veio do índice interno.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conteúdo recuperado é dado fornecido ao modelo e pode conter prompt injection ou instruções adversariais. Deve ser separado das instruções confiáveis e tratado como fonte a analisar. Busca e armazenamento interno não provam que o texto seja autorizado como comando.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um catálogo busca tanto descrições parafraseadas quanto códigos de item exatos. Qual arquitetura de recuperação é mais adequada para avaliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente filtro por data, que detecta códigos e paráfrases automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente busca lexical, que sempre encontra paráfrases sem termos compartilhados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente busca vetorial, que garante correspondência literal de cada identificador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reranking sem candidatos, pois o reordenador pesquisa todo o catálogo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Busca híbrida, combinando sinais semânticos e textuais conforme os testes.",
+          "correct": true
+        }
+      ],
+      "explanation": "A busca vetorial ajuda com paráfrases, enquanto a lexical pode localizar códigos exatos. A combinação híbrida reúne sinais complementares, mas o método de fusão e os filtros devem ser avaliados com consultas que representem o uso real.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao planejar a divisão de documentos em chunks, qual critério permite escolher tamanho e sobreposição de forma responsável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar sempre a maior passagem possível para impedir perda de contexto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar consultas reais, considerando contexto, recall, ruído e limites do modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir fragmentos pela quantidade de tabelas no banco vetorial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher chunks menores que uma palavra para maximizar semântica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evitar qualquer sobreposição, mesmo quando uma ideia atravessa a fronteira.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chunks grandes podem misturar assuntos e exceder contexto; pequenos podem separar informação que precisa ser lida em conjunto. Tamanho e sobreposição dependem do documento, modelo e tarefa e devem ser medidos com consultas representativas.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta recupera apenas dez candidatos e pede ao reranker os dez melhores; a evidência necessária ficou fora da lista. O que explica o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O reranker não pode reordenar candidatos que recebeu do retriever.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O reranker deve gerar passagens ausentes usando somente a distância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O reranker avalia candidatos existentes, mas não substitui recall inicial suficiente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A etapa vetorial deixa de funcionar se top-k for maior que um.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falta de fonte é corrigida aumentando a temperatura de geração.",
+          "correct": false
+        }
+      ],
+      "explanation": "O reranker só recebe os candidatos coletados na etapa anterior. Se a evidência não entrou nessa lista, ele não tem como promovê-la. Deve-se investigar recall, consultas, filtros e representação, além de manter o reranking quando ele melhorar a ordenação.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto rotulado de perguntas e documentos relevantes está disponível. Que uso de avaliação é apropriado ao ajustar a busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar os rótulos e selecionar o parâmetro que produz mais resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar somente a fluência das respostas sem verificar os documentos encontrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar os rótulos apenas para decidir a quantidade de dimensões do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar recall e ranking dos resultados com os itens relevantes conhecidos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a memória do servidor até que todas as respostas pareçam corretas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rótulos de relevância permitem medir se os documentos necessários são recuperados e quão alto aparecem. Separar dados de ajuste e validação reduz sobreajuste às consultas usadas para escolher parâmetros. Fluência final não substitui avaliação de recuperação.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política exige excluir um documento de todas as consultas futuras após sua remoção na origem. Qual operação deve acompanhar a exclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover ou invalidar os vetores, chunks e metadados ligados ao documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar apenas o arquivo de origem e deixar intacto o índice.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a métrica global para evitar vizinhança com o conteúdo excluído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir o top-k para ocultar resultados antigos sem alterar os registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronizar a exclusão nos registros vetoriais e nos sistemas que os replicam.",
+          "correct": true
+        }
+      ],
+      "explanation": "A remoção precisa alcançar todos os registros derivados que possam ser recuperados: chunks, vetores, metadados e eventuais réplicas ou caches. Apagar apenas a fonte deixa cópias pesquisáveis e não cumpre a política de exclusão.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca apresenta escore cosseno ao usuário, mas o serviço documenta o valor como distância. Qual erro de interpretação deve ser evitado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que valores maiores sempre indicam itens mais semelhantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar se o valor representa distância antes de ordenar resultados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar qual direção de ordenação corresponde à menor separação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distinguir distância cosseno de similaridade cosseno na interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Anotar a métrica e a convenção usada pelo mecanismo consultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Distâncias normalmente são melhores quando menores, enquanto similaridades normalmente são melhores quando maiores. Confundir as duas pode inverter o ranking exibido. A documentação da API e os testes com pares conhecidos ajudam a interpretar o escore corretamente.",
+      "section": "1. Embeddings e representação vetorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer monitorar se o índice vetorial ficou mais rápido sem degradar excessivamente os resultados. Qual conjunto de medidas é mais informativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente quantidade de vetores armazenados e espaço do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente latência média, ignorando relevância e variação da carga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente fluência do texto gerado, sem inspecionar a recuperação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Latência, recall, ranking de relevância e carga de consulta representativa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Somente dimensão de embedding e número de metadados disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma mudança de índice pode reduzir latência e simultaneamente perder resultados relevantes. Medir latência e recall, usando consultas representativas e relevância conhecida, revela o compromisso. Uso de memória e custo de construção também são úteis ao comparar estruturas.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço usa metadados de data para recuperar somente documentos atuais, além de ranquear por semelhança. Qual papel descreve melhor a condição de data?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela transforma o embedding em uma representação lexical da pergunta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela altera necessariamente a dimensão de todo vetor armazenado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela restringe os candidatos elegíveis conforme a regra temporal definida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela valida a veracidade da fonte sem consultar o documento original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela faz reranking dos resultados sem mudar o conjunto elegível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um filtro por data seleciona registros que satisfazem a condição temporal, restringindo candidatos. A busca vetorial pode então ranquear os elegíveis por similaridade. O filtro não valida o conteúdo nem necessariamente reordena registros por si só.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um embedding de documento continua associado ao texto que lhe deu origem. Que conclusão de privacidade é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A transformação numérica garante anonimização e dispensa controles de retenção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permissões e políticas de retenção também precisam cobrir vetores e metadados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente documentos legíveis precisam de autorização e controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O índice não pode revelar nenhum atributo sobre os documentos originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir o texto da interface elimina automaticamente todas as cópias vetoriais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Representações vetoriais continuam relacionadas aos registros de origem e podem carregar informação sensível. A segurança precisa abranger o índice, os metadados, logs e caches. A transformação não implica anonimização automática nem substitui retenção e autorização.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um buscador de suporte precisa responder com base em manuais citáveis e não deve apresentar uma passagem sem sua origem. Qual dado deve acompanhar os chunks?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a posição do vetor no índice, sem identificador de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lista completa de consultas feitas por outros usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O escore de similaridade convertido em título do documento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A dimensão original do modelo, usada como referência bibliográfica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identificador, referência de origem e localização do trecho recuperável.",
+          "correct": true
+        }
+      ],
+      "explanation": "Para apresentar citações e localizar a evidência, o sistema precisa manter identificador estável e metadados de proveniência, como documento e posição ou seção. O escore mede relação com a consulta, não substitui a referência da fonte.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca vetorial recupera documentos próximos, mas o objetivo exige correspondência literal de siglas e números de protocolo. Qual ajuste de desenho é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar componente lexical ou híbrido para atender termos exatos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a dimensão sem avaliar o modelo ou a consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover os metadados e confiar apenas na distância euclidiana.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elevar a temperatura do modelo para preservar números literais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir os identificadores por chunks aleatórios antes da indexação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Termos raros, siglas e números são bons casos para correspondência lexical ou filtros exatos, enquanto busca vetorial auxilia na semântica. Uma combinação híbrida pode cobrir ambos os tipos de intenção; deve-se verificar recall desses casos no conjunto de avaliação.",
+      "section": "3. Ingestão, metadados e busca híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura RAG, por que o conteúdo recuperado não deve ser tratado automaticamente como instrução confiável para o modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque vetores são sempre incapazes de representar texto com instruções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque apenas metadados numéricos podem conter conteúdo malicioso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a busca transforma todo documento em comando do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque fontes recuperadas podem conter texto adversarial ou instruções embutidas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque conteúdo indexado nunca pode ser apresentado ao modelo generativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Documentos recuperados podem conter texto malicioso ou instruções que tentam alterar o comportamento do modelo. A aplicação deve delimitar esse material como dados a consultar e preservar a hierarquia das instruções confiáveis. Indexação não confere autoridade ao conteúdo.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste mostra recuperação correta de documentos, mas o gerador apresenta uma afirmação sem apoio nos trechos. Qual diagnóstico distingue adequadamente as etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O índice tem recall insuficiente, mesmo que os documentos relevantes estejam presentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A geração ou o uso do contexto falhou, embora a recuperação tenha encontrado evidência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A dimensão do vetor determina sozinha o conteúdo da resposta final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A métrica de distância substitui qualquer avaliação textual da resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falha demonstra que todo banco vetorial deve ser removido do sistema.",
+          "correct": true
+        }
+      ],
+      "explanation": "Se as evidências corretas foram recuperadas, o defeito pode estar na seleção, montagem do prompt, interpretação ou geração, não necessariamente no recall. Avaliar separadamente as etapas evita atribuir qualquer resposta errada ao índice vetorial.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja selecionar candidatos semanticamente próximos sem comparar cada consulta com todo o corpus. Qual benefício e limite caracterizam a busca ANN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Percorre toda a coleção e garante o vizinho exato com menor custo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode reduzir o trabalho de consulta, aceitando possível perda de recall.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substitui o embedding e passa a recuperar apenas por correspondência literal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante mais resultados relevantes que busca exata em toda consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elimina a necessidade de escolher métrica ou verificar qualidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "ANN explora estruturas que evitam comparar todos os itens em cada consulta, reduzindo latência ou custo, mas pode deixar de encontrar alguns vizinhos exatos. O equilíbrio depende da configuração e precisa ser medido contra uma referência exata.",
+      "section": "2. Busca vetorial, índices e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao apresentar uma resposta RAG, qual prática melhora a possibilidade de conferir a evidência usada pelo modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mostrar somente o escore vetorial e ocultar o documento recuperado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover a localização do trecho antes de enviar o contexto ao gerador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Associar trechos a fontes identificáveis e apresentar referências pertinentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Pedir ao modelo que invente uma referência quando ela não estiver disponível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar a posição no ranking como substituta da verificação documental.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manter proveniência e localização permite mostrar de onde veio uma passagem e ajuda a conferir a resposta. O escore informa relação de busca, mas não é citação nem validação. Referências devem apontar para fontes existentes e recuperadas.",
+      "section": "4. Bancos vetoriais em IA generativa e RAG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "pgvector — documentação e README",
+      "publisher": "pgvector / GitHub",
+      "reference": "Busca exata e aproximada, métricas de distância, operadores, índices HNSW e IVFFlat e comportamento de filtros.",
+      "url": "https://github.com/pgvector/pgvector",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Qdrant — Hybrid and Multi-Stage Queries",
+      "publisher": "Qdrant",
+      "reference": "Consultas densas e esparsas, BM25, prefetch, reranking e fusão RRF/DBSF.",
+      "url": "https://qdrant.tech/documentation/hybrid-queries/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Qdrant — Filtering",
+      "publisher": "Qdrant",
+      "reference": "Filtros por metadados e identificadores e índices para campos usados em filtros.",
+      "url": "https://qdrant.tech/documentation/search/filtering/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Qdrant — Hybrid Search",
+      "publisher": "Qdrant",
+      "reference": "Combinação de recuperação semântica por vetores densos e recuperação lexical BM25.",
+      "url": "https://qdrant.tech/documentation/search/text-search/hybrid-search/",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Qdrant — Filtering Patterns for Vector Search",
+      "publisher": "Qdrant",
+      "reference": "Efeitos de filtros e estratégias de filtragem na recuperação vetorial aproximada.",
+      "url": "https://qdrant.tech/documentation/search-patterns/vector-search-filtering/",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

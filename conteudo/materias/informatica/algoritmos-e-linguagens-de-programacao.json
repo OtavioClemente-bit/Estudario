@@ -1,0 +1,1866 @@
+{
+  "id": "informatica.algoritmos-e-linguagens-de-programacao",
+  "subject": "Informática",
+  "title": "Algoritmos de pesquisa e de ordenação em Python, PHP e Java",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Algoritmos de pesquisa e ordenação",
+    "Pesquisa e ordenação em Python PHP e Java",
+    "Algoritmos em linguagens de programação",
+    "Busca linear e busca binária",
+    "Ordenação por comparação de elementos",
+    "Ordenação estável em Python e Java",
+    "Pesquisa binária em listas ordenadas",
+    "Algoritmos de busca em arrays e listas",
+    "Python para pesquisa e ordenação",
+    "PHP para pesquisa e ordenação",
+    "Java para pesquisa e ordenação",
+    "Java EE 7 e Java EE 8",
+    "Collections e Arrays em Java",
+    "sort sorted bisect e array_search",
+    "Complexidade de algoritmos de ordenação"
+  ],
+  "scope": {
+    "covers": "Algoritmos de pesquisa e ordenação: busca sequencial e binária, pré-condições, complexidade, estabilidade, memória auxiliar e funcionamento de bubble sort, insertion sort, selection sort, merge sort, quicksort e heapsort; escolha do método conforme volume, ordem prévia, custo de comparação e necessidade de estabilidade. Aplicação em Python (list.sort, sorted, key, reverse e bisect), PHP (sort, asort, ksort, usort, array_search e comparação estrita) e Java (Arrays.sort, Arrays.binarySearch, Collections.sort, Collections.binarySearch, Comparable e Comparator), com atenção às APIs de Java SE usadas em aplicações Java EE 7 e Java EE 8.",
+    "excludes": "Estruturas de dados avançadas, grafos, indexação de bancos, análise de algoritmos além do necessário para busca e ordenação, sintaxe geral das linguagens e APIs empresariais Java EE sem relação com esses algoritmos."
+  },
+  "theoryTitle": "Como pesquisar e ordenar dados com segurança e eficiência",
+  "chapters": [
+    {
+      "title": "1. Algoritmo, custo e escolha do método",
+      "markdown": "### O problema que este assunto resolve\n\nPesquisar responde se um valor existe e, muitas vezes, em que posição está. Ordenar organiza os registros segundo uma chave — por exemplo, data crescente ou prioridade decrescente — para facilitar leitura, processamento e pesquisas posteriores. A escolha do algoritmo depende de quantos elementos há, se os dados já vêm parcialmente ordenados, se valores repetidos precisam manter a ordem original e quanta memória extra pode ser usada.\n\n> **Siglas e termos deste capítulo**\n> - **n**: quantidade de elementos examinados ou ordenados.\n> - **O(1)**: custo constante; o número de operações não cresce com n.\n> - **O(n)**: custo linear; dobrar a entrada tende a dobrar o trabalho.\n> - **O(log n)**: custo logarítmico; cada etapa reduz bastante o intervalo restante.\n> - **O(n log n)**: custo típico de ordenações eficientes por comparação.\n> - **Estabilidade**: elementos com chaves iguais conservam entre si sua ordem de entrada.\n> - **In-place**: trabalha sobre a coleção original e usa pouca memória auxiliar.\n\n### Ler a ordem de crescimento\n\nNa busca sequencial, compara-se o alvo com elementos um a um. No pior caso, quando o alvo está no fim ou não existe, são feitas n comparações: O(n). A busca binária exige dados ordenados pela mesma regra de comparação; testa o meio e descarta metade do intervalo, chegando a O(log n). A ordenação simples por inserção, seleção ou bolhas pode realizar O(n²) comparações; insertion sort costuma ser útil para listas pequenas ou quase ordenadas, enquanto bubble e selection sort têm valor principalmente didático. Merge sort e heapsort garantem O(n log n) no pior caso; quicksort é O(n log n) em média, mas pode cair a O(n²) em partições ruins.\n\n| Algoritmo | Melhor leitura de custo | Memória extra usual | Estável por definição clássica? |\n| --- | --- | --- | --- |\n| Busca sequencial | O(n) | O(1) | Não se aplica |\n| Busca binária | O(log n) | O(1) iterativa | Não se aplica |\n| Insertion sort | O(n) em entrada ordenada; O(n²) no pior caso | O(1) | Sim |\n| Selection sort | O(n²) | O(1) | Não |\n| Merge sort | O(n log n) | O(n) em vetor usual | Sim, se a intercalação preservar empates |\n| Quicksort | O(n log n) médio; O(n²) pior caso | pilha de recursão | Em geral, não |\n| Heapsort | O(n log n) | O(1) | Não |\n\n### Como cai na prova\n\nUma promessa de O(log n) para busca não autoriza ignorar a pré-condição de ordenação. O custo de ordenar uma vez pode compensar quando muitas buscas serão feitas, mas para uma busca isolada numa coleção pequena a varredura simples pode ser melhor. Complexidade descreve crescimento de custo, não o tempo exato em segundos nem a qualidade geral do programa."
+    },
+    {
+      "title": "2. Pesquisa: varredura e divisão do intervalo",
+      "markdown": "### O problema que este assunto resolve\n\nA busca sequencial percorre a sequência até encontrar o alvo ou esgotá-la. Funciona em dados ordenados ou não ordenados e pode parar na primeira ocorrência; se for preciso localizar todas as ocorrências, deve continuar a varredura. A busca binária compara o alvo com o elemento central e mantém só a metade em que ele ainda poderia estar. Ela requer uma sequência ordenada segundo uma relação coerente com a comparação usada na busca.\n\n> **Siglas e termos deste capítulo**\n> - **Alvo (chave)**: valor procurado.\n> - **Intervalo semiaberto [lo, hi)**: inclui o índice lo e exclui hi.\n> - **Ponto de inserção**: posição em que uma chave ausente caberia sem quebrar a ordem.\n> - **Comparador**: regra que define se um elemento vem antes, depois ou empata com outro.\n> - **Busca por igualdade**: procura valor idêntico; não determina automaticamente a posição de inserção.\n\n### Limites e duplicatas\n\nNa implementação binária, cada passo precisa reduzir o intervalo. Usar `mid = (lo + hi) // 2`, comparar e ajustar `lo = mid + 1` ou `hi = mid` evita repetir o índice do meio. Com valores duplicados, a busca binária comum pode devolver qualquer ocorrência compatível; para a primeira ou última, usa-se uma variante de limite inferior ou superior. Se a coleção mudar entre a ordenação e a pesquisa, a posição encontrada pode deixar de ser válida.\n\n### Como as APIs expõem a busca\n\nPython oferece `bisect_left` e `bisect_right`, que retornam posições de inserção em uma lista já ordenada; não retornam simplesmente verdadeiro ou falso. Em PHP, `array_search` percorre valores e retorna a primeira chave correspondente ou `false`; o parâmetro estrito evita equivalências por conversão de tipo, e deve-se testar o resultado com `=== false`, pois a chave encontrada pode ser zero. Java oferece `Arrays.binarySearch` para arrays e `Collections.binarySearch` para listas; o resultado não negativo é índice encontrado, e valor negativo codifica o ponto de inserção. Coleção e comparador usados para pesquisar devem corresponder à ordenação prévia.\n\n### Como cai na prova\n\n- Sem ordenação prévia, busca binária não é uma substituição válida da busca linear.\n- Em Java, resultado negativo de `binarySearch` não significa que a posição seja simplesmente esse número: decodifica-se por `-resultado - 1`.\n- Em Python, `bisect_left` localiza a fronteira à esquerda entre iguais; a lista continua sem ser modificada até que o programa faça a inserção.\n- Em PHP, não confunda valor retornado `false` com chave inteira zero."
+    },
+    {
+      "title": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "markdown": "### O problema que este assunto resolve\n\nOrdenar significa permutar os registros para que as chaves obedeçam uma relação de ordem. Bubble sort compara vizinhos e troca inversões; insertion sort toma cada próximo item e o insere no prefixo já ordenado; selection sort escolhe o menor restante e o coloca na próxima posição. Merge sort divide, ordena partes e intercala; quicksort particiona em torno de um pivô e ordena os lados; heapsort organiza uma estrutura de heap e extrai repetidamente o extremo.\n\n> **Siglas e termos deste capítulo**\n> - **Inversão**: par de elementos que está na ordem oposta à desejada.\n> - **Partição**: separação dos valores em relação ao pivô escolhido pelo quicksort.\n> - **Heap**: estrutura que mantém o maior (ou menor) elemento na raiz.\n> - **Chave**: campo do registro usado para definir a ordem.\n> - **Ordenação por comparação**: decide a ordem comparando pares de chaves.\n\n### Propriedades que não devem ser confundidas\n\nEstabilidade interessa quando registros com a mesma chave têm outros campos relevantes: ordenar por setor preservando a ordem anterior por antiguidade permite classificações em etapas. Ser in-place não implica ser estável; heapsort, por exemplo, usa pouco espaço mas não preserva necessariamente empates. Merge sort costuma usar memória auxiliar proporcional a n em arrays. Quick sort tem bom comportamento médio, mas a escolha do pivô e a distribuição dos dados influenciam o pior caso. Implementações de bibliotecas podem mudar de algoritmo entre versões, então não se deve deduzir uma garantia pública apenas de uma observação de desempenho.\n\n| Pergunta de projeto | Critério a verificar |\n| --- | --- |\n| Empates devem manter ordem anterior? | Exigir algoritmo/API estável e comparator consistente |\n| Memória adicional é restrita? | Verificar se a solução trabalha in-place ou usa buffer |\n| Entrada quase ordenada? | Insertion sort ou algoritmo adaptativo pode aproveitar a ordem existente |\n| Pior caso precisa ser limitado? | Preferir garantia documentada como O(n log n) |\n| Muitos registros com chaves compostas? | Definir comparação total e usar chave/comparador explícito |\n\n### Como cai na prova\n\nNo Python, `list.sort()` altera a própria lista, enquanto `sorted(iterável)` cria uma nova lista; ambos são estáveis e aceitam `key` e `reverse`. Em PHP, `sort` reindexa chaves numéricas; `asort` preserva a associação de chaves e valores; `ksort` ordena pelas chaves; `usort` usa comparação definida pelo usuário e reindexa. No Java SE 8, `Arrays.sort` e `Collections.sort` são APIs de ordenação, com overloads para comparador; a especificação garante estabilidade para objetos/listas nos métodos correspondentes, mas detalhes do algoritmo de implementação não são contrato universal."
+    },
+    {
+      "title": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "markdown": "### O problema que este assunto resolve\n\nO mesmo problema algorítmico aparece em linguagens e bibliotecas diferentes. A lógica — escolher a chave, garantir ordem compatível e tratar ausência/duplicatas — permanece; o contrato de cada função determina efeitos sobre a coleção e o significado do retorno. Em provas, é comum trocar o comportamento de uma função de uma linguagem pelo de outra.\n\n> **Siglas e termos deste capítulo**\n> - **API**: conjunto documentado de tipos e operações oferecidos por uma plataforma.\n> - **JEE / Java EE**: plataforma corporativa Java; as versões 7 e 8 usam APIs Java SE e APIs empresariais.\n> - **Comparable**: contrato de ordenação natural implementado pelo próprio tipo Java.\n> - **Comparator**: objeto/função externa que define uma ordem alternativa em Java.\n> - **In-place**: a operação altera a coleção recebida em vez de entregar uma cópia ordenada.\n\n### Três contratos concretos\n\n| Ambiente | Ordenar | Pesquisar | Efeito importante |\n| --- | --- | --- | --- |\n| Python | `lista.sort(key=..., reverse=...)`; `sorted(dados, ...)` | `bisect_left` / `bisect_right` em sequência ordenada | `sort` muta e retorna `None`; `sorted` cria lista nova; ordenação estável |\n| PHP | `sort`, `asort`, `ksort`, `usort` | `array_search(valor, array, strict)` | funções de ordenação modificam o array; `sort` reatribui índices numéricos; `asort` mantém associação |\n| Java SE 8 | `Arrays.sort`, `Collections.sort` com `Comparable` ou `Comparator` | `Arrays.binarySearch`, `Collections.binarySearch` | binária exige ordem compatível; ausência retorna código negativo com ponto de inserção |\n\n### Java EE 7 e 8: onde o algoritmo se encaixa\n\nJava EE 7 e Java EE 8 são plataformas para aplicações corporativas executadas em contêineres, com APIs como Servlets, EJB, JPA, CDI e serviços web; elas não redefinem os algoritmos clássicos de busca e ordenação. O código de ordenação usa a biblioteca Java SE, por exemplo `java.util.Arrays` e `java.util.Collections`, dentro de uma aplicação hospedada no servidor. O tutorial oficial Java EE 7 explicita APIs da plataforma e APIs providas por Java SE 7; a documentação Java EE 8 descreve a geração posterior da plataforma empresarial sobre o ecossistema Java SE 8. Ao responder, separe o padrão corporativo EE da API de coleções da linguagem Java.\n\n### Como cai na prova\n\n- Uma aplicação Java EE ainda precisa ordenar e pesquisar com tipos comparáveis; o contêiner não torna uma lista automaticamente ordenada.\n- `Arrays.binarySearch` exige array previamente ordenado por ordem natural ou pelo mesmo comparador passado à busca.\n- Em PHP, preservação de chave é escolha da função; em Python e Java, não existe equivalência automática com os nomes PHP.\n- Ao citar algoritmo interno de uma biblioteca, diferencie garantia da API de nota de implementação."
+    }
+  ],
+  "summary": "Busca sequencial percorre até achar o alvo ou terminar (O(n)) e não requer dados ordenados. Busca binária reduz pela metade o intervalo a cada comparação (O(log n)), mas exige dados ordenados e uma regra de comparação igual à usada na pesquisa; duplicatas podem levar a qualquer ocorrência, salvo variantes de limite. Insertion, selection e bubble sort são quadráticos no pior caso; insertion é eficiente em listas pequenas ou quase ordenadas. Merge sort e heapsort garantem O(n log n); quicksort tem O(n log n) médio e O(n²) no pior caso. Estabilidade preserva ordem relativa de chaves iguais; memória e estabilidade são propriedades diferentes. Python: list.sort altera e retorna None; sorted cria lista; ambos são estáveis e aceitam key/reverse; bisect dá ponto de inserção. PHP: sort ordena valores e reindexa; asort mantém associação; ksort usa chaves; usort usa comparador; array_search retorna primeira chave ou false e aceita modo estrito. Java SE 8: Arrays.sort/Collections.sort ordenam; Comparable define ordem natural, Comparator define alternativa; binarySearch requer ordem compatível e retorna índice ou -(ponto de inserção)-1. Java EE 7/8 são plataformas corporativas e não substituem as APIs Java SE de coleções usadas pela lógica algorítmica.",
+  "flashcards": [
+    {
+      "front": "A busca sequencial precisa de entrada ordenada?",
+      "back": "Não. Ela examina elementos em sequência e pode ser usada mesmo quando a coleção não está ordenada."
+    },
+    {
+      "front": "Qual o pior caso da busca sequencial?",
+      "back": "O(n), quando o alvo está no último elemento ou não aparece."
+    },
+    {
+      "front": "Qual condição essencial para busca binária?",
+      "back": "Os dados devem estar ordenados pela mesma relação de comparação usada na busca."
+    },
+    {
+      "front": "Por que busca binária é O(log n)?",
+      "back": "Cada comparação elimina aproximadamente metade do intervalo de candidatos."
+    },
+    {
+      "front": "O que significa ponto de inserção?",
+      "back": "A posição em que a chave ausente seria inserida sem violar a ordem."
+    },
+    {
+      "front": "Uma busca binária comum garante a primeira duplicata?",
+      "back": "Não. Pode retornar uma ocorrência compatível qualquer; use variante de limite inferior para a primeira."
+    },
+    {
+      "front": "O que estabilidade garante na ordenação?",
+      "back": "Registros com chaves iguais mantêm sua ordem relativa anterior."
+    },
+    {
+      "front": "Selection sort é estável por natureza?",
+      "back": "Não; trocar o mínimo encontrado pode inverter a ordem de chaves iguais."
+    },
+    {
+      "front": "Qual a complexidade de pior caso de merge sort?",
+      "back": "O(n log n), com memória auxiliar proporcional ao tamanho em implementação usual sobre vetor."
+    },
+    {
+      "front": "Qual o pior caso de quicksort?",
+      "back": "O(n²), embora sua complexidade média seja O(n log n)."
+    },
+    {
+      "front": "O que faz Python list.sort?",
+      "back": "Ordena a própria lista, é estável e retorna None."
+    },
+    {
+      "front": "O que faz Python sorted?",
+      "back": "Devolve uma nova lista ordenada a partir de qualquer iterável."
+    },
+    {
+      "front": "Para que serve o argumento key em Python?",
+      "back": "Fornece a chave extraída de cada elemento que será comparada durante a ordenação."
+    },
+    {
+      "front": "O que bisect_left retorna?",
+      "back": "Índice de inserção à esquerda de valores iguais numa sequência já ordenada."
+    },
+    {
+      "front": "O que PHP sort faz às chaves?",
+      "back": "Ordena por valor crescente e reatribui índices numéricos aos elementos."
+    },
+    {
+      "front": "Quando usar PHP asort?",
+      "back": "Para ordenar por valores mantendo a associação entre chaves e valores."
+    },
+    {
+      "front": "O que array_search retorna quando não encontra?",
+      "back": "Booleano false; a comparação estrita com false evita confusão com a chave zero."
+    },
+    {
+      "front": "Que contrato Java define ordem natural?",
+      "back": "Comparable implementado pelo tipo do objeto."
+    },
+    {
+      "front": "Quando usar Comparator em Java?",
+      "back": "Para oferecer uma regra externa ou alternativa de comparação sem alterar a classe."
+    },
+    {
+      "front": "Qual retorno indica ausência em Java binarySearch?",
+      "back": "Valor negativo codificado como -(ponto de inserção)-1."
+    }
+  ],
+  "tips": [
+    "Antes de escolher busca binária, confirme e preserve a ordenação da coleção.",
+    "Se precisar só do índice de inserção, bisect em Python e o retorno negativo de Java têm contratos diferentes.",
+    "Em PHP, escolha a função pelo critério e pelo vínculo de chaves: valores com sort/asort, chaves com ksort.",
+    "Use comparação estrita no array_search quando tipos diferentes não devem ser considerados iguais.",
+    "Para ordenações compostas, defina desempate explícito ou aproveite estabilidade documentada.",
+    "Em Java EE, reconheça que Arrays e Collections pertencem às APIs Java SE usadas dentro da aplicação corporativa."
+  ],
+  "traps": [
+    "Achar que O(log n) significa que busca binária funciona sem ordenar os dados.",
+    "Confundir ordenação estável com uso de pouca memória ou ordenação in-place.",
+    "Afirmar que quicksort tem O(n log n) no pior caso em qualquer implementação.",
+    "Tratar Python list.sort como função que devolve a lista ordenada.",
+    "Esquecer que PHP sort reindexa chaves e que array_search pode retornar a chave zero.",
+    "Ler retorno negativo de Java binarySearch como erro sem posição de inserção codificada."
+  ],
+  "activeRecall": [
+    "Explique por que busca binária exige ordenação compatível.",
+    "Compare o pior caso da busca sequencial e da binária.",
+    "Diferencie estabilidade de uso in-place.",
+    "Compare garantias de pior caso de merge sort, heapsort e quicksort.",
+    "Explique quando uma ordenação estável é útil em registros com empate.",
+    "Diferencie list.sort e sorted em Python, incluindo efeito e retorno.",
+    "Compare sort, asort e ksort em PHP considerando as chaves.",
+    "Explique por que array_search deve ser comparado com === false.",
+    "Diferencie Comparable e Comparator em Java.",
+    "Explique por que Java EE não muda a pré-condição de Collections.binarySearch."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Pré-condição da busca binária esquecida",
+      "summary": "A coleção precisa estar ordenada pela mesma comparação da busca. Sem isso, o descarte de metade pode eliminar o alvo."
+    },
+    {
+      "key": "e2",
+      "title": "Custo médio confundido com pior caso",
+      "summary": "Quicksort costuma ser O(n log n) em média, mas pode chegar a O(n²); merge sort e heapsort têm pior caso O(n log n)."
+    },
+    {
+      "key": "e3",
+      "title": "Estabilidade confundida com memória",
+      "summary": "Estabilidade preserva empates; in-place descreve espaço auxiliar. São características independentes."
+    },
+    {
+      "key": "e4",
+      "title": "Contratos das linguagens trocados",
+      "summary": "Python sort altera e retorna None; PHP sort reindexa; Java binarySearch codifica posição ausente em inteiro negativo."
+    },
+    {
+      "key": "e5",
+      "title": "Java EE confundido com biblioteca de coleções",
+      "summary": "A plataforma empresarial hospeda componentes e serviços; Arrays, Collections, Comparable e Comparator são APIs Java SE."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A busca sequencial pode localizar um valor em uma lista não ordenada, embora no pior caso examine todos os elementos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como a varredura compara cada item com o alvo, ela não depende de ordem prévia. Se o valor estiver no fim ou não existir, a execução pode percorrer os n elementos, resultando em custo linear.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca binária aplicada a uma sequência arbitrária continua correta porque compara o alvo com o elemento central em cada passo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O algoritmo só sabe qual metade descartar quando a sequência está ordenada segundo a comparação usada. Em sequência arbitrária, o alvo pode estar na metade eliminada e a busca pode falhar mesmo existindo.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a ordem de crescimento do pior caso de uma varredura sequencial sobre n registros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(1), pois a primeira comparação sempre determina se o alvo existe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O(log n), pois cada comparação elimina metade da sequência restante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O(n), pois o último item ou a ausência podem exigir percorrer todos os registros.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O(n log n), porque toda pesquisa ordena a coleção antes de comparar valores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O(n²), pois cada registro precisa ser comparado com todos os demais.",
+          "correct": false
+        }
+      ],
+      "explanation": "No pior caso, a varredura faz até n comparações, uma por elemento, portanto seu custo cresce linearmente. Ela não divide o intervalo como a busca binária nem compara todos os pares como uma ordenação quadrática.",
+      "section": "1. Algoritmo, custo e escolha do método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Busca binária reduz a cada etapa o intervalo de candidatos para aproximadamente metade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Após comparar o elemento central com a chave, a ordenação permite escolher um dos lados e descartar o outro. Repetir essa redução leva a O(log n) comparações.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual busca é adequada para localizar um valor numa lista sem qualquer garantia de ordenação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Busca binária, desde que o alvo seja convertido para o tipo dos elementos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Busca sequencial, comparando os itens até encontrar o alvo ou esgotá-los.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Busca por interpolação, porque calcula o índice sem depender da ordem dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Busca binária reversa, pois a ordem original deixa de ser relevante nesse caso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Busca por heap, que localiza qualquer valor sem construir uma relação de ordem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A varredura sequencial funciona sem ordenação, pois verifica os itens individualmente. As buscas binária e por interpolação dependem de dados ordenados para restringir a região de procura; converter tipos não cria essa propriedade.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca binária comum necessariamente informa a primeira posição quando o alvo aparece repetido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma implementação pode parar ao encontrar qualquer elemento igual. Para localizar a primeira ocorrência, deve continuar procurando o limite esquerdo, como faz bisect_left ao calcular o ponto de inserção.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma busca binária, o que caracteriza o ponto de inserção de uma chave ausente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posição que preservaria a ordenação caso a chave fosse incluída na sequência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A posição da chave mais próxima em distância numérica, mesmo que a ordem seja textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O índice do meio do intervalo inicial, independentemente das comparações realizadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade total de elementos iguais ao alvo dentro da sequência ordenada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A última posição ocupada por um registro antes da primeira comparação da busca.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ponto de inserção é a fronteira em que a chave poderia ser colocada sem quebrar a ordem: em geral, antes do primeiro elemento maior. Ele não mede distância nem indica necessariamente um item encontrado.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Insertion sort pode realizar trabalho linear quando a entrada já está ordenada e a implementação evita deslocamentos desnecessários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Numa lista já ordenada, cada elemento pode ser comparado com o anterior e inserido sem deslocar uma faixa. O custo nesse melhor caso é O(n), embora o pior caso continue quadrático.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual propriedade é garantida por uma ordenação estável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A coleção permanece fisicamente no mesmo endereço de memória durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O algoritmo usa memória auxiliar constante em qualquer tamanho de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todos os elementos distintos passam a ter chaves únicas após a ordenação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registros com chaves iguais preservam sua ordem relativa de entrada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O algoritmo sempre executa em O(n log n), mesmo em seu pior caso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estabilidade trata da ordem relativa de itens cuja chave de ordenação empata. Ela não define espaço de memória, complexidade ou unicidade dos valores.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ordenação in-place é necessariamente estável, pois trabalha diretamente na coleção original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. In-place descreve principalmente o uso de memória auxiliar; estabilidade descreve a ordem dos empates. Heapsort, por exemplo, é conhecido por usar espaço auxiliar constante e não ser estável.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente merge sort de quicksort?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Merge sort separa pelo pivô e quicksort intercala duas metades previamente ordenadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Merge sort costuma usar espaço auxiliar em vetor; quicksort particiona em torno de pivô.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Merge sort é quadrático no pior caso; quicksort garante O(n log n) em qualquer entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Merge sort ordena apenas inteiros; quicksort só funciona para dados textuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Merge sort depende de heap; quicksort compara cada par de registros uma única vez.",
+          "correct": false
+        }
+      ],
+      "explanation": "Merge sort divide e intercala partes já ordenadas, normalmente usando buffer auxiliar em arrays. Quicksort escolhe pivô e particiona os elementos; sua complexidade depende da qualidade das partições.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Selection sort padrão tem custo quadrático de comparações mesmo quando os elementos já estão em ordem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para escolher o menor elemento restante, o algoritmo examina repetidamente a parte ainda não ordenada. A entrada ordenada não elimina essas varreduras, que somam ordem O(n²).",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre quicksort expressa corretamente a diferença entre custo médio e pior caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seu pior caso é sempre O(n), e a média é quadrática por causa do pivô.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Seu melhor e pior caso são ambos O(n log n), sem depender da partição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Seu custo médio é O(n log n), mas partições muito desequilibradas podem levar a O(n²).",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Seu pior caso é O(log n), porque cada chamada recursiva descarta metade dos itens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sua complexidade não pode ser analisada porque cada linguagem usa uma implementação distinta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Partições razoavelmente equilibradas produzem profundidade logarítmica e trabalho médio O(n log n). Se repetidamente um lado concentra quase todos os itens, a recursão pode atingir profundidade linear e custo O(n²).",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Heapsort oferece pior caso O(n log n) e não preserva necessariamente a ordem relativa de elementos empatados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A construção e as extrações do heap mantêm custo O(n log n) no pior caso. As trocas entre raiz e posições distantes podem mudar a ordem relativa de chaves iguais, portanto heapsort não é estável.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada típica a Python list.sort altera a lista recebida e produz como retorno a própria lista já ordenada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `list.sort()` ordena a lista in-place e retorna `None`. Para receber uma nova lista ordenada, usa-se `sorted(iterável)`, que deixa o iterável original sem essa alteração de ordem.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, que expressão cria uma nova lista em ordem crescente pela idade sem alterar a lista original?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`dados.sort(key=lambda x: x.idade)` e atribuir o retorno a uma nova variável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`sorted(dados, key=lambda x: x.idade)` e guardar a lista devolvida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`bisect_left(dados, idade)` e usar o índice retornado como lista ordenada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`dados.reverse()` e copiar a sequência, pois inverter sempre produz ordem crescente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`min(dados, key=lambda x: x.idade)` porque min organiza todos os registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "`sorted` devolve uma lista nova e aceita `key` para extrair a idade comparada. `list.sort` muda a lista recebida e seu retorno é None; bisect calcula uma posição, reverse apenas inverte e min devolve um elemento.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As ordenações de Python são estáveis, permitindo preservar a ordem anterior entre elementos que produzem a mesma chave.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de Python garante estabilidade para `list.sort` e `sorted`. Isso permite ordenar primeiro por critério secundário e depois por critério principal sem perder a ordem anterior dos empates.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que `bisect_left` fornece para uma lista ordenada quando a chave não está presente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ponto em que inserir a chave à esquerda de valores iguais, sem fazer a inserção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave existente de menor distância numérica, escolhida e removida da lista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor booleano falso, indicando que a lista não pode receber novos elementos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma cópia em ordem decrescente, que substitui automaticamente a lista original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de comparações e a posição do primeiro elemento da sequência.",
+          "correct": false
+        }
+      ],
+      "explanation": "As funções de bisect calculam uma fronteira de inserção em dados ordenados; `bisect_left` coloca a fronteira antes dos iguais. Elas não inserem por si mesmas: o código usa o índice retornado se desejar alterar a lista.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro `key` de sorted modifica os registros originais para que armazenem permanentemente o valor usado na comparação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A função `key` produz, para cada elemento, um valor de comparação usado naquela ordenação. Ela não altera os objetos para gravar uma nova chave de forma permanente.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista ordenada em Python recebe elementos repetidos, e o programador precisa encontrar o limite à direita do grupo igual. Qual operação é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sorted`, pois retorna diretamente o último índice de cada grupo de valores iguais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`list.sort`, pois devolve a posição da primeira duplicata sem modificar a lista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`bisect_right`, que calcula a fronteira após os valores iguais na sequência ordenada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`bisect_left`, que sempre calcula a fronteira depois do último valor duplicado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`index`, que devolve a posição final de todas as ocorrências em conjunto.",
+          "correct": false
+        }
+      ],
+      "explanation": "`bisect_right` encontra o índice de inserção depois de valores iguais, isto é, o limite superior do grupo. `bisect_left` fornece o limite esquerdo; sorted e sort ordenam, enquanto index procura uma ocorrência.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação de Python descreve Timsort como implementação usada para aproveitar trechos já ordenados, mas detalhes internos não devem ser confundidos com o contrato estável da API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação menciona que Timsort aproveita a ordem já existente e separadamente garante estabilidade. Em questões sobre contrato, estabilidade é a garantia pública relevante; não se deve generalizar um detalhe de implementação para toda API ou versão.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual função PHP ordena pelos valores em ordem crescente e reatribui índices numéricos aos elementos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`asort`, que ordena chaves e sempre converte todas em índices sequenciais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ksort`, que ordena pelos valores e descarta chaves textuais do array.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`array_search`, que localiza e reorganiza todo o array por ordem crescente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`sort`, que ordena valores e substitui as chaves existentes por índices numéricos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`usort`, que ordena pelas chaves e preserva toda associação original automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "`sort` organiza por valores crescentes e reatribui índices numéricos. `asort` também ordena valores, mas preserva a associação de chaves; `ksort` ordena as chaves; array_search apenas pesquisa.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP, `asort` mantém a associação de chaves e valores enquanto ordena pelos valores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `asort` ordena por valores em ordem crescente sem perder a associação original de cada chave com seu valor. Para reindexar como sequência numérica, a função usual é `sort`.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada a `array_search` em PHP retorna `false` se não houver correspondência; qual teste evita confundir ausência com chave zero?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar `if ($chave == false)`, que preserva a diferença entre zero e ausência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar `if ($chave === false)`, comparando o retorno estritamente com booleano false.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Testar `if (empty($chave))`, pois uma chave zero sempre significa ausência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar `if ($chave !== 0)`, pois array_search nunca devolve chaves numéricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar `if (isset($chave))`, pois uma variável não definida é o único retorno ausente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como uma chave válida pode ser o inteiro zero e `false` é um booleano, a comparação estrita `=== false` distingue os tipos e identifica ausência. Comparações frouxas e `empty` podem tratar zero como falso/ vazio.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O argumento `strict` de array_search pode exigir comparação de tipo e valor, evitando que, por exemplo, tipos diferentes sejam equiparados por conversão frouxa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com o terceiro argumento verdadeiro, array_search exige elementos idênticos também quanto ao tipo. Isso é útil quando valores como inteiro e string numérica não devem ser tratados como a mesma chave procurada.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre função PHP e comportamento está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ksort` ordena por valor e reindexa; `asort` ordena chaves em ordem decrescente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`sort` preserva chaves; `asort` descarta chaves e `ksort` procura um valor específico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`array_search` classifica por comparação definida pelo usuário e devolve o array.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`usort` ordena por valor com comparador definido pelo usuário e reindexa as chaves.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`asort` pesquisa o primeiro valor; `usort` organiza apenas as chaves textuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "`usort` usa uma função de comparação fornecida pelo programador para ordenar valores, sem manter a associação original de chaves. `asort` preserva associação; `ksort` ordena chaves; `array_search` pesquisa.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No manual atual do PHP, elementos iguais conservam a ordem relativa nas funções de ordenação; essa estabilidade não era definida antes do PHP 8.0.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O manual de ordenação do PHP registra que membros que comparam como iguais preservam a ordem de entrada atualmente, enquanto antes da versão 8.0 essa ordem relativa era indefinida. É uma característica dependente da versão do runtime.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, qual contrato é usado quando a própria classe fornece sua ordenação natural?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Comparable`, implementado pela classe do elemento para definir sua ordem natural.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`Serializable`, que define a sequência de comparação de todos os campos do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Runnable`, cujo método run devolve a posição relativa de dois registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Cloneable`, que permite ordenar cópias sem comparar os elementos originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`AutoCloseable`, que escolhe a ordem dos recursos durante a ordenação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma classe que implementa `Comparable` fornece a comparação natural por `compareTo`. `Comparator` oferece uma regra externa ou alternativa sem exigir que a classe mude sua definição natural.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Comparator em Java permite fornecer uma regra de ordenação externa à classe dos elementos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `Comparator` encapsula uma relação de comparação que pode ser passada a métodos de ordenação e pesquisa. Assim, um mesmo tipo pode ser ordenado por nome, data ou prioridade sem alterar seu `Comparable`.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento de Arrays.binarySearch para uma chave ausente está documentado no Java SE 8?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retorna sempre -1, sem considerar em que posição a chave caberia na sequência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retorna o índice de um elemento semelhante, mesmo sem igualdade segundo o comparador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retorna o tamanho do array com sinal positivo quando a chave não aparece.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retorna zero e registra a ausência por uma exceção verificada obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retorna -(ponto de inserção)-1, permitindo recuperar a posição adequada.",
+          "correct": true
+        }
+      ],
+      "explanation": "O retorno negativo codifica o ponto de inserção: aplicando `-resultado - 1`, obtém-se a fronteira onde a chave ausente caberia. Resultado não negativo indica índice encontrado. A documentação exige dados ordenados de forma compatível.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, Arrays.binarySearch pode ser aplicado a qualquer array não ordenado, pois verifica sequencialmente os elementos antes de retornar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O método usa busca binária e requer que o array esteja ordenado segundo ordem natural ou o comparador informado. Para array não ordenado, a documentação considera o resultado indefinido.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista Java foi ordenada por Comparator que compara empregados pelo número funcional. Qual condição deve ser atendida antes de chamar Collections.binarySearch com esse comparador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista deve ser revertida e o método deve receber null para recuperar a ordem original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lista deve permanecer ordenada por número funcional usando uma comparação compatível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A lista deve ser convertida em array e ordenada lexicograficamente pelo nome do empregado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista deve conter só elementos únicos, pois comparadores não aceitam valores repetidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A lista deve ser copiada para HashSet, que mantém o índice calculado por busca binária.",
+          "correct": false
+        }
+      ],
+      "explanation": "A busca binária com Comparator pressupõe que a lista esteja ordenada em ordem crescente segundo esse mesmo critério compatível. Ordenar pelo nome ou usar outra comparação quebra a premissa usada para descartar metades.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Java SE 8, a ordenação de arrays de objetos por Arrays.sort é estável, embora o algoritmo concreto possa ser tratado como detalhe de implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação afirma a garantia de estabilidade para objetos e alerta que a descrição do algoritmo é nota de implementação, sujeita a substituição desde que a especificação seja cumprida. Portanto não se deve inferir um algoritmo fixo da API.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual frase separa corretamente Java EE de Java SE no tratamento de algoritmos de ordenação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Java EE substitui Arrays e Collections por serviços remotos de ordenação no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Java SE contém APIs de coleções usadas pelo código; Java EE fornece plataforma empresarial e contêineres.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Java EE 8 altera a complexidade da busca binária para O(1) em listas gerenciadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Java SE define EJB e JPA, enquanto Java EE define Comparable e Comparator.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Java EE executa ordenações apenas em banco de dados, sem permitir código Java comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Arrays`, `Collections`, `Comparable` e `Comparator` pertencem às APIs Java SE. Java EE 7/8 acrescentam uma plataforma empresarial com componentes e serviços em contêineres; ela não elimina nem altera a pré-condição algorítmica da busca binária.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Java EE 7 e Java EE 8 redefinem o funcionamento de Comparable e Collections.binarySearch dentro de aplicações corporativas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As plataformas Java EE organizam APIs e serviços empresariais, mas os contratos de `Comparable`, `Comparator` e coleções vêm de Java SE. A lista continua precisando estar ordenada pela comparação usada na pesquisa.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API Java EE 7 contém serviços de contêiner para aplicações corporativas, enquanto seus códigos podem usar APIs da plataforma Java SE para listas e arrays.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O tutorial oficial organiza as tecnologias empresariais em componentes e contêineres e também identifica APIs Java SE utilizadas pela plataforma. Algoritmos de coleção continuam implementados com as classes Java SE usuais.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa ordenar registros por departamento e, dentro do departamento, manter a ordem anterior de admissão. Qual propriedade da ordenação é particularmente útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estabilidade, pois empates no departamento conservam a ordem anterior por admissão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "In-place, pois garante que os empates preservem a posição de entrada sem exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Busca linear, pois transforma a ordem existente em agrupamento por departamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ponto de inserção, pois grava automaticamente a data de admissão como segunda chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Complexidade quadrática, pois toda ordenação composta requer comparar todos os pares.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma ordenação estável por departamento conserva a ordem que já existia entre registros empatados nesse campo. Se a lista estava previamente ordenada por admissão, a segunda ordenação estável resulta nos dois critérios sem perder essa precedência.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao ordenar uma coleção uma única vez para depois realizar milhares de pesquisas, o custo inicial de ordenação pode ser amortizado pelas buscas binárias posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ordenar custa tipicamente O(n log n) com algoritmo eficiente, mas cada pesquisa binária custa O(log n). Em muitas consultas sobre dados que não mudam, esse investimento pode custar menos do que repetir varreduras lineares de O(n).",
+      "section": "1. Algoritmo, custo e escolha do método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha favorece um conjunto pequeno de elementos que chega quase ordenado e precisa de pouca memória adicional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Merge sort, pois precisa de buffer de tamanho n e é sempre o mais simples para entradas pequenas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Busca binária, pois ordena por comparação e substitui a necessidade de rearranjar elementos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Insertion sort, que pode aproveitar a ordem existente e usa espaço auxiliar constante.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Selection sort, cuja comparação cai para O(n) quando a lista já vem ordenada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quicksort, que garante estabilidade e O(n log n) de pior caso sem uso de pilha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Insertion sort costuma ter implementação simples, espaço auxiliar constante e melhor caso linear em sequência ordenada, por isso atende bem a entrada pequena e quase ordenada. Merge sort usa buffer; selection continua quadrático e quicksort não oferece as garantias citadas.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fato de uma API indicar que uma ordenação é estável não basta para concluir que o algoritmo usa memória constante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Estabilidade é uma garantia sobre elementos empatados; memória auxiliar é uma dimensão independente. Uma ordenação estável pode usar buffer proporcional a n, e uma ordenação in-place pode não ser estável.",
+      "section": "3. Ordenação: mecanismos, garantias e trade-offs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP, `sort` é a escolha indicada quando se quer ordenar valores mas manter os identificadores associativos originais vinculados a cada registro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `sort` descarta as chaves existentes e atribui índices numéricos. Para ordenar pelos valores preservando a associação chave-valor, usa-se `asort` (ou `arsort` para ordem decrescente).",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de métodos Java é adequada para ordenar um array de empregados por salário crescente e depois pesquisar um salário com a mesma regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Arrays.sort com Comparator de salário seguido de Arrays.binarySearch com Comparator compatível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Collections.sort em qualquer array e Arrays.binarySearch sem ordenação ou critério correspondente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arrays.binarySearch primeiro, seguido de Collections.sort usando comparação por nome.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HashSet.add para ordenar por salário e List.indexOf para pesquisar pelo comparador externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arrays.parallelSort por nome e Collections.binarySearch pela chave de salário sem Comparator.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ordenação e busca devem usar critérios compatíveis. `Arrays.sort` aceita Comparator e `Arrays.binarySearch` tem overload correspondente; ordenar por salário e pesquisar segundo a mesma regra satisfaz a pré-condição documentada.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método Collections.binarySearch pode indicar uma posição de inserção negativa quando a chave não é localizada na lista ordenada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de Collections usa a mesma convenção: quando ausente, o retorno é `-(insertion point)-1`. A posição pode ser recuperada por `-retorno-1`, desde que a lista esteja ordenada pela comparação correspondente.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma aplicação correta da estabilidade em uma ordenação composta no Python?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar pelo critério principal e depois pelo secundário, pois stable elimina empates de ambos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar pelo secundário primeiro e pelo principal depois, mantendo entre principais empatados a ordem secundária.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar reverse em cada campo, pois reverse preserva a ordem original mesmo após novas ordenações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar list.sort e assumir que key será armazenado no objeto para comparações futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar bisect_left em registros não ordenados para criar simultaneamente os dois critérios.",
+          "correct": false
+        }
+      ],
+      "explanation": "A técnica de múltiplas passagens começa pelo critério menos prioritário e termina pelo principal. Como Python garante estabilidade, a segunda ordenação mantém a ordem secundária entre itens empatados no critério principal.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo interno de PHP sort é contrato fixo que aplicações devem considerar ao depender de um pivô específico para obter o mesmo desempenho em qualquer versão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O manual identifica quicksort como detalhe de implementação e alerta que não se deve depender dele. O contrato útil para o programa são semântica de ordenação, flags, efeito sobre chaves e garantias documentadas.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao atualizar os dados de uma lista já ordenada entre uma chamada a binarySearch e outra, o índice previamente calculado pode ficar obsoleto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O resultado depende do conteúdo e da ordem atuais da coleção. Inserções, remoções ou alterações de chave podem deslocar índices e invalidar tanto o índice encontrado quanto a posição de inserção previamente calculada.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende localizar todas as ocorrências de um valor em lista não ordenada. Qual procedimento assegura que nenhuma ocorrência seja ignorada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer busca binária e parar no primeiro empate, pois os demais ficam adjacentes em toda lista.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar os elementos e chamar array_search, que devolve todas as chaves correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Percorrer a lista inteira, registrando cada posição cujo valor compare como igual ao alvo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Chamar min e max, pois os extremos revelam quantas vezes o alvo ocorre no interior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar busca por interpolação, que percorre automaticamente todas as posições repetidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A varredura completa compara cada registro e guarda toda correspondência, funcionando mesmo sem ordenação. Uma busca que para na primeira igualdade não entrega todas as posições; array_search também retorna só a primeira chave.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de `Arrays.parallelSort` no Java SE 8 elimina qualquer custo de memória auxiliar e garante aceleração para todo tamanho de array.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação descreve paralelização e espaço de trabalho que pode chegar ao tamanho do array ou do trecho; o uso do pool comum também não garante aceleração em entradas pequenas. Paralelismo não significa custo zero.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A busca binária em uma lista ordenada não promete qual ocorrência de uma chave repetida será retornada, salvo quando se usa uma variante que procura um limite específico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contrato de busca binária comum informa um índice correspondente quando há igualdade, mas não necessariamente o primeiro ou o último entre duplicatas. Limites inferior e superior são operações distintas e devem ser escolhidos conforme a necessidade.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha de ordenação é mais adequada quando a equipe precisa de garantia de pior caso O(n log n) e estabilidade em registros de um array Java de objetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quicksort manual com pivô fixo, porque sua média assegura o mesmo limite no pior caso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selection sort, porque compara somente n vezes e mantém a ordem de empates.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Heapsort, porque é estável e usa buffer auxiliar proporcional ao número de objetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Arrays.sort para objetos, cuja estabilidade é garantida pela especificação da API Java SE 8.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Busca binária, porque reorganiza os objetos e limita a ordenação a O(log n).",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Java SE 8 garante estabilidade para `Arrays.sort` sobre objetos e descreve seu custo de ordenação. Busca binária apenas pesquisa uma sequência ordenada; selection é quadrático e heapsort não é estável.",
+      "section": "4. Python, PHP e Java no contexto de JEE 7 e JEE 8",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comparador inconsistente que às vezes considera a maior chave menor pode comprometer a correção e a previsibilidade da ordenação e da pesquisa binária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os algoritmos pressupõem uma relação de ordenação coerente. Se a comparação não for transitiva ou mudar entre chamadas, a ordenação pode violar sua especificação e a busca não consegue descartar intervalos com segurança.",
+      "section": "2. Pesquisa: varredura e divisão do intervalo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Sorting Techniques — Python Documentation",
+      "publisher": "Python Software Foundation",
+      "reference": "Estabilidade, key, reverse, ordenação em várias passagens e Timsort",
+      "url": "https://docs.python.org/3/howto/sorting.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "bisect — Array bisection algorithm",
+      "publisher": "Python Software Foundation",
+      "reference": "Pontos de inserção à esquerda e à direita em sequência ordenada",
+      "url": "https://docs.python.org/3/library/bisect.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: Sorting Arrays",
+      "publisher": "PHP Documentation Group",
+      "reference": "Diferenças entre ordenação por chave, por valor e preservação de associação",
+      "url": "https://www.php.net/manual/en/array.sorting.php",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: sort",
+      "publisher": "PHP Documentation Group",
+      "reference": "Ordenação crescente por valor, flags e reindexação",
+      "url": "https://www.php.net/manual/en/function.sort.php",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: array_search",
+      "publisher": "PHP Documentation Group",
+      "reference": "Busca do valor, retorno de chave ou false e parâmetro strict",
+      "url": "https://www.php.net/manual/en/function.array-search.php",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arrays (Java Platform SE 8)",
+      "publisher": "Oracle",
+      "reference": "Arrays.sort, estabilidade para objetos, parallelSort e binarySearch",
+      "url": "https://docs.oracle.com/javase/8/docs/api/java/util/Arrays.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Collections (Java Platform SE 8)",
+      "publisher": "Oracle",
+      "reference": "Ordenação e busca binária de listas com ordem natural ou Comparator",
+      "url": "https://docs.oracle.com/javase/8/docs/api/java/util/Collections.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Java EE 7 Tutorial — Overview",
+      "publisher": "Oracle",
+      "reference": "Plataforma empresarial, contêineres, APIs Java EE e APIs da plataforma Java SE",
+      "url": "https://docs.oracle.com/javaee/7/tutorial/overview.htm",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta EE Platform 8 Specification",
+      "publisher": "Eclipse Foundation",
+      "reference": "Especificação da plataforma EE 8, sucessora da edição Java EE 8",
+      "url": "https://jakarta.ee/specifications/platform/8/platform-spec-8.pdf",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

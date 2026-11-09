@@ -1,0 +1,1895 @@
+{
+  "id": "informatica.identidade-nuvem-microsoft-entra-iam",
+  "subject": "Informática",
+  "title": "Identidade e acesso em nuvem: Microsoft Entra e IAM",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Microsoft Entra e IAM em nuvem",
+    "Serviços de nuvem (IaaS, PaaS e SaaS): Microsoft Entra",
+    "Microsoft Entra ID e gestão de identidade",
+    "Azure Active Directory e Microsoft Entra ID",
+    "Identidade e acesso em serviços de nuvem",
+    "IAM com Microsoft Entra",
+    "Autenticação e autorização no Entra ID",
+    "Gestão de acesso a aplicações em nuvem",
+    "Identidades de usuários e cargas de trabalho",
+    "Acesso Condicional do Microsoft Entra",
+    "Microsoft Entra, IaaS, PaaS e SaaS"
+  ],
+  "scope": {
+    "covers": "Fundamentos de IAM e do Microsoft Entra ID; tenant e diretório; usuários, grupos, dispositivos, aplicações registradas e entidades de serviço; autenticação, autorização, SSO, protocolos OAuth 2.0, OpenID Connect e SAML; MFA e métodos sem senha; Acesso Condicional, sinais e controles; funções do Entra e Azure RBAC; identidades gerenciadas para cargas de trabalho; sincronização híbrida; aplicações SaaS, recursos IaaS e aplicações PaaS.",
+    "excludes": "Administração detalhada de licenças e preços, configuração passo a passo de portais, sintaxe de APIs, políticas específicas de cada produto Azure, segurança de rede e desenho completo de diretórios locais."
+  },
+  "theoryTitle": "Microsoft Entra como plano de identidade para serviços de nuvem",
+  "chapters": [
+    {
+      "title": "1. IAM, Entra ID e o modelo de nuvem",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização usa aplicações SaaS, máquinas virtuais IaaS e aplicações próprias hospedadas em PaaS. Cada recurso precisa saber **quem ou o que está pedindo acesso** e **o que essa identidade pode fazer**. IAM (Identity and Access Management, gestão de identidade e acesso) reúne os processos e controles para criar identidades, autenticá-las, atribuir permissões e retirar acessos quando deixam de ser necessários.\n\nMicrosoft Entra é uma família de produtos de identidade e acesso. **Microsoft Entra ID** é seu serviço fundamental: um diretório e serviço de IAM baseado em nuvem que autentica usuários e outras identidades e fornece decisões e tokens de acesso para aplicações e recursos. O nome atual substituiu Azure Active Directory (Azure AD); não se deve confundi-lo com o Active Directory Domain Services local, que oferece domínio Windows e protocolos como Kerberos e LDAP.\n\n> **Siglas e termos deste capítulo**\n> - **IaaS**: infraestrutura sob demanda, como máquinas virtuais, discos e redes.\n> - **PaaS**: plataforma gerenciada para executar aplicações ou serviços, como um aplicativo web hospedado.\n> - **SaaS**: aplicação pronta acessada como serviço, como um sistema corporativo web.\n> - **IAM**: gestão de identidades, autenticação, autorização e ciclo de vida de acesso.\n> - **Tenant**: instância organizacional do Entra ID, com diretório, usuários, grupos, aplicações e configurações próprios.\n> - **Diretório**: repositório lógico de objetos e relações de identidade de um tenant.\n\n### Um provedor de identidade atende os três modelos\n\nEntra ID é um serviço de identidade em nuvem, mas as permissões sobre cada recurso continuam específicas do recurso. O fluxo geral é: a aplicação ou serviço encaminha o usuário ao Entra para autenticação; após validar a identidade e as condições aplicáveis, o Entra emite um token; o recurso valida esse token e aplica sua autorização. A autenticação responde **quem é a identidade**; a autorização responde **o que ela pode fazer neste recurso**.\n\n| Modelo | Recurso típico | Papel do Entra | Autorização do recurso\n| --- | --- | --- |\n| **IaaS** | Máquina virtual, armazenamento ou plano de gerenciamento Azure | Autentica usuário, administrador ou identidade de carga | Azure RBAC define ações permitidas sobre recursos Azure; login no sistema operacional é controle distinto |\n| **PaaS** | Aplicativo web, banco gerenciado ou serviço de aplicação | Autentica usuários e pode fornecer identidade gerenciada à aplicação | Função ou política do próprio serviço limita operações e dados |\n| **SaaS** | Aplicação corporativa acessada pela web | Integra login, SSO, provisionamento e políticas de acesso | A aplicação SaaS ainda controla seus papéis e permissões internos |\n\nO Entra não substitui todas as autorizações específicas. Um login bem-sucedido não significa que a pessoa pode ler qualquer tabela no banco ou administrar uma VM. A identidade precisa também receber uma permissão apropriada no plano de controle ou dentro da aplicação.\n\n### Objetos de identidade importantes\n\n- **Usuário**: pessoa ou conta organizacional representada no diretório. Pode ser membro do tenant ou convidado externo.\n- **Grupo**: conjunto usado para atribuir acesso e configurações a vários membros de maneira administrável.\n- **Dispositivo**: objeto que representa um equipamento registrado ou associado ao diretório; seu estado pode ser sinal para políticas.\n- **Registro de aplicativo (app registration)**: definição da aplicação perante a plataforma de identidade, incluindo identificadores, URI de redirecionamento e configurações de autenticação.\n- **Aplicativo empresarial**: representação local no tenant de uma aplicação que pode ser acessada ou administrada; em geral corresponde a uma entidade de serviço. O registro define a aplicação; a representação empresarial participa do contexto do tenant, como atribuições e consentimentos.\n- **Entidade de serviço (service principal)**: identidade da aplicação em um tenant, usada para conceder acesso e representar a instância da aplicação naquele diretório.\n- **Identidade gerenciada**: identidade para um recurso Azure, que permite a um serviço obter credenciais/token sem armazenar segredo de aplicação no código.\n\n### Como cai na prova\n\n- Entra ID é serviço de identidade e acesso em nuvem; não é sinônimo do Active Directory local.\n- Distingua autenticação (validar identidade) de autorização (decidir permissões no recurso).\n- O Entra atende identidades usadas em SaaS, IaaS e PaaS; cada serviço ainda pode manter autorização própria.\n- Registro de aplicativo descreve a aplicação; entidade de serviço é sua identidade no tenant.\n- IAM também inclui ciclo de vida: provisionar, revisar, alterar e revogar acesso."
+    },
+    {
+      "title": "2. Login, tokens, SSO e métodos de autenticação",
+      "markdown": "### O problema que este assunto resolve\n\nSem um provedor de identidade comum, cada aplicação pode manter senha e sessão separadas. A federação permite que aplicações confiem na autenticação feita pelo Entra. O usuário autentica-se no provedor de identidade e recebe uma sessão ou token aceito pelo serviço de destino, sem que a aplicação precise receber sua senha. Isso viabiliza SSO (single sign-on, entrada única), quando o usuário acessa aplicações integradas sem repetir o processo de login a cada uma.\n\n> **Siglas e termos deste capítulo**\n> - **IdP**: provedor de identidade que autentica e emite afirmações ou tokens.\n> - **SP/RP**: provedor de serviço ou parte confiável que consome a autenticação.\n> - **OAuth 2.0**: estrutura de autorização delegada, frequentemente usada para obter acesso a APIs.\n> - **OpenID Connect (OIDC)**: camada de identidade sobre OAuth 2.0, usada para autenticar usuários e transmitir informações de identidade.\n> - **SAML**: padrão de federação baseado em afirmações XML, comum em SSO empresarial.\n> - **MFA**: autenticação multifator, com pelo menos dois fatores de categorias distintas.\n\n### Do pedido de acesso ao recurso\n\nNum fluxo web comum, a aplicação redireciona o navegador ao Entra. O usuário prova sua identidade; o Entra avalia configurações e políticas e devolve a resposta ao endereço cadastrado da aplicação. Em OIDC, a aplicação recebe tokens de identidade e pode obter tokens de acesso conforme o fluxo. OAuth 2.0 descreve a concessão de acesso delegado, por exemplo a uma API; um access token destina-se ao recurso indicado e não deve ser tratado como senha universal. Em SAML, o IdP emite uma afirmação assinada que o serviço confia. O formato e o protocolo devem ser suportados e configurados por ambos os lados.\n\nSSO não significa que a aplicação deixou de autorizar ações. Ele reduz logins repetidos e centraliza a autenticação, enquanto a aplicação ainda pode decidir qual usuário vê determinado relatório ou executa determinada operação.\n\n### MFA e autenticação resistente a senha\n\nOs fatores podem ser algo que a pessoa **sabe** (senha ou PIN), **possui** (chave de segurança ou dispositivo confiável) ou **é** (biometria). Dois fatores não são simplesmente duas perguntas secretas da mesma categoria. O Entra MFA pode usar métodos como Microsoft Authenticator, chave de segurança/passkey FIDO2, SMS ou chamada, conforme disponibilidade e configuração. Métodos variam em resistência a phishing e experiência; um código por SMS não oferece a mesma resistência de uma passkey vinculada ao domínio legítimo.\n\nWindows Hello for Business e passkeys podem oferecer autenticação sem senha. O uso de biometria local desbloqueia uma credencial criptográfica; não significa necessariamente que a impressão digital seja enviada ao serviço como senha. A redefinição de senha de autoatendimento pode ser integrada ao registro de métodos de autenticação, mas autenticação e recuperação de conta são operações distintas.\n\n### Credenciais de aplicações\n\nAplicações confidenciais podem autenticar-se por certificado ou segredo, mas um segredo é credencial sensível e exige armazenamento e rotação cuidadosos. Não se deve embutir segredo em código distribuído a clientes. Para um recurso Azure que chama outro serviço Azure, uma identidade gerenciada evita que o desenvolvedor armazene e administre uma credencial estática no aplicativo.\n\n### Como cai na prova\n\n- OIDC autentica usuários com uma camada de identidade; OAuth 2.0 delega autorização; SAML transporta afirmações de federação.\n- Token é destinado a um público/recurso e tem finalidade determinada; não equivale a senha reutilizável.\n- SSO não concede automaticamente autorização dentro da aplicação.\n- MFA combina fatores de categorias diferentes; duas senhas não constituem dois fatores.\n- Segredos de aplicações não devem ser incluídos no código; identidade gerenciada reduz esse risco em recursos Azure."
+    },
+    {
+      "title": "3. Acesso Condicional, MFA e menor privilégio",
+      "markdown": "### O problema que este assunto resolve\n\nUma senha válida, isoladamente, não informa se o acesso vem de dispositivo confiável, localização esperada, aplicação sensível ou sessão de alto risco. O **Acesso Condicional** do Entra combina sinais e aplica decisões do tipo “se estas condições ocorrerem, exija controles ou bloqueie”. É o mecanismo de política Zero Trust do Entra ID: verificar explicitamente, usar privilégio mínimo e presumir que uma violação pode ocorrer.\n\n> **Siglas e termos deste capítulo**\n> - **Acesso Condicional (Conditional Access)**: políticas que avaliam sinais do acesso após a primeira autenticação e aplicam controles.\n> - **Sinal**: dado avaliado, como usuário, grupo, aplicativo, endereço/localização, dispositivo ou risco.\n> - **Controle de concessão**: requisito para permitir acesso, como exigir MFA ou dispositivo compatível.\n> - **Somente relatório (report-only)**: modo de observar o efeito de uma política sem aplicá-la ao acesso real.\n> - **Privilégio mínimo**: conceder apenas as permissões necessárias, no escopo e período necessários.\n\n### Como uma política toma a decisão\n\nUma política seleciona atribuições e condições (quem, qual aplicativo ou recurso, localização, dispositivo, cliente, risco, entre outros sinais suportados) e define o resultado. Pode **bloquear** ou **conceder** acesso sujeito a requisitos, como MFA, força de autenticação, dispositivo marcado como compatível, ingresso híbrido ou termos de uso. Se várias políticas se aplicam, os requisitos de concessão precisam ser satisfeitos; um controle de bloqueio nega o acesso. A política é avaliada após a autenticação de primeiro fator, portanto não é a defesa inicial contra tentativa de negação de serviço.\n\nAntes de ativar uma regra ampla, o administrador deve examinar seu escopo, testar cenários com ferramenta de simulação/What If ou report-only e preservar um procedimento de recuperação de emergência. Um erro de atribuição pode bloquear administradores legítimos. Clientes de autenticação legada não fornecem os mesmos recursos de MFA e estado do dispositivo e costumam ser bloqueados por políticas que exigem esses controles.\n\n### Funções de diretório e funções de recurso\n\nFunções do Microsoft Entra administram objetos e configurações do diretório: por exemplo, User Administrator trata de usuários, e Conditional Access Administrator administra políticas de Acesso Condicional. **Azure RBAC** controla ações sobre recursos Azure, como operar uma máquina virtual ou ler um recurso de armazenamento. São sistemas de autorização relacionados, mas distintos. Conceder uma função de diretório não equivale automaticamente a conceder uma função sobre qualquer recurso Azure, e vice-versa.\n\nAtribuições podem ser direcionadas a grupos e delimitadas por escopo quando a função permite. Funções altamente privilegiadas devem ser limitadas, monitoradas e concedidas de modo apropriado; contas administrativas separadas e MFA reduzem exposição. Revisões periódicas, remoção no desligamento e controle de convidados ajudam a manter o menor privilégio.\n\n### Como cai na prova\n\n- Uma regra pode exigir MFA para um aplicativo quando o usuário acessa de determinada condição; isso não muda a senha nem a função do usuário.\n- Localização, dispositivo, usuário, aplicativo e risco são exemplos de sinais, não provas isoladas de identidade.\n- Report-only permite estimar impacto antes da aplicação efetiva.\n- Entra roles administram o diretório; Azure RBAC administra recursos Azure.\n- Uma política que exige MFA não se satisfaz com clientes legados que não suportam o desafio; planeje sua transição."
+    },
+    {
+      "title": "4. Identidades de cargas de trabalho e operação híbrida",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações também precisam acessar recursos. Uma aplicação hospedada num App Service que lê um segredo de um cofre ou consulta uma fila tem uma identidade de carga de trabalho. Usar a conta pessoal de um desenvolvedor ou deixar uma chave fixa no código cria dependência de pessoas e risco de vazamento. O Entra representa aplicações e cargas com identidades próprias; em recursos Azure, uma identidade gerenciada pode obter tokens sem que o código guarde credenciais.\n\n> **Siglas e termos deste capítulo**\n> - **Identidade de carga de trabalho**: identidade de aplicação, serviço, processo automatizado ou outro software.\n> - **Identidade gerenciada**: identidade do Entra associada a um recurso Azure e cujas credenciais são administradas pela plataforma.\n> - **Identidade atribuída pelo sistema**: vinculada ao ciclo de vida de um recurso específico; é removida com ele.\n> - **Identidade atribuída pelo usuário**: criada como recurso independente e pode ser associada a mais de um recurso compatível.\n> - **Sincronização híbrida**: cópia controlada de identidades entre diretório local e Entra ID, conforme arquitetura adotada.\n\n### Identidade gerenciada: fluxo de acesso\n\nO administrador habilita a identidade no recurso de computação e concede a ela a permissão necessária no serviço de destino. O código solicita um token ao ambiente de identidade hospedado pelo Azure e apresenta o token ao destino. A identidade gerenciada reduz a necessidade de armazenar segredo ou certificado na configuração da aplicação, mas **não concede acesso por si só**: ainda é preciso atribuir à identidade uma função ou permissão no recurso de destino. A concessão deve ser restrita ao escopo e às operações necessárias.\n\nA identidade atribuída pelo sistema é apropriada quando a identidade deve acompanhar um único recurso. A identidade atribuída pelo usuário pode ser mantida independentemente e associada a vários recursos, útil quando a identidade e suas permissões precisam sobreviver à substituição de uma instância de computação. Nem todo serviço suporta os mesmos cenários; a escolha depende do serviço e do ciclo de vida pretendido.\n\n### SaaS, aplicações empresariais e usuários externos\n\nUma aplicação SaaS pode integrar-se ao Entra para SSO e, quando suportado, provisionamento/desprovisionamento de contas. O provisionamento cria, atualiza ou desativa contas no sistema conectado conforme regras configuradas; SSO trata da autenticação federada. São funções relacionadas, mas distintas. Um convidado B2B é uma identidade externa representada no diretório para colaboração; as políticas e permissões aplicáveis dependem do tenant e da aplicação de destino.\n\nAplicações locais podem ser ligadas ao Entra por sincronização e federação, permitindo experiências híbridas. Sincronizar objetos não torna o diretório local e o Entra a mesma tecnologia nem transfere automaticamente todos os controles. A arquitetura deve definir origem dos atributos, método de autenticação e fronteira administrativa.\n\n### Como cai na prova\n\n- Identidade gerenciada reduz o uso de segredos armazenados, mas precisa receber autorização no destino.\n- Identidade atribuída pelo sistema acompanha um recurso; a atribuída pelo usuário tem ciclo independente e pode ser reutilizada em recursos compatíveis.\n- SSO autentica; provisionamento cria, atualiza ou desativa contas no serviço integrado.\n- Entra pode atuar como plano de identidade de aplicações SaaS e cargas IaaS/PaaS, sem substituir a autorização interna de cada sistema.\n- Sincronização híbrida replica identidades/atributos segundo configuração; não apaga a distinção entre diretório local e serviço em nuvem."
+    }
+  ],
+  "summary": "Microsoft Entra ID é um serviço de IAM em nuvem usado por identidades humanas e de cargas de trabalho para autenticar-se em serviços SaaS, aplicações PaaS e recursos IaaS. Autenticação comprova identidade; autorização define operações no recurso. SSO usa federação (por exemplo, OIDC, OAuth 2.0 ou SAML, conforme a função do protocolo) para reduzir logins repetidos, sem substituir as permissões internas. MFA combina fatores distintos. Acesso Condicional avalia sinais e exige controles ou bloqueia. Funções do Entra e Azure RBAC têm escopos diferentes. Identidades gerenciadas evitam credenciais estáticas em código, mas ainda precisam de permissões no destino.",
+  "flashcards": [
+    {
+      "front": "O que é IAM?",
+      "back": "Gestão do ciclo de vida de identidades, autenticação, autorização e acesso a recursos."
+    },
+    {
+      "front": "O que é Microsoft Entra ID?",
+      "back": "Serviço de identidade e acesso baseado em nuvem da família Microsoft Entra."
+    },
+    {
+      "front": "O que é um tenant?",
+      "back": "Instância organizacional do diretório Entra, com objetos e configurações próprios."
+    },
+    {
+      "front": "Autenticação responde a qual pergunta?",
+      "back": "Quem ou o que está tentando acessar?"
+    },
+    {
+      "front": "Autorização responde a qual pergunta?",
+      "back": "Quais recursos e operações a identidade pode usar?"
+    },
+    {
+      "front": "O que é SSO?",
+      "back": "Entrada única: uma autenticação federada permite acessar aplicações integradas sem novo login em cada uma."
+    },
+    {
+      "front": "Para que serve OAuth 2.0?",
+      "back": "Delegar autorização para que um cliente obtenha acesso limitado a um recurso, como uma API."
+    },
+    {
+      "front": "Para que serve OIDC?",
+      "back": "Adicionar autenticação e informações de identidade sobre OAuth 2.0."
+    },
+    {
+      "front": "Onde é comum encontrar SAML?",
+      "back": "Em federação e SSO empresarial entre provedor de identidade e aplicação."
+    },
+    {
+      "front": "Quais são as três categorias usuais de fator MFA?",
+      "back": "Algo que se sabe, algo que se possui e algo que se é."
+    },
+    {
+      "front": "O que faz Acesso Condicional?",
+      "back": "Avalia sinais do acesso e aplica controles, como exigir MFA, dispositivo compatível ou bloquear."
+    },
+    {
+      "front": "O que significa report-only?",
+      "back": "Avalia o efeito de uma política sem impor seu controle ao usuário."
+    },
+    {
+      "front": "O que são funções do Entra?",
+      "back": "Papéis para administrar objetos e configurações do diretório Entra."
+    },
+    {
+      "front": "O que é Azure RBAC?",
+      "back": "Autorização de ações sobre recursos Azure, como máquinas virtuais e armazenamento."
+    },
+    {
+      "front": "O que é uma entidade de serviço?",
+      "back": "Identidade de uma aplicação dentro de um tenant, usada em atribuições e acesso."
+    },
+    {
+      "front": "O que é uma identidade gerenciada?",
+      "back": "Identidade para um recurso Azure, com credenciais administradas pela plataforma."
+    },
+    {
+      "front": "Identidade gerenciada concede acesso automaticamente?",
+      "back": "Não. A identidade ainda precisa receber a permissão apropriada no serviço de destino."
+    },
+    {
+      "front": "Como difere identidade atribuída pelo sistema da atribuída pelo usuário?",
+      "back": "A primeira acompanha um recurso; a segunda tem ciclo independente e pode ser associada a recursos compatíveis."
+    },
+    {
+      "front": "SSO e provisionamento são a mesma coisa?",
+      "back": "Não. SSO autentica; provisionamento cria, atualiza ou desativa contas no sistema conectado."
+    },
+    {
+      "front": "Entra ID é o mesmo que Active Directory Domain Services?",
+      "back": "Não. Entra ID é serviço de identidade em nuvem; AD DS é serviço de domínio local com tecnologias próprias."
+    },
+    {
+      "front": "Uma conta convidada B2B representa o quê?",
+      "back": "Uma identidade externa convidada ao diretório para colaborar com recursos permitidos."
+    },
+    {
+      "front": "O que é menor privilégio?",
+      "back": "Conceder somente operações, escopo e duração necessários à tarefa."
+    }
+  ],
+  "tips": [
+    "Separe sempre identidade (quem), autenticação (prova) e autorização (permissão).",
+    "Ao ler uma questão, identifique se o recurso é IaaS, PaaS ou SaaS e qual camada decide a permissão.",
+    "Lembre-se: OAuth 2.0 trata de autorização; OIDC adiciona autenticação; SAML é outro protocolo de federação.",
+    "Acesso Condicional combina condições e controles; teste impacto antes de aplicar política ampla.",
+    "Entra roles administram o diretório; Azure RBAC protege o plano de recursos Azure.",
+    "Identidades gerenciadas reduzem segredos estáticos, mas não dispensam concessão explícita no serviço de destino."
+  ],
+  "traps": [
+    "Confundir Microsoft Entra ID com Active Directory Domain Services local: são serviços e arquiteturas distintos.",
+    "Achar que SSO concede papel dentro da aplicação: autenticar não equivale a autorizar operações.",
+    "Tratar OAuth 2.0 como protocolo de autenticação por si só: OIDC é a camada de identidade sobre ele.",
+    "Supor que MFA significa duas senhas: os fatores devem pertencer a categorias distintas.",
+    "Confundir função de diretório Entra com Azure RBAC: cada uma administra recursos e escopos próprios.",
+    "Afirmar que identidade gerenciada já pode ler um cofre: a permissão no recurso de destino ainda deve ser atribuída."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o caminho de autenticação federada de um usuário até uma aplicação SaaS.",
+      "answer": "A aplicação redireciona para o Entra, que autentica o usuário, aplica políticas e devolve token ou afirmação ao endereço configurado; a aplicação valida a resposta e aplica sua própria autorização."
+    },
+    {
+      "question": "Por que login bem-sucedido não prova que o usuário pode consultar uma tabela?",
+      "answer": "O login autentica; a aplicação ou banco precisa conceder autorização específica para a operação e os dados."
+    },
+    {
+      "question": "Diferencie OAuth 2.0 e OpenID Connect.",
+      "answer": "OAuth 2.0 permite autorização delegada a recursos; OIDC acrescenta autenticação e informações de identidade sobre OAuth 2.0."
+    },
+    {
+      "question": "Dê exemplos de sinais e controles de Acesso Condicional.",
+      "answer": "Sinais incluem usuário, aplicativo, localização, dispositivo e risco; controles incluem exigir MFA, dispositivo compatível ou bloquear."
+    },
+    {
+      "question": "Por que Entra roles e Azure RBAC não são intercambiáveis?",
+      "answer": "Entra roles autorizam administração de objetos/configurações do diretório; Azure RBAC autoriza operações sobre recursos Azure."
+    },
+    {
+      "question": "Como uma aplicação hospedada em Azure acessa outro serviço sem segredo fixo no código?",
+      "answer": "Usa identidade gerenciada, solicita token ao ambiente Azure e recebe no destino apenas as permissões explicitamente atribuídas."
+    },
+    {
+      "question": "Quando pode ser útil identidade gerenciada atribuída pelo usuário?",
+      "answer": "Quando a identidade precisa ter ciclo independente do recurso de computação ou ser associada a mais de um recurso compatível."
+    },
+    {
+      "question": "Diferencie SSO de provisionamento numa aplicação SaaS.",
+      "answer": "SSO centraliza a autenticação; provisionamento cria, atualiza ou desativa contas na aplicação conectada."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Autenticação confundida com autorização",
+      "summary": "Autenticar verifica identidade; autorização concede ou nega operações em determinado recurso."
+    },
+    {
+      "key": "e2",
+      "title": "Protocolos com funções trocadas",
+      "summary": "OAuth 2.0 é autorização delegada; OIDC acrescenta autenticação; SAML é protocolo de federação baseado em afirmações."
+    },
+    {
+      "key": "e3",
+      "title": "Escopos de RBAC misturados",
+      "summary": "Funções do Entra administram o diretório; Azure RBAC concede ações sobre recursos Azure."
+    },
+    {
+      "key": "e4",
+      "title": "Identidade gerenciada tratada como permissão automática",
+      "summary": "A plataforma administra credenciais, mas um administrador ainda deve atribuir acesso ao destino."
+    },
+    {
+      "key": "e5",
+      "title": "SSO confundido com provisionamento",
+      "summary": "SSO integra login; provisionamento gerencia a existência e os atributos da conta no serviço conectado."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma organização integra um sistema de folha SaaS ao Microsoft Entra ID. O que a federação pode oferecer ao usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Migração do aplicativo SaaS para uma máquina virtual local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criptografia automática de todos os arquivos já armazenados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituição do banco de dados e da lógica do sistema SaaS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autorização administrativa global sobre toda assinatura Azure.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SSO, mantendo no SaaS a decisão sobre os papéis internos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A federação permite que o Entra autentique o usuário para o SaaS e viabilize SSO. O aplicativo continua responsável por suas permissões internas; federação não migra o produto nem administra recursos Azure.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contexto do IAM, autenticação é o processo que confirma a identidade apresentada antes de avaliar as permissões solicitadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Autenticação verifica quem ou o que apresenta a solicitação; a autorização posterior decide quais recursos e operações essa identidade pode utilizar.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador entra no portal do Entra com sucesso, mas não consegue reiniciar uma máquina virtual. Qual distinção explica melhor a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A senha foi autenticada, mas o portal não aceita protocolos SAML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A identidade foi autenticada, mas falta autorização no recurso Azure.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O tenant não pode conter contas com acesso a IaaS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A autenticação no Entra só vale para aplicações SaaS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O recurso exige que o usuário tenha uma entidade de serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autenticação no portal comprova a identidade, mas operar a VM exige autorização apropriada no escopo Azure, normalmente por Azure RBAC. O login no Entra pode ser usado com IaaS e não transforma uma pessoa em entidade de serviço.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tenant do Microsoft Entra ID é uma instância organizacional do diretório, com objetos e configurações próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O tenant é o limite organizacional que contém diretório, identidades, grupos, aplicações e configurações daquela organização.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa distinguir a definição de uma aplicação da identidade que representa sua instância no tenant. Qual par está correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Grupo define a aplicação; usuário convidado representa sua instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dispositivo define a aplicação; tenant representa seu token.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registro descreve a aplicação; entidade de serviço a representa no tenant.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Função Azure define a aplicação; diretório local representa a instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Token de acesso registra a aplicação; MFA cria a entidade de serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro de aplicativo configura a aplicação para a plataforma de identidade. A entidade de serviço é a identidade dessa aplicação dentro de um tenant e pode receber consentimentos e atribuições nesse contexto.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Microsoft Entra ID e Active Directory Domain Services local são nomes atuais para o mesmo serviço, com diretórios equivalentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Entra ID é um serviço de identidade em nuvem, anteriormente chamado Azure Active Directory. Active Directory Domain Services é um serviço de domínio local com recursos e protocolos próprios; não são produtos equivalentes renomeados.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação hospedada em PaaS usa o Entra para autenticar funcionários, mas restringe relatórios por departamento dentro do próprio sistema. Como interpretar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O PaaS não pode confiar em tokens emitidos pelo Entra.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A restrição interna substitui a autenticação do diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Entra deve armazenar as tabelas e os relatórios do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A autenticação pode vir do Entra e a autorização de negócio do PaaS.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O uso de PaaS transforma cada funcionário em identidade gerenciada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aplicação PaaS pode delegar autenticação ao Entra e ainda executar sua própria autorização de negócio, como decidir quais relatórios cada perfil pode consultar. Federação não transfere automaticamente os dados nem os papéis internos.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário externo convidado pode ser representado no diretório de um tenant para colaborar, sujeito às permissões e políticas aplicáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cenário B2B representa uma identidade externa como convidada no diretório. A presença da conta não concede acesso irrestrito: a organização define recursos, permissões e políticas aplicáveis.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação web precisa autenticar usuários e também solicitar acesso delegado a uma API. Qual descrição dos protocolos é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OIDC fornece identidade sobre OAuth 2.0, enquanto OAuth permite autorização delegada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SAML é o mecanismo de autorização de recurso do Azure RBAC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OAuth 2.0 substitui o diretório e armazena senhas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OIDC é um método de provisionamento de contas sem autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Azure RBAC transporta afirmações XML entre o navegador e o Entra.",
+          "correct": false
+        }
+      ],
+      "explanation": "OAuth 2.0 é uma estrutura para delegar autorização. OpenID Connect acrescenta uma camada de identidade e autenticação sobre OAuth 2.0. SAML é outro protocolo de federação; Azure RBAC é autorização de recursos Azure, não protocolo de login.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OAuth 2.0 é usado para delegar autorização; OpenID Connect acrescenta uma camada de autenticação e identidade sobre essa estrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. OAuth 2.0 permite que um cliente obtenha acesso delegado a um recurso. OIDC usa OAuth 2.0 e acrescenta informações próprias para autenticar o usuário.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço SaaS aceita federação baseada em afirmações XML do provedor de identidade. Qual protocolo corresponde a essa integração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OAuth 2.0, protocolo de consulta de diretório LDAP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SAML, protocolo de federação com afirmações XML.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Azure RBAC, protocolo de sessão para navegadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MFA, formato de token para APIs REST.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Kerberos, camada de identidade adicionada ao OAuth.",
+          "correct": false
+        }
+      ],
+      "explanation": "SAML é um padrão de federação que usa afirmações XML entre provedor de identidade e serviço. OAuth 2.0 trata de autorização delegada; MFA é controle de autenticação e Azure RBAC é sistema de autorização de recursos.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um token de acesso emitido para uma API deve ser tratado como senha universal que o usuário pode reaproveitar em qualquer serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tokens têm finalidade, destinatário e permissões determinados. Um token de acesso é apresentado ao recurso previsto e não deve ser tratado como senha universal ou compartilhado com serviços não destinados a recebê-lo.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve um uso correto de SSO numa aplicação SaaS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O SaaS passa a aceitar a senha do administrador como autorização para toda ação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Entra cria automaticamente todos os dados funcionais da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A sessão federada reduz novos logins, enquanto o SaaS conserva papéis internos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O navegador recebe a senha do usuário para encaminhá-la a cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SSO desativa a necessidade de controlar contas no sistema conectado.",
+          "correct": false
+        }
+      ],
+      "explanation": "SSO permite reaproveitar uma autenticação federada para acessar aplicações integradas, sem entregar a senha do usuário a cada serviço. A aplicação ainda autoriza ações e pode precisar de contas e papéis próprios.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois fatores de autenticação pertencentes à mesma categoria, como duas senhas diferentes, constituem MFA por combinarem dois valores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. MFA combina fatores de categorias distintas, como algo que se sabe e algo que se possui. Duas senhas continuam sendo fatores da categoria “algo que se sabe”.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção combina duas categorias distintas de fatores de autenticação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma senha e outra senha diferente, cadastradas em dias distintos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duas perguntas secretas respondidas com informações pessoais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um PIN e uma senha, ambos conhecidos pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma senha e uma chave física de segurança registrada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Dois códigos memorizados, fornecidos por aplicativos diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Senha é algo que se sabe; chave física é algo que se possui. A combinação usa categorias distintas. Duas senhas, perguntas secretas ou PIN e senha pertencem à categoria do conhecimento.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação confidencial mantém uma chave estática no código-fonte público para se autenticar no Entra. Qual é a falha principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O código passa a usar SAML em vez de OAuth automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A chave pode ser exposta e reutilizada por terceiros não autorizados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O diretório converte a chave em identidade gerenciada sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação perde a possibilidade de receber tokens de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A credencial transforma uma aplicação SaaS em recurso PaaS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma credencial estática publicada pode ser copiada e usada por terceiros. Segredos devem ser protegidos, armazenados fora do código e rotacionados; em recursos Azure compatíveis, identidade gerenciada pode evitar armazenar credenciais da aplicação.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A biometria usada para desbloquear localmente uma credencial não implica necessariamente que a impressão digital seja enviada ao Entra como senha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em métodos como Windows Hello ou passkeys, a biometria pode desbloquear localmente uma chave criptográfica. A autenticação remota usa a credencial criptográfica, sem exigir o envio da impressão digital como senha ao serviço.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa exige MFA somente quando um acesso ao sistema financeiro atende determinadas condições. Qual recurso do Entra implementa essa avaliação por sinais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Azure RBAC, usando o nível de desempenho da máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Provisionamento, escolhendo a frequência das cópias do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acesso Condicional, aplicando controles conforme condições do acesso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Registro de aplicativo, removendo todo usuário não administrativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identidade gerenciada, redefinindo a senha de cada funcionário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Acesso Condicional avalia atribuições e sinais, como usuário, aplicativo, localização, dispositivo ou risco, e pode exigir MFA ou bloquear. Azure RBAC decide ações sobre recursos Azure; os demais mecanismos não são políticas condicionais de login.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de Acesso Condicional pode considerar usuário, aplicativo, localização e estado do dispositivo antes de exigir um controle ou bloquear o acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses são sinais que podem compor atribuições e condições da política. O resultado pode ser exigir MFA, requerer dispositivo compatível ou bloquear, conforme a regra configurada.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deseja estimar o impacto de uma política antes de fazê-la valer para os usuários. Qual abordagem ajuda a observar os resultados sem impor o controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ativar a política para todos e apagar os registros de bloqueio depois.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter os usuários afetados em identidades de carga de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir os sinais de localização por funções Azure RBAC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o modo report-only e revisar o efeito previsto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desligar a autenticação e analisar apenas os logs da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo report-only permite avaliar como a política se aplicaria sem impor seus controles ao acesso real. A simulação de cenários também ajuda a encontrar incompatibilidades antes da ativação efetiva.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Acesso Condicional é normalmente avaliado antes mesmo de qualquer autenticação de primeiro fator.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação descreve a aplicação das políticas após a conclusão do primeiro fator. Acesso Condicional pode reagir a sinais de risco, mas não substitui a defesa inicial contra ataques de negação de serviço.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer impedir bloqueio de todos os administradores por erro numa nova política ampla. Qual prática operacional é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir cuidadosamente contas de emergência e testar a política antes da aplicação ampla.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder função Global Administrator a todos os usuários para garantir entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar definitivamente o primeiro fator para contas administrativas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar senhas administrativas em um aplicativo SaaS compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar a regra e corrigir o escopo depois que todos forem bloqueados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Políticas amplas podem bloquear contas legítimas se houver erro de escopo ou controle. Contas de emergência protegidas, teste em report-only ou grupos piloto e revisão da simulação reduzem o risco de lockout sem conceder privilégio excessivo a todos.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função do Microsoft Entra que administra usuários concede, por si só, permissão para iniciar qualquer máquina virtual da assinatura Azure.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Funções do Entra administram recursos e configurações do diretório. Ações sobre máquinas virtuais são controladas por Azure RBAC no escopo de recurso, assinatura ou grupo de recursos, conforme a atribuição.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação associa corretamente o sistema de autorização ao recurso administrado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Entra role para objeto do diretório; Azure RBAC para recurso Azure.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SAML para máquina virtual; MFA para grupo de recursos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Azure RBAC para senha do usuário; OIDC para permissão de disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OAuth para função administrativa; diretório para autorização do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identidade gerenciada para convite B2B; SSO para papel de armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Funções do Entra delegam administração de objetos e configurações do diretório. Azure RBAC controla operações em recursos Azure. Protocolos de federação, MFA e SSO não substituem esses sistemas de autorização.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O princípio do menor privilégio recomenda restringir uma atribuição ao escopo e às operações necessárias à tarefa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Menor privilégio reduz o impacto de erro ou comprometimento ao limitar permissões, recursos e duração ao necessário para o trabalho autorizado.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço web no Azure precisa consultar um cofre sem guardar uma senha fixa no arquivo de configuração. Qual solução é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma conta pessoal para o desenvolvedor e deixar sua senha no código.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar identidade gerenciada e atribuir-lhe a permissão necessária no cofre.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Habilitar SSO de navegador e presumir acesso irrestrito ao cofre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuir papel Global Administrator à aplicação em todo o tenant.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar o token de um usuário e reutilizá-lo permanentemente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A identidade gerenciada permite ao recurso obter tokens sem armazenar segredo estático no aplicativo. Ela ainda precisa receber uma permissão apropriada no cofre, limitada às operações necessárias; não se deve usar credencial pessoal ou privilégio global.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma identidade gerenciada elimina a necessidade de conceder qualquer permissão no serviço que a aplicação deseja acessar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A plataforma administra a credencial da identidade, mas o recurso de destino precisa reconhecer essa identidade e conceder as permissões necessárias. Identificação sem autorização não permite a operação.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo de computação será substituído frequentemente, mas precisa conservar a mesma identidade compatível entre instâncias. Qual opção pode ser adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conta de usuário convidado, pois mantém tokens sem associação a recursos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identidade atribuída pelo sistema, que sempre sobrevive à exclusão do recurso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identidade atribuída pelo usuário, com ciclo independente do recurso de computação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Função de diretório, usada como credencial para chamadas HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Política de Acesso Condicional, que emite credenciais de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma identidade atribuída pelo usuário tem ciclo de vida independente do recurso de computação e pode ser associada a múltiplos recursos compatíveis. A atribuída pelo sistema acompanha o recurso e é removida com ele.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma identidade gerenciada atribuída pelo sistema tem ciclo de vida associado ao recurso Azure que a utiliza.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A identidade atribuída pelo sistema é criada e removida junto com o recurso associado. Isso é diferente da identidade atribuída pelo usuário, que existe independentemente e pode ser associada a recursos compatíveis.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ciclo de vida de uma aplicação SaaS integrada, qual mecanismo cria, atualiza ou desativa contas no sistema conectado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MFA, que provisiona usuários quando concluem um segundo fator.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Azure RBAC, que sincroniza papéis internos do SaaS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SSO, que remove contas após a autenticação federada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Provisionamento, conforme mapeamentos e regras configurados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Acesso Condicional, que replica senhas para a aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Provisionamento sincroniza a existência e atributos de contas com uma aplicação conectada, inclusive criação, atualização ou desativação conforme regras configuradas. SSO trata da autenticação federada, não da manutenção de contas.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SSO e provisionamento têm funções distintas: o primeiro integra a autenticação; o segundo gerencia contas no sistema conectado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SSO permite que uma autenticação federada seja usada para entrar na aplicação. Provisionamento cria ou altera contas e atributos no serviço integrado; uma função não é substituta da outra.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa sincroniza usuários do diretório local com o Entra ID. Qual conclusão é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os diretórios tornam-se uma única tecnologia e perdem suas fronteiras administrativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A sincronização replica objetos e atributos conforme a arquitetura configurada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todo usuário sincronizado passa a ter acesso Global Administrator.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Entra passa a armazenar as senhas locais em texto legível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A sincronização substitui o controle de autorização de cada aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sincronização híbrida transfere objetos ou atributos segundo configuração e arquitetura adotadas. Ela não torna AD DS e Entra ID o mesmo serviço, não concede privilégios administrativos automaticamente e não elimina as autorizações de cada aplicação.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de Acesso Condicional pode usar risco detectado para orientar controles, mas isso não significa que toda avaliação de risco esteja disponível em qualquer licença.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Entra pode integrar sinais de risco à avaliação de acesso, mas recursos baseados em risco dependem dos produtos e licenças aplicáveis, como Entra ID Protection para cenários de risco. A política também pode usar outros sinais, como dispositivo ou localização.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja bloquear clientes de autenticação legada que não suportam MFA nem transmitem o estado do dispositivo. Qual abordagem é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar política de Acesso Condicional para bloquear clientes legados, validando exceções necessárias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder Azure RBAC de leitura a todos os usuários do diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter cada protocolo legado em SAML sem alterar os clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o registro de dispositivos para que clientes antigos sejam confiáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar identidade gerenciada para cada pessoa que use correio legado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Clientes legados não oferecem MFA nem informações de estado do dispositivo esperadas pelos controles modernos. Acesso Condicional pode bloquear protocolos legados; a organização deve identificar exceções e migrar clientes necessários para autenticação moderna antes da aplicação ampla.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação confidencial registra URI de redirecionamento para receber a resposta de autenticação. Onde esse dado é configurado conceitualmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na política de senha do usuário, como endereço do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na entidade de serviço de outro tenant, sem relação com o aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na função Azure RBAC, como escopo para iniciar a máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No grupo dinâmico, como regra para emitir um token SAML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No registro do aplicativo, como parte de sua configuração de identidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "O registro do aplicativo contém configurações como identificadores, tipos de conta e URI de redirecionamento usada no fluxo de autenticação. Uma URI precisa corresponder à configuração esperada para evitar que a resposta seja enviada a um destino inadequado.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa removeu um funcionário da equipe, mas sua conta ainda pode entrar no sistema integrado por estar ativa no diretório do SaaS. Qual controle de ciclo de vida trata diretamente a desativação da conta conectada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir uma política de localização confiável ao usuário no Entra.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o protocolo SAML por OAuth sem rever a conta existente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sincronizar criação, atualização e desativação da conta no SaaS.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conceder Azure RBAC no grupo de recursos da aplicação SaaS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar identidade gerenciada para o antigo funcionário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A desativação da conta no sistema conectado é tratada pelo ciclo de provisionamento e desprovisionamento, se a integração suportar e estiver configurada. O SSO regula a autenticação federada, mas não necessariamente remove uma conta local que permaneça ativa no SaaS.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um aplicativo obtém um token para uma API, o destinatário previsto do token importa para a validação e não deve ser ignorado pelo serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O recurso deve validar que o token foi emitido para ele, além de verificar emissor, validade e demais declarações relevantes. Um token destinado a outro recurso não é credencial universal para qualquer API.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação SaaS pode usar SSO do Entra e ainda exigir provisionamento próprio, pois autenticação federada não garante que a conta local do usuário foi criada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SSO estabelece como o usuário autentica-se. Algumas aplicações exigem conta provisionada localmente ou mapeamento de usuário antes de permitir o uso; provisionamento é um fluxo distinto que deve ser configurado quando necessário.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de Acesso Condicional que exige dispositivo compatível executa, por si só, a correção e o gerenciamento de conformidade do equipamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A política pode exigir que o dispositivo esteja marcado como compatível, mas a avaliação e o gerenciamento da conformidade dependem dos recursos e configurações de gerenciamento de dispositivos, como integração com Intune. A política de acesso aplica a condição; não administra sozinha o equipamento.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A concessão de uma função administrativa abrangente a uma entidade de serviço é recomendável sempre que uma aplicação precisar ler um único contêiner de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A aplicação deve receber apenas as permissões necessárias, no escopo mais restrito compatível com a tarefa. Um papel abrangente aumentaria desnecessariamente o impacto de comprometimento; menor privilégio também se aplica às identidades de cargas de trabalho.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação diferencia corretamente autenticação federada de autorização sobre os dados de uma aplicação SaaS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Entra autentica; o SaaS autoriza a consulta ao relatório.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O SSO armazena os relatórios; o Entra decide quais linhas do banco serão exibidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O MFA concede automaticamente função de administrador no sistema conectado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A URI de redirecionamento substitui a autorização interna do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Azure RBAC controla permissões internas de qualquer SaaS de terceiros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A federação com Entra pode autenticar o usuário e facilitar o SSO. A aplicação SaaS continua responsável por autorizar operações de negócio e dados, como permitir a consulta de um relatório a determinado papel.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário entra no portal Azure e precisa apenas visualizar máquinas virtuais de um grupo de recursos. Como aplicar menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir função Global Administrator no tenant inteiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tornar o usuário proprietário de todas as assinaturas da organização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder uma função de leitura apropriada no escopo necessário do Azure RBAC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar função de administrador de usuários para autorizar operações em VMs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder leitura via Azure RBAC no menor escopo das VMs.",
+          "correct": true
+        }
+      ],
+      "explanation": "Azure RBAC permite conceder uma função compatível com leitura no escopo necessário, como o grupo de recursos que contém as VMs. Papéis globais ou de proprietário excedem a tarefa; uma função de administração de usuários do Entra não equivale a permissão de leitura de recursos Azure.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação hospedada em máquina virtual precisa autenticar-se numa API interna como carga de trabalho. Qual identidade é apropriada para representar o software?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conta convidada B2B, que representa qualquer processo automatizado da organização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conta pessoal de um operador, com senha permanente compartilhada pela equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Grupo dinâmico de usuários, usado como credencial sem token.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Função do diretório, que substitui a identidade e a autenticação do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identidade de carga de trabalho, como entidade de serviço ou gerenciada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Software deve ser representado por uma identidade de carga de trabalho, como entidade de serviço ou identidade gerenciada em cenário Azure compatível. Conta pessoal compartilhada dificulta responsabilização e ciclo de vida; uma função, isoladamente, não autentica a aplicação.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao atribuir acesso a uma identidade de carga de trabalho, o administrador deve limitar recursos e operações ao que o processo realmente precisa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O princípio do menor privilégio também se aplica a aplicações e serviços. A identidade deve receber apenas as operações necessárias e no escopo apropriado, reduzindo o impacto de vazamento ou comprometimento.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro de aplicativo contém necessariamente todas as atribuições de Azure RBAC concedidas a essa aplicação em qualquer assinatura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O registro descreve a aplicação na plataforma de identidade; as atribuições de Azure RBAC são feitas no sistema de autorização de recursos e em seus escopos. A entidade de serviço pode receber acesso, mas o registro não agrega automaticamente permissões de toda assinatura.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação PaaS configurada para receber tokens do Entra deixa de precisar validar a assinatura, a validade e o destinatário do token recebido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O serviço que consome o token deve validar suas propriedades relevantes, inclusive emissor, validade, assinatura e público esperado, conforme o protocolo e a biblioteca usados. Confiar no provedor não significa aceitar qualquer token apresentado.",
+      "section": "2. Login, tokens, SSO e métodos de autenticação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A simples sincronização de usuários do AD DS local atribui a cada um papel de administrador global no tenant Entra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A sincronização transfere objetos ou atributos conforme a arquitetura configurada, mas não concede automaticamente privilégios administrativos. Funções precisam ser atribuídas segundo a necessidade e controladas pelo princípio do menor privilégio.",
+      "section": "4. Identidades de cargas de trabalho e operação híbrida",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Azure RBAC, como se relacionam os níveis de escopo de uma atribuição de função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma atribuição em recurso vale para recursos irmãos na mesma assinatura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os escopos válidos são tenant, usuário, aplicativo e grupo do Entra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma permissão aplicada em escopo inferior é herdada pelos níveis superiores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Há níveis hierárquicos; escopos inferiores herdam atribuições superiores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A função só pode ser atribuída no escopo da assinatura inteira.",
+          "correct": false
+        }
+      ],
+      "explanation": "Azure RBAC permite atribuições em grupo de gerenciamento, assinatura, grupo de recursos ou recurso. Esses escopos formam uma hierarquia: permissões concedidas num escopo superior alcançam seus descendentes. Uma atribuição num recurso não se propaga para cima nem para recursos irmãos.",
+      "section": "3. Acesso Condicional, MFA e menor privilégio",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe habilitou login do Microsoft Entra em uma VM Windows Azure. O usuário tem Owner na assinatura, mas não consegue entrar no sistema operacional. Qual requisito explica a falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função Owner controla recursos e, por si só, habilita login interativo na VM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Basta atribuir Contributor; essa função inclui automaticamente o login no sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O usuário precisa de Global Administrator para entrar em qualquer VM da assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A autenticação Entra funciona apenas no portal Azure, não em VMs Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É necessária função VM User Login ou VM Administrator Login, além da integração da VM.",
+          "correct": true
+        }
+      ],
+      "explanation": "O login Entra em VM requer habilitar a integração/extensão apropriada e atribuir ao usuário uma das funções específicas de entrada: Virtual Machine User Login ou Virtual Machine Administrator Login. Owner ou Contributor controlam recursos, mas não concedem por si sós o privilégio de login no sistema operacional.",
+      "section": "1. IAM, Entra ID e o modelo de nuvem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What is Microsoft Entra?",
+      "publisher": "Microsoft Learn",
+      "reference": "Família Entra e papel do Microsoft Entra ID como serviço fundamental de identidade e acesso em nuvem",
+      "url": "https://learn.microsoft.com/en-us/entra/fundamentals/what-is-entra",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Identity and access management fundamental concepts",
+      "publisher": "Microsoft Learn",
+      "reference": "Conceitos de IAM, identidade, autenticação, autorização e provedor de identidade",
+      "url": "https://learn.microsoft.com/en-us/entra/fundamentals/identity-fundamental-concepts",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Microsoft Entra multifactor authentication overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Fatores de autenticação, métodos MFA e uso com Acesso Condicional",
+      "url": "https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mfa-howitworks",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is Conditional Access?",
+      "publisher": "Microsoft Learn",
+      "reference": "Sinais, decisões, controles, aplicação após primeiro fator e licenciamento de políticas de acesso",
+      "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/overview",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Understand roles in Microsoft Entra ID",
+      "publisher": "Microsoft Learn",
+      "reference": "Diferença entre funções do Entra e RBAC de recursos Azure",
+      "url": "https://learn.microsoft.com/en-us/azure/active-directory/roles/concept-understand-roles",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What are managed identities for Azure resources?",
+      "publisher": "Microsoft Learn",
+      "reference": "Identidades atribuídas pelo sistema e pelo usuário para cargas de trabalho Azure",
+      "url": "https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Application and service principal objects in Microsoft Entra ID",
+      "publisher": "Microsoft Learn",
+      "reference": "Registro de aplicativo e entidade de serviço em tenants",
+      "url": "https://learn.microsoft.com/en-us/entra/identity-platform/app-objects-and-service-principals",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenID Connect on the Microsoft identity platform",
+      "publisher": "Microsoft Learn",
+      "reference": "OIDC e autenticação na plataforma de identidade Microsoft",
+      "url": "https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Understand scope for Azure RBAC",
+      "publisher": "Microsoft Learn",
+      "reference": "Níveis de escopo, hierarquia e herança de atribuições Azure RBAC",
+      "url": "https://learn.microsoft.com/en-us/azure/role-based-access-control/scope-overview",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Sign in to a Windows virtual machine in Azure by using Microsoft Entra ID",
+      "publisher": "Microsoft Learn",
+      "reference": "Integração de autenticação Entra para VM e funções específicas de entrada interativa",
+      "url": "https://learn.microsoft.com/en-us/entra/identity/devices/howto-vm-sign-in-azure-ad-windows",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}
