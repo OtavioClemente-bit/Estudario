@@ -149,8 +149,15 @@ function filas() {
     const b = pasta.replace(/-/g, " ");
     if (!uso.has(`${topic}|${b}`)) uso.set(`${topic}|${b}`, 1);
   }
+  // Pares banca × matéria pedidos à mão (work/prioridade-recortes.json, ["<topic>|<banca normalizada>"]): os testes
+  // de aluno de 09/11 mostraram editais sem nenhuma questão da banca (IDIB, Instituto Avalia, Copese). Vão na frente.
+  let prioridade = new Set<string>();
+  try { prioridade = new Set(JSON.parse(Deno.readTextFileSync(`${ROOT}work/prioridade-recortes.json`)) as string[]); } catch { /* nenhum */ }
+  const pri = (key: string) => prioridade.has(key) ? 1 : 0;
+  for (const k of prioridade) if (!uso.has(k)) uso.set(k, 1);
+  ampliar.sort((a, b) => pri(b.key) - pri(a.key));
   const novos = [...uso.entries()]
-    .filter(([key, n]) => (n >= 20 || espera(key) > 0) && !recortes.has(key) && !key.endsWith("|geral") && !key.startsWith("atualidades.") && !travado(key) && !descansando(key))
+    .filter(([key, n]) => (n >= 20 || espera(key) > 0 || pri(key) > 0) &&!recortes.has(key) && !key.endsWith("|geral") && !key.startsWith("atualidades.") && !travado(key) && !descansando(key))
     .map(([key, n]) => {
       const [topic, b] = key.split("|");
       const [dir, arq] = topic.split(".");
@@ -162,7 +169,7 @@ function filas() {
     // matéria tem de existir; e não pega o que o Codex já entregou no lote 3
     .filter((x) => !comChat.has(`${x.pasta}.${x.topic}`))
     .filter((x) => { try { Deno.statSync(x.materiaPath); } catch { return false; } try { Deno.statSync(`${ROOT}conteudo/entrada/recortes-luna-3/${x.pasta}/${x.topic}.json`); return false; } catch { return true; } })
-    .sort((a, b) => (espera(b.key) > 0 ? 1 : 0) - (espera(a.key) > 0 ? 1 : 0) || espera(b.key) - espera(a.key) || b.uso - a.uso);
+    .sort((a, b) => pri(b.key) - pri(a.key) || (espera(b.key) > 0 ? 1 : 0) - (espera(a.key) > 0 ? 1 : 0) || espera(b.key) - espera(a.key) || b.uso - a.uso);
   return { ampliar, novos };
 }
 function montarFila() { return montarFilas().ampliar; }
