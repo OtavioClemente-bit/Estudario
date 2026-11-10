@@ -68,7 +68,7 @@ private fun ReviewHelp(onClose: () -> Unit) {
                 }
             }
             GxSection("star", "Como foi? Você decide o ritmo", "Difícil: a mesma etapa volta amanhã, até ficar Normal ou Fácil. Normal: avança no tempo de sempre. Fácil: avança e o próximo encontro fica mais longe.", "#FFC94D") {}
-            GxSection("timer", "Cada revisão leva poucos minutos", "Você aquece puxando o tópico de cabeça, passa por cartões misturados (flashcards, perguntas de memória e os seus grifos com uma lacuna) e fecha com questões. Cada etapa traz cartões diferentes, e o que você esqueceu volta primeiro na próxima.", "#2FD39A") {}
+            GxSection("timer", "Cada revisão leva poucos minutos", "Você aquece puxando o tópico de cabeça, passa por cartões misturados (flashcards e perguntas de memória), relê o tópico num estudo rápido que começa pelo que você esqueceu e fecha com questões. Cada etapa traz cartões diferentes, e o que você esqueceu volta primeiro na próxima.", "#2FD39A") {}
             GxSection("warning", "Atrasadas vêm primeiro", "Passou do dia? Ela fica em vermelho no topo da lista. Pular tira essa revisão da lista: use só quando o tópico não importar mais.", "#FF5A7A") {}
             Div({ classes("gx-go", "row") }) {
                 Span {}
@@ -305,8 +305,8 @@ private fun ReviewTuner(config: br.com.estudario.domain.ReviewPracticeOptions, c
         RvCount("style", "Cartões misturados", config.flashcardCount, cards, 30) { onChange(config.copy(flashcardCount = it)) }
         RvCount("quiz", "Questões", config.questionCount, questions, 50) { onChange(config.copy(questionCount = it)) }
         Div({ classes("rv-toggles") }) {
-            RvToggle("lightbulb", "Aquecer de cabeça", config.showSummary, enabled = hasSummary) { onChange(config.copy(showSummary = it)) }
-            RvToggle("bookmarks", "Usar meus grifos", config.offerHighlights, enabled = hasHighlights) { onChange(config.copy(offerHighlights = it)) }
+            RvToggle("menu_book", "Estudo rápido", config.showSummary, enabled = hasSummary) { onChange(config.copy(showSummary = it)) }
+            RvToggle("bookmarks", "Oferecer meus grifos", config.offerHighlights, enabled = hasHighlights) { onChange(config.copy(offerHighlights = it)) }
             RvToggle("sticky_note_2", "Notas dos grifos", config.showHighlightNotes, enabled = hasHighlights) { onChange(config.copy(showHighlightNotes = it)) }
             RvToggle("shuffle", "Embaralhar cartões", config.shuffleFlashcards) { onChange(config.copy(shuffleFlashcards = it)) }
         }
@@ -414,18 +414,20 @@ fun ReviewSessionScreen(reviewId: Long) {
     // O que ela não lembrou na última revisão deste tópico volta primeiro.
     val hardBefore = remember(reviewId) { ReviewHardCards.get(review.topicId) }
     fun mix(options: br.com.estudario.domain.ReviewPracticeOptions, count: Int = options.flashcardCount) = ReviewMix.cards(
-        deck, prompts, if (options.offerHighlights) highlights.mapNotNull { it.quote } else emptyList(),
+        // os grifos não viram cartão: a pessoa grifa muita coisa, e nem tudo é para decorar
+        deck, prompts, emptyList(),
         count, review.stage, practiceSeed, options.shuffleFlashcards, hardBefore,
     )
     val recall = remember(reviewId, config) { mix(config) }
     // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
-    val points = remember(reviewId, config) { if (config.showSummary) ReviewMix.points(deck, review.stage).takeIf { it.size >= 3 }.orEmpty() else emptyList() }
+    val points = remember(reviewId) { ReviewMix.points(deck, review.stage).takeIf { it.size >= 3 }.orEmpty() }
     val summary = material.summaries.firstOrNull { it.topicId == review.topicId && it.kind == "RAPIDO" } ?: material.summaries.firstOrNull { it.topicId == review.topicId }
     // Revisar é reencontrar a falha: primeiro as erradas, depois as nunca respondidas, depois o resto.
     val questions = remember(reviewId, config) { reviewPracticeQuestions(material, review.topicId, config, practiceSeed) }
+    var extra by remember(reviewId, config) { mutableStateOf(listOf<MixCard>()) }
     val warmup = points.isNotEmpty()
-    // Sem baralho para aquecer, a revisão rápida fica para consulta depois dos cartões.
-    val consultation = config.showSummary && !warmup && summary != null
+    // Estudo rápido: depois dos cartões, reler o tópico, começando pelo que ela não lembrou.
+    val consultation = config.showSummary && (summary != null || extra.isNotEmpty())
     // A abertura ("start") diz o que vem e quanto tempo leva; sem nada para fazer, vai direto ao ajuste.
     val activities = listOfNotNull("dump".takeIf { warmup }, "recall".takeIf { recall.isNotEmpty() }, "summary".takeIf { consultation }, "test".takeIf { questions.isNotEmpty() })
     val steps = (if (activities.isEmpty()) emptyList() else listOf("start")) + activities + "rate"
@@ -442,7 +444,7 @@ fun ReviewSessionScreen(reviewId: Long) {
     var recalled by remember(reviewId) { mutableStateOf(0) }
     var forgotten by remember(reviewId) { mutableStateOf(0) }
     // Cartões que ela não lembrou: voltam uma vez no fim da fila e ficam marcados para a próxima revisão.
-    var extra by remember(reviewId, config) { mutableStateOf(listOf<MixCard>()) }
+
     var missed by remember(reviewId, config) { mutableStateOf(setOf<String>()) }
     var dumpShown by remember(reviewId) { mutableStateOf(false) }
     var ticked by remember(reviewId, config) { mutableStateOf(setOf<Int>()) }
@@ -500,7 +502,7 @@ fun ReviewSessionScreen(reviewId: Long) {
         if (current != "start") Div({ classes("rv-steps") }) {
             steps.filter { it != "start" }.forEachIndexed { i0, s ->
                 val i = i0 + (if (steps.first() == "start") 1 else 0)
-                val (icon, label) = when (s) { "dump" -> "lightbulb" to "Aquecer"; "recall" -> "style" to "Cartões"; "summary" -> "menu_book" to "Consultar"; "test" -> "quiz" to "Questões"; else -> "star" to "Avaliar" }
+                val (icon, label) = when (s) { "dump" -> "lightbulb" to "Aquecer"; "recall" -> "style" to "Cartões"; "summary" -> "menu_book" to "Reler"; "test" -> "quiz" to "Questões"; else -> "star" to "Avaliar" }
                 Div({ classes(*listOfNotNull("rv-s", if (i < step) "done" else null, if (i == step) "now" else null).toTypedArray()) }) {
                     Span({ classes("rv-s-ic") }) { Icon(if (i < step) "check" else icon) }
                     Span({ classes("rv-s-l") }) { Text(label) }
@@ -534,7 +536,7 @@ fun ReviewSessionScreen(reviewId: Long) {
                         val weak = recall.count { it.hard }
                         RvPlanItem("style", "${recall.size} ${if (recall.size == 1) "cartão" else "cartões misturados"}", parts + if (weak > 0) ". ${if (weak == 1) "O que você esqueceu na última vem primeiro" else "Os $weak que você esqueceu na última vêm primeiro"}" else ". Quem você não lembrar volta no fim")
                     }
-                    if (consultation) RvPlanItem("menu_book", "Revisão rápida", "Para conferir o que você lembrou")
+                    if (consultation) RvPlanItem("menu_book", "Estudo rápido", "Reler o tópico inteiro, começando pelo que você esqueceu")
                     if (questions.isNotEmpty()) {
                         val again = questions.count { it.errorCount > 0 }
                         RvPlanItem("quiz", "${questions.size} ${if (questions.size == 1) "questão" else "questões"}", if (again > 0) "$again ${if (again == 1) "que você errou volta para a revanche" else "que você errou voltam para a revanche"}" else "Para ver se o que você lembrou resolve prova")
@@ -626,10 +628,23 @@ fun ReviewSessionScreen(reviewId: Long) {
                     P({ classes("muted") }) { Text("Leia seus ${highlights.size} trechos, um por vez, e volte para continuar a revisão.") }
                     Btn("Ler meus grifos", { ReviewPracticePanels.highlights = "Grifos · ${topic?.title.orEmpty()}" to highlights }, style = "outline", icon = "bookmarks")
                 }
-                if (config.showSummary) Div({ classes("rv-paper") }) {
-                    Span({ classes("rv-face-tag") }) { Text("REVISÃO RÁPIDA") }
-                    if (summary != null) Markdown(summary.markdown)
-                    else P({ classes("muted") }) { Text("Este tópico ainda não tem revisão rápida. Relembre os pontos principais e siga para as questões.") }
+                // Primeiro o que ela não lembrou nos cartões, com a resposta à vista; depois o tópico inteiro.
+                if (extra.isNotEmpty()) Div({ classes("rv-paper", "rv-missed") }) {
+                    Span({ classes("rv-face-tag") }) { Icon("error", filled = true); Text("O QUE VOCÊ NÃO LEMBROU") }
+                    P({ classes("muted") }) { Text(if (extra.size == 1) "Leia com calma: este cartão abre a sua próxima revisão." else "Leia com calma: estes ${extra.size} abrem a sua próxima revisão.") }
+                    extra.forEach { card ->
+                        Div({ classes("rv-missed-item") }) {
+                            B { Inline(card.front) }
+                            Div { Markdown(card.back) }
+                        }
+                    }
+                }
+                Div({ classes("rv-paper") }) {
+                    Span({ classes("rv-face-tag") }) { Icon("menu_book", filled = true); Text("ESTUDO RÁPIDO") }
+                    if (summary != null) {
+                        P({ classes("muted") }) { Text(if (extra.isNotEmpty()) "Agora o tópico inteiro, para amarrar tudo." else "Você lembrou de todos os cartões. Releia o tópico inteiro para amarrar.") }
+                        Markdown(summary.markdown)
+                    } else P({ classes("muted") }) { Text("Este tópico ainda não tem revisão rápida. Relembre os pontos principais e siga.") }
                 }
                 Div({ classes("rv-choice") }) { Btn(if (steps.contains("test")) "Ir para as questões" else "Avaliar a revisão", { advance() }, style = "primary", icon = "arrow_forward") }
             }
