@@ -77,6 +77,24 @@ private fun daySeed(): Long = Queries.todayEpoch()
 private fun readLocal(k: String) = runCatching { localStorage.getItem(k) }.getOrNull()
 private fun writeLocal(k: String, v: String) { runCatching { localStorage.setItem(k, v) } }
 
+/** O personagem de cada estado da página: firme (✓ sorrindo), morno (termômetro), esfriando (gelo tremendo). */
+private fun firmIcon(f: StudyNotebook.Firmness) = when (f) { StudyNotebook.Firmness.FIRM -> "verified"; StudyNotebook.Firmness.MID -> "device_thermostat"; StudyNotebook.Firmness.COLD -> "ac_unit" }
+
+/** Adesivo da turma que reage ao clique (pula, pulsa, treme), como os desenhos do app reagem ao toque. */
+@Composable
+private fun Sticker(icon: String, vararg extra: String, label: String? = null) {
+    Span({
+        classes("cb-sticker", *extra)
+        onClick { e ->
+            e.stopPropagation()
+            val el = e.currentTarget.asDynamic()
+            el.classList.remove("go")
+            el.getBoundingClientRect() // recalcula o estilo para a animação recomeçar do zero
+            el.classList.add("go")
+        }
+    }) { Icon(icon); if (label != null) Text(label) }
+}
+
 private fun firmClass(f: StudyNotebook.Firmness) = when (f) { StudyNotebook.Firmness.FIRM -> "ok"; StudyNotebook.Firmness.MID -> "mid"; StudyNotebook.Firmness.COLD -> "low" }
 
 private fun greeting(): String {
@@ -123,7 +141,7 @@ fun NotebookHome() {
         if (topics.isNotEmpty()) Div({ classes("cb-meter") }) {
             Div({ classes("cb-meter-top") }) {
                 B { Text("$firmCount de ${topics.size} ${if (topics.size == 1) "página firme" else "páginas firmes"}") }
-                if (warmedToday > 0) Span({ classes("cb-fire") }) { Icon("local_fire_department", filled = true); Text("$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje") }
+                if (warmedToday > 0) Sticker("local_fire_department", "cb-fire", label = "$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje")
             }
             Div({ classes("cb-meter-bar") }) { org.jetbrains.compose.web.dom.I({ attr("style", "width:${firmCount * 100 / topics.size}%") }) }
         }
@@ -145,7 +163,7 @@ fun NotebookHome() {
                     key(t.id) {
                         val f = StudyNotebook.firmness(t, now)
                         Div({ classes("cb-warm-row") }) {
-                            org.jetbrains.compose.web.dom.I({ classes("cb-dot", firmClass(f)) })
+                            Sticker(firmIcon(f), "sm")
                             Div({ classes("grow"); onClick { Router.go(Route.NotebookPage(t.id)) } }) {
                                 B { Text(t.title) }
                                 Span { Text("${StudyNotebook.firmnessLabel(f)} · ${StudyNotebook.firmnessReason(t, now)}") }
@@ -366,7 +384,7 @@ fun NotebookPageScreen(topicId: Long) {
         val hasQuestions = data.questions.any { it.topicId == topic.id && !it.hidden }
         val firm = StudyNotebook.firmness(topic, now)
         Div({ classes("cb-state", firmClass(firm)) }) {
-            Icon(when (firm) { StudyNotebook.Firmness.FIRM -> "verified"; StudyNotebook.Firmness.MID -> "device_thermostat"; StudyNotebook.Firmness.COLD -> "ac_unit" }, filled = true)
+            Sticker(firmIcon(firm))
             Div({ classes("grow") }) {
                 B { Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}") }
                 Span { Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. Ela volta a pedir treino se ficar muito tempo parada.") }

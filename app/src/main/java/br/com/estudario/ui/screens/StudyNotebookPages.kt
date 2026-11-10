@@ -165,6 +165,12 @@ private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.
 }
 
 private fun daySeed(): Long = LocalDate.now().toEpochDay()
+/** O personagem de cada estado da página: firme (✓ sorrindo), morno (termômetro), esfriando (gelo tremendo). */
+private fun firmGlyph(f: StudyNotebook.Firmness) = when (f) {
+    StudyNotebook.Firmness.FIRM -> br.com.estudario.ui.brand.Glyph.Check
+    StudyNotebook.Firmness.MID -> br.com.estudario.ui.brand.Glyph.Thermo
+    StudyNotebook.Firmness.COLD -> br.com.estudario.ui.brand.Glyph.Ice
+}
 private fun firmColor(f: StudyNotebook.Firmness) = when (f) { StudyNotebook.Firmness.FIRM -> Mint; StudyNotebook.Firmness.MID -> Gold; StudyNotebook.Firmness.COLD -> Coral }
 private fun since(at: Long, now: Long): String { val d = ((now - at) / 86_400_000L).toInt(); return when { d <= 0 -> "hoje"; d == 1 -> "ontem"; else -> "há $d dias" } }
 private fun kindOf(p: StudyNotebook.Page): Pair<String, Color> = when (p) {
@@ -303,7 +309,10 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                 if (topics.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("$firmCount de ${topics.size} ${if (topics.size == 1) "página firme" else "páginas firmes"}", Modifier.weight(1f), fontWeight = FontWeight.Black, color = Ink, fontSize = 14.sp)
-                        if (warmedToday > 0) Text("$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje", Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFFE9D6)).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFFB5560F))
+                        if (warmedToday > 0) Row(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFFE9D6)).padding(start = 5.dp, end = 9.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Fire, size = 20.dp)
+                            Text("$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFFB5560F))
+                        }
                     }
                     Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(Color(0xFFECE7F7))) {
                         Box(Modifier.fillMaxWidth((firmCount.toFloat() / topics.size).coerceIn(0.03f, 1f)).height(10.dp).clip(RoundedCornerShape(50)).background(Mint))
@@ -334,7 +343,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).border(2.dp, LineC, RoundedCornerShape(16.dp)).clickable { onPage(t.id) }.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Box(Modifier.size(10.dp).clip(CircleShape).background(firmColor(f)))
+                            br.com.estudario.ui.brand.BrandIcon(firmGlyph(f), size = 34.dp)
                             Column(Modifier.weight(1f)) {
                                 Text(t.title, fontWeight = FontWeight.Bold, color = Ink, fontSize = 14.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 Text("${StudyNotebook.firmnessLabel(f)} · ${StudyNotebook.firmnessReason(t, now)}", fontSize = 12.sp, color = Muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -587,7 +596,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                     StudyNotebook.Firmness.COLD -> Color(0xFFFFE9E6) to Color(0xFF8A2A1F)
                 }
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(stateBg).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(Modifier.size(12.dp).clip(CircleShape).background(firmColor(firm)))
+                    br.com.estudario.ui.brand.BrandIcon(firmGlyph(firm), size = 48.dp)
                     Column(Modifier.weight(1f)) {
                         Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}", fontWeight = FontWeight.Black, color = stateInk, fontSize = 15.sp)
                         Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. Ela volta a pedir treino se ficar muito tempo parada.", color = stateInk, fontSize = 13.sp)

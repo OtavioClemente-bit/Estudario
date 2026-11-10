@@ -29,6 +29,8 @@ const NAMES: Record<string, string[]> = {
   Warning: ["warning", "warning_amber", "report_problem", "priority_high"],
   Oops: ["error", "error_med", "error_outline"],
   Fire: ["local_fire_department", "whatshot"],
+  Thermo: ["device_thermostat", "thermostat"],
+  Ice: ["ac_unit", "severe_cold"],
   Bolt: ["bolt", "offline_bolt", "speed", "electric_bolt"],
   Heart: ["favorite", "favorite_border"],
   Bell: ["notifications", "notifications_active"],

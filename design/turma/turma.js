@@ -231,6 +231,27 @@ export const TURMA = {
     face: [50, 68, 0.85, "fierce"],
     fx: [fxFill(star(14, 20, 6, 2.5, 4), "#FFD84A"), fxFill(star(88, 30, 5, 2, 4), "#FFD84A")],
   }) },
+  Thermo: { anim: "pulse", about: "Morno: termômetro subindo", draw: () => ({
+    body: [
+      line("M70 18h9M70 30h9M70 42h9", "ink", 4),
+      solid(rr(38, 4, 24, 66, 12), "paper", { lipY: 3 }),
+      solid(ell(50, 70, 23), "amber"),
+      paint(rr(45, 26, 10, 36, 5), C.amber[0]),
+      shine("M43 14v8"),
+    ],
+    face: [50, 71, 0.72, "smile"],
+    fx: [{ d: "M16 44c-6-6 6-10 0-16", s: "#FFB421", w: 4 }, { d: "M26 26c-5-5 5-8 0-13", s: "#FF8A2B", w: 4 }],
+  }) },
+  Ice: { anim: "wiggle", about: "Esfriando: cubo de gelo tremendo de frio", draw: () => ({
+    body: [
+      line("M7 38l6 5M5 58h7M93 38l-6 5M95 58h-7", "sky", 4),
+      solid("M24 20h52a10 10 0 0 1 10 10v48a10 10 0 0 1-10 10H24a10 10 0 0 1-10-10V30a10 10 0 0 1 10-10z", "glass"),
+      paint("M20 30a6 6 0 0 1 6-6h48a6 6 0 0 1 6 6v6H20z", "#FFFFFF", { o: 0.6 }),
+      shine("M24 46v16"),
+    ],
+    face: [50, 60, 0.9, "worried"],
+    fx: [fxFill(star(14, 16, 7, 2.6, 4), "#D9F2FF"), fxFill(star(88, 14, 5.5, 2, 4), "#FFFFFF"), fxFill(star(92, 84, 5, 2, 4), "#D9F2FF")],
+  }) },
   Bolt: { anim: "zap", about: "XP: raio animado", draw: () => ({
     body: [solid("M62 4 18 58h26l-8 38 48-58H58l10-34z", "amber"), shine("M54 18 36 42")],
     face: [51, 50, 0.72, "star"],
