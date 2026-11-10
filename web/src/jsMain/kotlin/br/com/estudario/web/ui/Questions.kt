@@ -425,7 +425,11 @@ private fun QuizAttempt(scope: String, onRepeat: () -> Unit) {
                 Div({ classes("row", "wrap"); attr("style", "justify-content:center;margin-top:8px") }) {
                     // Treino de um tópico volta para o conteúdo dele (o foco pode estar rodando lá, e é lá que se conclui).
                     val topicBack = scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }
-                    if (topicBack != null) {
+                    // Treino aberto pelo Caderno (topico-ID-N-c) volta para a página do caderno, já com o estado novo.
+                    if (topicBack != null && scope.endsWith("-c")) {
+                        Btn("Treinar de novo", onRepeat, style = "outline", icon = "refresh")
+                        Btn("Voltar ao caderno", { Router.go(Route.NotebookPage(topicBack)) }, style = "primary", icon = "auto_stories")
+                    } else if (topicBack != null) {
                         Btn("Treinar de novo", onRepeat, style = "outline", icon = "refresh")
                         Btn("Voltar ao conteúdo", { Router.go(Route.Topic(topicBack)) }, style = "primary", icon = "menu_book")
                     } else {
@@ -486,7 +490,7 @@ private fun QuizAttempt(scope: String, onRepeat: () -> Unit) {
         onDispose { window.removeEventListener("keydown", listener) }
     }
 
-    QuestionHud(index, initial.size, results, startedAt, onExit = { scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }?.let { Router.go(Route.Topic(it)) } ?: Router.go(Route.Train) })
+    QuestionHud(index, initial.size, results, startedAt, onExit = { scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }?.let { Router.go(if (scope.endsWith("-c")) Route.NotebookPage(it) else Route.Topic(it)) } ?: Router.go(Route.Train) })
     // A questão nova entra deslizando da direita (o cartão é recriado a cada questão).
     androidx.compose.runtime.key(index) {
     Card(extra = "pad-lg q-card") {

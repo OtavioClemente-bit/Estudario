@@ -123,9 +123,11 @@ private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.
     val summaries by viewModel.summaries.collectAsState()
     val notes by viewModel.notes.collectAsState()
     val errors by viewModel.errors.collectAsState()
+    val attempts by viewModel.attempts.collectAsState()
+    val allQuestions by viewModel.questions.collectAsState()
     // Em segundo plano: montar as páginas lê a teoria dos tópicos para restaurar os grifos, e na linha da
     // tela isso parava o app uns 2 segundos ao abrir o Caderno. null enquanto monta.
-    val built by androidx.compose.runtime.produceState<List<StudyNotebook.Topic>?>(null, competitions, subjects, topics, theories, marks, snippets, summaries, notes, errors) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+    val built by androidx.compose.runtime.produceState<List<StudyNotebook.Topic>?>(null, competitions, subjects, topics, theories, marks, snippets, summaries, notes, errors, attempts, allQuestions) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
         val primary = competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull()
         val subjectIds = subjects.filter { primary == null || it.competitionId == primary.id }.mapTo(hashSetOf()) { it.id }
         val parents = topics.mapNotNullTo(hashSetOf()) { it.parentTopicId }
@@ -135,14 +137,20 @@ private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.
         val snippetsByTopic = snippets.groupBy { it.topicId }
         val summariesByTopic = summaries.groupBy { it.topicId }
         val notesByTopic = notes.filter { it.topicId != null }.groupBy { it.topicId }
+        // questão respondida também é contato com o tópico: treinar aquece a página
+        val nowMs = System.currentTimeMillis()
+        val questionTopic = allQuestions.associate { it.question.id to it.question.topicId }
+        val answersByTopic = attempts.groupBy({ questionTopic[it.questionId] }, { it.answeredAt to it.correct })
         val cardRegex = Regex("""###\s*(.+?)\n+([\s\S]+?)(?=\n###|$)""")
         topics.filter { it.subjectId in subjectIds && it.id !in parents && it.status != TopicStatus.NAO_ESTUDADO }.map { t ->
             val mine = snippetsByTopic[t.id].orEmpty()
             val sums = summariesByTopic[t.id].orEmpty()
             val quickCards = sums.filter { it.kind == SummaryKind.RAPIDO }.flatMap { s -> cardRegex.findAll(s.markdown).map { it.groupValues[1].trim() to it.groupValues[2].trim() }.toList() }
+            val practice = StudyNotebook.practice(answersByTopic[t.id].orEmpty(), nowMs)
             StudyNotebook.Topic(
                 id = t.id, subjectId = t.subjectId, title = t.title, status = t.status.name,
-                lastSeenAt = listOfNotNull(t.lastReviewedAt, t.lastStudiedAt).maxOrNull(),
+                lastSeenAt = listOfNotNull(t.lastReviewedAt, t.lastStudiedAt, practice.lastAt).maxOrNull(),
+                lastPracticeAt = practice.lastAt, recentAnswers = practice.recentAnswers, recentRight = practice.recentRight,
                 summary = (sums.firstOrNull { it.kind == SummaryKind.COMPLETO } ?: sums.firstOrNull { it.kind != SummaryKind.RAPIDO })?.markdown,
                 tips = mine.filter { it.kind == SnippetKind.BIZU }.map { it.text },
                 traps = mine.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text },
@@ -256,7 +264,7 @@ private val CodeBg = Color(0x225B4BE8)
 // ------------------------------------------------------------------ a entrada (o fichário)
 
 @Composable
-fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Long) -> Unit, onSaved: () -> Unit, onEdital: () -> Unit) {
+fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Long) -> Unit, onSaved: () -> Unit, onEdital: () -> Unit, onTrain: (Long) -> Unit = {}) {
     val topics = rememberNotebookTopics(viewModel) ?: run { NotebookLoading(); return }
     val subjects by viewModel.subjects.collectAsState()
     val profile by viewModel.profile.collectAsState()
@@ -270,6 +278,13 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
     val hour = java.time.LocalTime.now().hour
     val hello = when { hour < 12 -> "Bom dia"; hour < 18 -> "Boa tarde"; else -> "Boa noite" }
     val first = profile.name.trim().split(" ").firstOrNull()?.takeIf { it.isNotBlank() }
+    val questions by viewModel.questions.collectAsState()
+    val withQuestions = remember(questions) { questions.filter { !it.question.isHidden }.mapTo(hashSetOf()) { it.question.topicId } }
+    val firmCount = topics.count { StudyNotebook.firmness(it, now) == StudyNotebook.Firmness.FIRM }
+    val coldCount = topics.count { StudyNotebook.firmness(it, now) == StudyNotebook.Firmness.COLD }
+    val warm = remember(topics) { StudyNotebook.toWarm(topics, now) }
+    val dayStart = remember { LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
+    val warmedToday = topics.count { (it.lastPracticeAt ?: 0L) >= dayStart }
 
     LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         item {
@@ -278,7 +293,20 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                     br.com.estudario.ui.assistant.Folha(60.dp, mood = if (topics.isEmpty()) br.com.estudario.ui.assistant.FolhaMood.TALKING else br.com.estudario.ui.assistant.FolhaMood.HAPPY)
                     Column(Modifier.weight(1f)) {
                         Text("$hello${first?.let { ", $it" } ?: ""}!", fontWeight = FontWeight.Black, fontSize = 21.sp, color = Ink)
-                        Text(if (topics.isEmpty()) "Seu caderno se escreve sozinho: cada tópico que você estudar vira página aqui." else "Você já estudou ${topics.size} ${if (topics.size == 1) "tópico" else "tópicos"}. Bora não deixar esfriar?", color = Muted, fontSize = 14.sp)
+                        Text(if (topics.isEmpty()) "Seu caderno se escreve sozinho: cada tópico que você estudar vira página aqui." else when {
+                            coldCount > 0 -> "$coldCount ${if (coldCount == 1) "página está esfriando" else "páginas estão esfriando"}. Cinco questões já aquecem uma."
+                            firmCount == topics.size -> "Tudo firme por aqui. Dá uma folheada para manter."
+                            else -> "Nada esfriando. Falta pouco para deixar tudo firme."
+                        }, color = Muted, fontSize = 14.sp)
+                    }
+                }
+                if (topics.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("$firmCount de ${topics.size} ${if (topics.size == 1) "página firme" else "páginas firmes"}", Modifier.weight(1f), fontWeight = FontWeight.Black, color = Ink, fontSize = 14.sp)
+                        if (warmedToday > 0) Text("$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje", Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFFE9D6)).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFFB5560F))
+                    }
+                    Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(Color(0xFFECE7F7))) {
+                        Box(Modifier.fillMaxWidth((firmCount.toFloat() / topics.size).coerceIn(0.03f, 1f)).height(10.dp).clip(RoundedCornerShape(50)).background(Mint))
                     }
                 }
                 // A Folheada do dia
@@ -296,6 +324,23 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                     ) {
                         Icon(if (pages.isEmpty()) Icons.Outlined.MenuBook else Icons.Outlined.AutoStories, null); Spacer(Modifier.width(8.dp))
                         Text(if (pages.isEmpty()) "Ir para o edital" else if (flippedToday) "Folhear de novo" else "Folhear agora", fontWeight = FontWeight.Black)
+                    }
+                }
+                if (warm.isNotEmpty()) {
+                    Text(if (coldCount > 0) "Aqueça agora" else "Quase firmes", fontWeight = FontWeight.Black, color = Ink)
+                    warm.forEach { t ->
+                        val f = StudyNotebook.firmness(t, now)
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).border(2.dp, LineC, RoundedCornerShape(16.dp)).clickable { onPage(t.id) }.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Box(Modifier.size(10.dp).clip(CircleShape).background(firmColor(f)))
+                            Column(Modifier.weight(1f)) {
+                                Text(t.title, fontWeight = FontWeight.Bold, color = Ink, fontSize = 14.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                Text("${StudyNotebook.firmnessLabel(f)} · ${StudyNotebook.firmnessReason(t, now)}", fontSize = 12.sp, color = Muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            }
+                            if (t.id in withQuestions) Button(onClick = { onTrain(t.id) }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) { Text("Treinar 5", fontWeight = FontWeight.Bold) }
+                        }
                     }
                 }
                 if (last != null) Row(
@@ -325,7 +370,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                             Row(Modifier.fillMaxWidth().clickable { onPage(t.id) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Box(Modifier.size(9.dp).clip(CircleShape).background(firmColor(StudyNotebook.firmness(t, now))))
                                 Text(t.title, Modifier.weight(1f), color = Ink, fontSize = 14.sp)
-                                t.lastSeenAt?.let { Text(since(it, now), fontSize = 11.sp, color = Muted) }
+                                Text(StudyNotebook.firmnessReason(t, now), fontSize = 11.sp, color = Muted)
                             }
                         }
                     }
@@ -529,9 +574,24 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     val chip = @Composable { t: String, warn: Boolean -> Text(t, Modifier.clip(RoundedCornerShape(50)).background(if (warn) Color(0xFFFFE9D6) else Color(0xFFF1ECFF)).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (warn) Color(0xFFB5560F) else Color(0xFF4232C9)) }
                     topic.lastSeenAt?.let { chip("visto ${since(it, now)}", false) }
+                    topic.lastPracticeAt?.let { chip("treinou ${since(it, now)}", false) }
                     if (topic.marks.isNotEmpty()) chip("${topic.marks.size} ${if (topic.marks.size == 1) "grifo" else "grifos"}", false)
                     if (topic.notes.isNotEmpty()) chip("${topic.notes.size} ${if (topic.notes.size == 1) "nota" else "notas"}", false)
                     if (topic.wrongQuestions.isNotEmpty()) chip("${topic.wrongQuestions.size} ${if (topic.wrongQuestions.size == 1) "erro" else "erros"} para refazer", true)
+                }
+                val hasQuestions = questions.any { it.question.topicId == topic.id && !it.question.isHidden }
+                val firm = StudyNotebook.firmness(topic, now)
+                val (stateBg, stateInk) = when (firm) {
+                    StudyNotebook.Firmness.FIRM -> Color(0xFFE3F8EE) to Color(0xFF0E5C3F)
+                    StudyNotebook.Firmness.MID -> Color(0xFFFFF5D6) to Color(0xFF6E4700)
+                    StudyNotebook.Firmness.COLD -> Color(0xFFFFE9E6) to Color(0xFF8A2A1F)
+                }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(stateBg).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(12.dp).clip(CircleShape).background(firmColor(firm)))
+                    Column(Modifier.weight(1f)) {
+                        Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}", fontWeight = FontWeight.Black, color = stateInk, fontSize = 15.sp)
+                        Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. Ela volta a pedir treino se ficar muito tempo parada.", color = stateInk, fontSize = 13.sp)
+                    }
                 }
                 if (thin) Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF5D6)).clickable { onTheory(topic.id) }.padding(10.dp), color = Color(0xFF6E4700), fontSize = 13.sp)
                 if (lines.isNotEmpty()) {

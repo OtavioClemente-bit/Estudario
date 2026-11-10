@@ -26,21 +26,86 @@ object StudyNotebook {
         /** Questões erradas ainda para refazer (ids). */
         val wrongQuestions: List<Long> = emptyList(),
         val notes: List<String> = emptyList(),
+        /** Última vez que respondeu questão do tópico (epoch ms). */
+        val lastPracticeAt: Long? = null,
+        /** Questões do tópico respondidas nos últimos 7 dias, e quantas dessas ela acertou. */
+        val recentAnswers: Int = 0,
+        val recentRight: Int = 0,
     )
+
+    /** O treino recente de um tópico, a partir das respostas (quando, acertou). */
+    data class Practice(val lastAt: Long?, val recentAnswers: Int, val recentRight: Int)
+
+    fun practice(answers: List<Pair<Long, Boolean>>, now: Long): Practice {
+        val recent = answers.filter { now - it.first <= 7 * DAY }
+        return Practice(answers.maxOfOrNull { it.first }, recent.size, recent.count { it.second })
+    }
 
     data class Mark(val quote: String, val note: String, val createdAt: Long)
 
     enum class Firmness { FIRM, MID, COLD }
 
-    /** Firme: revisto há pouco e sem erro pendente. Esfriando: muito tempo sem ver ou com erros para refazer. */
+    /** Dias desde o último contato com o tópico: leitura, revisão ou questão respondida. */
+    fun daysSince(topic: Topic, now: Long): Int =
+        listOfNotNull(topic.lastSeenAt, topic.lastPracticeAt).maxOrNull()?.let { ((now - it) / DAY).toInt().coerceAtLeast(0) } ?: 999
+
+    /** Treinou de verdade na semana: 3 respostas ou mais. Foi bem: 70% de acerto ou mais. */
+    private fun trained(topic: Topic) = topic.recentAnswers >= 3
+    private fun trainedWell(topic: Topic) = trained(topic) && topic.recentRight * 10 >= topic.recentAnswers * 7
+
+    /**
+     * Firme: treinou bem na semana, ou revisto há pouco e sem erro pendente. Esfriando: mais de 30
+     * dias sem contato, ou erros para refazer sem nenhum treino na semana. Treinar tira a página do
+     * "esfriando" na hora (antes, dois erros pendentes deixavam a página fria para sempre).
+     */
     fun firmness(topic: Topic, now: Long): Firmness {
-        val days = topic.lastSeenAt?.let { ((now - it) / DAY).toInt() } ?: 999
+        val days = daysSince(topic, now)
         return when {
-            topic.wrongQuestions.size >= 2 || days > 30 -> Firmness.COLD
+            days > 30 -> Firmness.COLD
+            trainedWell(topic) -> Firmness.FIRM
+            trained(topic) -> Firmness.MID
+            topic.wrongQuestions.size >= 2 -> if (topic.recentAnswers > 0) Firmness.MID else Firmness.COLD
             topic.status == "DOMINADO" || (topic.status == "REVISANDO" && days <= 14) || (days <= 7 && topic.wrongQuestions.isEmpty()) -> Firmness.FIRM
             else -> Firmness.MID
         }
     }
+
+    fun firmnessLabel(f: Firmness) = when (f) { Firmness.FIRM -> "Firme"; Firmness.MID -> "Morno"; Firmness.COLD -> "Esfriando" }
+
+    private fun sinceText(days: Int) = when { days <= 0 -> "hoje"; days == 1 -> "ontem"; else -> "há $days dias" }
+
+    /** Por que a página está nesse estado, numa frase curta ("4 de 5 certas nesta semana"). */
+    fun firmnessReason(topic: Topic, now: Long): String {
+        val days = daysSince(topic, now)
+        val wrong = topic.wrongQuestions.size
+        val errors = "$wrong ${if (wrong == 1) "erro" else "erros"} para refazer"
+        return when {
+            firmness(topic, now) == Firmness.FIRM && !trained(topic) -> if (topic.status == "DOMINADO") "você domina este tópico" else "visto ${sinceText(days)}"
+            days > 30 -> if (days >= 999) "ainda sem data de estudo" else "$days dias sem ver"
+            trained(topic) -> "${topic.recentRight} de ${topic.recentAnswers} certas nesta semana"
+            wrong >= 2 -> errors
+            topic.status == "DOMINADO" -> "você domina este tópico"
+            wrong == 1 -> errors
+            else -> "visto ${sinceText(days)}"
+        }
+    }
+
+    /** O que fazer para a página ficar firme; null quando já está. */
+    fun nextStep(topic: Topic, now: Long, hasQuestions: Boolean): String? = when (firmness(topic, now)) {
+        Firmness.FIRM -> null
+        else -> when {
+            !hasQuestions -> "Ainda sem questões aqui: revise a teoria para a página voltar a ficar firme."
+            trained(topic) -> "Faltou pouco: acerte 4 de 5 no próximo treino e a página fica firme."
+            topic.wrongQuestions.isNotEmpty() -> "Treine 5 questões: as que você errou voltam primeiro."
+            else -> "Treine 5 questões e acerte 4 para deixar a página firme."
+        }
+    }
+
+    /** As páginas que mais precisam de atenção (esfriando primeiro, depois as mornas; mais antigas antes). */
+    fun toWarm(topics: List<Topic>, now: Long, max: Int = 3): List<Topic> =
+        topics.filter { firmness(it, now) != Firmness.FIRM }
+            .sortedWith(compareBy<Topic>({ firmness(it, now) != Firmness.COLD }, { -daysSince(it, now) }, { -it.wrongQuestions.size }))
+            .take(max)
 
     sealed interface Page {
         val topicId: Long
@@ -90,7 +155,7 @@ object StudyNotebook {
         val studied = topics.filter { it.status != "NAO_ESTUDADO" }
         if (studied.isEmpty()) return emptyList()
         val random = Random(daySeed)
-        val order = studied.sortedWith(compareBy<Topic>({ firmness(it, now) != Firmness.COLD }, { it.lastSeenAt ?: 0L }))
+        val order = studied.sortedWith(compareBy<Topic>({ firmness(it, now) != Firmness.COLD }, { listOfNotNull(it.lastSeenAt, it.lastPracticeAt).maxOrNull() ?: 0L }))
         val used = mutableMapOf<Long, Int>()
         val pages = mutableListOf<Page>()
         // com poucos tópicos estudados, um tópico pode dar mais páginas (senão a Folheada ficava com 3)

@@ -45,6 +45,9 @@ private fun notebookTopics(data: Snapshot): List<StudyNotebook.Topic> {
     val snippets = data.snippets.groupBy { it.topicId }
     val summaries = data.summaries.groupBy { it.topicId }
     val notes = data.notes.filter { it.topicId != null }.groupBy { it.topicId }
+    // questão respondida também é contato com o tópico: treinar aquece a página
+    val now = Date.now().toLong()
+    val answersByTopic = data.attempts.groupBy({ questionTopic[it.questionId] }, { it.answeredAt to it.correct })
     return Queries.leafTopics(data).filter { it.id in scope && Queries.isStudied(it) }.map { t ->
         val mine = snippets[t.id].orEmpty()
         val sums = summaries[t.id].orEmpty()
@@ -52,9 +55,11 @@ private fun notebookTopics(data: Snapshot): List<StudyNotebook.Topic> {
         val quickCards = sums.filter { it.kind == "RAPIDO" }.flatMap { s ->
             Regex("""###\s*(.+?)\n+([\s\S]+?)(?=\n###|$)""").findAll(s.markdown).map { it.groupValues[1].trim() to it.groupValues[2].trim() }.toList()
         }
+        val practice = StudyNotebook.practice(answersByTopic[t.id].orEmpty(), now)
         StudyNotebook.Topic(
             id = t.id, subjectId = t.subjectId, title = t.title, status = t.status,
-            lastSeenAt = listOfNotNull(t.lastReviewedAt, t.lastStudiedAt).maxOrNull(),
+            lastSeenAt = listOfNotNull(t.lastReviewedAt, t.lastStudiedAt, practice.lastAt).maxOrNull(),
+            lastPracticeAt = practice.lastAt, recentAnswers = practice.recentAnswers, recentRight = practice.recentRight,
             summary = (sums.firstOrNull { it.kind == "COMPLETO" } ?: sums.firstOrNull { it.kind != "RAPIDO" })?.markdown,
             tips = mine.filter { it.kind == "BIZU" }.map { it.text },
             traps = mine.filter { it.kind == "PEGADINHA" }.map { it.text },
@@ -93,6 +98,12 @@ fun NotebookHome() {
     var open by remember { mutableStateOf<Long?>(null) }
     val last = readLocal(LAST_PAGE_KEY)?.toLongOrNull()?.let { id -> topics.firstOrNull { it.id == id } }
     val name = br.com.estudario.web.ui.FolhaFriend.firstName()
+    val firmCount = topics.count { StudyNotebook.firmness(it, now) == StudyNotebook.Firmness.FIRM }
+    val coldCount = topics.count { StudyNotebook.firmness(it, now) == StudyNotebook.Firmness.COLD }
+    val warm = remember(data) { StudyNotebook.toWarm(topics, now) }
+    val withQuestions = remember(data) { data.questions.filter { !it.hidden }.mapTo(hashSetOf()) { it.topicId } }
+    val today = Queries.dateOf(now)
+    val warmedToday = topics.count { t -> t.lastPracticeAt?.let { Queries.dateOf(it) == today } == true }
 
     NotebookTabs(saved = false)
     CompetitionTabs()
@@ -102,8 +113,19 @@ fun NotebookHome() {
             Folha(if (topics.isEmpty()) "thinking" else "happy", 64)
             Div {
                 H2 { Text("${greeting()}${name?.let { ", $it" } ?: ""}!") }
-                P { Text(if (topics.isEmpty()) "Seu caderno se escreve sozinho: cada tópico que você estudar vira página aqui." else "Você já estudou ${topics.size} ${if (topics.size == 1) "tópico" else "tópicos"}. Bora não deixar esfriar?") }
+                P { Text(if (topics.isEmpty()) "Seu caderno se escreve sozinho: cada tópico que você estudar vira página aqui." else when {
+                    coldCount > 0 -> "$coldCount ${if (coldCount == 1) "página está esfriando" else "páginas estão esfriando"}. Cinco questões já aquecem uma."
+                    firmCount == topics.size -> "Tudo firme por aqui. Dá uma folheada para manter."
+                    else -> "Nada esfriando. Falta pouco para deixar tudo firme."
+                }) }
             }
+        }
+        if (topics.isNotEmpty()) Div({ classes("cb-meter") }) {
+            Div({ classes("cb-meter-top") }) {
+                B { Text("$firmCount de ${topics.size} ${if (topics.size == 1) "página firme" else "páginas firmes"}") }
+                if (warmedToday > 0) Span({ classes("cb-fire") }) { Icon("local_fire_department", filled = true); Text("$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje") }
+            }
+            Div({ classes("cb-meter-bar") }) { org.jetbrains.compose.web.dom.I({ attr("style", "width:${firmCount * 100 / topics.size}%") }) }
         }
         if (pages.isNotEmpty()) Div({ classes("cb-today") }) {
             Span({ classes("cb-eyebrow") }) { Text(if (flippedToday) "FOLHEADA DE HOJE · FEITA" else "FOLHEADA DO DIA · ~${StudyNotebook.minutes(pages)} MIN") }
@@ -115,6 +137,25 @@ fun NotebookHome() {
             H3 { Text("Estude o primeiro tópico") }
             P { Text("Leia a teoria e marque como estudado: o resumo, as dicas, as pegadinhas e os cartões viram páginas do seu caderno.") }
             Button({ classes("cb-cta"); onClick { Router.go(Route.Edital) } }) { Icon("menu_book", filled = true); Text("Ir para o edital") }
+        }
+        if (warm.isNotEmpty()) {
+            Div({ classes("cb-sect") }) { B { Text(if (coldCount > 0) "Aqueça agora" else "Quase firmes") }; if (warm.any { it.id in withQuestions }) Span { Text("5 questões cada") } }
+            Div({ classes("cb-warm") }) {
+                warm.forEach { t ->
+                    key(t.id) {
+                        val f = StudyNotebook.firmness(t, now)
+                        Div({ classes("cb-warm-row") }) {
+                            org.jetbrains.compose.web.dom.I({ classes("cb-dot", firmClass(f)) })
+                            Div({ classes("grow"); onClick { Router.go(Route.NotebookPage(t.id)) } }) {
+                                B { Text(t.title) }
+                                Span { Text("${StudyNotebook.firmnessLabel(f)} · ${StudyNotebook.firmnessReason(t, now)}") }
+                            }
+                            if (t.id in withQuestions) Btn("Treinar 5", { Router.go(Route.Quiz("topico-${t.id}-5-c")) }, style = "primary", small = true)
+                            else Btn("Abrir", { Router.go(Route.NotebookPage(t.id)) }, style = "outline", small = true)
+                        }
+                    }
+                }
+            }
         }
         if (last != null) Div({ classes("cb-resume"); onClick { Router.go(Route.NotebookPage(last.id)) } }) {
             Span({ classes("cb-rib") })
@@ -143,7 +184,7 @@ fun NotebookHome() {
                             Div({ classes("cb-topic"); onClick { Router.go(Route.NotebookPage(t.id)) } }) {
                                 org.jetbrains.compose.web.dom.I({ classes("cb-dot", firmClass(f)) })
                                 Span({ classes("grow") }) { Text(t.title) }
-                                t.lastSeenAt?.let { Span({ classes("xs", "muted") }) { Text(sinceLabel(it, now)) } }
+                                Span({ classes("xs", "muted") }) { Text(StudyNotebook.firmnessReason(t, now)) }
                             }
                         }
                     }
@@ -317,9 +358,20 @@ fun NotebookPageScreen(topicId: Long) {
         H2 { Text(topic.title) }
         Div({ classes("cb-chips") }) {
             topic.lastSeenAt?.let { Span { Text("visto ${sinceLabel(it, now)}") } }
+            topic.lastPracticeAt?.let { Span { Text("treinou ${sinceLabel(it, now)}") } }
             if (topic.marks.isNotEmpty()) Span { Text("${topic.marks.size} ${if (topic.marks.size == 1) "grifo" else "grifos"}") }
             if (topic.notes.isNotEmpty()) Span { Text("${topic.notes.size} ${if (topic.notes.size == 1) "nota" else "notas"}") }
             if (topic.wrongQuestions.isNotEmpty()) Span({ classes("w") }) { Text("${topic.wrongQuestions.size} ${if (topic.wrongQuestions.size == 1) "erro" else "erros"} para refazer") }
+        }
+        val hasQuestions = data.questions.any { it.topicId == topic.id && !it.hidden }
+        val firm = StudyNotebook.firmness(topic, now)
+        Div({ classes("cb-state", firmClass(firm)) }) {
+            Icon(when (firm) { StudyNotebook.Firmness.FIRM -> "verified"; StudyNotebook.Firmness.MID -> "device_thermostat"; StudyNotebook.Firmness.COLD -> "ac_unit" }, filled = true)
+            Div({ classes("grow") }) {
+                B { Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}") }
+                Span { Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. Ela volta a pedir treino se ficar muito tempo parada.") }
+            }
+            if (firm != StudyNotebook.Firmness.FIRM && hasQuestions) Btn("Treinar 5", { Router.go(Route.Quiz("topico-${topic.id}-5-c")) }, style = "primary", small = true)
         }
         if (thin) Div({ classes("cb-thin") }) {
             Icon("info", filled = true)
@@ -356,7 +408,7 @@ fun NotebookPageScreen(topicId: Long) {
         }
         Div({ classes("cb-foot") }) {
             Btn("Ler a teoria", { Router.go(Route.Topic(topic.id)) }, style = "outline", icon = "menu_book")
-            if (data.questions.any { it.topicId == topic.id && !it.hidden }) Btn("Treinar 5 questões", { Router.go(Route.Quiz("topico-${topic.id}-5")) }, style = "primary", icon = "quiz")
+            if (hasQuestions) Btn("Treinar 5 questões", { Router.go(Route.Quiz("topico-${topic.id}-5-c")) }, style = "primary", icon = "quiz")
         }
         Button({ classes("cb-link"); attr("style", "margin-top:10px"); onClick { Reports.report(ReportKindWeb.SUMMARY, lines.take(3).joinToString(" "), topic.title) } }) { Icon("flag"); Text("Tem erro nesta página") }
     }

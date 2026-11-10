@@ -62,6 +62,8 @@ fun QuizScreen(
     onBack: () -> Unit,
     onOpenTopic: (Long) -> Unit,
     onPlanTaskComplete: suspend (String, CompleteTaskInput) -> Unit = { _, _ -> },
+    /** Texto do botão do resultado quando o treino veio de outro lugar (ex.: "Voltar ao caderno"). */
+    backLabel: String? = null,
 ) {
     val allQuestions by viewModel.questions.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -189,7 +191,7 @@ fun QuizScreen(
         return
     }
     if (finished) {
-        QuizResult(sessionQuestions, results, planTaskXp.takeIf { it >= 0 }, config.planTaskId != null, onBack)
+        QuizResult(sessionQuestions, results, planTaskXp.takeIf { it >= 0 }, config.planTaskId != null, onBack, backLabel)
         return
     }
 
@@ -498,6 +500,7 @@ private fun QuizResult(
     planTaskXp: Int?,
     isPlanTask: Boolean,
     onBack: () -> Unit,
+    backLabel: String? = null,
 ) {
     val correct = results.values.count { it }
     val percent = if (questions.isEmpty()) 0 else correct * 100 / questions.size
@@ -534,7 +537,7 @@ private fun QuizResult(
         }
         Spacer(Modifier.height(24.dp))
         Button(onClick = onBack) {
-            Text(if (isPlanTask) "Voltar ao plano" else "Voltar ao treino")
+            Text(backLabel ?: if (isPlanTask) "Voltar ao plano" else "Voltar ao treino")
         }
     }
 }

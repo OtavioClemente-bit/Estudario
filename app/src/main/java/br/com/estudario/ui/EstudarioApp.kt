@@ -329,7 +329,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
         "topic/{id}",
         "topic/{id}/task/{taskId}",
         "theory/{id}?block={block}",
-        "quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}",
+        "quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}", "notebook/quiz/{topic}",
         "review-session/{id}",
         "focus",
         "plan-quiz/{taskId}/{count}/{topic}/{subject}",
@@ -436,7 +436,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     onProfile = { navController.navigate("profile") },
                     // A seta passa pelo mesmo caminho do voltar do celular: a tela pode perguntar antes
                     // de sair (ex.: parar o cronômetro do tópico, sair da prova do simulado).
-                    onBack = if (showBottom || currentRoute in setOf("focus", "review-session/{id}", "quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}", "plan-quiz/{taskId}/{count}/{topic}/{subject}")) null else ({
+                    onBack = if (showBottom || currentRoute in setOf("focus", "review-session/{id}", "quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}", "notebook/quiz/{topic}", "plan-quiz/{taskId}/{count}/{topic}/{subject}")) null else ({
                         backDispatcher?.onBackPressed() ?: run { if (!navController.popBackStack()) navController.navigate("home") }
                     }),
                     title = when {
@@ -645,6 +645,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                                 onPage = { navController.navigate("notebook/page/$it") },
                                 onSaved = { navController.navigate("notebook/saved") },
                                 onEdital = { navController.navigate("syllabus") },
+                                onTrain = { navController.navigate("notebook/quiz/$it") },
                             )
                         }
                     }
@@ -657,7 +658,16 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0,
                         onBack = { navController.popBackStack() },
                         onTheory = { navController.navigate("topic/$it") },
-                        onTrain = { navController.navigate("quiz/5/$it/0/random/_/_") },
+                        onTrain = { navController.navigate("notebook/quiz/$it") },
+                    )
+                }
+                // Treino aberto pelo Caderno: ao terminar volta para o caderno (a página já aparece com o estado novo).
+                composable("notebook/quiz/{topic}") { backStack ->
+                    QuizScreen(
+                        viewModel, QuizConfig(5, backStack.arguments?.getString("topic")?.toLongOrNull()),
+                        onBack = { navController.popBackStack() },
+                        onOpenTopic = { navController.navigate("topic/$it") },
+                        backLabel = "Voltar ao caderno",
                     )
                 }
                 composable("notebook/saved") {
