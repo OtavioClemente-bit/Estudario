@@ -25,6 +25,9 @@ let reprovadas: Record<string, number> = {};
 try { reprovadas = JSON.parse(Deno.readTextFileSync(REPROVADAS)); } catch { /* nenhuma */ }
 const mtime = (id: string) => { try { return Deno.statSync(`${PASTA}/${id}.json`).mtime?.getTime() ?? 0; } catch { return 0; } };
 
+let duplicadasMontar = new Set<string>();
+try { duplicadasMontar = new Set(Deno.readTextFileSync(`${ROOT}work/duplicadas.txt`).split(/\s+/).filter(Boolean)); } catch { /* nenhuma */ }
+
 if (Deno.args.includes("--montar")) {
   const ids: string[] = [];
   for (const e of [...Deno.readDirSync(PASTA)].sort((a, b) => a.name.localeCompare(b.name))) {
@@ -32,6 +35,8 @@ if (Deno.args.includes("--montar")) {
     const id = e.name.replace(/\.json$/, "");
     if (!destino(id) || publicada(id)) continue;
     if (reprovadas[id] && mtime(id) <= reprovadas[id]) continue;
+    // Duplicada de matéria já publicada (work/duplicadas.txt): o --aplicar não copia, então nem vai para a amostra (09/11).
+    if (duplicadasMontar.has(id)) continue;
     if (aprovada(`${PASTA}/${e.name}`)) ids.push(id);
   }
   const lotes = [];

@@ -65,6 +65,11 @@ for (const arquivo of arquivos) {
     // Tira só o cabeçalho/rodapé de caderno que a extração colou no texto ("658001_01N770539 CEBRASPE | IBAMA – Edital:
     // 2021 -- CONHECIMENTOS ESPECÍFICOS --", "Página 3 de 20"). O texto da questão não muda (09/11).
     const limpo = (s: string) => s
+      // Instruções padrão do caderno do Cebraspe coladas antes do texto (09/11: ~300 questões bloqueadas por isso).
+      .replace(/Cada um dos itens d[ao]s? provas? objetivas? está vinculado ao comando[\s\S]{0,700}?único documento válido para a correção d[ao]s? suas? provas? objetivas?\.\s*/i, "")
+      .replace(/^\s*•\s*Caso haja item\(ns\) constituído\(s\) pela estrutura Situação hipotética[\s\S]{0,300}?assertiva proposta\.\s*/im, "")
+      .replace(/^\s*•?\s*Eventuais espaços livres[\s\S]{0,250}?rascunhos etc\.\s*/im, "")
+      .replace(/^\s*--\s*PROVAS?\s+OBJETIVAS?\s*--\s*/gim, "")
       // Cabeçalho em linha própria no meio (página nova): o que vem antes é sobra da página anterior ("resposta.").
       .replace(/^[\s\S]{0,200}?\n\s*(?:[\d_]*[A-Z0-9]{6,}\s*\n\s*)?(?:CEBRASPE|FGV|FUNDATEC|CESGRANRIO|AOCP)\s*\|\s*[^\n]{1,60}Edital:\s*\d{4}\s*\n/i, "")
       .replace(/^\s*(?:[\d_]*[A-Z0-9]{6,}\s+)?(?:CEBRASPE|FGV|FUNDATEC|CESGRANRIO|AOCP)\s*\|\s*[^\n–-]{1,60}[–-]\s*Edital:\s*\d{4}\s*/i, "")
