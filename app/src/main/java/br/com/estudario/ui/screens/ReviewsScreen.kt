@@ -130,7 +130,7 @@ fun ReviewsScreen(
                             style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White,
                         )
                         Text(
-                            if (due.isEmpty()) "Quando um tópico estudado chegar no dia de revisar, ele aparece aqui." else "Cada uma leva poucos minutos: lembrar, rever o resumo e testar com questões.",
+                            if (due.isEmpty()) "Quando um tópico estudado chegar no dia de revisar, ele aparece aqui." else "Cada uma leva poucos minutos: aquecer de cabeça, cartões misturados e questões.",
                             style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.78f),
                         )
                     }

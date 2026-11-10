@@ -54,7 +54,12 @@ import androidx.compose.ui.unit.sp
 import br.com.estudario.data.local.QuestionWithOptions
 import br.com.estudario.data.local.ReviewDifficulty
 import br.com.estudario.data.local.ReviewScheduleEntity
+import br.com.estudario.domain.MixCard
+import br.com.estudario.domain.MixKind
+import br.com.estudario.domain.MixSource
+import br.com.estudario.domain.ReviewMix
 import br.com.estudario.domain.ReviewPracticeOptions
+import br.com.estudario.ui.components.FlashcardParser
 import br.com.estudario.domain.ReviewQuestionOrder
 import br.com.estudario.data.local.SnippetKind
 import br.com.estudario.data.local.SummaryKind
@@ -86,7 +91,7 @@ private val RvRed = Color(0xFFE5484D)
 /** "2ª revisão · 7 dias": a etapa e o intervalo de verdade (antes eram rótulos fixos D+1, D+7, D+30 que não batiam). */
 private fun stageName(review: ReviewScheduleEntity): String = "${review.stage}ª revisão" + (review.intervalDays?.let { " · $it ${if (it == 1L) "dia" else "dias"}" } ?: "")
 
-private enum class RvStep(val label: String) { START("Começar"), RECALL("Lembrar"), SUMMARY("Consultar"), TEST("Testar"), RATE("Avaliar") }
+private enum class RvStep(val label: String) { START("Começar"), DUMP("Aquecer"), RECALL("Cartões"), SUMMARY("Consultar"), TEST("Questões"), RATE("Avaliar") }
 private data class ReviewOutcome(val topicId: Long, val days: Long, val repeatedStage: Int? = null)
 
 /**
@@ -162,21 +167,38 @@ fun ReviewSessionScreen(
             .map { val th = topicTheories.firstOrNull { theory -> theory.id == it.theoryId }; ReviewCard("GRIFO", th?.title.orEmpty(), br.com.estudario.domain.StudyNotebook.restoreQuote(it.quote, br.com.estudario.ui.components.studyBlocks(th?.markdown.orEmpty()), it.blockIndex), it.note.takeIf { _ -> config.showHighlightNotes }) }
     }
     if (highlightsOpen && highlights.isNotEmpty()) NotebookReview("Grifos · ${topic?.title.orEmpty()}", highlights, allowNavigation = false) { highlightsOpen = false }
-    val recall = remember(reviewId, material, config) {
-        val cards = material.snippets.filter { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }.sortedWith(compareBy({ it.position }, { it.id }))
-        (if (config.shuffleFlashcards) cards.shuffled(kotlin.random.Random(practiceSeed)) else cards).take(config.flashcardCount)
-    }
     val quick = material.summaries.firstOrNull { it.kind == SummaryKind.RAPIDO } ?: material.summaries.firstOrNull()
+    // As três fontes de cartão: o baralho de flashcards, a memorização ativa e os grifos da pessoa (com lacuna).
+    val deck = remember(reviewId, material) {
+        material.summaries.filter { it.kind == SummaryKind.RAPIDO }.flatMap { FlashcardParser.parse(it.markdown) }.map { MixSource(it.front, it.back) }
+    }
+    val prompts = remember(reviewId, material) {
+        material.snippets.filter { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }
+            .sortedWith(compareBy({ it.position }, { it.id })).map { MixSource(it.text, it.answer.orEmpty()) }
+    }
+    // O que ela não lembrou na última revisão deste tópico volta primeiro (fica guardado no aparelho).
+    val hardStore = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("review_hard", android.content.Context.MODE_PRIVATE)
+    val hardKey = "t${review.topicId}"
+    val hardBefore = remember(reviewId) { hardStore.getStringSet(hardKey, emptySet()).orEmpty().toSet() }
+    fun mix(options: ReviewPracticeOptions, count: Int = options.flashcardCount) = ReviewMix.cards(
+        deck, prompts, if (options.offerHighlights) highlights.mapNotNull { it.quote } else emptyList(),
+        count, review.stage, practiceSeed, options.shuffleFlashcards, hardBefore,
+    )
+    val recall = remember(reviewId, material, config) { mix(config) }
+    // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
+    val points = remember(reviewId, material, config) { if (config.showSummary) ReviewMix.points(deck, review.stage).takeIf { it.size >= 3 }.orEmpty() else emptyList() }
     // Revisar é reencontrar a falha: primeiro o que já errou, depois o que nunca respondeu, depois o resto.
     val questions = remember(reviewId, material, config) { reviewPracticeQuestions(material.questions, review.topicId, config, practiceSeed) }
-    val consultation = config.showSummary || (config.offerHighlights && highlights.isNotEmpty())
+    val warmup = points.isNotEmpty()
+    // Sem baralho para aquecer, a revisão rápida fica para consulta depois dos cartões.
+    val consultation = config.showSummary && !warmup && quick != null
     // A abertura (START) diz o que vem e quanto leva; sem atividade, vai direto ao ajuste.
-    val activities = listOfNotNull(RvStep.RECALL.takeIf { recall.isNotEmpty() }, RvStep.SUMMARY.takeIf { consultation }, RvStep.TEST.takeIf { questions.isNotEmpty() })
+    val activities = listOfNotNull(RvStep.DUMP.takeIf { warmup }, RvStep.RECALL.takeIf { recall.isNotEmpty() }, RvStep.SUMMARY.takeIf { consultation }, RvStep.TEST.takeIf { questions.isNotEmpty() })
     val steps = (if (activities.isEmpty()) emptyList() else listOf(RvStep.START)) + activities + RvStep.RATE
     // Difícil na última vez: a mesma etapa volta todo dia até a pessoa marcar Normal ou Fácil.
     val repeating = review.perceivedDifficulty == ReviewDifficulty.DIFICIL
     val lastSeen = (reviews.filter { it.topicId == review.topicId }.mapNotNull { it.completedAt } + listOfNotNull(topic?.lastReviewedAt)).maxOrNull()
-    val minutes = (recall.size * 0.7 + (if (config.showSummary && quick != null) 2.0 else 0.0) + questions.size * 1.5 + 0.5).toInt().coerceAtLeast(1)
+    val minutes = ((if (warmup) 0.7 else 0.0) + recall.size * 0.6 + (if (consultation) 2.0 else 0.0) + questions.size * 1.5 + 0.5).toInt().coerceAtLeast(1)
     if (settingsOpen) ReviewPracticeSettings(loadedOptions, onClose = { settingsOpen = false }, onSave = { viewModel.setReviewPractice(it); if (steps.size == 1) config = it; settingsOpen = false })
     val scope = rememberCoroutineScope()
     val startedAt = remember { System.currentTimeMillis() }
@@ -187,6 +209,11 @@ fun ReviewSessionScreen(
     var flipped by remember { mutableStateOf(false) }
     var recalled by remember { mutableIntStateOf(0) }
     var forgotten by remember { mutableIntStateOf(0) }
+    // Cartões que ela não lembrou: voltam uma vez no fim da fila e ficam marcados para a próxima revisão.
+    var extra by remember(config) { mutableStateOf(listOf<MixCard>()) }
+    var missed by remember(config) { mutableStateOf(setOf<String>()) }
+    var dumpShown by remember { mutableStateOf(false) }
+    var ticked by remember(config) { mutableStateOf(setOf<Int>()) }
     var questionIndex by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf<String?>(null) }
     var answered by remember { mutableStateOf<Boolean?>(null) }
@@ -197,13 +224,27 @@ fun ReviewSessionScreen(
     var results by remember { mutableStateOf(listOf<Boolean>()) }
     val step = steps[stepIndex.coerceAtMost(steps.lastIndex)]
     fun advance() { stepIndex = (stepIndex + 1).coerceAtMost(steps.lastIndex) }
+    fun rateCard(card: MixCard, remembered: Boolean) {
+        // Só a primeira passada conta no resultado; a volta do cartão é para fixar, não para punir.
+        if (recallIndex < recall.size) {
+            if (remembered) recalled++ else { forgotten++; missed = missed + card.key; extra = extra + card }
+        }
+        flipped = false
+        if (recallIndex < recall.size + extra.size - 1) recallIndex++
+        else {
+            hardStore.edit().putStringSet(hardKey, ReviewMix.nextHard(hardBefore, recall, missed)).apply()
+            advance()
+        }
+    }
     // Quanto da revisão já foi: cada cartão e cada questão contam um passinho.
-    val totalUnits = recall.size + (if (consultation) 1 else 0) + questions.size + 1
+    val warmUnits = if (warmup) 1 else 0
+    val cardUnits = recall.size + extra.size
+    val totalUnits = warmUnits + cardUnits + (if (consultation) 1 else 0) + questions.size + 1
     val doneUnits = when (step) {
-        RvStep.START -> 0
-        RvStep.RECALL -> recallIndex
-        RvStep.SUMMARY -> recall.size
-        RvStep.TEST -> recall.size + (if (consultation) 1 else 0) + questionIndex + (if (answered != null) 1 else 0)
+        RvStep.START, RvStep.DUMP -> 0
+        RvStep.RECALL -> warmUnits + recallIndex
+        RvStep.SUMMARY -> warmUnits + cardUnits
+        RvStep.TEST -> warmUnits + cardUnits + (if (consultation) 1 else 0) + questionIndex + (if (answered != null) 1 else 0)
         RvStep.RATE -> totalUnits - 1
     }
     val progress by androidx.compose.animation.core.animateFloatAsState(doneUnits / totalUnits.coerceAtLeast(1).toFloat(), label = "rv-progress")
@@ -215,7 +256,7 @@ fun ReviewSessionScreen(
                 Column(Modifier.weight(1f)) {
                     Text(stageName(review), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
                     Text(topic?.title ?: "Tópico", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
-                    Text("${recall.size} ${if (recall.size == 1) "flashcard" else "flashcards"} · ${questions.size} ${if (questions.size == 1) "questão" else "questões"} · ~$minutes min", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${recall.size} ${if (recall.size == 1) "cartão" else "cartões"} · ${questions.size} ${if (questions.size == 1) "questão" else "questões"} · ~$minutes min", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 // Os grifos da matéria, a qualquer momento e só para ler (não dá para mudar daqui).
                 if (highlights.isNotEmpty()) IconButton(onClick = { highlightsOpen = true }, modifier = Modifier.semantics { contentDescription = "Ler meus grifos (só leitura)" }) {
@@ -234,26 +275,101 @@ fun ReviewSessionScreen(
             RvStep.START -> item {
                 ReviewStart(
                     topicTitle = topic?.title ?: "este tópico", repeating = repeating, lastSeen = lastSeen,
-                    recall = recall.size, consultation = consultation, summary = config.showSummary, questions = questions.size,
+                    recall = recall.size, consultation = consultation, questions = questions.size,
+                    warmup = warmup,
+                    cardsHint = listOfNotNull(
+                        recall.count { it.kind == MixKind.CARD }.takeIf { it > 0 }?.let { "$it ${if (it == 1) "flashcard" else "flashcards"}" },
+                        recall.count { it.kind == MixKind.RECALL }.takeIf { it > 0 }?.let { "$it de memória" },
+                        recall.count { it.kind == MixKind.CLOZE }.takeIf { it > 0 }?.let { "$it ${if (it == 1) "grifo seu" else "grifos seus"} com lacuna" },
+                    ).joinToString(", ") + recall.count { it.hard }.let { weak -> if (weak > 0) ". ${if (weak == 1) "O que você esqueceu na última vem primeiro" else "Os $weak que você esqueceu na última vêm primeiro"}" else ". Quem você não lembrar volta no fim" },
+                    revanche = questions.count { it.question.errorCount > 0 },
                     stage = review.stage, minutes = minutes, onStart = { advance() },
                     tuner = {
                         ReviewTuner(
                             config,
-                            cards = material.snippets.count { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() },
+                            cards = mix(config, 30).size,
                             questions = material.questions.count { it.question.topicId == review.topicId && !it.question.isHidden && it.question.simulationId == null },
-                            hasSummary = quick != null, hasHighlights = material.marks.any { it.theoryId in theoryOrder && it.quote.isNotBlank() },
+                            hasSummary = quick != null || deck.size >= 3, hasHighlights = material.marks.any { it.theoryId in theoryOrder && it.quote.isNotBlank() },
                         ) { next -> config = next; viewModel.setReviewPractice(next) }
                     },
                 )
             }
-            RvStep.RECALL -> {
-                val prompt = recall[recallIndex.coerceAtMost(recall.lastIndex)]
+            // Aquecimento: lembrar livremente, sem pista nenhuma, e só depois conferir os pontos-chave.
+            RvStep.DUMP -> {
                 item {
-                    Text("Tente lembrar antes de virar o cartão. Recuperar de memória é o que fixa.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    val somCtx = androidx.compose.ui.platform.LocalContext.current
+                    PaperCard("DE CABEÇA") {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            BrandIcon(Glyph.Bulb, size = 48.dp)
+                            Text("Antes de qualquer cartão: o que você lembra de ${topic?.title ?: "este tópico"}?", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                        }
+                        Text(
+                            if (dumpShown) "Marque o que veio sozinho. O que ficou de fora é onde prestar atenção nos cartões."
+                            else "Fale em voz alta ou rabisque por meio minuto, sem olhar nada. Puxar sem pista é o esforço que mais fixa.",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (dumpShown) {
+                            points.forEachIndexed { i, point ->
+                                val on = i in ticked
+                                fun toggle() {
+                                    if (!on) br.com.estudario.ui.brand.EstudarioSom.play(somCtx, "lembrei")
+                                    ticked = if (on) ticked - i else ticked + i
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surface)
+                                        .background(if (on) RvMint.copy(alpha = 0.14f) else Color.Transparent)
+                                        .border(2.dp, if (on) RvMint else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                                        .clickable { toggle() }.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    if (on) BrandIcon(Glyph.Check, size = 26.dp)
+                                    else Box(Modifier.padding(3.dp).size(20.dp).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                                    br.com.estudario.ui.components.StudyInlineText(point, Modifier.weight(1f), onTap = { toggle() }, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text(
+                                when (ticked.size) { 0 -> "Toque no que você lembrou"; points.size -> "Vieram todos. Memória afiada!"; else -> "${ticked.size} de ${points.size} vieram sozinhos" },
+                                Modifier.fillMaxWidth(), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
-                item(key = "rv-flip-${prompt.id}") {
-                    // O mesmo cartão do site: pergunta na frente, resposta no verso, vira em 3D.
-                    ReviewFlipCard(prompt.text, prompt.answer.orEmpty(), recallIndex + 1, recall.size, flipped) { flipped = !flipped }
+                item {
+                    if (!dumpShown) Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(onClick = { dumpShown = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Já puxei da memória", fontWeight = FontWeight.Bold) }
+                        br.com.estudario.ui.brand.TextButton(onClick = { advance() }) { Text("Pular") }
+                    } else Button(onClick = { advance() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                        Text(if (RvStep.RECALL in steps) "Ir para os cartões" else if (RvStep.TEST in steps) "Ir para as questões" else "Avaliar a revisão", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            RvStep.RECALL -> {
+                val queue = recall + extra
+                val index = recallIndex.coerceAtMost(queue.lastIndex)
+                val card = queue[index]
+                val again = index >= recall.size
+                item {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            when (card.kind) {
+                                MixKind.CARD -> "Explique para você antes de virar. Recuperar de memória é o que fixa."
+                                MixKind.RECALL -> "Responda de cabeça antes de virar o cartão."
+                                MixKind.CLOZE -> "Você grifou este trecho. O que falta na lacuna?"
+                            },
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (again) RvFlag(Glyph.Cycle, "De volta: você não lembrou na primeira passada", Color(0xFFFF8A3D))
+                        else if (card.hard) RvFlag(Glyph.Oops, "Você esqueceu este na última revisão", RvRed)
+                    }
+                }
+                item(key = "rv-flip-$index-${card.key}") {
+                    // O mesmo cartão do site: pergunta na frente, resposta no verso, vira em 3D. O selo diz de onde ele veio.
+                    val (glyph, tag) = when (card.kind) {
+                        MixKind.CARD -> Glyph.Cards to "FLASHCARD"
+                        MixKind.RECALL -> Glyph.Brain to "DE MEMÓRIA"
+                        MixKind.CLOZE -> Glyph.Bookmark to "SEU GRIFO"
+                    }
+                    ReviewFlipCard(card.front, card.back, glyph, "$tag · ${index + 1} DE ${queue.size}", if (card.kind == MixKind.CLOZE) "O QUE FALTAVA" else "RESPOSTA", card.kind == MixKind.CLOZE, flipped) { flipped = !flipped }
                 }
                 item {
                     val somCtx = androidx.compose.ui.platform.LocalContext.current
@@ -264,9 +380,7 @@ fun ReviewSessionScreen(
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 fun next(lembrou: Boolean) {
                                     br.com.estudario.ui.brand.EstudarioSom.play(somCtx, if (lembrou) "lembrei" else "nao_lembrei")
-                                    if (lembrou) recalled++ else forgotten++
-                                    flipped = false
-                                    if (recallIndex < recall.lastIndex) recallIndex++ else advance()
+                                    rateCard(card, lembrou)
                                 }
                                 br.com.estudario.ui.brand.OutlinedButton(
                                     onClick = { next(false) }, modifier = Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
@@ -302,6 +416,11 @@ fun ReviewSessionScreen(
             RvStep.TEST -> {
                 val question = questions[questionIndex.coerceAtMost(questions.lastIndex)]
                 item(key = "rv-hud") { br.com.estudario.ui.components.QuestionHud(questionIndex, questions.size, results, startedAt, title = "Revisão · " + (topic?.title ?: "")) }
+                // Revanche: a questão que ela já errou volta marcada, para a pessoa saber que é a chance de virar.
+                val wrongBefore = question.question.errorCount
+                if (wrongBefore > 0) item(key = "rv-revanche-${question.question.id}") {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { RvFlag(Glyph.Cycle, if (wrongBefore == 1) "Revanche: você errou esta antes" else "Revanche: você já errou esta $wrongBefore vezes", Color(0xFFFF8A3D)) }
+                }
                 val original = question.options.sortedBy { it.position }
                 val order = OptionShuffle.order(original.map { it.text }, shuffleSeed + question.question.id * 7919)
                 // A questão inteira num papel só, como no site: enunciado, alternativas, a reação do Folha e o porquê.
@@ -472,10 +591,10 @@ private fun ReviewTuner(config: ReviewPracticeOptions, cards: Int, questions: In
                 }
             }
         }
-        RvCount(Icons.Outlined.Psychology, "Cartões para lembrar", config.flashcardCount, cards, 30) { onChange(config.copy(flashcardCount = it)) }
+        RvCount(Icons.Outlined.Psychology, "Cartões misturados", config.flashcardCount, cards, 30) { onChange(config.copy(flashcardCount = it)) }
         RvCount(Icons.Outlined.Quiz, "Questões", config.questionCount, questions, 50) { onChange(config.copy(questionCount = it)) }
-        RvToggle(Icons.Outlined.MenuBook, "Revisão rápida", config.showSummary, hasSummary) { onChange(config.copy(showSummary = it)) }
-        RvToggle(Icons.Outlined.Bookmarks, "Oferecer meus grifos", config.offerHighlights, hasHighlights) { onChange(config.copy(offerHighlights = it)) }
+        RvToggle(Icons.Outlined.MenuBook, "Aquecer de cabeça", config.showSummary, hasSummary) { onChange(config.copy(showSummary = it)) }
+        RvToggle(Icons.Outlined.Bookmarks, "Usar meus grifos", config.offerHighlights, hasHighlights) { onChange(config.copy(offerHighlights = it)) }
         RvToggle(Icons.Outlined.StickyNote2, "Notas dos grifos", config.showHighlightNotes, hasHighlights) { onChange(config.copy(showHighlightNotes = it)) }
         RvToggle(Icons.Outlined.Shuffle, "Embaralhar cartões", config.shuffleFlashcards, true) { onChange(config.copy(shuffleFlashcards = it)) }
         Text("Questões primeiro", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -521,7 +640,7 @@ private fun RvToggle(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
 
 /** A abertura da revisão: o Folha chama para relembrar, diz o que vem, quanto leva e onde está na escadinha. */
 @Composable
-private fun ReviewStart(topicTitle: String, repeating: Boolean, lastSeen: Long?, recall: Int, consultation: Boolean, summary: Boolean, questions: Int, stage: Int, minutes: Int, onStart: () -> Unit, tuner: @Composable () -> Unit = {}) {
+private fun ReviewStart(topicTitle: String, repeating: Boolean, lastSeen: Long?, recall: Int, consultation: Boolean, questions: Int, warmup: Boolean, cardsHint: String, revanche: Int, stage: Int, minutes: Int, onStart: () -> Unit, tuner: @Composable () -> Unit = {}) {
     val since = lastSeen?.let { ((System.currentTimeMillis() - it) / 86_400_000L).toInt() }
     PaperCard(if (repeating) "REPETINDO A ETAPA" else "HORA DE RELEMBRAR") {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -540,13 +659,37 @@ private fun ReviewStart(topicTitle: String, repeating: Boolean, lastSeen: Long?,
                 )
             }
         }
-        if (recall > 0) PlanItem(Icons.Outlined.Psychology, "$recall ${if (recall == 1) "cartão" else "cartões"} para lembrar", "Tente responder antes de virar")
-        if (consultation) PlanItem(Icons.Outlined.MenuBook, if (summary) "Revisão rápida" else "Seus grifos", "Para conferir o que você lembrou")
-        if (questions > 0) PlanItem(Icons.Outlined.Quiz, "$questions ${if (questions == 1) "questão" else "questões"}", "As que você errou vêm primeiro")
+        if (warmup) PlanItem(Glyph.Bulb, "Aquecer de cabeça", "Meio minuto puxando o tópico da memória, sem olhar nada")
+        if (recall > 0) PlanItem(Glyph.Cards, "$recall ${if (recall == 1) "cartão" else "cartões misturados"}", cardsHint)
+        if (consultation) PlanItem(Icons.Outlined.MenuBook, "Revisão rápida", "Para conferir o que você lembrou")
+        if (questions > 0) PlanItem(Icons.Outlined.Quiz, "$questions ${if (questions == 1) "questão" else "questões"}", if (revanche > 0) "$revanche ${if (revanche == 1) "que você errou volta para a revanche" else "que você errou voltam para a revanche"}" else "Para ver se o que você lembrou resolve prova")
         PlanItem(Icons.Outlined.StarOutline, "Como foi", "Difícil volta amanhã; Normal e Fácil avançam a etapa")
         tuner()
         StageLadder(stage, repeating)
         Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Começar · ~$minutes min", fontWeight = FontWeight.Black) }
+    }
+}
+
+/** Aviso em pílula: cartão que voltou, cartão esquecido na última revisão, questão de revanche. */
+@Composable
+private fun RvFlag(glyph: Glyph, text: String, color: Color) {
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surface).background(color.copy(alpha = 0.16f)).padding(start = 6.dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        BrandIcon(glyph, size = 22.dp)
+        Text(text, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = color)
+    }
+}
+
+@Composable
+private fun PlanItem(glyph: Glyph, title: String, hint: String) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(RvGold.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) { BrandIcon(glyph, size = 30.dp) }
+        Column { Text(title, fontWeight = FontWeight.Bold); Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -759,7 +902,7 @@ private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage:
  * no verso (índigo), virando em 3D. Tocar vira e desvira.
  */
 @Composable
-private fun ReviewFlipCard(question: String, answer: String, number: Int, total: Int, flipped: Boolean, onToggle: () -> Unit) {
+private fun ReviewFlipCard(question: String, answer: String, glyph: Glyph, tag: String, backTag: String, highlight: Boolean, flipped: Boolean, onToggle: () -> Unit) {
     val angle by androidx.compose.animation.core.animateFloatAsState(if (flipped) 180f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 260f), label = "rv-flip")
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val front = angle <= 90f
@@ -769,7 +912,8 @@ private fun ReviewFlipCard(question: String, answer: String, number: Int, total:
             .graphicsLayer { rotationY = angle; cameraDistance = 14f * density }
             .clip(shape)
             .background(if (front) MaterialTheme.colorScheme.surface else Color(0xFF231C86))
-            .then(if (front) Modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape) else Modifier)
+            .then(if (front && highlight) Modifier.background(Color(0xFFFFB421).copy(alpha = 0.10f)) else Modifier)
+            .then(if (front) Modifier.border(2.dp, if (highlight) Color(0xFFFFB421).copy(alpha = 0.7f) else MaterialTheme.colorScheme.outlineVariant, shape) else Modifier)
             .clickable(onClick = onToggle)
             .semantics { contentDescription = if (flipped) "Voltar à pergunta" else "Ver a resposta" },
         contentAlignment = Alignment.Center,
@@ -779,14 +923,17 @@ private fun ReviewFlipCard(question: String, answer: String, number: Int, total:
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (front) {
-                Text("PERGUNTA $number DE $total", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFC98A0B))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    BrandIcon(glyph, size = 30.dp)
+                    Text(tag, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFC98A0B))
+                }
                 br.com.estudario.ui.components.StudyInlineText(question, style = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Center, lineHeight = 28.sp), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Outlined.TouchApp, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Toque para ver a resposta", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                Text("RESPOSTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFFFB421))
+                Text(backTag, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFFFB421))
                 // o verso é índigo nos dois temas: o texto da resposta vai em branco
                 val scheme = MaterialTheme.colorScheme
                 MaterialTheme(colorScheme = scheme.copy(onSurface = Color.White, onSurfaceVariant = Color(0xFFD9D5FF), onBackground = Color.White, primary = Color(0xFFFFD27A))) {
