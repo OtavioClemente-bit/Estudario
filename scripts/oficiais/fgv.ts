@@ -115,18 +115,32 @@ function casar(capa: string, blocos: { titulo: string }[]) {
   const palavras = (s: string) => [...new Set(norm(s).split(" ").filter((w) => w.length > 3 && !GENERICAS.has(w)).map(raiz))];
   // Título "Cargo - Área - Especialidade – TIPO 1": o primeiro pedaço (cargo) e o ÚLTIMO (especialidade) têm de estar
   // inteiros na capa; entre os candidatos fica o de especialidade mais longa (o mais específico). Empate: não arrisca.
-  const cand = blocos.map((b, i) => {
+  // 10/11 (TCE-GO 2024): "Analista de Controle Externo - Controle Externo" tem a especialidade igual ao cargo, então
+  // batia com TODA capa "ANALISTA DE CONTROLE EXTERNO ..." e, por ter 2 palavras, ganhava de "Jurídica"/"Engenharia".
+  // Agora a especialidade conta só com as palavras que não são do cargo; se não sobra nenhuma, a capa tem de repetir
+  // a especialidade (cargo + especialidade = 2 vezes cada palavra) e não pode trazer a especialidade de outro bloco.
+  const tokCapa = norm(capa).split(" ").filter((w) => w.length > 3).map(raiz);
+  const vezes = (w: string) => tokCapa.filter((x) => x === w).length;
+  const info = blocos.map((b) => {
     const partes = b.titulo.replace(/[–-]\s*TIPO\s*\d.*$/i, "").split(/\s+[-–]\s+|\s*[-–]\s*(?=[A-ZÁÉÍÓÚ])/).map((s) => s.trim()).filter(Boolean);
     const cargo = palavras(partes[0] ?? ""), esp = palavras(partes[partes.length - 1] ?? "");
-    const ok = cargo.every((w) => pc.has(w)) && esp.length > 0 && esp.every((w) => pc.has(w));
+    // título de uma parte só ("Contador - TIPO 1"): cargo e especialidade são o mesmo pedaço, vale a regra antiga
+    return { cargo, esp, espP: partes.length > 1 ? esp.filter((w) => !cargo.includes(w)) : esp };
+  });
+  const cand = blocos.map((b, i) => {
+    const { cargo, esp, espP } = info[i];
+    const outraEsp = info.some((o, j) => j !== i && o.espP.length > 0 && o.espP.every((w) => pc.has(w)) && cargo.every((w) => o.cargo.includes(w)));
+    const espOk = espP.length > 0 ? espP.every((w) => pc.has(w)) : esp.length > 0 && esp.every((w) => vezes(w) >= 2) && !outraEsp;
+    const ok = cargo.every((w) => pc.has(w)) && esp.length > 0 && espOk;
     const meio = esp.filter((w) => pc.has(w)).length / Math.max(1, esp.length);
-    return { i, ok, meio, nEsp: esp.length, tam: esp.length + palavras(b.titulo).length / 100 };
+    return { i, ok, meio, nEsp: esp.length, tam: espP.length + palavras(b.titulo).length / 100 };
   });
   const ok = cand.filter((x) => x.ok).sort((a, b) => b.tam - a.tam);
   if (!ok.length || (ok.length > 1 && ok[0].tam === ok[1].tam)) return -1;
   // trava: um bloco de especialidade MAIOR bate pela metade ou mais com a capa ("Oficial de Justiça Avaliador...")
   // e não foi o escolhido → a capa provavelmente é dele: não arrisca.
-  if (cand.some((x) => x.i !== ok[0].i && !x.ok && x.nEsp > ok[0].nEsp && x.meio >= 0.5)) return -1;
+  // (bloco cuja especialidade é só o nome do cargo, como "Controle Externo", não trava: ele bate com toda capa do cargo)
+  if (cand.some((x) => x.i !== ok[0].i && !x.ok && info[x.i].espP.length > 0 && x.nEsp > ok[0].nEsp && x.meio >= 0.5)) return -1;
   return ok[0].i;
 }
 
@@ -155,7 +169,20 @@ function reprocessar(destino = SAIDA) {
       }
       if (b.length !== 1) continue;
       try { Deno.statSync(`${dir}/${reg.arquivo}`); } catch { continue; }
-      const qs = lerProva(texto(`${dir}/${reg.arquivo}`, false), b[0].resp.size).map((q) => marcar(q, b[0].resp));
+      // o bloco gravado pode ter sido casado errado (TCE-GO 2024): casa de novo pela capa; sem certeza, fica sem questões
+      const tProva = texto(`${dir}/${reg.arquivo}`, false);
+      const capa = tProva.split(/\r?\n/).slice(0, 12).join(" ");
+      const mesmoTurno = doTurno(blocos, turnoProva ?? turnoDe(capa));
+      const bt = casar(capa, mesmoTurno);
+      if (bt < 0) {
+        antes += (reg.questoes ?? []).length; reg.questoes = []; reg.extraidas = 0; reg.completas = 0; reg.semBlocoCerto = true; provas++;
+        Deno.mkdirSync(`${destino}/${d.name}`, { recursive: true });
+        Deno.writeTextFileSync(`${destino}/${d.name}/${f.name}`, JSON.stringify(reg, null, 1));
+        continue;
+      }
+      b[0] = mesmoTurno[bt];
+      reg.prova = b[0].titulo;
+      const qs = lerProva(tProva, b[0].resp.size).map((q) => marcar(q, b[0].resp));
       antes += (reg.questoes ?? []).length; depois += qs.length; provas++;
       reg.questoes = qs; reg.extraidas = qs.length; reg.completas = qs.filter((q) => q.ok).length;
       Deno.mkdirSync(`${destino}/${d.name}`, { recursive: true });

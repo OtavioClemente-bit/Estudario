@@ -36,19 +36,44 @@ const texto = (pdf: string, layout: boolean) => new TextDecoder().decode(new Den
 const latin1 = (b: ArrayBuffer) => new TextDecoder("latin1").decode(b);
 
 // Anexo II: "41 - MÉDICO (PATOLOGIA)" e depois pares "01 - B" (A–E; * = anulada), até o próximo cargo.
+// O texto TEM de vir de `pdftotext -simple` (textoGabarito): com -layout as colunas das tabelas vizinhas se misturam
+// (a coluna "07/17/27/37" de um cargo cai na linha do título do cargo seguinte, o título é ignorado e as respostas de
+// um cargo sobrescrevem as do anterior) — era isso que dava gabarito "de outra prova" (Imbé 1013, 1044, 1004...).
+// Títulos com número ("Professor - Inglês (20h)") também eram ignorados. Cargo com número repetido, título repetido
+// (ex.: 1ª e 2ª aplicação) ou numeração com buraco sai do mapa: sem gabarito certo, a prova fica de fora.
+const CAB_CARGO = /^\s*(\d{1,3})\s+-\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ].{2,})$/;
+const RESP_GAB = /\b(\d{2,3})\s+-\s+([A-E*])(?=\s|$)/g;
+const ehCabecalho = (l: string) => CAB_CARGO.test(l) && !/\d{2,3}\s+-\s+[A-E*](\s|$)/.test(l) && !/Assinatura/i.test(l);
 function lerGabarito(t: string): Map<number, Map<number, string>> {
   const porCargo = new Map<number, Map<number, string>>();
-  // a tabela começa na primeira página "ANEXO II  Gabaritos Deﬁnitivos" e continua nas seguintes (ﬁ vem como ligadura)
-  const ini = t.search(/ANEXO II\s+Gabaritos De(ﬁ|fi)nitivos/);
-  let atual: Map<number, string> | null = null;
-  for (const l of t.slice(ini >= 0 ? ini : 0).split(/\r?\n/)) {
-    const h = l.match(/^\s*(\d{1,3})\s+-\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][^0-9]{3,})$/);
-    if (h && !/\d{2}\s+-\s+[A-E*]\b/.test(l)) { atual = new Map(); porCargo.set(Number(h[1]), atual); continue; }
+  const L = t.split(/\r?\n/);
+  // a tabela começa no título de cargo logo antes da primeira linha "01 - X" (o título "ANEXO II - Gabaritos" varia)
+  const i01 = L.findIndex((l) => /^\s*01\s+-\s+[A-E*](\s|$)/.test(l));
+  if (i01 < 0) return porCargo;
+  let ini = i01;
+  while (ini > 0 && !ehCabecalho(L[ini])) ini--;
+  const ruins = new Set<number>();
+  let atual: Map<number, string> | null = null, cod = -1;
+  for (const l of L.slice(ini)) {
+    if (ehCabecalho(l)) {
+      cod = Number(l.match(CAB_CARGO)![1]);
+      if (porCargo.has(cod)) ruins.add(cod);
+      atual = new Map(); porCargo.set(cod, atual); continue;
+    }
     if (!atual) continue;
-    for (const m of l.matchAll(/\b(\d{2})\s+-\s+([A-E*])(?=\s|$)/g)) atual.set(Number(m[1]), m[2]);
+    for (const m of l.matchAll(RESP_GAB)) {
+      const n = Number(m[1]);
+      if (atual.has(n)) ruins.add(cod);
+      atual.set(n, m[2]);
+    }
+  }
+  for (const [c, m] of porCargo) {
+    const ks = [...m.keys()].sort((a, b) => a - b);
+    if (ruins.has(c) || !ks.length || ks[0] !== 1 || ks[ks.length - 1] !== ks.length) porCargo.delete(c);
   }
   return porCargo;
 }
+const textoGabarito = (pdf: string) => new TextDecoder().decode(new Deno.Command("pdftotext", { args: ["-enc", "UTF-8", "-simple", pdf, "-"], stdout: "piped", stderr: "piped" }).outputSync().stdout);
 
 // "QUESTÃO 01 – enunciado ... A) ... B) ... C) ... D) ... E) ..." (texto-base do grupo vem antes)
 // Rodapé/cabeçalho de página da Fundatec: sai antes de separar as questões (antes ficava no meio do enunciado ou
@@ -126,14 +151,16 @@ function reprocessar(destino = SAIDA) {
     if (!d.isDirectory) continue;
     const dir = `${SAIDA}/${d.name}`;
     let gab: Map<number, Map<number, string>>;
-    try { gab = lerGabarito(texto(`${dir}/_gabarito_definitivo.pdf`, true)); } catch { continue; }
+    try { gab = lerGabarito(textoGabarito(`${dir}/_gabarito_definitivo.pdf`)); } catch { continue; }
     for (const f of Deno.readDirSync(dir)) {
       if (!f.name.endsWith(".json") || f.name.startsWith("_")) continue;
       let reg: Json; try { reg = JSON.parse(Deno.readTextFileSync(`${dir}/${f.name}`)); } catch { continue; }
       const resp = gab.get(Number(reg.codigoCargo));
       try { Deno.statSync(`${dir}/${reg.arquivo}`); } catch { continue; }
-      if (!resp?.size) continue;
-      const qs: Json[] = lerProva(texto(`${dir}/${reg.arquivo}`, false)).map((q) => marcar(q, resp));
+      // cargo sem gabarito confiável (ver lerGabarito): a prova fica sem questões, em vez de manter o gabarito antigo
+      const qs: Json[] = !resp?.size ? [] : lerProva(texto(`${dir}/${reg.arquivo}`, false)).map((q) => marcar(q, resp));
+      if (!resp?.size) reg.descartada = "cargo sem gabarito definitivo confiável";
+      else delete reg.descartada;
       antes += (reg.questoes ?? []).length; depois += qs.length; provas++;
       reg.questoes = qs; reg.extraidas = qs.length; reg.completas = qs.filter((q) => q.ok && q.gabarito).length;
       Deno.mkdirSync(`${destino}/${d.name}`, { recursive: true });
@@ -158,7 +185,7 @@ async function concurso(cd: string): Promise<string> {
   const dir = `${SAIDA}/${cd}`;
   Deno.mkdirSync(dir, { recursive: true });
   if (!(await baixar(gabUrl, `${dir}/_gabarito_definitivo.pdf`))) return `${cd}: gabarito não baixou`;
-  const gab = lerGabarito(texto(`${dir}/_gabarito_definitivo.pdf`, true));
+  const gab = lerGabarito(textoGabarito(`${dir}/_gabarito_definitivo.pdf`));
   let ok = 0, total = 0;
   const avisos: string[] = [];
   for (const p of provas) {
