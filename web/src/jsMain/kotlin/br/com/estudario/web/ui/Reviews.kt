@@ -420,8 +420,10 @@ fun ReviewSessionScreen(reviewId: Long) {
     )
     val recall = remember(reviewId, config) { mix(config) }
     // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
-    val points = remember(reviewId) { ReviewMix.points(deck, review.stage).takeIf { it.size >= 3 }.orEmpty() }
-    val summary = material.summaries.firstOrNull { it.topicId == review.topicId && it.kind == "RAPIDO" } ?: material.summaries.firstOrNull { it.topicId == review.topicId }
+    // (só ideias que não viram cartão nesta sessão, para a pergunta não aparecer duas vezes)
+    val points = remember(reviewId, config) { ReviewMix.points(deck, prompts, recall, review.stage).takeIf { it.size >= 3 }.orEmpty() }
+    // O estudo rápido lê o resumo do tópico; o baralho (RAPIDO) já passou nos cartões e só entra se não houver resumo.
+    val summary = material.summaries.firstOrNull { it.topicId == review.topicId && it.kind != "RAPIDO" } ?: material.summaries.firstOrNull { it.topicId == review.topicId }
     // Revisar é reencontrar a falha: primeiro as erradas, depois as nunca respondidas, depois o resto.
     val questions = remember(reviewId, config) { reviewPracticeQuestions(material, review.topicId, config, practiceSeed) }
     var extra by remember(reviewId, config) { mutableStateOf(listOf<MixCard>()) }
@@ -592,18 +594,25 @@ fun ReviewSessionScreen(reviewId: Long) {
                     MixKind.CLOZE -> Triple("bookmark", "SEU GRIFO", "Você grifou este trecho. O que falta na lacuna?")
                 }
                 P({ classes("rv-hint") }) { Text(kindHint) }
-                if (again) Div({ classes("rv-flag", "again") }) { Icon("replay"); Text("De volta: você não lembrou na primeira passada") }
+                // A segunda chance tem cara própria: faixa laranja, contagem só dela e o cartão com a borda acesa.
+                if (again) Div({ classes("rv-second") }) {
+                    Icon("replay")
+                    Div {
+                        B { Text("Segunda chance · ${index - recall.size + 1} de ${extra.size}") }
+                        Span { Text("Você não lembrou deste na primeira passada. Lembrar agora é o que fixa.") }
+                    }
+                }
                 else if (card.hard) Div({ classes("rv-flag", "hard") }) { Icon("error"); Text("Você esqueceu este na última revisão") }
                 key("$index-${card.key}") {
                     Div({
-                        classes(*listOfNotNull("rv-flip", "rv-kind-${card.kind.name.lowercase()}", if (flipped) "on" else null).toTypedArray())
+                        classes(*listOfNotNull("rv-flip", "rv-kind-${card.kind.name.lowercase()}", if (again) "rv-again" else null, if (flipped) "on" else null).toTypedArray())
                         attr("role", "button"); attr("tabindex", "0"); attr("aria-label", if (flipped) "Voltar à pergunta" else "Ver a resposta")
                         onClick { flipped = !flipped }
                         onKeyDown { if (it.key == "Enter" || it.key == " ") { it.preventDefault(); flipped = !flipped } }
                     }) {
                         Div({ classes("rv-flip-in") }) {
                             Div({ classes("rv-face", "front") }) {
-                                Span({ classes("rv-face-tag") }) { Icon(kindIcon, filled = true); Text("$kindTag · ${index + 1} DE ${queue.size}") }
+                                Span({ classes("rv-face-tag") }) { Icon(kindIcon, filled = true); Text(if (again) "$kindTag · SEGUNDA CHANCE" else "$kindTag · ${index + 1} DE ${recall.size}") }
                                 Div({ classes("rv-face-text") }) { Inline(card.front) }
                                 Span({ classes("rv-face-tap") }) { Icon("touch_app"); Text("Clique para ver a resposta") }
                             }

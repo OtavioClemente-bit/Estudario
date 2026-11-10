@@ -167,7 +167,8 @@ fun ReviewSessionScreen(
             .map { val th = topicTheories.firstOrNull { theory -> theory.id == it.theoryId }; ReviewCard("GRIFO", th?.title.orEmpty(), br.com.estudario.domain.StudyNotebook.restoreQuote(it.quote, br.com.estudario.ui.components.studyBlocks(th?.markdown.orEmpty()), it.blockIndex), it.note.takeIf { _ -> config.showHighlightNotes }) }
     }
     if (highlightsOpen && highlights.isNotEmpty()) NotebookReview("Grifos · ${topic?.title.orEmpty()}", highlights, allowNavigation = false) { highlightsOpen = false }
-    val quick = material.summaries.firstOrNull { it.kind == SummaryKind.RAPIDO } ?: material.summaries.firstOrNull()
+    // O estudo rápido lê o resumo do tópico; o baralho (RAPIDO) já passou nos cartões e só entra se não houver resumo.
+    val quick = material.summaries.firstOrNull { it.kind != SummaryKind.RAPIDO } ?: material.summaries.firstOrNull()
     // As três fontes de cartão: o baralho de flashcards, a memorização ativa e os grifos da pessoa (com lacuna).
     val deck = remember(reviewId, material) {
         material.summaries.filter { it.kind == SummaryKind.RAPIDO }.flatMap { FlashcardParser.parse(it.markdown) }.map { MixSource(it.front, it.back) }
@@ -187,7 +188,8 @@ fun ReviewSessionScreen(
     )
     val recall = remember(reviewId, material, config) { mix(config) }
     // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
-    val points = remember(reviewId, material) { ReviewMix.points(deck, review.stage).takeIf { it.size >= 3 }.orEmpty() }
+    // (só ideias que não viram cartão nesta sessão, para a pergunta não aparecer duas vezes)
+    val points = remember(reviewId, material, config) { ReviewMix.points(deck, prompts, recall, review.stage).takeIf { it.size >= 3 }.orEmpty() }
     // Cartões que ela não lembrou: voltam uma vez no fim da fila, abrem o estudo rápido e a próxima revisão.
     var extra by remember(config) { mutableStateOf(listOf<MixCard>()) }
     // Revisar é reencontrar a falha: primeiro o que já errou, depois o que nunca respondeu, depois o resto.
@@ -360,7 +362,18 @@ fun ReviewSessionScreen(
                             },
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                         )
-                        if (again) RvFlag(Glyph.Cycle, "De volta: você não lembrou na primeira passada", Color(0xFFFF8A3D))
+                        // A segunda chance tem cara própria: faixa laranja, contagem só dela e o cartão com a borda acesa.
+                        if (again) Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).background(Color(0xFFFF8A3D).copy(alpha = 0.16f))
+                                .border(2.dp, Color(0xFFFF8A3D), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            BrandIcon(Glyph.Cycle, size = 40.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text("Segunda chance · ${index - recall.size + 1} de ${extra.size}", fontWeight = FontWeight.Black, color = Color(0xFFFF8A3D))
+                                Text("Você não lembrou deste na primeira passada. Lembrar agora é o que fixa.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         else if (card.hard) RvFlag(Glyph.Oops, "Você esqueceu este na última revisão", RvRed)
                     }
                 }
@@ -371,7 +384,7 @@ fun ReviewSessionScreen(
                         MixKind.RECALL -> Glyph.Brain to "DE MEMÓRIA"
                         MixKind.CLOZE -> Glyph.Bookmark to "SEU GRIFO"
                     }
-                    ReviewFlipCard(card.front, card.back, glyph, "$tag · ${index + 1} DE ${queue.size}", if (card.kind == MixKind.CLOZE) "O QUE FALTAVA" else "RESPOSTA", card.kind == MixKind.CLOZE, flipped) { flipped = !flipped }
+                    ReviewFlipCard(card.front, card.back, glyph, if (again) "$tag · SEGUNDA CHANCE" else "$tag · ${index + 1} DE ${recall.size}", if (card.kind == MixKind.CLOZE) "O QUE FALTAVA" else "RESPOSTA", again, flipped) { flipped = !flipped }
                 }
                 item {
                     val somCtx = androidx.compose.ui.platform.LocalContext.current
@@ -933,8 +946,8 @@ private fun ReviewFlipCard(question: String, answer: String, glyph: Glyph, tag: 
             .graphicsLayer { rotationY = angle; cameraDistance = 14f * density }
             .clip(shape)
             .background(if (front) MaterialTheme.colorScheme.surface else Color(0xFF231C86))
-            .then(if (front && highlight) Modifier.background(Color(0xFFFFB421).copy(alpha = 0.10f)) else Modifier)
-            .then(if (front) Modifier.border(2.dp, if (highlight) Color(0xFFFFB421).copy(alpha = 0.7f) else MaterialTheme.colorScheme.outlineVariant, shape) else Modifier)
+            .then(if (front && highlight) Modifier.background(Color(0xFFFF8A3D).copy(alpha = 0.08f)) else Modifier)
+            .then(if (front) Modifier.border(if (highlight) 3.dp else 2.dp, if (highlight) Color(0xFFFF8A3D) else MaterialTheme.colorScheme.outlineVariant, shape) else Modifier)
             .clickable(onClick = onToggle)
             .semantics { contentDescription = if (flipped) "Voltar à pergunta" else "Ver a resposta" },
         contentAlignment = Alignment.Center,
