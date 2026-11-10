@@ -36,8 +36,13 @@ object StudyNotebook {
     /** O treino recente de um tópico, a partir das respostas (quando, acertou). */
     data class Practice(val lastAt: Long?, val recentAnswers: Int, val recentRight: Int)
 
+    /**
+     * Vale o treino mais recente: as últimas 5 respostas da semana. Assim uma rodada boa deixa a
+     * página firme na hora, sem ficar presa nos erros de dias atrás (antes contava a semana toda e
+     * a página não saía do morno mesmo acertando).
+     */
     fun practice(answers: List<Pair<Long, Boolean>>, now: Long): Practice {
-        val recent = answers.filter { now - it.first <= 7 * DAY }
+        val recent = answers.filter { now - it.first <= 7 * DAY }.sortedByDescending { it.first }.take(5)
         return Practice(answers.maxOfOrNull { it.first }, recent.size, recent.count { it.second })
     }
 
@@ -74,7 +79,7 @@ object StudyNotebook {
 
     private fun sinceText(days: Int) = when { days <= 0 -> "hoje"; days == 1 -> "ontem"; else -> "há $days dias" }
 
-    /** Por que a página está nesse estado, numa frase curta ("4 de 5 certas nesta semana"). */
+    /** Por que a página está nesse estado, numa frase curta ("4 de 5 certas nas últimas respostas"). */
     fun firmnessReason(topic: Topic, now: Long): String {
         val days = daysSince(topic, now)
         val wrong = topic.wrongQuestions.size
