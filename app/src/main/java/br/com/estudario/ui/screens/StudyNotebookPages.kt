@@ -234,6 +234,41 @@ private fun StampText(text: String) {
     Text(text, Modifier.padding(vertical = 10.dp).rotate(-4f).border(3.dp, Stamp, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 4.dp), color = Stamp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 14.sp)
 }
 
+/** O botão "?" do caderno, igual ao das outras telas. */
+@Composable
+private fun NotebookHelpButton() {
+    var open by remember { mutableStateOf(false) }
+    if (open) br.com.estudario.ui.help.NotebookHelp { open = false }
+    br.com.estudario.ui.help.HelpButton("Como funciona o caderno") { open = true }
+}
+
+/** Pontos numerados, um por cartãozinho (o essencial e as dicas): antes ia tudo num bloco só, difícil de ler. */
+@Composable
+private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6) {
+    var all by remember(lines) { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        lines.take(if (all) lines.size else first).forEachIndexed { i, line ->
+            // o trecho que a pessoa grifou aparece em marca-texto
+            val hit = quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardBg).background(if (hit) Highlight.copy(alpha = 0.28f) else Color.Transparent)
+                    .border(1.5.dp, if (hit) Color(0xFFFFD23F) else LineC, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(Modifier.padding(top = 1.dp).size(24.dp).clip(CircleShape).background(if (tips) Color(0xFFD9F5E8) else Color(0xFFFFE9A8)), contentAlignment = Alignment.Center) {
+                    Text(if (tips) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.Black, color = if (tips) Color(0xFF0E5C3F) else Color(0xFF6E4700))
+                }
+                Text(inkInline(line), Modifier.weight(1f), color = Ink, fontSize = 15.sp, lineHeight = 22.sp)
+            }
+        }
+        if (lines.size > first) Text(
+            if (all) "Mostrar menos" else "Ver os ${lines.size} pontos",
+            Modifier.clip(RoundedCornerShape(50)).clickable { all = !all }.padding(horizontal = 8.dp, vertical = 6.dp),
+            fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3),
+        )
+    }
+}
+
 @Composable
 private fun Highlighted(text: String) {
     Text(inkInline(text, SpanStyle(background = Highlight)), color = Ink, fontSize = 16.sp, lineHeight = 28.sp)
@@ -305,6 +340,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                             else -> "Nada esfriando. Falta pouco para deixar tudo firme."
                         }, color = Muted, fontSize = 14.sp)
                     }
+                    NotebookHelpButton()
                 }
                 if (topics.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -377,9 +413,18 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                         }
                         if (open == subjectId) list.sortedBy { it.lastSeenAt ?: 0 }.forEach { t ->
                             Row(Modifier.fillMaxWidth().clickable { onPage(t.id) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(Modifier.size(9.dp).clip(CircleShape).background(firmColor(StudyNotebook.firmness(t, now))))
-                                Text(t.title, Modifier.weight(1f), color = Ink, fontSize = 14.sp)
-                                Text(StudyNotebook.firmnessReason(t, now), fontSize = 11.sp, color = Muted)
+                                val f = StudyNotebook.firmness(t, now)
+                                val (pillBg, pillInk) = when (f) {
+                                    StudyNotebook.Firmness.FIRM -> Color(0xFFE3F8EE) to Color(0xFF0E5C3F)
+                                    StudyNotebook.Firmness.MID -> Color(0xFFFFF5D6) to Color(0xFF6E4700)
+                                    StudyNotebook.Firmness.COLD -> Color(0xFFFFE9E6) to Color(0xFF8A2A1F)
+                                }
+                                br.com.estudario.ui.brand.BrandIcon(firmGlyph(f), size = 30.dp)
+                                Column(Modifier.weight(1f)) {
+                                    Text(t.title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text(StudyNotebook.firmnessReason(t, now), fontSize = 11.5.sp, color = Muted)
+                                }
+                                Text(StudyNotebook.firmnessLabel(f), Modifier.clip(RoundedCornerShape(50)).background(pillBg).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = pillInk)
                             }
                         }
                     }
@@ -567,7 +612,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
     val topic = topics.firstOrNull { it.id == topicId }
     val now = remember { System.currentTimeMillis() }
     LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") }; Text("Caderno", fontWeight = FontWeight.Black) } }
+        item { Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") }; Text("Caderno", Modifier.weight(1f), fontWeight = FontWeight.Black); NotebookHelpButton() } }
         if (topic == null) {
             item { Text("Esta página ainda está em branco: estude o tópico (leia a teoria e marque como estudado) e ele vira página do seu caderno.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Button(onClick = { onTheory(topicId) }) { Text("Abrir o tópico") } }
@@ -599,13 +644,13 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                     br.com.estudario.ui.brand.BrandIcon(firmGlyph(firm), size = 48.dp)
                     Column(Modifier.weight(1f)) {
                         Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}", fontWeight = FontWeight.Black, color = stateInk, fontSize = 15.sp)
-                        Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. Ela volta a pedir treino se ficar muito tempo parada.", color = stateInk, fontSize = 13.sp)
+                        Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. No ? você vê como ela se mantém firme.", color = stateInk, fontSize = 13.sp)
                     }
                 }
                 if (thin) Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF5D6)).clickable { onTheory(topic.id) }.padding(10.dp), color = Color(0xFF6E4700), fontSize = 13.sp)
                 if (lines.isNotEmpty()) {
                     Section("O ESSENCIAL")
-                    lines.forEach { line -> if (quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }) Highlighted(line) else Text(inkInline(line), color = Ink, fontSize = 16.sp, lineHeight = 28.sp) }
+                    PointList(lines, quotes)
                 }
                 if (topic.marks.isNotEmpty()) {
                     Section("SEUS GRIFOS")
@@ -614,7 +659,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                 topic.notes.take(3).forEach { PostIt(it) }
                 if (topic.tips.isNotEmpty()) {
                     Section("DICAS DE PROVA")
-                    topic.tips.take(6).forEach { Text(inkInline("• $it"), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
+                    PointList(topic.tips.take(6), tips = true)
                 }
                 topic.traps.take(3).forEach { trap -> StampText("PEGADINHA"); Text(inkInline(trap), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
                 if (topic.recall.isNotEmpty()) {

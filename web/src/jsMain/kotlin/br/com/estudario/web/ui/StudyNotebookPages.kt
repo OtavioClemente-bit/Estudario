@@ -95,6 +95,60 @@ private fun Sticker(icon: String, vararg extra: String, label: String? = null) {
     }) { Icon(icon); if (label != null) Text(label) }
 }
 
+/** O "?" do Caderno de estudo: o que é cada estado da página, como aquecer e o que tem em cada parte. */
+@Composable
+private fun NotebookHelp(onClose: () -> Unit) {
+    Modal(onDismiss = onClose, extraClass = "gx-sheetmodal rv-help-modal") {
+        Div({ classes("gx-top") }) {
+            Div({ classes("gx-top-id") }) {
+                Span({ classes("gx-kicker") }) { Text("COMO FUNCIONA") }
+                H2 { Text("O caderno que se escreve sozinho") }
+                P({ classes("gx-topic") }) { Text("Cada tópico que você estuda vira uma página. O caderno acompanha o que está firme na memória e avisa o que está esfriando.") }
+            }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+        }
+        Div({ classes("gx-controls", "solo") }) {
+            GxSection("auto_stories", "Você não monta nada", "Estudou o tópico, a página aparece pronta: o essencial em pontos curtos, seus grifos e notas, as dicas de prova, as pegadinhas e os cartões para lembrar.", "#A78BFF") {}
+            GxSection("verified", "Firme", "Você acertou 70% ou mais no treino mais recente (4 de 5, por exemplo). Também fica firme a página vista nos últimos 7 dias sem erro para refazer, e o tópico que você já domina.", "#2FD39A") {}
+            GxSection("device_thermostat", "Morno", "Você treinou, mas acertou menos de 70%. Ou faz mais de uma semana que não vê o tópico. Ou ficou erro para refazer. Falta pouco para firmar.", "#FFC94D") {}
+            GxSection("ac_unit", "Esfriando", "Mais de 30 dias sem ler, revisar ou treinar o tópico. Ou dois erros ou mais para refazer, sem nenhum treino na semana. É a página que mais precisa de você.", "#FF5A7A") {}
+            GxSection("quiz", "Como aquecer uma página", "Treine 5 questões do tópico: acertando 4, ela fica firme na hora. Vale o treino mais recente (as últimas 5 respostas dos últimos 7 dias), então uma rodada boa apaga uma rodada ruim.", "#22D3EE") {}
+            GxSection("replay", "Firme não é para sempre", "O treino vale por 7 dias. Depois, a página se segura pela leitura e pelas revisões. Se ficar muito tempo parada, volta a morno e, passados 30 dias, esfria e pede treino de novo.", "#A78BFF") {}
+            GxSection("local_fire_department", "Folheada do dia", "Todo dia eu separo 5 páginas do que está esfriando: um ponto-chave, um grifo seu, uma pegadinha, um cartão e uma questão que você errou. Leva uns 5 minutos.", "#FF8A3D") {}
+            GxSection("bookmarks", "Grifos, notas e salvos", "Na outra aba fica tudo o que você guardou. O que você grifa na teoria aparece em marca-texto dentro da página do tópico.", "#FFC94D") {}
+            Div({ classes("gx-go", "row") }) {
+                Span {}
+                GxLaunch("Entendi", icon = "check_circle") { onClose() }
+            }
+        }
+    }
+}
+
+/** O botão "?" do caderno, igual ao das outras telas. */
+@Composable
+private fun NotebookHelpButton() {
+    var help by remember { mutableStateOf(false) }
+    if (help) NotebookHelp { help = false }
+    Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funciona o caderno"); attr("title", "Como funciona o caderno"); onClick { it.stopPropagation(); help = true } }) { Text("?") }
+}
+
+/** Pontos numerados, um por cartãozinho (o essencial e as dicas): antes ia tudo num bloco só, difícil de ler. */
+@Composable
+private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6) {
+    var all by remember(lines) { mutableStateOf(false) }
+    Div({ classes(*listOfNotNull("cb-ess", if (tips) "tips" else null).toTypedArray()) }) {
+        lines.take(if (all) lines.size else first).forEachIndexed { i, line ->
+            // o trecho que a pessoa grifou aparece em marca-texto
+            val hit = quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }
+            Div({ classes(*listOfNotNull("cb-ess-item", if (hit) "hl" else null).toTypedArray()) }) {
+                Span({ classes("cb-ess-n") }) { Text(if (tips) "✓" else "${i + 1}") }
+                P { Inline(line) }
+            }
+        }
+    }
+    if (lines.size > first) Button({ classes("cb-link", "cb-ess-more"); onClick { all = !all } }) { Icon(if (all) "expand_less" else "expand_more"); Text(if (all) "Mostrar menos" else "Ver os ${lines.size} pontos") }
+}
+
 private fun firmClass(f: StudyNotebook.Firmness) = when (f) { StudyNotebook.Firmness.FIRM -> "ok"; StudyNotebook.Firmness.MID -> "mid"; StudyNotebook.Firmness.COLD -> "low" }
 
 private fun greeting(): String {
@@ -129,7 +183,7 @@ fun NotebookHome() {
         Div({ classes("cb-rings") }) { repeat(5) { org.jetbrains.compose.web.dom.I() } }
         Div({ classes("cb-hello") }) {
             Folha(if (topics.isEmpty()) "thinking" else "happy", 64)
-            Div {
+            Div({ classes("grow") }) {
                 H2 { Text("${greeting()}${name?.let { ", $it" } ?: ""}!") }
                 P { Text(if (topics.isEmpty()) "Seu caderno se escreve sozinho: cada tópico que você estudar vira página aqui." else when {
                     coldCount > 0 -> "$coldCount ${if (coldCount == 1) "página está esfriando" else "páginas estão esfriando"}. Cinco questões já aquecem uma."
@@ -137,6 +191,7 @@ fun NotebookHome() {
                     else -> "Nada esfriando. Falta pouco para deixar tudo firme."
                 }) }
             }
+            NotebookHelpButton()
         }
         if (topics.isNotEmpty()) Div({ classes("cb-meter") }) {
             Div({ classes("cb-meter-top") }) {
@@ -200,9 +255,12 @@ fun NotebookHome() {
                         list.sortedBy { it.lastSeenAt ?: 0 }.forEach { t ->
                             val f = StudyNotebook.firmness(t, now)
                             Div({ classes("cb-topic"); onClick { Router.go(Route.NotebookPage(t.id)) } }) {
-                                org.jetbrains.compose.web.dom.I({ classes("cb-dot", firmClass(f)) })
-                                Span({ classes("grow") }) { Text(t.title) }
-                                Span({ classes("xs", "muted") }) { Text(StudyNotebook.firmnessReason(t, now)) }
+                                Sticker(firmIcon(f), "xs")
+                                Div({ classes("grow") }) {
+                                    B { Text(t.title) }
+                                    Span { Text(StudyNotebook.firmnessReason(t, now)) }
+                                }
+                                Span({ classes("cb-pill", firmClass(f)) }) { Text(StudyNotebook.firmnessLabel(f)) }
                             }
                         }
                     }
@@ -370,6 +428,7 @@ fun NotebookPageScreen(topicId: Long) {
     val thin = lines.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
     Div({ classes("cb-top") }) {
         Btn("Caderno", { Router.go(Route.Notebook) }, style = "ghost", small = true, icon = "arrow_back")
+        NotebookHelpButton()
     }
     Div({ classes("cb-tpage", "rise"); attr("style", "--c:${subjectColor(subject?.name ?: "")}") }) {
         Span({ classes("cb-crumb") }) { Text((subject?.name ?: "").uppercase()) }
@@ -387,7 +446,7 @@ fun NotebookPageScreen(topicId: Long) {
             Sticker(firmIcon(firm))
             Div({ classes("grow") }) {
                 B { Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}") }
-                Span { Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. Ela volta a pedir treino se ficar muito tempo parada.") }
+                Span { Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. No ? você vê como ela se mantém firme.") }
             }
             if (firm != StudyNotebook.Firmness.FIRM && hasQuestions) Btn("Treinar 5", { Router.go(Route.Quiz("topico-${topic.id}-5-c")) }, style = "primary", small = true)
         }
@@ -397,29 +456,23 @@ fun NotebookPageScreen(topicId: Long) {
             Btn("Abrir o tópico", { Router.go(Route.Topic(topic.id)) }, style = "outline", small = true)
         }
         if (lines.isNotEmpty()) {
-            H4 { Text("O ESSENCIAL") }
-            Div({ classes("cb-body") }) {
-                lines.forEach { line ->
-                    // o trecho que a pessoa grifou aparece em marca-texto dentro da frase
-                    val hit = quotes.firstOrNull { q -> line.contains(q.take(60), ignoreCase = true) }
-                    P { if (hit != null) Span({ classes("cb-hl") }) { Inline(line) } else Inline(line) }
-                }
-            }
+            H4 { Icon("lightbulb"); Text("O ESSENCIAL") }
+            PointList(lines, quotes)
         }
         if (quotes.isNotEmpty()) {
-            H4 { Text("SEUS GRIFOS") }
+            H4 { Icon("bookmark"); Text("SEUS GRIFOS") }
             topic.marks.take(8).forEachIndexed { i, m -> key(i) { MarkQuote(m) } }
         }
         topic.notes.take(3).forEach { note -> Div({ classes("cb-postit") }) { Text(note) } }
         if (topic.tips.isNotEmpty()) {
-            H4 { Text("DICAS DE PROVA") }
-            Div({ classes("cb-body") }) { org.jetbrains.compose.web.dom.Ul { topic.tips.take(6).forEach { org.jetbrains.compose.web.dom.Li { Inline(it) } } } }
+            H4 { Icon("gps_fixed"); Text("DICAS DE PROVA") }
+            PointList(topic.tips.take(6), tips = true)
         }
         topic.traps.take(3).forEach { trap ->
             Div({ classes("cb-trap") }) { Span({ classes("cb-stamp") }) { Text("PEGADINHA") }; P { Inline(trap) } }
         }
         if (topic.recall.isNotEmpty()) {
-            H4 { Text("PARA LEMBRAR · TOQUE PARA VIRAR") }
+            H4 { Icon("style"); Text("PARA LEMBRAR · TOQUE PARA VIRAR") }
             Div({ classes("cb-cards") }) {
                 topic.recall.take(10).forEachIndexed { i, (q, a) -> key(i) { MiniCard(q, a) } }
             }

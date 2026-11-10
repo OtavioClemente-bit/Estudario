@@ -175,6 +175,23 @@ fun ReviewsHelp(onClose: () -> Unit) {
     }
 }
 
+// ------------------------------------------------------------------ caderno de estudo
+
+/** O "?" do Caderno de estudo: o que é cada estado da página, como aquecer e o que tem em cada parte. */
+@Composable
+fun NotebookHelp(onClose: () -> Unit) {
+    HelpDialog("Como funciona", "O caderno que se escreve sozinho", "Cada tópico que você estuda vira uma página. O caderno acompanha o que está firme na memória e avisa o que está esfriando.", "Entendi", onClose) {
+        GxSection(Glyph.Notebook, "Você não monta nada", "Estudou o tópico, a página aparece pronta: o essencial em pontos curtos, seus grifos e notas, as dicas de prova, as pegadinhas e os cartões para lembrar.", Gx.violet) {}
+        GxSection(Glyph.Check, "Firme", "Você acertou 70% ou mais no treino mais recente (4 de 5, por exemplo). Também fica firme a página vista nos últimos 7 dias sem erro para refazer, e o tópico que você já domina.", Gx.mint) {}
+        GxSection(Glyph.Thermo, "Morno", "Você treinou, mas acertou menos de 70%. Ou faz mais de uma semana que não vê o tópico. Ou ficou erro para refazer. Falta pouco para firmar.", Gx.gold) {}
+        GxSection(Glyph.Ice, "Esfriando", "Mais de 30 dias sem ler, revisar ou treinar o tópico. Ou dois erros ou mais para refazer, sem nenhum treino na semana. É a página que mais precisa de você.", Gx.red) {}
+        GxSection(Glyph.Clipboard, "Como aquecer uma página", "Treine 5 questões do tópico: acertando 4, ela fica firme na hora. Vale o treino mais recente (as últimas 5 respostas dos últimos 7 dias), então uma rodada boa apaga uma rodada ruim.", Gx.cyan) {}
+        GxSection(Glyph.Cycle, "Firme não é para sempre", "O treino vale por 7 dias. Depois, a página se segura pela leitura e pelas revisões. Se ficar muito tempo parada, volta a morno e, passados 30 dias, esfria e pede treino de novo.", Gx.violet) {}
+        GxSection(Glyph.Fire, "Folheada do dia", "Todo dia eu separo 5 páginas do que está esfriando: um ponto-chave, um grifo seu, uma pegadinha, um cartão e uma questão que você errou. Leva uns 5 minutos.", Gx.orange) {}
+        GxSection(Glyph.Bookmark, "Grifos e salvos", "Na outra aba fica tudo o que você guardou. O que você grifa na teoria aparece em marca-texto dentro da página do tópico.", Gx.gold) {}
+    }
+}
+
 // ------------------------------------------------------------------ caderno de erros
 
 /** O "?" do caderno de erros: a Virada, a escada de 3, 10 e 30 dias e como usar a tela. */
