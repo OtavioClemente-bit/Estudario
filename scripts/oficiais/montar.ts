@@ -46,13 +46,21 @@ const alertas: Json[] = [];
 const contagem = { respostas: 0, aceitas: 0, semMateria: 0, curtas: 0, alerta: 0, desconhecidas: 0 };
 let arquivos: string[] = [];
 try { arquivos = [...Deno.readDirSync(RESPOSTAS)].filter((e) => e.name.endsWith(".json")).map((e) => e.name).sort(); } catch { /* nenhuma ainda */ }
+// Explicações reescritas por Claude depois que o gabarito foi corrigido (10/11: Fundatec e TCE-GO, arquivos
+// oficial-refeitas-*.json): vêm primeiro, valem mesmo se o id estava bloqueado, e a resposta antiga do mesmo id é ignorada.
+const refeitas = arquivos.filter((a) => a.startsWith("oficial-refeitas-"));
+arquivos = [...refeitas, ...arquivos.filter((a) => !a.startsWith("oficial-refeitas-"))];
+const vistos = new Set<string>();
 for (const arquivo of arquivos) {
   let r: Json; try { r = JSON.parse(Deno.readTextFileSync(`${RESPOSTAS}/${arquivo}`)); } catch { continue; }
+  const refeita = arquivo.startsWith("oficial-refeitas-");
   for (const it of r.itens ?? []) {
     contagem.respostas++;
     const q = questoes.get(String(it.id));
     if (!q) { contagem.desconhecidas++; continue; }
-    if (bloqueadas.has(String(it.id))) { contagem.alerta++; continue; }
+    if (vistos.has(String(it.id))) continue;
+    vistos.add(String(it.id));
+    if (!refeita && bloqueadas.has(String(it.id))) { contagem.alerta++; continue; }
     const escolhida = String(it.materia ?? "").trim().split(/\s/)[0];
     const m = materias.get(escolhida);
     // Basta a matéria existir: os 5 candidatos mudam quando o preparar.ts roda de novo com a biblioteca maior, e a
@@ -62,6 +70,8 @@ for (const arquivo of arquivos) {
     if (String(it.alerta ?? "").trim() && !alertasLiberados.has(String(it.id))) { contagem.alerta++; alertas.push({ id: q.id, alerta: it.alerta, explicacao }); continue; }
     if (explicacao.length < 120) { contagem.curtas++; continue; }
     const ce = q.alternativas.length === 0;
+    // Alternativas repetidas (extração colou a mesma linha duas vezes) travam a publicação: a questão fica de fora (10/11).
+    if (!ce && new Set(q.alternativas.map((t: string) => norm(String(t)).trim())).size !== q.alternativas.length) { contagem.curtas++; continue; }
     // Tira só o cabeçalho/rodapé de caderno que a extração colou no texto ("658001_01N770539 CEBRASPE | IBAMA – Edital:
     // 2021 -- CONHECIMENTOS ESPECÍFICOS --", "Página 3 de 20"). O texto da questão não muda (09/11).
     const limpo = (s: string) => s
