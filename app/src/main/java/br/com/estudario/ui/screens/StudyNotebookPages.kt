@@ -350,8 +350,30 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                             Text("$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFFB5560F))
                         }
                     }
-                    Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(Color(0xFFECE7F7))) {
-                        Box(Modifier.fillMaxWidth((firmCount.toFloat() / topics.size).coerceIn(0.03f, 1f)).height(10.dp).clip(RoundedCornerShape(50)).background(Mint))
+                    // A barra em três partes (firme, morno, esfriando) e, embaixo, cada estado com o seu personagem.
+                    val midCount = topics.size - firmCount - coldCount
+                    val states = listOf(StudyNotebook.Firmness.FIRM to firmCount, StudyNotebook.Firmness.MID to midCount, StudyNotebook.Firmness.COLD to coldCount)
+                    Row(Modifier.fillMaxWidth().height(10.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        states.filter { it.second > 0 }.forEach { (f, n) -> Box(Modifier.weight(n.toFloat()).height(10.dp).clip(RoundedCornerShape(50)).background(firmColor(f))) }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        states.forEach { (f, n) ->
+                            val (bg, ink) = when (f) {
+                                StudyNotebook.Firmness.FIRM -> Color(0xFFE3F8EE) to Color(0xFF0E5C3F)
+                                StudyNotebook.Firmness.MID -> Color(0xFFFFF5D6) to Color(0xFF6E4700)
+                                StudyNotebook.Firmness.COLD -> Color(0xFFFFE9E6) to Color(0xFF8A2A1F)
+                            }
+                            Row(
+                                Modifier.weight(1f).graphicsLayer { alpha = if (n == 0) 0.55f else 1f }.clip(RoundedCornerShape(14.dp)).background(bg).padding(horizontal = 8.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                br.com.estudario.ui.brand.BrandIcon(firmGlyph(f), size = 30.dp)
+                                Column {
+                                    Text("$n", fontWeight = FontWeight.Black, fontSize = 17.sp, color = ink, lineHeight = 18.sp)
+                                    Text(when (f) { StudyNotebook.Firmness.FIRM -> if (n == 1) "firme" else "firmes"; StudyNotebook.Firmness.MID -> if (n == 1) "morna" else "mornas"; StudyNotebook.Firmness.COLD -> "esfriando" }, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1)
+                                }
+                            }
+                        }
                     }
                 }
                 // A Folheada do dia

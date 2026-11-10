@@ -198,7 +198,21 @@ fun NotebookHome() {
                 B { Text("$firmCount de ${topics.size} ${if (topics.size == 1) "página firme" else "páginas firmes"}") }
                 if (warmedToday > 0) Sticker("local_fire_department", "cb-fire", label = "$warmedToday ${if (warmedToday == 1) "treinada" else "treinadas"} hoje")
             }
-            Div({ classes("cb-meter-bar") }) { org.jetbrains.compose.web.dom.I({ attr("style", "width:${firmCount * 100 / topics.size}%") }) }
+            // A barra em três partes (firme, morno, esfriando) e, embaixo, cada estado com o seu personagem.
+            val midCount = topics.size - firmCount - coldCount
+            Div({ classes("cb-meter-bar", "split") }) {
+                listOf("ok" to firmCount, "mid" to midCount, "low" to coldCount).filter { it.second > 0 }.forEach { (cls, n) ->
+                    org.jetbrains.compose.web.dom.I({ classes(cls); attr("style", "flex:$n") })
+                }
+            }
+            Div({ classes("cb-states") }) {
+                listOf(StudyNotebook.Firmness.FIRM to firmCount, StudyNotebook.Firmness.MID to midCount, StudyNotebook.Firmness.COLD to coldCount).forEach { (f, n) ->
+                    Div({ classes(*listOfNotNull("cb-state-chip", firmClass(f), if (n == 0) "zero" else null).toTypedArray()) }) {
+                        Sticker(firmIcon(f), "xs")
+                        Div { B { Text("$n") }; Span { Text(when (f) { StudyNotebook.Firmness.FIRM -> if (n == 1) "firme" else "firmes"; StudyNotebook.Firmness.MID -> if (n == 1) "morna" else "mornas"; StudyNotebook.Firmness.COLD -> "esfriando" }) } }
+                    }
+                }
+            }
         }
         if (pages.isNotEmpty()) Div({ classes("cb-today") }) {
             Span({ classes("cb-eyebrow") }) { Text(if (flippedToday) "FOLHEADA DE HOJE · FEITA" else "FOLHEADA DO DIA · ~${StudyNotebook.minutes(pages)} MIN") }
