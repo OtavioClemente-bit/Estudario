@@ -140,6 +140,26 @@ object ReviewMix {
         return (fronts.drop(shift) + fronts.take(shift)).take(max)
     }
 
+    /** O estudo rápido de uma revisão: o essencial em pontos curtos, as dicas de prova e as pegadinhas. */
+    data class QuickStudy(val points: List<String>, val tips: List<String>, val traps: List<String>) {
+        val isEmpty get() = points.isEmpty() && tips.isEmpty() && traps.isEmpty()
+    }
+
+    /**
+     * Monta o estudo rápido com o que o tópico tem, em pedaços que dá para ler em um minuto: o resumo
+     * quebrado em pontos (antes ia o resumo cru, num parágrafo só), dicas e pegadinhas. As dicas e as
+     * pegadinhas giram a cada etapa, para a leitura não ser sempre a mesma.
+     */
+    fun quickStudy(summary: String?, tips: List<String>, traps: List<String>, stage: Int): QuickStudy {
+        fun turn(items: List<String>, max: Int): List<String> {
+            val good = items.map { it.trim() }.filter { it.length in 15..420 }.distinct()
+            if (good.size <= max) return good
+            val shift = ((stage.coerceAtLeast(1) - 1) * max) % good.size
+            return (good.drop(shift) + good.take(shift)).take(max)
+        }
+        return QuickStudy(StudyNotebook.summaryLines(summary, max = 8), turn(tips, 4), turn(traps, 3))
+    }
+
     /** O que fica marcado como difícil para a próxima revisão: sai o que apareceu e foi lembrado, entra o que foi esquecido. */
     fun nextHard(previous: Set<String>, shown: List<MixCard>, forgotten: Set<String>): Set<String> {
         val seen = shown.mapTo(hashSetOf()) { it.key }

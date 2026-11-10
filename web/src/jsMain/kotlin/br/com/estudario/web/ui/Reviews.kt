@@ -421,6 +421,14 @@ fun ReviewSessionScreen(reviewId: Long) {
     val recall = remember(reviewId, config) { mix(config) }
     // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
     // (só ideias que não viram cartão nesta sessão, para a pergunta não aparecer duas vezes)
+    // O estudo rápido: o resumo em pontos, as dicas de prova e as pegadinhas do tópico.
+    val study = remember(reviewId) {
+        val mine = material.snippets.filter { it.topicId == review.topicId }
+        ReviewMix.quickStudy(
+            material.summaries.firstOrNull { it.topicId == review.topicId && it.kind != "RAPIDO" }?.markdown,
+            mine.filter { it.kind == "BIZU" }.map { it.text }, mine.filter { it.kind == "PEGADINHA" }.map { it.text }, review.stage,
+        )
+    }
     val points = remember(reviewId, config) { ReviewMix.points(deck, prompts, recall, review.stage).takeIf { it.size >= 3 }.orEmpty() }
     // O estudo rápido lê o resumo do tópico; o baralho (RAPIDO) já passou nos cartões e só entra se não houver resumo.
     val summary = material.summaries.firstOrNull { it.topicId == review.topicId && it.kind != "RAPIDO" } ?: material.summaries.firstOrNull { it.topicId == review.topicId }
@@ -429,7 +437,7 @@ fun ReviewSessionScreen(reviewId: Long) {
     var extra by remember(reviewId, config) { mutableStateOf(listOf<MixCard>()) }
     val warmup = points.isNotEmpty()
     // Estudo rápido: depois dos cartões, reler o tópico, começando pelo que ela não lembrou.
-    val consultation = config.showSummary && (summary != null || extra.isNotEmpty())
+    val consultation = config.showSummary && (!study.isEmpty || extra.isNotEmpty())
     // A abertura ("start") diz o que vem e quanto tempo leva; sem nada para fazer, vai direto ao ajuste.
     val activities = listOfNotNull("dump".takeIf { warmup }, "recall".takeIf { recall.isNotEmpty() }, "summary".takeIf { consultation }, "test".takeIf { questions.isNotEmpty() })
     val steps = (if (activities.isEmpty()) emptyList() else listOf("start")) + activities + "rate"
@@ -648,12 +656,20 @@ fun ReviewSessionScreen(reviewId: Long) {
                         }
                     }
                 }
-                Div({ classes("rv-paper") }) {
-                    Span({ classes("rv-face-tag") }) { Icon("menu_book", filled = true); Text("ESTUDO RÁPIDO") }
-                    if (summary != null) {
-                        P({ classes("muted") }) { Text(if (extra.isNotEmpty()) "Agora o tópico inteiro, para amarrar tudo." else "Você lembrou de todos os cartões. Releia o tópico inteiro para amarrar.") }
-                        Markdown(summary.markdown)
-                    } else P({ classes("muted") }) { Text("Este tópico ainda não tem revisão rápida. Relembre os pontos principais e siga.") }
+                // O tópico em pedaços curtos: o essencial numerado, as dicas de prova e onde a banca pega.
+                if (study.points.isNotEmpty()) Div({ classes("rv-paper", "rv-quick") }) {
+                    Span({ classes("rv-face-tag") }) { Icon("lightbulb", filled = true); Text("O ESSENCIAL EM ${study.points.size} PONTOS") }
+                    study.points.forEachIndexed { i, line ->
+                        Div({ classes("rv-quick-item") }) { Span({ classes("rv-quick-n") }) { Text("${i + 1}") }; P { Inline(line) } }
+                    }
+                }
+                if (study.tips.isNotEmpty()) Div({ classes("rv-paper", "rv-quick", "tips") }) {
+                    Span({ classes("rv-face-tag") }) { Icon("gps_fixed", filled = true); Text("DICAS DE PROVA") }
+                    study.tips.forEach { tip -> Div({ classes("rv-quick-item") }) { Span({ classes("rv-quick-n") }) { Text("✓") }; P { Inline(tip) } } }
+                }
+                if (study.traps.isNotEmpty()) Div({ classes("rv-paper", "rv-quick", "traps") }) {
+                    Span({ classes("rv-face-tag") }) { Icon("pest_control_rodent", filled = true); Text("ONDE A BANCA PEGA") }
+                    study.traps.forEach { trap -> Div({ classes("rv-quick-item") }) { Span({ classes("rv-quick-n") }) { Text("!") }; P { Inline(trap) } } }
                 }
                 Div({ classes("rv-choice") }) { Btn(if (steps.contains("test")) "Ir para as questões" else "Avaliar a revisão", { advance() }, style = "primary", icon = "arrow_forward") }
             }

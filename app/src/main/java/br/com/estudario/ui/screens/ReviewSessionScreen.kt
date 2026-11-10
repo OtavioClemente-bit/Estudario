@@ -189,6 +189,13 @@ fun ReviewSessionScreen(
     val recall = remember(reviewId, material, config) { mix(config) }
     // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
     // (só ideias que não viram cartão nesta sessão, para a pergunta não aparecer duas vezes)
+    // O estudo rápido: o resumo em pontos, as dicas de prova e as pegadinhas do tópico.
+    val study = remember(reviewId, material) {
+        ReviewMix.quickStudy(
+            material.summaries.firstOrNull { it.kind != SummaryKind.RAPIDO }?.markdown,
+            material.snippets.filter { it.kind == SnippetKind.BIZU }.map { it.text }, material.snippets.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text }, review.stage,
+        )
+    }
     val points = remember(reviewId, material, config) { ReviewMix.points(deck, prompts, recall, review.stage).takeIf { it.size >= 3 }.orEmpty() }
     // Cartões que ela não lembrou: voltam uma vez no fim da fila, abrem o estudo rápido e a próxima revisão.
     var extra by remember(config) { mutableStateOf(listOf<MixCard>()) }
@@ -196,7 +203,7 @@ fun ReviewSessionScreen(
     val questions = remember(reviewId, material, config) { reviewPracticeQuestions(material.questions, review.topicId, config, practiceSeed) }
     val warmup = points.isNotEmpty()
     // Estudo rápido: depois dos cartões, reler o tópico, começando pelo que ela não lembrou.
-    val consultation = config.showSummary && (quick != null || extra.isNotEmpty())
+    val consultation = config.showSummary && (!study.isEmpty || extra.isNotEmpty())
     // A abertura (START) diz o que vem e quanto leva; sem atividade, vai direto ao ajuste.
     val activities = listOfNotNull(RvStep.DUMP.takeIf { warmup }, RvStep.RECALL.takeIf { recall.isNotEmpty() }, RvStep.SUMMARY.takeIf { consultation }, RvStep.TEST.takeIf { questions.isNotEmpty() })
     val steps = (if (activities.isEmpty()) emptyList() else listOf(RvStep.START)) + activities + RvStep.RATE
@@ -436,15 +443,10 @@ fun ReviewSessionScreen(
                         }
                     }
                 }
-                item {
-                    PaperCard("ESTUDO RÁPIDO") {
-                        if (quick == null) Text("Este tópico ainda não tem revisão rápida. Relembre os pontos principais e siga.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        else {
-                            Text(if (extra.isNotEmpty()) "Agora o tópico inteiro, para amarrar tudo." else "Você lembrou de todos os cartões. Releia o tópico inteiro para amarrar.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            MarkdownText(quick.markdown)
-                        }
-                    }
-                }
+                // O tópico em pedaços curtos: o essencial numerado, as dicas de prova e onde a banca pega.
+                if (study.points.isNotEmpty()) item { PaperCard("O ESSENCIAL EM ${study.points.size} PONTOS") { study.points.forEachIndexed { i, line -> QuickItem("${i + 1}", line, Color(0xFFFFD23F), Color(0xFF3B2300)) } } }
+                if (study.tips.isNotEmpty()) item { PaperCard("DICAS DE PROVA") { study.tips.forEach { QuickItem("✓", it, RvMint, Color.White) } } }
+                if (study.traps.isNotEmpty()) item { PaperCard("ONDE A BANCA PEGA") { study.traps.forEach { QuickItem("!", it, RvRed, Color.White, RvRed) } } }
                 item { Button(onClick = { advance() }, Modifier.fillMaxWidth()) { Text(if (RvStep.TEST in steps) "Ir para as questões" else "Avaliar a revisão") } }
             }
             RvStep.TEST -> {
@@ -701,6 +703,19 @@ private fun ReviewStart(topicTitle: String, repeating: Boolean, lastSeen: Long?,
         tuner()
         StageLadder(stage, repeating)
         Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Começar · ~$minutes min", fontWeight = FontWeight.Black) }
+    }
+}
+
+/** Um ponto do estudo rápido: a bolinha (número, ✓ ou !) e a frase, num cartãozinho. */
+@Composable
+private fun QuickItem(mark: String, text: String, markBg: Color, markInk: Color, tint: Color? = null) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surface).background((tint ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.06f))
+            .border(1.5.dp, tint?.copy(alpha = 0.4f) ?: MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.size(26.dp).clip(CircleShape).background(markBg), contentAlignment = Alignment.Center) { Text(mark, fontSize = 13.sp, fontWeight = FontWeight.Black, color = markInk) }
+        br.com.estudario.ui.components.StudyInlineText(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
     }
 }
 

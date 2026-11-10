@@ -73,6 +73,17 @@ class ReviewMixTest {
         assertTrue(cards.map { it.front }.intersect(points.toSet()).isEmpty())
     }
 
+    @Test fun quickStudyBreaksAGluedSummaryIntoPoints() {
+        val summary = "## Desenvolvimento seguro\n- SDLC seguro: definir requisitos e abuso, modelar ameaças, programar com controles, revisar, verificar, entregar com integridade e responder a vulnerabilidades. - RNF mensurável define cenário, métrica e limiar. Mock verifica interações; stub fornece respostas controladas. Dívida técnica representa custo futuro e pode acumular risco. - SAMM: cinco funções e quinze práticas; SSDF SP 800-218 v1.1: PO, PS, PW e RV. - SBOM lista componentes; proveniência descreve build; assinatura ajuda a verificar autenticidade. DevSecOps aplica controles contínuos da alteração de código ao monitoramento."
+        val study = ReviewMix.quickStudy(summary, listOf("Mock confere a chamada; stub só devolve resposta pronta.", "curta"), emptyList(), stage = 1)
+        assertTrue(study.points.size >= 5, study.points.joinToString(" | "))
+        assertTrue(study.points.none { " - " in it }, study.points.joinToString(" | "))
+        assertTrue(study.points[1].startsWith("RNF"))
+        assertEquals(1, study.tips.size)
+        assertFalse(study.isEmpty)
+        assertTrue(ReviewMix.quickStudy(null, emptyList(), emptyList(), 1).isEmpty)
+    }
+
     @Test fun clozeHidesTheNumberOrTheLongestWord() {
         val number = ReviewMix.cloze("O prazo para interpor o recurso é de 15 dias, contados da intimação da decisão.")!!
         assertEquals("15", number.answer)

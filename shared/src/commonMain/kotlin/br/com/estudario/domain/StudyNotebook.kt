@@ -132,6 +132,8 @@ object StudyNotebook {
             .filter { it.isNotEmpty() && !it.startsWith("#") && !it.startsWith("|") && !it.startsWith("```") }
             .joinToString(" ") { it.removePrefix("- ").removePrefix("* ").removePrefix("• ") }
             .replace(Regex("""\s+"""), " ")
+            // itens colados na mesma linha ("... vulnerabilidades. - RNF mensurável ..."): o traço sai e a frase quebra no ponto
+            .replace(Regex("""(?<=[.;:!?])\s+[-•]\s+(?=\S)"""), " ")
         // quebra depois de ponto, ponto e vírgula ou dois-pontos seguidos de maiúscula; não quebra "art.", "§", "Lei n."
         // (ou antes de um termo em negrito, que costuma abrir a ideia seguinte)
         val parts = Regex("""(?<=[.;!?])\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9"(]|\*\*)""").split(clean)
