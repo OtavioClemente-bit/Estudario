@@ -30,6 +30,11 @@
       "title": "3. Dublês de teste e Mockito",
       "order": 3,
       "markdown": "### Por que precisamos de dublês\n\nSuponha que você quer testar a regra \"não aceitar pedido inválido\" de um `PedidoService` (serviço de pedidos). Esse serviço grava no banco de dados por meio de um `PedidoRepository` (repositório: a classe que conversa com o banco). Se o teste usar o banco real, ele fica lento, depende de o banco estar no ar e pode sujar dados. A solução é colocar no lugar do repositório um **dublê de teste** (*test double*): um objeto falso que se comporta como o real só no que interessa ao teste.\n\n### Os cinco tipos de dublê\n\n| Tipo | O que faz | Analogia |\n| --- | --- | --- |\n| **Dummy** | É passado só para **preencher parâmetro**; nunca é usado | A cadeira vazia na foto, só para ocupar lugar |\n| **Stub** | Devolve **respostas prontas** a chamadas, para controlar o cenário | Ator com falas decoradas: sempre responde igual |\n| **Fake** | Implementação **simplificada que funciona** (ex.: banco em memória) | Cozinha de brinquedo que realmente esquenta, mas pequena |\n| **Mock** | Programado com expectativas, usado para **verificar interações**: se um método foi chamado, quantas vezes, com quais argumentos | Fiscal que anota tudo o que foi pedido a ele |\n| **Spy** | Objeto **real** parcialmente monitorado ou substituído | Funcionário de verdade com uma câmera presa no uniforme |\n\n**Stub x mock**, a diferença mais cobrada: o **stub** serve para **fornecer dados** ao teste (verifica-se o *estado* do resultado); o **mock** serve para **conferir o comportamento** (verifica-se *se a chamada aconteceu*).\n\n> **Pegadinha:** \"fake\" não é o mesmo que \"mock\". O fake funciona de verdade, de modo simplificado; o mock existe para verificar interações.\n\n### Mockito: o essencial\n\n**Mockito** é a biblioteca Java mais popular para criar dublês. O vocabulário:\n\n| Comando | Para que serve |\n| --- | --- |\n| `mock(Classe.class)` ou `@Mock` | Cria um mock |\n| `when(mock.metodo(arg)).thenReturn(valor)` | Define o retorno: isso se chama **stubbing** (\"quando chamarem isto, devolva aquilo\") |\n| `thenThrow(...)` | Faz o método lançar exceção |\n| `verify(mock).metodo(arg)` | Verifica se a chamada ocorreu |\n| `times(n)`, `never()`, `atLeastOnce()` | Quantidade de chamadas: exatamente n, nenhuma, pelo menos uma |\n| `@InjectMocks` | Cria o objeto testado **injetando nele os mocks** declarados |\n| `@Spy` / `spy(objeto)` | Usa o objeto real, permitindo substituir partes |\n| `doReturn(...).when(spy).metodo()` | Forma preferida de stubbing em spies |\n| `any()`, `anyString()`, `eq(...)` | **Matchers**: aceitam \"qualquer valor\" ou um valor específico |\n| `ArgumentCaptor` | **Captura o argumento** passado ao mock para fazer asserções sobre ele |\n\n**Por que `doReturn` em spies?** Porque, em `when(spy.metodo())`, o método **real** é executado de fato antes de o Mockito interceptar (o spy é real), o que pode causar efeitos colaterais ou exceções. O `doReturn(...).when(spy)` configura sem chamar o método real.\n\n**Regra dos matchers:** se **um** argumento da chamada usar matcher, **todos** os argumentos daquela chamada devem usar matchers. Errado: `when(repo.buscar(any(), 10))`. Certo: `when(repo.buscar(any(), eq(10)))`.\n\n**Valores padrão:** métodos de mock **não configurados** devolvem valores padrão: `null`, `0`, `false` ou coleção vazia. O mock não lança erro; apenas devolve \"nada\".\n\n**Integração com JUnit 5:** costuma ser feita com `@ExtendWith(MockitoExtension.class)` na classe de teste, que faz o Mockito processar as anotações `@Mock`, `@InjectMocks` etc.\n\n> **Pegadinha:** `when(...).thenReturn(...)` **configura** o retorno (stubbing); `verify(...)` **confere** se a chamada aconteceu. Não troque um pelo outro.\n\n### Unitário x integração na prática\n\n| | Teste unitário do serviço | Teste de integração |\n| --- | --- | --- |\n| Repositório | **Mockado** | **Real** (ou banco em memória ou em contêiner) |\n| Velocidade | Rápido | Mais lento |\n| O que prova | A **regra de negócio** isolada | A **colaboração** entre as partes |\n\n### Exemplo comentado\n\n```java\n@ExtendWith(MockitoExtension.class)          // ativa o Mockito no JUnit 5\nclass PedidoServiceTest {\n  @Mock PedidoRepository repo;               // repositório falso\n  @InjectMocks PedidoService service;        // serviço real, recebendo o repo falso\n\n  @Test\n  void naoSalvaPedidoInvalido() {\n    assertThrows(IllegalArgumentException.class, () -> service.criar(null));\n    // 1) criar(null) deve lançar exceção\n    verify(repo, never()).salvar(any());\n    // 2) e o repositório NUNCA deve ter sido chamado para salvar\n  }\n}\n```\n\nRepare que o teste não precisou de banco: o mock `repo` apenas registra as chamadas, e o `verify(..., never())` confirma que nada foi salvo.\n\n### Resumo para a prova\n\n- Dublês: **dummy** (preenche), **stub** (respostas prontas), **fake** (implementação simples que funciona), **mock** (verifica interações), **spy** (objeto real monitorado).\n- `when(...).thenReturn(...)` = **stubbing**; `verify(...)` = conferir chamada, com `times`, `never`, `atLeastOnce`.\n- `@InjectMocks` injeta os `@Mock` no objeto testado.\n- Em spies, prefira `doReturn(...).when(spy).metodo()`.\n- Usou um matcher, **todos** os argumentos usam matchers.\n- `ArgumentCaptor` captura argumentos; mock não configurado devolve `null`, `0`, `false` ou coleção vazia.\n- JUnit 5 + Mockito: `@ExtendWith(MockitoExtension.class)`."
+    },
+    {
+      "title": "4. Teste de carga, estresse e análise de código",
+      "order": 4,
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema bancário pode passar em todos os testes unitários e de integração e mesmo assim cair no dia do pagamento, quando milhares de clientes entram ao mesmo tempo. Testes funcionais respondem \"funciona?\"; testes de desempenho respondem \"funciona **com quantos usuários, em quanto tempo e por quanto tempo**?\". Já a análise de código responde \"o código está bem escrito, seguro e fácil de manter?\". O edital do Banrisul junta tudo isso em \"Qualidade. Análise de código. Teste de carga, estresse\".\n\n> **Siglas e termos deste capítulo**\n> - **Teste não funcional**: avalia atributos de qualidade (desempenho, segurança, usabilidade), não regras de negócio.\n> - **Latência / tempo de resposta**: quanto demora para uma requisição ser atendida.\n> - **Vazão (throughput)**: quantas requisições ou transações o sistema atende por unidade de tempo.\n> - **Percentil (p95, p99)**: valor abaixo do qual estão 95% (ou 99%) das medições.\n> - **SAST / DAST**: teste de segurança estático (lê o código) e dinâmico (ataca a aplicação rodando).\n> - **Complexidade ciclomática**: número de caminhos independentes de um trecho de código.\n\n### A família dos testes de desempenho\n\n| Tipo | Como a carga é aplicada | Pergunta que responde |\n|---|---|---|\n| **Carga** (*load*) | volume **esperado**, incluindo o pico previsto | Atende às metas de tempo e vazão no uso real? |\n| **Estresse** (*stress*) | **acima** da capacidade ou com recursos reduzidos | Onde quebra, como falha e se recupera? |\n| **Pico** (*spike*) | salto **súbito** de usuários | Aguenta uma rajada repentina e volta ao normal? |\n| **Resistência** (*endurance/soak*) | carga estável por **horas** | Há vazamento de memória ou esgotamento gradual? |\n| **Escalabilidade** | carga e recursos crescendo em etapas | Mais máquinas geram capacidade proporcional? |\n| **Volume** | grande quantidade de **dados** | Consultas e relatórios suportam tabelas enormes? |\n\nA pegadinha clássica é trocar carga por estresse. Carga = cenário **normal e de pico esperado**, para comparar com o acordo de nível de serviço. Estresse = ir **além do limite** de propósito, para achar o ponto de ruptura e avaliar a **degradação graciosa** (o sistema recusa pedidos com mensagem clara em vez de corromper dados) e a **recuperação**.\n\n### Como se faz um teste de carga\n\n1. **Definir metas** mensuráveis: por exemplo, p95 abaixo de 2 segundos com 5 mil usuários simultâneos e menos de 1% de erros.\n2. **Modelar o cenário**: jornadas reais (login, consulta de saldo, Pix), pausas entre ações (*think time*) e dados variados.\n3. **Preparar o ambiente** o mais próximo possível do de produção, com volume de dados realista: desempenho não cresce em regra de três.\n4. **Executar** com ferramenta geradora de usuários virtuais: **JMeter**, **Gatling**, **k6**, **Locust**.\n5. **Monitorar** servidor, banco e rede durante o teste (CPU, memória, conexões, filas) para achar o **gargalo**.\n6. **Analisar** tempo de resposta por **percentis** (a média esconde a cauda lenta), vazão e taxa de erros.\n\n### Análise de código: estática e dinâmica\n\n**Análise estática** examina o código **sem executá-lo**. Pode ser feita por pessoas (revisão por pares, *walkthrough*, **inspeção** formal com papéis e checklist) ou por ferramentas: compiladores, *linters*, **SonarQube**, PMD, Checkstyle, SpotBugs. Encontra violação de padrão, código duplicado, variáveis não usadas, possíveis `NullPointerException`, complexidade alta e, no **SAST**, falhas como injeção de SQL. Vantagem: roda cedo, a cada commit. Limite: gera **falsos positivos** e não conhece dados nem ambiente reais.\n\n**Análise dinâmica** observa o programa **em execução**: os próprios testes, a **medição de cobertura** (JaCoCo), *profilers* de CPU e memória, detectores de vazamento e o **DAST** (OWASP ZAP enviando ataques à aplicação rodando). Revela o comportamento real, mas só nos caminhos que foram exercitados.\n\nAs duas são **complementares**: uma não substitui a outra.\n\n### Métricas de código que caem em prova\n\n- **Complexidade ciclomática (McCabe)**: decisões + 1. Um método com um `if` e um `while` tem complexidade 3, isto é, 3 caminhos básicos e no mínimo 3 casos de teste para cobri-los. Valores altos sinalizam código difícil de testar e manter.\n- **Cobertura**: de linhas, de ramos (decisões) e de condições. Cobertura de ramos é mais forte que de linhas; 100% de cobertura **não** prova ausência de defeitos.\n- **Duplicação**, **tamanho** (linhas por método/classe), **acoplamento** e **coesão**.\n- **Dívida técnica**: estimativa do esforço para corrigir os problemas acumulados.\n- **Code smells**: sinais de má estrutura (método longo, classe deus, parâmetros demais, código duplicado). Não são defeitos por si, mas tornam os defeitos mais prováveis.\n\nNo **SonarQube**, os achados se dividem em bugs, vulnerabilidades, *security hotspots* e code smells, com notas de confiabilidade, segurança e manutenibilidade. O **quality gate** é a régua de aprovação (por exemplo, cobertura mínima no **código novo** e nenhum problema grave); no pipeline de CI, um gate reprovado bloqueia o merge ou a implantação.\n\n### Como cai na prova\n\n- Carga = volume esperado; estresse = além do limite, para ver a ruptura e a recuperação.\n- Pico = rajada súbita; resistência = longa duração, revela vazamento.\n- Média de tempo de resposta engana; use percentis.\n- Ambiente de teste pequeno não permite \"multiplicar\" resultados.\n- Estática = sem executar (revisão, linter, SonarQube, SAST); dinâmica = executando (testes, cobertura, profiler, DAST).\n- Complexidade ciclomática = decisões + 1 = mínimo de casos para os caminhos básicos.\n- Code smell não é bug; quality gate decide se o código avança."
     }
   ],
   "summary": "O teste unitário verifica a menor unidade isolada; o de integração, a colaboração entre componentes; o de sistema, o todo; e o de aceitação, o negócio com o usuário. A pirâmide de testes prevê muitos unitários, menos de integração e poucos de ponta a ponta. Um bom teste unitário é rápido, independente, repetível, autoverificável e oportuno (FIRST) e segue a estrutura preparar, executar e verificar (AAA). O TDD segue o ciclo vermelho, verde, refatorar, e cobertura alta não garante ausência de defeitos. No JUnit 5, @Test marca o teste, @BeforeEach e @AfterEach rodam a cada teste, @BeforeAll e @AfterAll rodam uma vez (métodos estáticos), @Disabled desativa e @ParameterizedTest repete com dados. Entre as asserções, assertEquals recebe o esperado primeiro, assertThrows verifica exceções e assertAll relata todas as falhas. Os dublês são dummy, stub (respostas prontas), fake (implementação simplificada), mock (verifica interações) e spy (objeto real monitorado). No Mockito, when/thenReturn define retornos, verify com times e never confere chamadas, @InjectMocks injeta os mocks no objeto testado, matchers exigem que todos os argumentos usem matchers e ArgumentCaptor captura argumentos. Mocks não configurados devolvem valores padrão.",
@@ -146,6 +151,11 @@
       "key": "e3",
       "title": "Dublês e Mockito",
       "summary": "Errar tipos de dublê e recursos do Mockito."
+    },
+    {
+      "key": "e4",
+      "title": "Desempenho e análise de código",
+      "summary": "Confundir carga com estresse, pico ou resistência, e análise estática (sem executar) com dinâmica (executando)."
     }
   ],
   "sources": [
@@ -167,6 +177,141 @@
     }
   ],
   "questions": [
+    {
+      "statement": "O teste de carga verifica o comportamento do sistema sob o volume de uso esperado, inclusive no pico previsto, enquanto o teste de estresse leva o sistema além desses limites para descobrir o ponto de ruptura e observar como ele falha e se recupera.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A diferença está na carga aplicada: no teste de carga ela é a esperada em produção, e o objetivo é medir tempos de resposta e vazão contra metas; no estresse, ela ultrapassa a capacidade prevista ou os recursos são restringidos, para achar o limite e avaliar a degradação e a recuperação.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O teste de estresse tem como finalidade principal confirmar que o sistema atende aos tempos de resposta acordados quando opera com o número normal de usuários simultâneos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Conferir metas de desempenho com o volume normal é o objetivo do teste de carga. O estresse trabalha acima da capacidade ou com recursos escassos (menos memória, CPU ou rede) para revelar o ponto de ruptura, os erros que aparecem e se o sistema se recupera sem perder dados.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O teste de resistência (endurance ou soak) mantém uma carga sustentada por longo período e é adequado para revelar vazamentos de memória e esgotamento gradual de conexões, problemas que um teste curto pode não mostrar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Defeitos que se acumulam com o tempo, como objetos nunca liberados ou conexões de pool não devolvidas, só se manifestam depois de horas de uso. Por isso o teste de resistência observa memória, conexões e tempos de resposta ao longo de uma execução prolongada com carga estável.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O teste de pico (spike) aplica um aumento súbito e intenso de usuários em curto intervalo, para verificar se o sistema absorve a rajada e volta ao normal quando ela passa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O spike simula situações como a abertura de inscrições ou uma promoção: a carga salta de repente em vez de crescer aos poucos. Observa-se se a aplicação escala, enfileira ou falha, e quanto tempo leva para estabilizar quando o volume cai.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em testes de desempenho, o percentil 95 do tempo de resposta indica que 95% das requisições foram atendidas em tempo igual ou inferior ao valor medido, sendo métrica mais robusta que a média diante de requisições muito lentas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A média esconde a cauda: poucas requisições muito lentas pesam pouco nela, mas prejudicam usuários reais. Percentis como p95 e p99 mostram o tempo que a maior parte das requisições não ultrapassa e costumam aparecer em metas de desempenho, ao lado da vazão e da taxa de erros.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ferramentas como JMeter, Gatling e k6 são empregadas para gerar carga simulando muitos usuários virtuais e coletar métricas como tempo de resposta, vazão e taxa de erros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Essas ferramentas descrevem cenários de uso (requisições, pausas, dados) e os executam com muitos usuários virtuais concorrentes. Elas produzem relatórios de latência, requisições por segundo e falhas, que são comparados às metas definidas antes do teste.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para que um teste de carga produza resultados confiáveis, é indiferente executá-lo em um ambiente muito menor que o de produção, pois os tempos medidos podem ser multiplicados proporcionalmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O desempenho não escala de forma linear: gargalos de banco, rede, cache e bloqueios surgem em pontos que não se preveem por regra de três. O ambiente deve ser o mais próximo possível do de produção em configuração e volume de dados, e o cenário deve reproduzir o uso real.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A análise estática de código examina o código-fonte sem executá-lo, podendo apontar violações de padrão, código duplicado, complexidade excessiva e certas vulnerabilidades antes mesmo de o programa rodar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Linters, compiladores e ferramentas como SonarQube, PMD, Checkstyle e SpotBugs leem o código (ou o bytecode) e aplicam regras. Como não dependem de execução, rodam cedo no pipeline de integração contínua; o SAST é a análise estática voltada à segurança.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A análise dinâmica exige que o software esteja em execução e inclui testes funcionais, medição de cobertura, profiling de memória e CPU e varreduras DAST contra a aplicação rodando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Na análise dinâmica observa-se o comportamento real: a cobertura é medida enquanto os testes executam, o profiler registra consumo durante o uso e o DAST envia requisições à aplicação ativa. Ela revela problemas que só aparecem em execução, mas só avalia os caminhos efetivamente percorridos.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como a análise estática não executa o programa, ela está livre de falsos positivos e encontra todos os defeitos de lógica que um teste dinâmico encontraria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A análise estática trabalha com aproximações e costuma gerar falsos positivos (alertas que não são defeitos) e falsos negativos. Ela não conhece os dados reais nem o ambiente, por isso não substitui os testes; as duas abordagens são complementares.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A complexidade ciclomática de McCabe mede o número de caminhos linearmente independentes de um trecho de código; quanto maior o valor, mais casos de teste são necessários e maior tende a ser a dificuldade de manutenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Ela pode ser calculada como o número de decisões mais um (ou, no grafo de fluxo, arestas menos nós mais 2). Um método com dois if independentes tem complexidade 3. O valor dá o mínimo de casos para cobrir esses caminhos básicos, e métodos muito complexos são candidatos a refatoração.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No SonarQube, o quality gate é um conjunto de condições, como cobertura mínima no código novo e ausência de problemas graves, que determina se o projeto pode avançar no pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O quality gate transforma as métricas da análise em decisão de aprovado ou reprovado. Integrado à integração contínua, pode impedir o merge ou a implantação quando o código novo não atinge, por exemplo, a cobertura exigida ou introduz vulnerabilidades e bugs classificados como graves.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Code smell é sinônimo de defeito: todo trecho apontado como code smell produz necessariamente resultado incorreto em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Code smell é um indício de problema de projeto ou de manutenibilidade, como método longo, classe grande, código duplicado ou muitos parâmetros. O programa pode funcionar corretamente com ele; o risco é a dificuldade de evoluir e a maior chance de defeitos futuros, o que motiva a refatoração.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Revisões de código, inspeções e walkthroughs são técnicas de teste estático, pois avaliam artefatos sem executá-los e podem encontrar defeitos antes da fase de execução de testes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O teste estático abrange revisões feitas por pessoas e análises feitas por ferramentas. A inspeção é a forma mais formal, com papéis definidos e registro de métricas; o walkthrough é conduzido pelo autor. Achar o defeito nessa etapa costuma ser mais barato do que depois.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Teste de escalabilidade avalia se o aumento de recursos, como novas instâncias ou mais CPU, eleva a capacidade do sistema de forma proporcional à carga adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Escalar horizontalmente (mais instâncias) ou verticalmente (máquina maior) só adianta se não houver um gargalo compartilhado, como o banco ou um recurso com trava. O teste de escalabilidade aumenta carga e recursos em etapas e mede se a vazão acompanha esse aumento.",
+      "section": "4. Teste de carga, estresse e análise de código",
+      "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
     {
       "statement": "O teste unitário verifica a menor unidade do código de forma isolada, sem depender de banco de dados, rede ou outras classes reais.",
       "format": "TRUE_FALSE",
