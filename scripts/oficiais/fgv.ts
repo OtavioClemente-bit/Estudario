@@ -37,13 +37,24 @@ function texto(pdf: string, layout: boolean): string {
 }
 
 // ---------------------------------------------------------------- gabarito: blocos "<cargo> – TIPO 1" + linhas de números/letras
-function lerGabarito(t: string): { titulo: string; resp: Map<number, string> }[] {
-  const blocos: { titulo: string; resp: Map<number, string> }[] = [];
+// Turno: "PROVAS APLICADAS EM 23/06/2024 - MANHÃ" no gabarito; "manha-"/"tarde-" no nome da prova ou na capa.
+// 10/11: o gabarito da CVM 2024 só tinha a MANHÃ e os títulos dos blocos são iguais nos dois turnos; as provas da
+// tarde levaram o gabarito da manhã. Agora prova e bloco só casam no mesmo turno.
+type Turno = "manha" | "tarde" | "noite" | null;
+const turnoDe = (s: string): Turno => { const n = norm(s); return /\bmanha\b/.test(n) ? "manha" : /\btarde\b/.test(n) ? "tarde" : /\bnoite\b/.test(n) ? "noite" : null; };
+function doTurno<T extends { turno?: Turno }>(blocos: T[], turno: Turno): T[] {
+  if (!turno || !blocos.some((b) => b.turno)) return blocos;
+  return blocos.filter((b) => b.turno === turno);
+}
+function lerGabarito(t: string): { titulo: string; resp: Map<number, string>; turno: Turno }[] {
+  const blocos: { titulo: string; resp: Map<number, string>; turno: Turno }[] = [];
   const L = t.split(/\r?\n/);
-  let atual: { titulo: string; resp: Map<number, string> } | null = null;
+  let atual: { titulo: string; resp: Map<number, string>; turno: Turno } | null = null;
+  let turno: Turno = null;
   for (let i = 0; i < L.length; i++) {
     const l = L[i].trim();
-    if (/TIPO\s*\d/i.test(l) && !/^\d/.test(l)) { atual = { titulo: l, resp: new Map() }; blocos.push(atual); continue; }
+    if (/PROVAS?\s+APLICADAS?/i.test(l)) { turno = turnoDe(l); continue; }
+    if (/TIPO\s*\d/i.test(l) && !/^\d/.test(l)) { atual = { titulo: l, resp: new Map(), turno }; blocos.push(atual); continue; }
     if (!atual || !/^\d+(\s+\d+)+$/.test(l)) continue;
     const nums = l.split(/\s+/).map(Number);
     const letras = (L[i + 1] ?? "").replace(/\s+/g, "").toUpperCase();
@@ -128,12 +139,20 @@ function reprocessar(destino = SAIDA) {
   for (const d of Deno.readDirSync(SAIDA)) {
     if (!d.isDirectory) continue;
     const dir = `${SAIDA}/${d.name}`;
-    let blocos: { titulo: string; resp: Map<number, string> }[];
+    let blocos: { titulo: string; resp: Map<number, string>; turno: Turno }[];
     try { blocos = lerGabarito(texto(`${dir}/_gabarito_definitivo.pdf`, true)); } catch { continue; }
     for (const f of Deno.readDirSync(dir)) {
       if (!f.name.endsWith(".json") || f.name.startsWith("_")) continue;
       let reg: Json; try { reg = JSON.parse(Deno.readTextFileSync(`${dir}/${f.name}`)); } catch { continue; }
-      const b = blocos.filter((x) => x.titulo === reg.prova);
+      const turnoProva = turnoDe(f.name);
+      const b = doTurno(blocos, turnoProva).filter((x) => x.titulo === reg.prova);
+      // Sem bloco do mesmo turno: a prova fica sem questões (antes levava o gabarito do outro turno).
+      if (b.length === 0 && turnoProva && blocos.some((x) => x.turno)) {
+        antes += (reg.questoes ?? []).length; reg.questoes = []; reg.extraidas = 0; reg.completas = 0; reg.semGabaritoDoTurno = turnoProva; provas++;
+        Deno.mkdirSync(`${destino}/${d.name}`, { recursive: true });
+        Deno.writeTextFileSync(`${destino}/${d.name}/${f.name}`, JSON.stringify(reg, null, 1));
+        continue;
+      }
       if (b.length !== 1) continue;
       try { Deno.statSync(`${dir}/${reg.arquivo}`); } catch { continue; }
       const qs = lerProva(texto(`${dir}/${reg.arquivo}`, false), b[0].resp.size).map((q) => marcar(q, b[0].resp));
@@ -170,8 +189,12 @@ async function concurso(slug: string): Promise<string> {
     if (!(await baixar(u, `${dir}/${nome}`))) { avisos.push(`${nome}: não baixou`); continue; }
     const t = texto(`${dir}/${nome}`, false);
     const capa = t.split(/\r?\n/).slice(0, 12).join(" ");
-    const b = casar(capa, blocos);
-    if (b < 0) { avisos.push(`${nome}: não achei o bloco do gabarito com certeza`); continue; }
+    const turnoProva = turnoDe(nome) ?? turnoDe(capa);
+    const doMesmoTurno = doTurno(blocos, turnoProva);
+    if (!doMesmoTurno.length) { avisos.push(`${nome}: o gabarito não traz o turno ${turnoProva}`); continue; }
+    const bt = casar(capa, doMesmoTurno);
+    if (bt < 0) { avisos.push(`${nome}: não achei o bloco do gabarito com certeza`); continue; }
+    const b = blocos.indexOf(doMesmoTurno[bt]);
     const resp = (blocos[b] as Json).resp as Map<number, string>;
     const qs = lerProva(t, resp.size);
     const saida = qs.map((q) => marcar(q, resp));
