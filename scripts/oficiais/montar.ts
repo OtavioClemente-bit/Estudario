@@ -87,6 +87,10 @@ for (const arquivo of arquivos) {
       .replace(/\s*P[áa]gina\s+\d+\s*(?:de|\/)\s*\d+\s*/gi, " ")
       .trim();
     const statement = `${q.base && q.base.length > 20 && !/^\(?Dispon[ií]vel em/i.test(q.base) ? `${limpo(q.base)}\n\n` : ""}${limpo(String(q.enunciado))}`;
+    // Questão que depende de um texto que não veio (sem texto-base e o comando fala em "linha 12", "no texto", "aspectos
+    // linguísticos do texto"): o aluno não consegue resolver (10/11, aluno do TRE-BA achou 48). "Referência inicial" fica.
+    const semBase = !(q.base && q.base.length > 200);
+    if (semBase && statement.length < 700 && /\blinhas? \d|aspectos lingu[íi]sticos do texto|\b(?:no|do) texto\b/i.test(statement) && !/refer[êe]ncia inicial/i.test(statement)) { contagem.curtas++; continue; }
     // O validador aceita enunciado de 20 a 4.000 caracteres (texto-base longo de inglês passava disso, 07/11).
     if (statement.length < 20 || statement.length > 4000) { contagem.curtas++; continue; }
     const questao: Json = {
