@@ -139,7 +139,8 @@ private fun NotebookHelpButton() {
 private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6, exam: Boolean = false) {
     var all by remember(lines) { mutableStateOf(false) }
     Div({ classes(*listOfNotNull("cb-ess", if (tips) "tips" else null, if (exam) "exam" else null).toTypedArray()) }) {
-        lines.take(if (all) lines.size else first).forEachIndexed { i, line ->
+        // esconder um ou dois itens atrás de "ver mais" só atrapalha: aí mostra tudo
+        lines.take(if (all || lines.size - first <= 2) lines.size else first).forEachIndexed { i, line ->
             // o trecho que a pessoa grifou aparece em marca-texto
             val hit = quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }
             Div({ classes(*listOfNotNull("cb-ess-item", if (hit) "hl" else null).toTypedArray()) }) {
@@ -148,7 +149,7 @@ private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), t
             }
         }
     }
-    if (lines.size > first) Button({ classes("cb-link", "cb-ess-more"); onClick { all = !all } }) { Icon(if (all) "expand_less" else "expand_more"); Text(if (all) "Mostrar menos" else "Ver os ${lines.size} pontos") }
+    if (lines.size - first > 2) Button({ classes("cb-link", "cb-ess-more"); onClick { all = !all } }) { Icon(if (all) "expand_less" else "expand_more"); Text(if (all) "Mostrar menos" else "Ver os ${lines.size} pontos") }
 }
 
 private fun firmClass(f: StudyNotebook.Firmness) = when (f) { StudyNotebook.Firmness.FIRM -> "ok"; StudyNotebook.Firmness.MID -> "mid"; StudyNotebook.Firmness.COLD -> "low" }
@@ -444,7 +445,7 @@ fun NotebookPageScreen(topicId: Long) {
     val map = remember(topic) { br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall) }
     val lines = map.blocks.flatMap { it.lines }
     val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
-    val thin = lines.size < 3 && map.exam.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
+    val thin = lines.size < 3 && map.examCount < 3 && topic.tips.size < 3 && topic.recall.size < 4
     Div({ classes("cb-top") }) {
         Btn("Caderno", { Router.go(Route.Notebook) }, style = "ghost", small = true, icon = "arrow_back")
         NotebookHelpButton()
@@ -483,9 +484,18 @@ fun NotebookPageScreen(topicId: Long) {
                 }
             }
         }
+        if (map.formulas.isNotEmpty()) {
+            H4 { Icon("calculate"); Text("FÓRMULAS") }
+            Div({ classes("cb-formulas") }) { map.formulas.forEach { f -> Span({ classes("cb-formula") }) { Text(f) } } }
+        }
         if (map.exam.isNotEmpty()) {
             H4 { Icon("gps_fixed"); Text("COMO CAI NA PROVA") }
-            PointList(map.exam, quotes, exam = true, first = 6)
+            map.exam.forEachIndexed { i, block ->
+                key("e$i") {
+                    block.title?.takeIf { map.exam.size > 1 }?.let { title -> H5({ classes("cb-part", "exam") }) { Inline(title) } }
+                    PointList(block.lines, quotes, exam = true, first = 3)
+                }
+            }
         }
         if (map.tables.isNotEmpty()) {
             H4 { Icon("table_chart"); Text(if (map.tables.size == 1) "QUADRO PARA REVISAR" else "QUADROS PARA REVISAR") }

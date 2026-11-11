@@ -248,7 +248,7 @@ private fun NotebookHelpButton() {
 private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6, exam: Boolean = false) {
     var all by remember(lines) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        lines.take(if (all) lines.size else first).forEachIndexed { i, line ->
+        lines.take(if (all || lines.size - first <= 2) lines.size else first).forEachIndexed { i, line ->
             // o trecho que a pessoa grifou aparece em marca-texto
             val hit = quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }
             Row(
@@ -262,7 +262,7 @@ private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), t
                 Text(inkInline(line), Modifier.weight(1f), color = Ink, fontSize = 15.sp, lineHeight = 22.sp)
             }
         }
-        if (lines.size > first) Text(
+        if (lines.size - first > 2) Text(
             if (all) "Mostrar menos" else "Ver os ${lines.size} pontos",
             Modifier.clip(RoundedCornerShape(50)).clickable { all = !all }.padding(horizontal = 8.dp, vertical = 6.dp),
             fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3),
@@ -646,7 +646,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
             val map = remember(topic) { br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall) }
             val lines = map.blocks.flatMap { it.lines }
             val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
-            val thin = lines.size < 3 && map.exam.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
+            val thin = lines.size < 3 && map.examCount < 3 && topic.tips.size < 3 && topic.recall.size < 4
             Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3), letterSpacing = 0.5.sp)
                 Text(topic.title, fontWeight = FontWeight.Black, fontSize = 23.sp, color = Ink)
@@ -683,9 +683,19 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                         PointList(block.lines, quotes, first = if (map.blocks.size > 1) 4 else 8)
                     }
                 }
+                if (map.formulas.isNotEmpty()) {
+                    Section("FÓRMULAS")
+                    map.formulas.forEach { f ->
+                        Text(f, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardBg).border(1.5.dp, LineC, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+                            color = Ink, fontSize = 16.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+                    }
+                }
                 if (map.exam.isNotEmpty()) {
                     Section("COMO CAI NA PROVA")
-                    PointList(map.exam, quotes, first = 6, exam = true)
+                    map.exam.forEach { block ->
+                        block.title?.takeIf { map.exam.size > 1 }?.let { Text(inkInline(it), Modifier.padding(top = 6.dp), fontWeight = FontWeight.Black, color = Color(0xFF6B5BE0), fontSize = 13.5.sp) }
+                        PointList(block.lines, quotes, first = 3, exam = true)
+                    }
                 }
                 if (map.tables.isNotEmpty()) {
                     Section(if (map.tables.size == 1) "QUADRO PARA REVISAR" else "QUADROS PARA REVISAR")

@@ -149,7 +149,21 @@ object StudyNotebook {
         }
         val merged = mutableListOf<String>()
         pieces.forEach { p -> if (merged.isNotEmpty() && (p.length < 40 || merged.last().length < 40)) merged[merged.lastIndex] = merged.last() + " " + p else merged += p }
-        return merged.filter { it.length >= 25 }.take(max)
+        return joinFragments(merged).filter { it.length >= 25 }.take(max)
+    }
+
+    /**
+     * Junta os pedaços de uma mesma frase: item que começa com letra minúscula, ou que segue um item
+     * terminado em ";" ou ":", continua o anterior (os alunos viam "3. ...; 4. não adjacentes...").
+     */
+    fun joinFragments(items: List<String>, limit: Int = 520): List<String> {
+        val out = mutableListOf<String>()
+        items.map { it.trim() }.filter { it.isNotEmpty() }.forEach { item ->
+            val first = item.trimStart('*', '"', '“', '«', '(', ' ').firstOrNull()
+            val continues = out.isNotEmpty() && (first?.isLowerCase() == true || out.last().endsWith(":"))
+            if (continues && out.last().length + item.length < limit) out[out.lastIndex] = out.last() + " " + item else out += item
+        }
+        return out
     }
 
     private fun goodText(s: String, min: Int = 20, max: Int = 420) = s.trim().length in min..max
