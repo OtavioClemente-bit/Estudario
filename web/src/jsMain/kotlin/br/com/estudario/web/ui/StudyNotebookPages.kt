@@ -20,6 +20,7 @@ import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H2
 import org.jetbrains.compose.web.dom.H3
 import org.jetbrains.compose.web.dom.H4
+import org.jetbrains.compose.web.dom.H5
 import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
@@ -68,6 +69,7 @@ private fun notebookTopics(data: Snapshot): List<StudyNotebook.Topic> {
                 .map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
             wrongQuestions = wrongByTopic[t.id].orEmpty().map { it.questionId },
             notes = notes[t.id].orEmpty().map { it.text },
+            theory = theoriesByTopic[t.id].orEmpty().map { it.markdown },
         )
     }
 }
@@ -134,9 +136,9 @@ private fun NotebookHelpButton() {
 
 /** Pontos numerados, um por cartãozinho (o essencial e as dicas): antes ia tudo num bloco só, difícil de ler. */
 @Composable
-private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6) {
+private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6, exam: Boolean = false) {
     var all by remember(lines) { mutableStateOf(false) }
-    Div({ classes(*listOfNotNull("cb-ess", if (tips) "tips" else null).toTypedArray()) }) {
+    Div({ classes(*listOfNotNull("cb-ess", if (tips) "tips" else null, if (exam) "exam" else null).toTypedArray()) }) {
         lines.take(if (all) lines.size else first).forEachIndexed { i, line ->
             // o trecho que a pessoa grifou aparece em marca-texto
             val hit = quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }
@@ -437,9 +439,12 @@ fun NotebookPageScreen(topicId: Long) {
         return
     }
     val subject = data.subjects.firstOrNull { it.id == topic.subjectId }
-    val lines = StudyNotebook.summaryLines(topic.summary, max = 14)
+    // A página montada para estudar sem abrir a teoria: o mapa do tópico por partes, o que cai na prova,
+    // os quadros da teoria, dicas, todas as pegadinhas e cartões sem repetir (NotebookPageMap).
+    val map = remember(topic) { br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall) }
+    val lines = map.blocks.flatMap { it.lines }
     val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
-    val thin = lines.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
+    val thin = lines.size < 3 && map.exam.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
     Div({ classes("cb-top") }) {
         Btn("Caderno", { Router.go(Route.Notebook) }, style = "ghost", small = true, icon = "arrow_back")
         NotebookHelpButton()
@@ -470,25 +475,48 @@ fun NotebookPageScreen(topicId: Long) {
             Btn("Abrir o tópico", { Router.go(Route.Topic(topic.id)) }, style = "outline", small = true)
         }
         if (lines.isNotEmpty()) {
-            H4 { Icon("lightbulb"); Text("O ESSENCIAL") }
-            PointList(lines, quotes)
+            H4 { Icon("lightbulb"); Text(if (map.blocks.size > 1) "MAPA DO TÓPICO · ${map.blocks.size} PARTES" else "O ESSENCIAL") }
+            map.blocks.forEachIndexed { i, block ->
+                key("b$i") {
+                    block.title?.let { title -> H5({ classes("cb-part") }) { Span { Text("${i + 1}") }; Inline(title) } }
+                    PointList(block.lines, quotes, first = if (map.blocks.size > 1) 4 else 8)
+                }
+            }
+        }
+        if (map.exam.isNotEmpty()) {
+            H4 { Icon("gps_fixed"); Text("COMO CAI NA PROVA") }
+            PointList(map.exam, quotes, exam = true, first = 6)
+        }
+        if (map.tables.isNotEmpty()) {
+            H4 { Icon("table_chart"); Text(if (map.tables.size == 1) "QUADRO PARA REVISAR" else "QUADROS PARA REVISAR") }
+            map.tables.forEachIndexed { i, table ->
+                key("t$i") {
+                    Div({ classes("cb-table") }) {
+                        table.title?.let { title -> B { Inline(title) } }
+                        Div({ classes("cb-table-in") }) { Markdown(table.markdown, compact = true) }
+                    }
+                }
+            }
         }
         if (quotes.isNotEmpty()) {
             H4 { Icon("bookmark"); Text("SEUS GRIFOS") }
             topic.marks.take(8).forEachIndexed { i, m -> key(i) { MarkQuote(m) } }
         }
         topic.notes.take(3).forEach { note -> Div({ classes("cb-postit") }) { Text(note) } }
-        if (topic.tips.isNotEmpty()) {
-            H4 { Icon("gps_fixed"); Text("DICAS DE PROVA") }
-            PointList(topic.tips.take(6), tips = true)
+        if (map.tips.isNotEmpty()) {
+            H4 { Icon("lightbulb"); Text("DICAS DE PROVA") }
+            PointList(map.tips, tips = true)
         }
-        topic.traps.take(3).forEach { trap ->
-            Div({ classes("cb-trap") }) { Span({ classes("cb-stamp") }) { Text("PEGADINHA") }; P { Inline(trap) } }
+        if (map.traps.isNotEmpty()) {
+            H4 { Icon("pest_control_rodent"); Text("ONDE A BANCA PEGA") }
+            map.traps.forEach { trap ->
+                Div({ classes("cb-trap") }) { Span({ classes("cb-stamp") }) { Text("PEGADINHA") }; P { Inline(trap) } }
+            }
         }
-        if (topic.recall.isNotEmpty()) {
+        if (map.cards.isNotEmpty()) {
             H4 { Icon("style"); Text("PARA LEMBRAR · TOQUE PARA VIRAR") }
             Div({ classes("cb-cards") }) {
-                topic.recall.take(10).forEachIndexed { i, (q, a) -> key(i) { MiniCard(q, a) } }
+                map.cards.forEachIndexed { i, (q, a) -> key(i) { MiniCard(q, a) } }
             }
         }
         Div({ classes("cb-foot") }) {

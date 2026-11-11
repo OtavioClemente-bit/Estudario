@@ -158,6 +158,7 @@ private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.
                 marks = theoriesByTopic[t.id].orEmpty().filter { th -> marksByTheory[th.id].orEmpty().isNotEmpty() }.flatMap { th -> val b = br.com.estudario.ui.components.studyBlocks(th.markdown); marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b, it.blockIndex)) } }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }.map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
                 wrongQuestions = wrongByTopic[t.id].orEmpty().map { it.entry.questionId },
                 notes = notesByTopic[t.id].orEmpty().map { it.text },
+                theory = theoriesByTopic[t.id].orEmpty().map { it.markdown },
             )
         }
     } }
@@ -244,7 +245,7 @@ private fun NotebookHelpButton() {
 
 /** Pontos numerados, um por cartãozinho (o essencial e as dicas): antes ia tudo num bloco só, difícil de ler. */
 @Composable
-private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6) {
+private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), tips: Boolean = false, first: Int = 6, exam: Boolean = false) {
     var all by remember(lines) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         lines.take(if (all) lines.size else first).forEachIndexed { i, line ->
@@ -255,8 +256,8 @@ private fun PointList(lines: List<String>, quotes: List<String> = emptyList(), t
                     .border(1.5.dp, if (hit) Color(0xFFFFD23F) else LineC, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Box(Modifier.padding(top = 1.dp).size(24.dp).clip(CircleShape).background(if (tips) Color(0xFFD9F5E8) else Color(0xFFFFE9A8)), contentAlignment = Alignment.Center) {
-                    Text(if (tips) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.Black, color = if (tips) Color(0xFF0E5C3F) else Color(0xFF6E4700))
+                Box(Modifier.padding(top = 1.dp).size(24.dp).clip(CircleShape).background(when { tips -> Color(0xFFD9F5E8); exam -> Color(0xFFE3DDFF); else -> Color(0xFFFFE9A8) }), contentAlignment = Alignment.Center) {
+                    Text(if (tips) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.Black, color = when { tips -> Color(0xFF0E5C3F); exam -> Color(0xFF3B2BB5); else -> Color(0xFF6E4700) })
                 }
                 Text(inkInline(line), Modifier.weight(1f), color = Ink, fontSize = 15.sp, lineHeight = 22.sp)
             }
@@ -641,9 +642,11 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
             return@LazyColumn
         }
         item {
-            val lines = StudyNotebook.summaryLines(topic.summary, max = 14)
+            // A página montada para estudar sem abrir a teoria (NotebookPageMap, igual ao site).
+            val map = remember(topic) { br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall) }
+            val lines = map.blocks.flatMap { it.lines }
             val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
-            val thin = lines.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
+            val thin = lines.size < 3 && map.exam.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
             Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3), letterSpacing = 0.5.sp)
                 Text(topic.title, fontWeight = FontWeight.Black, fontSize = 23.sp, color = Ink)
@@ -671,22 +674,44 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                 }
                 if (thin) Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF5D6)).clickable { onTheory(topic.id) }.padding(10.dp), color = Color(0xFF6E4700), fontSize = 13.sp)
                 if (lines.isNotEmpty()) {
-                    Section("O ESSENCIAL")
-                    PointList(lines, quotes)
+                    Section(if (map.blocks.size > 1) "MAPA DO TÓPICO · ${map.blocks.size} PARTES" else "O ESSENCIAL")
+                    map.blocks.forEachIndexed { i, block ->
+                        block.title?.let { blockTitle -> Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(Color(0xFF1B1464)), contentAlignment = Alignment.Center) { Text("${i + 1}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black) }
+                            Text(inkInline(blockTitle), fontWeight = FontWeight.Black, color = Ink, fontSize = 15.sp)
+                        } }
+                        PointList(block.lines, quotes, first = if (map.blocks.size > 1) 4 else 8)
+                    }
+                }
+                if (map.exam.isNotEmpty()) {
+                    Section("COMO CAI NA PROVA")
+                    PointList(map.exam, quotes, first = 6, exam = true)
+                }
+                if (map.tables.isNotEmpty()) {
+                    Section(if (map.tables.size == 1) "QUADRO PARA REVISAR" else "QUADROS PARA REVISAR")
+                    map.tables.forEach { table ->
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CardBg).border(1.5.dp, LineC, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            table.title?.let { tt -> Text(inkInline(tt), fontWeight = FontWeight.Black, color = Ink, fontSize = 14.sp) }
+                            br.com.estudario.ui.components.MarkdownText(table.markdown)
+                        }
+                    }
                 }
                 if (topic.marks.isNotEmpty()) {
                     Section("SEUS GRIFOS")
                     topic.marks.take(8).forEach { m -> MarkQuote(m) }
                 }
                 topic.notes.take(3).forEach { PostIt(it) }
-                if (topic.tips.isNotEmpty()) {
+                if (map.tips.isNotEmpty()) {
                     Section("DICAS DE PROVA")
-                    PointList(topic.tips.take(6), tips = true)
+                    PointList(map.tips, tips = true)
                 }
-                topic.traps.take(3).forEach { trap -> StampText("PEGADINHA"); Text(inkInline(trap), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
-                if (topic.recall.isNotEmpty()) {
+                if (map.traps.isNotEmpty()) {
+                    Section("ONDE A BANCA PEGA")
+                    map.traps.forEach { trap -> StampText("PEGADINHA"); Text(inkInline(trap), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
+                }
+                if (map.cards.isNotEmpty()) {
                     Section("PARA LEMBRAR · TOQUE PARA VIRAR")
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) { topic.recall.take(10).forEach { (q, a) -> MiniCard(q, a) } }
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) { map.cards.forEach { (q, a) -> MiniCard(q, a) } }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

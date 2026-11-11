@@ -26,6 +26,8 @@ object StudyNotebook {
         /** Questões erradas ainda para refazer (ids). */
         val wrongQuestions: List<Long> = emptyList(),
         val notes: List<String> = emptyList(),
+        /** O texto da teoria do tópico (cada capítulo): a página tira dela o "como cai na prova" e os quadros. */
+        val theory: List<String> = emptyList(),
         /** Última vez que respondeu questão do tópico (epoch ms). */
         val lastPracticeAt: Long? = null,
         /** Questões do tópico respondidas nos últimos 7 dias, e quantas dessas ela acertou. */
@@ -136,7 +138,8 @@ object StudyNotebook {
             .replace(Regex("""(?<=[.;:!?])\s+[-•]\s+(?=\S)"""), " ")
         // quebra depois de ponto, ponto e vírgula ou dois-pontos seguidos de maiúscula; não quebra "art.", "§", "Lei n."
         // (ou antes de um termo em negrito, que costuma abrir a ideia seguinte)
-        val parts = Regex("""(?<=[.;!?])\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9"(]|\*\*)""").split(clean)
+        // não quebra depois de abreviação de norma ("art. 179", "arts. 5º", "n. 8.112", "inc. II")
+        val parts = Regex("""(?<=[.;!?])(?<![Aa]rt\.)(?<![Aa]rts\.)(?<!\bn\.)(?<!\bnº\.)(?<![Ii]nc\.)(?<!\bal\.)\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9"(]|\*\*)""").split(clean)
             .map { it.trim() }
             .filter { it.isNotEmpty() }
         // Frase longa só quebra no ponto e vírgula (antes quebrava também na vírgula e descartava os
