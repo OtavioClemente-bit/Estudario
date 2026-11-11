@@ -85,7 +85,7 @@ fun ReviewsScreen() {
     val subjects = data.subjects.associateBy { it.id }
     val scope = CompetitionFilter.topicIds(data)
     val now = Date.now().toLong()
-    val due = Queries.dueReviews(data).filter { it.topicId in scope }.sortedBy { it.dueAt }
+    val due = Queries.dueReviews(data).filter { it.topicId in scope }
     val late = due.count { it.dueAt < Queries.startOfToday() }
     val weekEnd = Queries.endOfToday() + 6 * DAY
     val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, l) -> l.minBy { it.stage } }

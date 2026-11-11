@@ -53,10 +53,12 @@ object Queries {
     fun subjectsOf(data: Snapshot, competitionId: Long?): List<Subject> =
         data.subjects.filter { competitionId == null || it.competitionId == competitionId }.sortedBy { it.position }
 
+    /** Todas as revisões que a pessoa tem para fazer hoje (vencidas e de hoje), na ordem de fazer. */
     fun dueReviews(data: Snapshot): List<Review> {
-        val today = todayEpoch()
-        val placed = reviewDays(data)
-        return pendingReviews(data).filter { placed[it.id] == today }.sortedBy { it.dueAt }
+        val pending = pendingReviews(data)
+        val byId = pending.associateBy { it.id }
+        return br.com.estudario.domain.ReviewQueue.dueOrder(pending.map { br.com.estudario.domain.ReviewQueue.Item(it.id, dateOf(it.dueAt).toEpochDay(), it.stage) }, todayEpoch())
+            .mapNotNull(byId::get)
     }
 
     /** Uma por tópico (a menor etapa pendente): a seguinte só abre depois da anterior. */

@@ -29,6 +29,15 @@ class ReviewQueueTest {
         assertEquals(today + 2, placed[1])
     }
 
+    @Test fun todayListShowsEveryDueReviewInOrder() {
+        // 20 atrasadas, o D+1 de ontem e uma de amanhã: hoje aparecem as 21, com o D+1 na frente
+        val late = (1L..20L).map { ReviewQueue.Item(it, today - 5 + (it % 3), 2) }
+        val order = ReviewQueue.dueOrder(late + ReviewQueue.Item(99, today, 1) + ReviewQueue.Item(77, today + 1, 1), today)
+        assertEquals(21, order.size)
+        assertEquals(99L, order.first())
+        assertEquals(false, 77L in order)
+    }
+
     @Test fun futureReviewsStayOnTheirDay() {
         val placed = ReviewQueue.spread(listOf(ReviewQueue.Item(1, today + 3, 1)), today) { 4 }
         assertEquals(today + 3, placed[1])

@@ -26,13 +26,14 @@ object ReviewPolicy {
      * aparecem nos próximos dias, ReviewQueue). A mesma conta no plano, no Início e nas Revisões (e no site).
      */
     fun dueToday(reviews: List<ReviewScheduleEntity>, now: Long = System.currentTimeMillis()): List<ReviewScheduleEntity> {
+        // Todas as vencidas aparecem (antes o teto escondia as que passavam dele), na ordem de fazer: o
+        // tópico estudado ontem primeiro, depois as mais atrasadas.
         val due = nextPerTopic(reviews).filter { status(it, now) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) }
-        if (due.size <= dailyCap) return due
         val zone = java.time.ZoneId.systemDefault()
         val today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay()
         val day = { ms: Long -> java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().toEpochDay() }
-        val placed = ReviewQueue.spread(due.map { ReviewQueue.Item(it.id, day(it.dueAt), it.stage) }, today) { dailyCap }
-        return due.filter { placed[it.id] == today }
+        val byId = due.associateBy { it.id }
+        return ReviewQueue.dueOrder(due.map { ReviewQueue.Item(it.id, day(it.dueAt), it.stage) }, today).mapNotNull(byId::get)
     }
 
     /** Quantas revisões vencidas ficaram para os próximos dias por causa do teto. */

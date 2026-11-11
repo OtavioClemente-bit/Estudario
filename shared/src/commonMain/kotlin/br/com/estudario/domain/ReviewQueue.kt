@@ -25,6 +25,14 @@ object ReviewQueue {
      */
     private fun fresh(item: Item, today: Long) = item.stage <= 1 && item.dueDay in (today - 1)..today
 
+    /**
+     * Todas as revisões vencidas até hoje, na ordem de fazer: a 1ª revisão do tópico recém-estudado
+     * primeiro, depois as mais atrasadas, e entre elas as de etapa mais cedo. A lista de hoje mostra
+     * todas (antes o teto escondia as que passavam dele, e elas iam aparecendo conforme a pessoa fazia).
+     */
+    fun dueOrder(items: List<Item>, today: Long): List<Long> =
+        items.filter { it.dueDay <= today }.sortedWith(compareBy({ !fresh(it, today) }, { it.dueDay }, { it.stage })).map { it.id }
+
     /** Em que dia cada revisão aparece, de [today] em diante. [cap] dá o teto de cada dia. */
     fun spread(items: List<Item>, today: Long, cap: (Long) -> Int): Map<Long, Long> {
         val result = HashMap<Long, Long>(items.size)
