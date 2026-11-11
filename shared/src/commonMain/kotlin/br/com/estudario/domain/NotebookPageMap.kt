@@ -17,6 +17,20 @@ package br.com.estudario.domain
 object NotebookPageMap {
     data class Block(val title: String?, val lines: List<String>)
     data class Table(val title: String?, val markdown: String)
+    /**
+     * Os pontos que cada capítulo da teoria já traz prontos (itens que começam com o termo em negrito,
+     * "**Anáfora:** retoma..."). Completam o estudo rápido quando o resumo da matéria é curto.
+     */
+    fun chapterKeys(theory: List<String>, perChapter: Int = 5): List<Block> = chapters(theory).mapNotNull { ch ->
+        val keys = ch.body.lines().map { it.trim() }
+            // itens com o termo em negrito e as caixas "> **Truque:**", "> **Atenção:**", "> **Exemplo:**"
+            .filter { (it.startsWith("- **") || it.startsWith("* **") || it.startsWith("**") || it.startsWith("> **")) && it.contains(":") }
+            .map { Formula.inline(it.removePrefix("> ").removePrefix("- ").removePrefix("* ").trim()) }
+            .filter { it.length in 30..320 }
+            .distinct().take(perChapter)
+        if (keys.isEmpty()) null else Block(ch.title, keys)
+    }
+
     data class Map(
         val blocks: List<Block>,
         val exam: List<Block>,
@@ -33,7 +47,7 @@ object NotebookPageMap {
     private class Chapter(val title: String?, val body: String)
 
     private val HEADING = Regex("""^#{1,4}\s+(.+)$""")
-    private val EXAM = Regex("""como\s+cai|na\s+prova|cai\s+em\s+prova|o\s+que\s+mais\s+cai""", RegexOption.IGNORE_CASE)
+    private val EXAM = Regex("""como\s+cai|na\s+prova|cai\s+em\s+prova|o\s+que\s+mais\s+cai|bancas?\s+cobra|como\s+[ée]\s+cobrad|cobran[çc]a\s+em\s+prova""", RegexOption.IGNORE_CASE)
     private val GENERIC = Regex("""^(resumo|s[ií]ntese|quadro|tabela|exemplos?|revis[aã]o.*|como cai.*|o problema que.*|vocabul.*|gloss.*|.*revis[aã]o (essencial|organizada|r[aá]pida).*|.*vis[aã]o geral.*)$""", RegexOption.IGNORE_CASE)
     private val DISPLAY_MATH = Regex("""\$\$([\s\S]+?)\$\$""")
 
@@ -114,11 +128,9 @@ object NotebookPageMap {
         if (titled.size < 2 || lines.size < 4) return listOf(Block(null, lines))
         // O título do capítulo pesa mais que o corpo (o corpo de todos fala um pouco de tudo).
         val titleWords = titled.map { ReviewMix.tokens(it.title.orEmpty()) }
-        val bodyWords = titled.map { ch ->
-            val counts = HashMap<String, Int>()
-            ReviewMix.tokens(ch.body).forEach { counts[it] = (counts[it] ?: 0) + 1 }
-            ch.body.lowercase().let { body -> counts.keys.associateWith { k -> Regex(Regex.escape(k)).findAll(body).count() } }
-        }
+        // Quantas vezes cada palavra aparece no capítulo, contando numa passada só. (Antes percorria o
+        // capítulo inteiro de novo para cada palavra: em matéria grande o celular travava e o app fechava.)
+        val bodyWords = titled.map { ch -> ReviewMix.tokenList(ch.body).groupingBy { it }.eachCount() }
         val home = lines.mapIndexed { index, line ->
             val t = ReviewMix.tokens(line)
             val scores = titled.indices.map { c -> t.count { it in titleWords[c] } * 3.0 + t.sumOf { minOf(bodyWords[c][it] ?: 0, 4) } / 4.0 }
@@ -204,6 +216,9 @@ object NotebookPageMap {
      * compara ou estrutura, pequeno o bastante para a página. O título é o subtítulo mais próximo; se
      * ele for genérico ("Resumo") ou repetir outro quadro, entra o nome do capítulo.
      */
+    /** Um quadro por capítulo da teoria (o estudo rápido da revisão mostra o das partes da vez). */
+    fun chapterTables(theory: List<String>): List<Table> = tables(chapters(theory), max = 99)
+
     private fun tables(chapters: List<Chapter>, max: Int = 4): List<Table> {
         val picks = mutableListOf<Table>()
         val usedTitles = mutableSetOf<String>()

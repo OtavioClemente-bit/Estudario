@@ -550,9 +550,16 @@ private fun QuizResult(
 @Composable
 internal fun SwipeToEliminate(crossed: Boolean, enabled: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
     val toggle by rememberUpdatedState(onToggle)
+    // O componente chama a confirmação mais de uma vez no mesmo arraste: a alternativa riscava e
+    // desriscava sem parar e o riscar parecia travado. Agora vale um toque por gesto.
+    val lastToggle = remember { longArrayOf(0L) }
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled) toggle()
+            val now = android.os.SystemClock.uptimeMillis()
+            if (value != SwipeToDismissBoxValue.Settled && now - lastToggle[0] > 600) {
+                lastToggle[0] = now
+                toggle()
+            }
             false
         },
         positionalThreshold = { total -> total * 0.3f },

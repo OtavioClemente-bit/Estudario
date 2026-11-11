@@ -643,7 +643,12 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
         }
         item {
             // A página montada para estudar sem abrir a teoria (NotebookPageMap, igual ao site).
-            val map = remember(topic) { br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall) }
+            // Montado em segundo plano (matéria grande travava a tela); enquanto isso, a página aparece sem o mapa.
+            val map: br.com.estudario.domain.NotebookPageMap.Map by androidx.compose.runtime.produceState<br.com.estudario.domain.NotebookPageMap.Map>(br.com.estudario.domain.NotebookPageMap.Map(emptyList(), emptyList(), emptyList(), topic.tips, topic.traps, emptyList()), topic) {
+                value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall)
+                }
+            }
             val lines = map.blocks.flatMap { it.lines }
             val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
             val thin = lines.size < 3 && map.examCount < 3 && topic.tips.size < 3 && topic.recall.size < 4

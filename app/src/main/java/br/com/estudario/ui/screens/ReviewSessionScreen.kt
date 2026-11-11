@@ -200,18 +200,24 @@ fun ReviewSessionScreen(
     var extra by remember(config) { mutableStateOf(listOf<MixCard>()) }
     // O estudo rápido muda a cada revisão: as partes do tópico dos cartões esquecidos e mais uma que gira
     // por etapa, com o "como cai" delas, fórmulas, dicas e pegadinhas.
-    val study = remember(reviewId, material, extra) {
-        ReviewMix.quickStudy(
-            material.summaries.firstOrNull { it.kind != SummaryKind.RAPIDO }?.markdown,
-            material.theories.map { it.markdown },
-            material.snippets.filter { it.kind == SnippetKind.BIZU }.map { it.text }, material.snippets.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text }, review.stage, extra,
-        )
+    // Montado em segundo plano: com teoria grande, na linha da tela isso podia travar o app até o Android fechá-lo.
+    val study by produceState(ReviewMix.QuickStudy(emptyList(), emptyList(), emptyList()), reviewId, material, extra) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            ReviewMix.quickStudy(
+                material.summaries.firstOrNull { it.kind != SummaryKind.RAPIDO }?.markdown,
+                material.theories.map { it.markdown },
+                material.snippets.filter { it.kind == SnippetKind.BIZU }.map { it.text }, material.snippets.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text }, review.stage, extra,
+            )
+        }
     }
+    // Se a etapa "Reler" existe não pode depender do cálculo acima (as etapas mudariam no meio da sessão).
+    val hasStudy = material.summaries.any { it.kind != SummaryKind.RAPIDO } || material.theories.isNotEmpty() ||
+        material.snippets.any { it.kind == SnippetKind.BIZU || it.kind == SnippetKind.PEGADINHA }
     // Revisar é reencontrar a falha: primeiro o que já errou, depois o que nunca respondeu, depois o resto.
     val questions = remember(reviewId, material, config) { reviewPracticeQuestions(material.questions, review.topicId, config.copy(questionCount = stagePlan.second), practiceSeed) }
     val warmup = points.isNotEmpty()
     // Estudo rápido: depois dos cartões, reler o tópico, começando pelo que ela não lembrou.
-    val consultation = config.showSummary && (!study.isEmpty || extra.isNotEmpty())
+    val consultation = config.showSummary && (hasStudy || extra.isNotEmpty())
     // A abertura (START) diz o que vem e quanto leva; sem atividade, vai direto ao ajuste.
     val activities = listOfNotNull(RvStep.DUMP.takeIf { warmup }, RvStep.RECALL.takeIf { recall.isNotEmpty() }, RvStep.SUMMARY.takeIf { consultation }, RvStep.TEST.takeIf { questions.isNotEmpty() })
     val steps = (if (activities.isEmpty()) emptyList() else listOf(RvStep.START)) + activities + RvStep.RATE
@@ -466,6 +472,9 @@ fun ReviewSessionScreen(
                     }
                 }
                 if (study.exam.isNotEmpty()) item { PaperCard("COMO CAI NA PROVA") { study.exam.forEach { QuickItem("◆", it, Color(0xFF7B61FF), Color.White) } } }
+                study.tables.forEach { table ->
+                    item { PaperCard(table.title?.uppercase() ?: "QUADRO") { MarkdownText(table.markdown) } }
+                }
                 if (study.formulas.isNotEmpty()) item {
                     PaperCard("FÓRMULAS") {
                         study.formulas.forEach { f -> Text(f, fontSize = 16.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, color = MaterialTheme.colorScheme.onSurface) }

@@ -681,6 +681,12 @@ fun ReviewSessionScreen(reviewId: Long) {
                     Span({ classes("rv-face-tag") }) { Icon("gps_fixed", filled = true); Text("COMO CAI NA PROVA") }
                     study.exam.forEach { item -> Div({ classes("rv-quick-item") }) { Span({ classes("rv-quick-n") }) { Text("◆") }; P { Inline(item) } } }
                 }
+                study.tables.forEach { table ->
+                    Div({ classes("rv-paper", "rv-quick") }) {
+                        Span({ classes("rv-face-tag") }) { Icon("table_chart", filled = true); Text(table.title?.uppercase() ?: "QUADRO") }
+                        Div({ classes("cb-table-in") }) { Markdown(table.markdown, compact = true) }
+                    }
+                }
                 if (study.formulas.isNotEmpty()) Div({ classes("rv-paper", "rv-quick") }) {
                     Span({ classes("rv-face-tag") }) { Icon("calculate", filled = true); Text("FÓRMULAS") }
                     Div({ classes("cb-formulas") }) { study.formulas.forEach { f -> Span({ classes("cb-formula") }) { Text(f) } } }

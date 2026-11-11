@@ -52,6 +52,12 @@ object ReviewMix {
     }
 
     /** As palavras que carregam o assunto: sem acento, sem palavras de ligação, só o começo de cada uma (pega plural e flexão). */
+    /** As mesmas palavras de [tokens], com repetição (para contar quantas vezes aparecem). */
+    internal fun tokenList(text: String): List<String> =
+        buildString { text.lowercase().forEach { append(fold(it)) } }.split(SPLIT)
+            .filter { (it.length > 2 || it.any(Char::isDigit)) && it !in STOP }
+            .map { it.take(6) }
+
     internal fun tokens(text: String): Set<String> =
         buildString { text.lowercase().forEach { append(fold(it)) } }.split(SPLIT)
             .filter { (it.length > 2 || it.any(Char::isDigit)) && it !in STOP }
@@ -169,6 +175,8 @@ object ReviewMix {
         val traps: List<String>,
         val exam: List<String> = emptyList(),
         val formulas: List<String> = emptyList(),
+        /** Os quadros da teoria das partes da vez (comparações, regras com exemplo). */
+        val tables: List<NotebookPageMap.Table> = emptyList(),
     ) {
         val points: List<String> get() = parts.flatMap { it.lines }
         val isEmpty get() = parts.isEmpty() && tips.isEmpty() && traps.isEmpty() && exam.isEmpty()
@@ -203,11 +211,25 @@ object ReviewMix {
             // mais a parte da vez, girando pelas etapas
             (focus + (turn % blocks.size)).distinct().take(3)
         }
-        val parts = chosen.sorted().map { blocks[it] }
+        // Resumo curto (a matéria tem teoria grande e resumo de poucas linhas): cada parte é completada com
+        // os pontos prontos do capítulo dela; sem resumo, as partes vêm só dos capítulos.
+        val keys = NotebookPageMap.chapterKeys(theory)
+        fun enrich(block: NotebookPageMap.Block): NotebookPageMap.Block {
+            if (block.lines.size >= 5) return block
+            val extra = keys.firstOrNull { it.title != null && it.title.equals(block.title, ignoreCase = true) }?.lines.orEmpty()
+                .filter { k -> block.lines.none { similar(MixCard(MixKind.CARD, it, it, it), MixCard(MixKind.CARD, k, k, k)) } }
+            return block.copy(lines = block.lines + extra.take(6 - block.lines.size))
+        }
+        val parts = if (blocks.isEmpty()) {
+            if (keys.isEmpty()) emptyList() else listOf(keys[turn % keys.size]) + keys.getOrNull((turn + 1) % keys.size).let { if (it == null || keys.size < 2) emptyList() else listOf(it) }
+        } else chosen.sorted().map { enrich(blocks[it]) }
         val titles = parts.mapNotNull { it.title?.lowercase() }.toSet()
         val exam = map.exam.filter { it.title?.lowercase() in titles || (map.exam.size == 1) }.flatMap { it.lines }
             .ifEmpty { map.exam.getOrNull(turn % map.exam.size.coerceAtLeast(1))?.lines.orEmpty() }.take(4)
-        return QuickStudy(parts, rotate(tips, 3), rotate(traps, 3), exam, map.formulas.take(6))
+        val partTitles = parts.mapNotNull { it.title?.lowercase() }
+        val allTables = NotebookPageMap.chapterTables(theory)
+        val tables = allTables.filter { it.title?.lowercase() in partTitles }.ifEmpty { listOfNotNull(allTables.getOrNull(turn % allTables.size.coerceAtLeast(1))) }.take(2)
+        return QuickStudy(parts, rotate(tips, 3), rotate(traps, 3), exam, map.formulas.take(6), tables)
     }
 
     /** O que fica marcado como difícil para a próxima revisão: sai o que apareceu e foi lembrado, entra o que foi esquecido. */
