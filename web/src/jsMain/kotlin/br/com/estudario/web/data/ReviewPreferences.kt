@@ -26,11 +26,15 @@ object ReviewPreferences {
  */
 object ReviewHardCards {
     private const val KEY = "estudario.review.hard.v1."
-    fun get(topicId: Long): Set<String> =
-        runCatching { window.localStorage.getItem(KEY + topicId) }.getOrNull()?.split(',')?.filter { it.isNotBlank() }?.toSet().orEmpty()
+    /** O que já passou nas revisões do tópico (os nunca vistos vêm antes) e o último aquecimento (para não repetir). */
+    const val SEEN = "estudario.review.seen.v1."
+    const val WARM = "estudario.review.warm.v1."
 
-    fun save(topicId: Long, keys: Set<String>) {
-        runCatching { if (keys.isEmpty()) window.localStorage.removeItem(KEY + topicId) else window.localStorage.setItem(KEY + topicId, keys.joinToString(",")) }
+    fun get(topicId: Long, prefix: String = KEY): Set<String> =
+        runCatching { window.localStorage.getItem(prefix + topicId) }.getOrNull()?.split(',')?.filter { it.isNotBlank() }?.toSet().orEmpty()
+
+    fun save(topicId: Long, keys: Set<String>, prefix: String = KEY) {
+        runCatching { if (keys.isEmpty()) window.localStorage.removeItem(prefix + topicId) else window.localStorage.setItem(prefix + topicId, keys.joinToString(",")) }
     }
 }
 

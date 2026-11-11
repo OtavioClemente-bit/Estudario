@@ -181,26 +181,34 @@ fun ReviewSessionScreen(
     val hardStore = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("review_hard", android.content.Context.MODE_PRIVATE)
     val hardKey = "t${review.topicId}"
     val hardBefore = remember(reviewId) { hardStore.getStringSet(hardKey, emptySet()).orEmpty().toSet() }
-    fun mix(options: ReviewPracticeOptions, count: Int = options.flashcardCount) = ReviewMix.cards(
+    // O que já passou nas revisões anteriores: os cartões nunca vistos vêm antes, e o aquecimento não repete o último.
+    val seenBefore = remember(reviewId) { hardStore.getStringSet("s${review.topicId}", emptySet()).orEmpty().toSet() }
+    val warmBefore = remember(reviewId) { hardStore.getStringSet("w${review.topicId}", emptySet()).orEmpty().toSet() }
+    // Etapas longas: menos cartões e mais questões (a memória do tópico se prova resolvendo).
+    val stagePlan = ReviewMix.plan(review.stage, config.flashcardCount, config.questionCount)
+    fun mix(options: ReviewPracticeOptions, count: Int = ReviewMix.plan(review.stage, options.flashcardCount, options.questionCount).first) = ReviewMix.cards(
         // os grifos não viram cartão: a pessoa grifa muita coisa, e nem tudo é para decorar
         deck, prompts, emptyList(),
-        count, review.stage, practiceSeed, options.shuffleFlashcards, hardBefore,
+        count, review.stage, practiceSeed, options.shuffleFlashcards, hardBefore, seenBefore,
     )
     val recall = remember(reviewId, material, config) { mix(config) }
     // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
     // (só ideias que não viram cartão nesta sessão, para a pergunta não aparecer duas vezes)
-    // O estudo rápido: o resumo em pontos, as dicas de prova e as pegadinhas do tópico.
-    val study = remember(reviewId, material) {
-        ReviewMix.quickStudy(
-            material.summaries.firstOrNull { it.kind != SummaryKind.RAPIDO }?.markdown,
-            material.snippets.filter { it.kind == SnippetKind.BIZU }.map { it.text }, material.snippets.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text }, review.stage,
-        )
-    }
-    val points = remember(reviewId, material, config) { ReviewMix.points(deck, prompts, recall, review.stage).takeIf { it.size >= 3 }.orEmpty() }
+
+    val points = remember(reviewId, material, config) { ReviewMix.points(deck, prompts, recall, review.stage, exclude = warmBefore).takeIf { it.size >= 3 }.orEmpty() }
     // Cartões que ela não lembrou: voltam uma vez no fim da fila, abrem o estudo rápido e a próxima revisão.
     var extra by remember(config) { mutableStateOf(listOf<MixCard>()) }
+    // O estudo rápido muda a cada revisão: as partes do tópico dos cartões esquecidos e mais uma que gira
+    // por etapa, com o "como cai" delas, fórmulas, dicas e pegadinhas.
+    val study = remember(reviewId, material, extra) {
+        ReviewMix.quickStudy(
+            material.summaries.firstOrNull { it.kind != SummaryKind.RAPIDO }?.markdown,
+            material.theories.map { it.markdown },
+            material.snippets.filter { it.kind == SnippetKind.BIZU }.map { it.text }, material.snippets.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text }, review.stage, extra,
+        )
+    }
     // Revisar é reencontrar a falha: primeiro o que já errou, depois o que nunca respondeu, depois o resto.
-    val questions = remember(reviewId, material, config) { reviewPracticeQuestions(material.questions, review.topicId, config, practiceSeed) }
+    val questions = remember(reviewId, material, config) { reviewPracticeQuestions(material.questions, review.topicId, config.copy(questionCount = stagePlan.second), practiceSeed) }
     val warmup = points.isNotEmpty()
     // Estudo rápido: depois dos cartões, reler o tópico, começando pelo que ela não lembrou.
     val consultation = config.showSummary && (!study.isEmpty || extra.isNotEmpty())
@@ -243,7 +251,11 @@ fun ReviewSessionScreen(
         flipped = false
         if (recallIndex < recall.size + extra.size - 1) recallIndex++
         else {
-            hardStore.edit().putStringSet(hardKey, ReviewMix.nextHard(hardBefore, recall, missed)).apply()
+            hardStore.edit()
+                .putStringSet(hardKey, ReviewMix.nextHard(hardBefore, recall, missed))
+                .putStringSet("s${review.topicId}", ReviewMix.nextSeen(seenBefore, recall))
+                .apply { if (points.isNotEmpty()) putStringSet("w${review.topicId}", points.mapTo(hashSetOf()) { ReviewMix.warmKey(it) }) }
+                .apply()
             advance()
         }
     }
@@ -444,7 +456,21 @@ fun ReviewSessionScreen(
                     }
                 }
                 // O tópico em pedaços curtos: o essencial numerado, as dicas de prova e onde a banca pega.
-                if (study.points.isNotEmpty()) item { PaperCard("O ESSENCIAL EM ${study.points.size} PONTOS") { study.points.forEachIndexed { i, line -> QuickItem("${i + 1}", line, Color(0xFFFFD23F), Color(0xFF3B2300)) } } }
+                // As partes do tópico desta vez (mudam a cada revisão), cada uma com seu título.
+                study.parts.forEachIndexed { pi, part ->
+                    item {
+                        PaperCard(part.title?.uppercase() ?: "O ESSENCIAL") {
+                            if (pi == 0 && study.parts.size > 1) Text("Desta vez: ${study.parts.size} partes do tópico. Na próxima revisão vêm outras.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            part.lines.forEachIndexed { i, line -> QuickItem("${i + 1}", line, Color(0xFFFFD23F), Color(0xFF3B2300)) }
+                        }
+                    }
+                }
+                if (study.exam.isNotEmpty()) item { PaperCard("COMO CAI NA PROVA") { study.exam.forEach { QuickItem("◆", it, Color(0xFF7B61FF), Color.White) } } }
+                if (study.formulas.isNotEmpty()) item {
+                    PaperCard("FÓRMULAS") {
+                        study.formulas.forEach { f -> Text(f, fontSize = 16.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, color = MaterialTheme.colorScheme.onSurface) }
+                    }
+                }
                 if (study.tips.isNotEmpty()) item { PaperCard("DICAS DE PROVA") { study.tips.forEach { QuickItem("✓", it, RvMint, Color.White) } } }
                 if (study.traps.isNotEmpty()) item { PaperCard("ONDE A BANCA PEGA") { study.traps.forEach { QuickItem("!", it, RvRed, Color.White, RvRed) } } }
                 item { Button(onClick = { advance() }, Modifier.fillMaxWidth()) { Text(if (RvStep.TEST in steps) "Ir para as questões" else "Avaliar a revisão") } }

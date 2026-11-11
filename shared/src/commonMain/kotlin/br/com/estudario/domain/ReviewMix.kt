@@ -92,6 +92,19 @@ object ReviewMix {
         return groups.map { group -> group.map { it.card } }
     }
 
+    /** No máximo quantos cartões esquecidos voltam numa sessão (antes chegavam a ocupar metade dela). */
+    const val MAX_WEAK = 3
+
+    /**
+     * Quantos cartões e quantas questões cada etapa leva. Os alunos que testaram pediram: nas etapas longas
+     * (60 dias ou mais) a memória do tópico se prova resolvendo, então entram menos cartões e mais questões.
+     */
+    fun plan(stage: Int, cards: Int, questions: Int): Pair<Int, Int> = when {
+        stage >= 4 -> (cards - 2).coerceAtLeast(minOf(cards, 4)) to (if (questions <= 0) 0 else (questions + 4).coerceAtMost(50))
+        stage == 3 -> cards to (if (questions <= 0) 0 else (questions + 1).coerceAtMost(50))
+        else -> cards to questions
+    }
+
     fun cards(
         deck: List<MixSource>,
         prompts: List<MixSource>,
@@ -101,22 +114,27 @@ object ReviewMix {
         seed: Long,
         shuffle: Boolean = true,
         hard: Set<String> = emptySet(),
+        /** Cartões que a pessoa já viu em revisões anteriores deste tópico: os que nunca saíram vêm antes. */
+        seen: Set<String> = emptySet(),
     ): List<MixCard> {
         if (count <= 0) return emptyList()
         val turn = stage.coerceAtLeast(1) - 1
         val clozes = quotes.mapNotNull { quote -> cloze(quote)?.let { listOf(MixCard(MixKind.CLOZE, it.text, "**${it.answer}**\n\n${quote.trim()}", key(MixKind.CLOZE, quote))) } }.distinctBy { it.first().key }
         val groups = ideas(deck, prompts) + clozes
         if (groups.isEmpty()) return emptyList()
-        // As ideias esquecidas na última entram primeiro, com o mesmo cartão que ela não lembrou.
+        // As ideias esquecidas na última entram primeiro (até [MAX_WEAK]), com o mesmo cartão que ela não lembrou.
         val (weak, others) = groups.partition { group -> group.any { it.key in hard } }
-        val weakCards = weak.map { group -> group.first { it.key in hard }.copy(hard = true) }
-        // As outras giram a cada etapa; dentro da ideia, a formulação também troca (flashcard numa, pergunta de memória na outra).
-        val shift = if (others.isEmpty()) 0 else (turn * count) % others.size
-        val rotated = (others.drop(shift) + others.take(shift)).map { group -> group[turn % group.size] }
+        val weakCards = weak.map { group -> group.first { it.key in hard }.copy(hard = true) }.take(MAX_WEAK)
+        // Depois, as ideias que ela nunca viu, na ordem do material: em poucas revisões o tópico inteiro passa.
+        // Por último as já vistas, girando a cada etapa e trocando a formulação (flashcard numa, de memória na outra).
+        val (fresh, known) = others.partition { group -> group.none { it.key in seen } }
+        val shift = if (known.isEmpty()) 0 else (turn * count) % known.size
+        val ordered = fresh.map { group -> group.firstOrNull { it.key !in seen } ?: group.first() } +
+            (known.drop(shift) + known.take(shift)).map { group -> group.firstOrNull { it.key !in seen } ?: group[turn % group.size] }
         // Última checagem: mesmo em ideias diferentes, não entra cartão parecido com um que já está na sessão.
         val picked = mutableListOf<MixCard>()
         val signed = mutableListOf<Entry>()
-        for (card in weakCards + rotated) {
+        for (card in weakCards + ordered) {
             if (picked.size >= count) break
             val entry = Entry(card)
             if (signed.any { sameIdea(it, entry) }) continue
@@ -128,36 +146,68 @@ object ReviewMix {
     }
 
     /**
-     * Os pontos-chave do aquecimento "de cabeça": ideias do tópico que NÃO viram cartão nesta sessão
-     * (senão a pessoa via a pergunta no aquecimento e de novo no cartão). Giram a cada etapa.
+     * Os pontos-chave do aquecimento "de cabeça": ideias do tópico que NÃO viram cartão nesta sessão e
+     * que não estavam no aquecimento anterior ([exclude], ver [warmKey]). Giram a cada etapa.
      */
-    fun points(deck: List<MixSource>, prompts: List<MixSource>, shown: List<MixCard>, stage: Int, max: Int = 6): List<String> {
+    fun points(deck: List<MixSource>, prompts: List<MixSource>, shown: List<MixCard>, stage: Int, max: Int = 6, exclude: Set<String> = emptySet()): List<String> {
         val used = shown.mapTo(hashSetOf()) { it.key }
-        val fronts = ideas(deck, prompts).filter { group -> group.none { it.key in used } }
+        val all = ideas(deck, prompts).filter { group -> group.none { it.key in used } }
             .map { group -> group.minBy { it.front.length }.front }.filter { it.length <= 90 }.distinct()
+        // o que esteve no último aquecimento só entra se faltar ponto
+        val fronts = all.filter { warmKey(it) !in exclude }.let { if (it.size >= 3) it else all }
         if (fronts.size <= max) return fronts
         val shift = ((stage.coerceAtLeast(1) - 1) * max) % fronts.size
         return (fronts.drop(shift) + fronts.take(shift)).take(max)
     }
 
-    /** O estudo rápido de uma revisão: o essencial em pontos curtos, as dicas de prova e as pegadinhas. */
-    data class QuickStudy(val points: List<String>, val tips: List<String>, val traps: List<String>) {
-        val isEmpty get() = points.isEmpty() && tips.isEmpty() && traps.isEmpty()
+    fun warmKey(point: String): String = "w" + point.trim().lowercase().hashCode()
+
+    /** O estudo rápido de uma revisão: as partes do tópico em foco, o que cai, fórmulas, dicas e pegadinhas. */
+    data class QuickStudy(
+        val parts: List<NotebookPageMap.Block>,
+        val tips: List<String>,
+        val traps: List<String>,
+        val exam: List<String> = emptyList(),
+        val formulas: List<String> = emptyList(),
+    ) {
+        val points: List<String> get() = parts.flatMap { it.lines }
+        val isEmpty get() = parts.isEmpty() && tips.isEmpty() && traps.isEmpty() && exam.isEmpty()
     }
 
+    fun quickStudy(summary: String?, tips: List<String>, traps: List<String>, stage: Int): QuickStudy =
+        quickStudy(summary, emptyList(), tips, traps, stage, emptyList())
+
     /**
-     * Monta o estudo rápido com o que o tópico tem, em pedaços que dá para ler em um minuto: o resumo
-     * quebrado em pontos (antes ia o resumo cru, num parágrafo só), dicas e pegadinhas. As dicas e as
-     * pegadinhas giram a cada etapa, para a leitura não ser sempre a mesma.
+     * O estudo rápido muda a cada revisão (antes eram sempre os mesmos 8 pontos do começo do resumo):
+     * mostra as partes do tópico de onde vieram os cartões esquecidos e mais uma parte que gira a cada
+     * etapa, com o "como cai na prova" dessas partes. Assim, ao longo das etapas, todos os capítulos
+     * voltam. Dicas e pegadinhas também giram.
      */
-    fun quickStudy(summary: String?, tips: List<String>, traps: List<String>, stage: Int): QuickStudy {
-        fun turn(items: List<String>, max: Int): List<String> {
-            val good = items.map { it.trim() }.filter { it.length in 15..420 }.distinct()
+    fun quickStudy(summary: String?, theory: List<String>, tips: List<String>, traps: List<String>, stage: Int, forgotten: List<MixCard>): QuickStudy {
+        val turn = stage.coerceAtLeast(1) - 1
+        fun rotate(items: List<String>, max: Int): List<String> {
+            val good = items.map { Formula.inline(it.trim()) }.filter { it.length in 15..420 }.distinct()
             if (good.size <= max) return good
-            val shift = ((stage.coerceAtLeast(1) - 1) * max) % good.size
+            val shift = (turn * max) % good.size
             return (good.drop(shift) + good.take(shift)).take(max)
         }
-        return QuickStudy(StudyNotebook.summaryLines(summary, max = 8), turn(tips, 4), turn(traps, 3))
+        val map = NotebookPageMap.build(summary, theory, emptyList(), emptyList(), emptyList())
+        val blocks = map.blocks
+        val chosen: List<Int> = if (blocks.size <= 2) blocks.indices.toList() else {
+            // as partes que mais falam dos cartões esquecidos
+            val missed = forgotten.map { tokens(it.front + " " + it.back) }
+            val focus = missed.mapNotNull { words ->
+                blocks.indices.maxByOrNull { b -> blocks[b].lines.sumOf { line -> tokens(line).count { it in words } } }
+                    ?.takeIf { b -> blocks[b].lines.sumOf { line -> tokens(line).count { it in words } } >= 2 }
+            }.distinct()
+            // mais a parte da vez, girando pelas etapas
+            (focus + (turn % blocks.size)).distinct().take(3)
+        }
+        val parts = chosen.sorted().map { blocks[it] }
+        val titles = parts.mapNotNull { it.title?.lowercase() }.toSet()
+        val exam = map.exam.filter { it.title?.lowercase() in titles || (map.exam.size == 1) }.flatMap { it.lines }
+            .ifEmpty { map.exam.getOrNull(turn % map.exam.size.coerceAtLeast(1))?.lines.orEmpty() }.take(4)
+        return QuickStudy(parts, rotate(tips, 3), rotate(traps, 3), exam, map.formulas.take(6))
     }
 
     /** O que fica marcado como difícil para a próxima revisão: sai o que apareceu e foi lembrado, entra o que foi esquecido. */
@@ -165,6 +215,12 @@ object ReviewMix {
         val seen = shown.mapTo(hashSetOf()) { it.key }
         return (previous.filter { it !in seen } + forgotten).distinct().takeLast(HARD_LIMIT).toSet()
     }
+
+    /** O que já passou nas revisões deste tópico (cartões e pontos do aquecimento), para variar a próxima. */
+    fun nextSeen(previous: Set<String>, shown: List<MixCard>): Set<String> =
+        (previous + shown.map { it.key }).toList().takeLast(SEEN_LIMIT).toSet()
+
+    private const val SEEN_LIMIT = 400
 
     /**
      * Abre uma lacuna num grifo: tira o primeiro número (prazo, artigo, quantidade: o que a prova troca)

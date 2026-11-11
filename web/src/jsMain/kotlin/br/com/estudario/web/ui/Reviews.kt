@@ -413,28 +413,36 @@ fun ReviewSessionScreen(reviewId: Long) {
     }
     // O que ela não lembrou na última revisão deste tópico volta primeiro.
     val hardBefore = remember(reviewId) { ReviewHardCards.get(review.topicId) }
-    fun mix(options: br.com.estudario.domain.ReviewPracticeOptions, count: Int = options.flashcardCount) = ReviewMix.cards(
+    // O que já passou nas revisões anteriores: os cartões nunca vistos vêm antes, e o aquecimento não repete o último.
+    val seenBefore = remember(reviewId) { ReviewHardCards.get(review.topicId, ReviewHardCards.SEEN) }
+    val warmBefore = remember(reviewId) { ReviewHardCards.get(review.topicId, ReviewHardCards.WARM) }
+    // Etapas longas: menos cartões e mais questões (a memória do tópico se prova resolvendo).
+    val stagePlan = ReviewMix.plan(review.stage, config.flashcardCount, config.questionCount)
+    fun mix(options: br.com.estudario.domain.ReviewPracticeOptions, count: Int = ReviewMix.plan(review.stage, options.flashcardCount, options.questionCount).first) = ReviewMix.cards(
         // os grifos não viram cartão: a pessoa grifa muita coisa, e nem tudo é para decorar
         deck, prompts, emptyList(),
-        count, review.stage, practiceSeed, options.shuffleFlashcards, hardBefore,
+        count, review.stage, practiceSeed, options.shuffleFlashcards, hardBefore, seenBefore,
     )
     val recall = remember(reviewId, config) { mix(config) }
     // Aquecimento: antes de qualquer cartão, puxar o tópico de cabeça e conferir com os pontos-chave.
     // (só ideias que não viram cartão nesta sessão, para a pergunta não aparecer duas vezes)
-    // O estudo rápido: o resumo em pontos, as dicas de prova e as pegadinhas do tópico.
-    val study = remember(reviewId) {
-        val mine = material.snippets.filter { it.topicId == review.topicId }
-        ReviewMix.quickStudy(
-            material.summaries.firstOrNull { it.topicId == review.topicId && it.kind != "RAPIDO" }?.markdown,
-            mine.filter { it.kind == "BIZU" }.map { it.text }, mine.filter { it.kind == "PEGADINHA" }.map { it.text }, review.stage,
-        )
-    }
-    val points = remember(reviewId, config) { ReviewMix.points(deck, prompts, recall, review.stage).takeIf { it.size >= 3 }.orEmpty() }
+
+    val points = remember(reviewId, config) { ReviewMix.points(deck, prompts, recall, review.stage, exclude = warmBefore).takeIf { it.size >= 3 }.orEmpty() }
     // O estudo rápido lê o resumo do tópico; o baralho (RAPIDO) já passou nos cartões e só entra se não houver resumo.
     val summary = material.summaries.firstOrNull { it.topicId == review.topicId && it.kind != "RAPIDO" } ?: material.summaries.firstOrNull { it.topicId == review.topicId }
     // Revisar é reencontrar a falha: primeiro as erradas, depois as nunca respondidas, depois o resto.
-    val questions = remember(reviewId, config) { reviewPracticeQuestions(material, review.topicId, config, practiceSeed) }
+    val questions = remember(reviewId, config) { reviewPracticeQuestions(material, review.topicId, config.copy(questionCount = stagePlan.second), practiceSeed) }
     var extra by remember(reviewId, config) { mutableStateOf(listOf<MixCard>()) }
+    // O estudo rápido muda a cada revisão: as partes do tópico dos cartões esquecidos e mais uma que gira
+    // por etapa, com o "como cai" delas, fórmulas, dicas e pegadinhas.
+    val study = remember(reviewId, extra) {
+        val mine = material.snippets.filter { it.topicId == review.topicId }
+        ReviewMix.quickStudy(
+            material.summaries.firstOrNull { it.topicId == review.topicId && it.kind != "RAPIDO" }?.markdown,
+            material.theories.filter { it.topicId == review.topicId }.map { it.markdown },
+            mine.filter { it.kind == "BIZU" }.map { it.text }, mine.filter { it.kind == "PEGADINHA" }.map { it.text }, review.stage, extra,
+        )
+    }
     val warmup = points.isNotEmpty()
     // Estudo rápido: depois dos cartões, reler o tópico, começando pelo que ela não lembrou.
     val consultation = config.showSummary && (!study.isEmpty || extra.isNotEmpty())
@@ -487,6 +495,8 @@ fun ReviewSessionScreen(reviewId: Long) {
         if (recallIndex < recall.size + extra.size - 1) recallIndex++
         else {
             ReviewHardCards.save(review.topicId, ReviewMix.nextHard(hardBefore, recall, missed))
+            ReviewHardCards.save(review.topicId, ReviewMix.nextSeen(seenBefore, recall), ReviewHardCards.SEEN)
+            if (points.isNotEmpty()) ReviewHardCards.save(review.topicId, points.mapTo(hashSetOf()) { ReviewMix.warmKey(it) }, ReviewHardCards.WARM)
             advance()
         }
     }
@@ -657,11 +667,23 @@ fun ReviewSessionScreen(reviewId: Long) {
                     }
                 }
                 // O tópico em pedaços curtos: o essencial numerado, as dicas de prova e onde a banca pega.
-                if (study.points.isNotEmpty()) Div({ classes("rv-paper", "rv-quick") }) {
-                    Span({ classes("rv-face-tag") }) { Icon("lightbulb", filled = true); Text("O ESSENCIAL EM ${study.points.size} PONTOS") }
-                    study.points.forEachIndexed { i, line ->
-                        Div({ classes("rv-quick-item") }) { Span({ classes("rv-quick-n") }) { Text("${i + 1}") }; P { Inline(line) } }
+                // As partes do tópico desta vez (mudam a cada revisão), cada uma com seu título.
+                study.parts.forEachIndexed { pi, part ->
+                    Div({ classes("rv-paper", "rv-quick") }) {
+                        Span({ classes("rv-face-tag") }) { Icon("lightbulb", filled = true); Text(part.title?.uppercase() ?: "O ESSENCIAL") }
+                        if (pi == 0 && study.parts.size > 1) P({ classes("muted"); attr("style", "margin:0") }) { Text("Desta vez: ${study.parts.size} partes do tópico. Na próxima revisão vêm outras.") }
+                        part.lines.forEachIndexed { i, line ->
+                            Div({ classes("rv-quick-item") }) { Span({ classes("rv-quick-n") }) { Text("${i + 1}") }; P { Inline(line) } }
+                        }
                     }
+                }
+                if (study.exam.isNotEmpty()) Div({ classes("rv-paper", "rv-quick", "exam") }) {
+                    Span({ classes("rv-face-tag") }) { Icon("gps_fixed", filled = true); Text("COMO CAI NA PROVA") }
+                    study.exam.forEach { item -> Div({ classes("rv-quick-item") }) { Span({ classes("rv-quick-n") }) { Text("◆") }; P { Inline(item) } } }
+                }
+                if (study.formulas.isNotEmpty()) Div({ classes("rv-paper", "rv-quick") }) {
+                    Span({ classes("rv-face-tag") }) { Icon("calculate", filled = true); Text("FÓRMULAS") }
+                    Div({ classes("cb-formulas") }) { study.formulas.forEach { f -> Span({ classes("cb-formula") }) { Text(f) } } }
                 }
                 if (study.tips.isNotEmpty()) Div({ classes("rv-paper", "rv-quick", "tips") }) {
                     Span({ classes("rv-face-tag") }) { Icon("gps_fixed", filled = true); Text("DICAS DE PROVA") }

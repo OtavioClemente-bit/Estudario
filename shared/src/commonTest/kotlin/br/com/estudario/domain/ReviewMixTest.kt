@@ -37,17 +37,33 @@ class ReviewMixTest {
     }
 
     @Test fun nextStageBringsTheOtherWording() {
-        val first = ReviewMix.cards(deck, prompts, emptyList(), 30, stage = 1, seed = 1).first { "residual" in it.front }
-        val second = ReviewMix.cards(deck, prompts, emptyList(), 30, stage = 2, seed = 1).first { "residual" in it.front }
+        val session = ReviewMix.cards(deck, prompts, emptyList(), 30, stage = 1, seed = 1)
+        val first = session.first { "residual" in it.front }
+        val second = ReviewMix.cards(deck, prompts, emptyList(), 30, stage = 2, seed = 1, seen = ReviewMix.nextSeen(emptySet(), session)).first { "residual" in it.front }
         assertNotEquals(first.kind, second.kind)
     }
 
-    @Test fun rotatesIdeasBetweenStages() {
-        val first = ReviewMix.cards(deck, prompts, emptyList(), 5, stage = 1, seed = 1).map { it.key }.toSet()
-        val second = ReviewMix.cards(deck, prompts, emptyList(), 5, stage = 2, seed = 1).map { it.key }.toSet()
+    @Test fun neverSeenIdeasComeBeforeKnownOnes() {
+        val first = ReviewMix.cards(deck, prompts, emptyList(), 5, stage = 1, seed = 1)
+        val second = ReviewMix.cards(deck, prompts, emptyList(), 5, stage = 2, seed = 1, seen = ReviewMix.nextSeen(emptySet(), first))
         assertEquals(5, first.size)
-        assertTrue(first.intersect(second).isEmpty())
+        assertTrue(first.map { it.key }.intersect(second.map { it.key }.toSet()).isEmpty())
+        // em três sessões de 5, as 11 ideias do material passam todas: a que faltou abre a terceira
+        val third = ReviewMix.cards(deck, prompts, emptyList(), 5, stage = 3, seed = 1, shuffle = false, seen = ReviewMix.nextSeen(ReviewMix.nextSeen(emptySet(), first), second))
+        val all = ReviewMix.cards(deck, prompts, emptyList(), 99, stage = 1, seed = 1)
+        val missing = all.filter { idea -> (first + second).none { ReviewMix.similar(it, idea) } }
+        assertEquals(1, missing.size)
+        assertTrue(ReviewMix.similar(third.first(), missing.single()))
     }
+
+    @Test fun forgottenCardsAreCappedAndLongStagesHaveMoreQuestions() {
+        val hard = deck.take(6).map { ReviewMix.key(MixKind.CARD, it.front) }.toSet()
+        val cards = ReviewMix.cards(deck, prompts, emptyList(), 8, stage = 2, seed = 1, hard = hard)
+        assertEquals(ReviewMix.MAX_WEAK, cards.count { it.hard })
+        assertEquals(8 to 5, ReviewMix.plan(1, 8, 5))
+        assertEquals(6 to 9, ReviewMix.plan(4, 8, 5))
+    }
+
 
     @Test fun fillsFromWhatTheTopicHas() {
         assertEquals(8, ReviewMix.cards(deck, emptyList(), emptyList(), 8, 1, 1).size)
