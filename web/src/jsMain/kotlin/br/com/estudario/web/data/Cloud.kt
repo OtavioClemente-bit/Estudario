@@ -13,6 +13,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import kotlin.js.Date
+import kotlinx.coroutines.await
+import org.khronos.webgl.Int8Array
 
 data class CloudHead(val revision: Long, val objectPath: String?, val sha256: String?, val deviceLabel: String?, val updatedAt: String?)
 
@@ -89,8 +91,12 @@ object Cloud {
         // envio aceito: com envios recusados acumulando, a pasta enchia e travava tudo (o celular
         // inclusive). Agora limpa antes de enviar, sempre guardando a foto vigente.
         runCatching { prune(currentPath = "", keep = 3) }
-        val bytes = text.encodeToByteArray()
-        val sha = Sha256.digest(bytes).toHex()
+        // O texto vira bytes e o resumo SHA-256 sai do próprio navegador (rápido e fora do caminho da
+        // tela). Antes o resumo era calculado em Kotlin, byte a byte, nos ~10 MB da conta: travava a
+        // página por segundos logo depois de responder uma questão.
+        val encoded = js("new TextEncoder()").encode(text)
+        val bytes = Int8Array(encoded.buffer.unsafeCast<org.khronos.webgl.ArrayBuffer>()).unsafeCast<ByteArray>()
+        val sha = nativeSha256(encoded) ?: Sha256.digest(bytes).toHex()
         val path = "$userId/${Date.now().toLong()}-${sha.take(12)}.json"
         val put = httpRequest(
             "POST",
@@ -154,4 +160,12 @@ object Cloud {
     }
 
     fun sha256(text: String): String = Sha256.digest(text.encodeToByteArray()).toHex()
+
+    /** SHA-256 pelo crypto.subtle do navegador; null se não houver (aí vale o cálculo em Kotlin). */
+    private suspend fun nativeSha256(bytes: dynamic): String? = runCatching {
+        val subtle = window.asDynamic().crypto?.subtle ?: return null
+        val digest = (subtle.digest("SHA-256", bytes) as kotlin.js.Promise<org.khronos.webgl.ArrayBuffer>).await()
+        val view = org.khronos.webgl.Uint8Array(digest)
+        buildString { for (i in 0 until view.length) { val b = view.asDynamic()[i] as Int; append("0123456789abcdef"[b shr 4]); append("0123456789abcdef"[b and 15]) } }
+    }.getOrNull()
 }

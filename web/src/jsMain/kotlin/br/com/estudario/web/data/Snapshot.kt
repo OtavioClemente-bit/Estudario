@@ -16,12 +16,38 @@ internal val snapshotJson = Json { ignoreUnknownKeys = true; coerceInputValues =
  * decodificam só os campos que as telas usam, e as edições trocam objetos inteiros por id,
  * preservando todos os outros campos para o app Android receber exatamente o que mandou.
  */
-class Snapshot private constructor(val root: JsonObject) {
+class Snapshot private constructor(val root: JsonObject, parent: Snapshot? = null, reuse: Map<String, Array<Any?>> = emptyMap()) {
+    /**
+     * Cada edição gera uma foto nova. Antes ela começava sem nada decodificado: responder uma questão
+     * fazia todas as telas decodificarem de novo as 9 mil tarefas do plano, as questões, as tentativas...
+     * e o site travava uns segundos no Confirmar e no Finalizar. Agora a foto nova herda da anterior
+     * o que não mudou: as tabelas inteiras que são o mesmo objeto e, dentro da tabela editada, cada
+     * item que continuou igual. Só o item novo ou trocado é decodificado de novo.
+     */
+    private val decoded = HashMap<String, Array<Any?>>()
     private val cache = HashMap<String, List<Any>>()
+
+    /** O JSON de cada tabela já escrito em texto: o envio junta os pedaços e só reescreve o que mudou. */
+    private val encoded = HashMap<String, String>()
+
+    init {
+        if (parent != null) {
+            parent.decoded.forEach { (key, items) -> if (root[key] === parent.root[key]) decoded[key] = items }
+            parent.cache.forEach { (key, items) -> if (root[key] === parent.root[key]) cache[key] = items }
+            parent.encoded.forEach { (key, text) -> if (root[key] === parent.root[key]) encoded[key] = text }
+        }
+        decoded.putAll(reuse)
+    }
 
     @Suppress("UNCHECKED_CAST")
     fun <T : Any> list(key: String, serializer: KSerializer<T>): List<T> = cache.getOrPut(key) {
-        array(key).mapNotNull { element -> runCatching { snapshotJson.decodeFromJsonElement(serializer, element) }.getOrNull() }
+        val elements = array(key)
+        val items = decoded[key]?.takeIf { it.size == elements.size } ?: arrayOfNulls<Any?>(elements.size).also { it.fill(PENDING) }
+        for (i in items.indices) {
+            if (items[i] === PENDING) items[i] = runCatching { snapshotJson.decodeFromJsonElement(serializer, elements[i]) }.getOrNull()
+        }
+        decoded[key] = items
+        items.filterNotNull().filter { it !== PENDING }
     } as List<T>
 
     fun array(key: String): JsonArray = root[key] as? JsonArray ?: JsonArray(emptyList())
@@ -56,28 +82,57 @@ class Snapshot private constructor(val root: JsonObject) {
     val isEmpty: Boolean get() = competitions.isEmpty() && plans.isEmpty()
 
     /** Texto canônico (compacto, sem horário de exportação): o mesmo que o app calcula o hash. */
-    fun encode(): String = snapshotJson.encodeToString(JsonObject.serializer(), root)
+    fun encode(): String = buildString {
+        // O mesmo texto de antes (JSON compacto, campos na mesma ordem), montado tabela por tabela.
+        append('{')
+        var first = true
+        root.forEach { (key, value) ->
+            if (!first) append(',')
+            first = false
+            append(snapshotJson.encodeToString(JsonPrimitive.serializer(), JsonPrimitive(key)))
+            append(':')
+            append(encoded.getOrPut(key) { snapshotJson.encodeToString(JsonElement.serializer(), value) })
+        }
+        append('}')
+    }
 
     // ----- edição -----
 
     /** Nova foto com os itens de [key] transformados; os que [transform] devolve null são removidos. */
     fun edit(key: String, transform: (JsonObject) -> JsonObject?): Snapshot {
-        val updated = JsonArray(array(key).mapNotNull { (it as? JsonObject)?.let(transform) })
-        return Snapshot(JsonObject(root + (key to updated)))
+        val before = array(key)
+        val old = decoded[key]?.takeIf { it.size == before.size }
+        val kept = ArrayList<JsonElement>(before.size)
+        val items = ArrayList<Any?>(before.size)
+        before.forEachIndexed { i, element ->
+            val next = (element as? JsonObject)?.let(transform) ?: return@forEachIndexed
+            kept += next
+            // o item que continuou o mesmo objeto aproveita o que já estava decodificado
+            items += if (old != null && next === element) old[i] else PENDING
+        }
+        return Snapshot(JsonObject(root + (key to JsonArray(kept))), this, mapOf(key to items.toTypedArray()))
     }
 
     /** Nova foto com o objeto [key] trocado (campos que não são tabela, como o visual do Folha). */
-    fun withObject(key: String, value: JsonObject): Snapshot = Snapshot(JsonObject(root + (key to value)))
+    fun withObject(key: String, value: JsonObject): Snapshot = Snapshot(JsonObject(root + (key to value)), this)
 
     fun obj(key: String): JsonObject? = root[key] as? JsonObject
 
-    fun append(key: String, item: JsonObject): Snapshot =
-        Snapshot(JsonObject(root + (key to JsonArray(array(key) + item))))
+    fun append(key: String, item: JsonObject): Snapshot {
+        val before = array(key)
+        val reuse = decoded[key]?.takeIf { it.size == before.size }?.let { mapOf(key to (it.toList() + PENDING).toTypedArray()) } ?: emptyMap()
+        return Snapshot(JsonObject(root + (key to JsonArray(before + item))), this, reuse)
+    }
 
     fun appendAll(changes: Map<String, List<JsonObject>>): Snapshot {
         val next = root.toMutableMap()
-        changes.forEach { (key, items) -> next[key] = JsonArray(array(key) + items) }
-        return Snapshot(JsonObject(next))
+        val reuse = HashMap<String, Array<Any?>>()
+        changes.forEach { (key, items) ->
+            val before = array(key)
+            next[key] = JsonArray(before + items)
+            decoded[key]?.takeIf { it.size == before.size }?.let { reuse[key] = (it.toList() + List(items.size) { PENDING }).toTypedArray() }
+        }
+        return Snapshot(JsonObject(next), this, reuse)
     }
 
     /**
@@ -88,6 +143,9 @@ class Snapshot private constructor(val root: JsonObject) {
     fun nextId(key: String): Long = (array(key).maxOfOrNull { ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.longOrNull ?: 0L } ?: 0L) + ID_GAP
 
     companion object {
+        /** Marca de item ainda não decodificado. */
+        private val PENDING = Any()
+
         /** Folga entre os ids do celular e os do site (ver [nextId]). */
         const val ID_GAP = 100_000L
 
