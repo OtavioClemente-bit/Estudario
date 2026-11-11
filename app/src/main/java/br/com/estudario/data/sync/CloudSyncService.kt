@@ -97,6 +97,14 @@ class CloudSyncService(
     suspend fun sync(choice: ConflictChoice? = null): CloudSyncStatus = mutex.withLock {
         if (!config.isConfigured) return@withLock CloudSyncStatus.Failed("Sincronização indisponível nesta versão.").also { _status.value = it }
         if (auth.accessToken() == null && !auth.refreshSession()) return@withLock CloudSyncStatus.SignedOut.also { _status.value = it }
+        // Conferência rápida: nada mudou aqui desde a última rodada e a conta continua na mesma versão.
+        // Antes, a cada 45 s com o app aberto, exportava todos os dados (uns 10 MB) e calculava o resumo
+        // deles mesmo sem mudança nenhuma: o celular ficava pesado e o Android chegava a fechar o app.
+        if (choice == null && runCatching { unchangedOnBothSides() }.getOrDefault(false)) {
+            val now = System.currentTimeMillis()
+            prefs.edit().putLong(KEY_LAST_SYNC, now).apply()
+            return@withLock CloudSyncStatus.Done(now, "nada").also { if (_status.value !is CloudSyncStatus.Conflict) _status.value = it }
+        }
         val before = _status.value
         _status.value = CloudSyncStatus.Running
         val result = runCatching { runSync(choice) }.getOrElse { error ->
@@ -120,14 +128,26 @@ class CloudSyncService(
         result
     }
 
+    /** Sem mudança local desde a última rodada completa e a conta na mesma revisão da base. */
+    private suspend fun unchangedOnBothSides(): Boolean = withContext(Dispatchers.IO) {
+        val userId = auth.currentUserId() ?: return@withContext false
+        if (prefs.getString(KEY_USER, null) != userId) return@withContext false
+        val base = prefs.getLong(KEY_BASE_REVISION, -1L).takeIf { it >= 0 } ?: return@withContext false
+        val cleanAt = prefs.getLong(KEY_CLEAN_AT, 0L)
+        if (cleanAt == 0L || prefs.getLong(KEY_LOCAL_CHANGED_AT, 0L) >= cleanAt) return@withContext false
+        fetchHead().revision == base
+    }
+
     private suspend fun runSync(choice: ConflictChoice?): CloudSyncStatus = withContext(Dispatchers.IO) {
         val userId = auth.currentUserId() ?: throw SyncAuthException()
         // Trocar de conta no mesmo aparelho começa do zero: a base da outra conta não vale aqui.
         if (prefs.getString(KEY_USER, null) != userId) {
-            prefs.edit().putString(KEY_USER, userId).remove(KEY_BASE_REVISION).remove(KEY_BASE_SHA).apply()
+            prefs.edit().putString(KEY_USER, userId).remove(KEY_BASE_REVISION).remove(KEY_BASE_SHA).remove(KEY_CLEAN_AT).apply()
         }
+        // O que mudar daqui para frente fica para a próxima rodada (a foto abaixo é deste instante).
+        val startedAt = System.currentTimeMillis()
         val snapshot = canonicalSnapshot()
-        val localSha = Sha256.digest(snapshot.encodeToByteArray()).toHex()
+        val localSha = sha256Hex(snapshot)
         val head = fetchHead()
         val decision = SyncPlanner.decide(
             SyncPlanner.Input(
@@ -153,7 +173,7 @@ class CloudSyncService(
             }
         }
         val now = System.currentTimeMillis()
-        prefs.edit().putLong(KEY_LAST_SYNC, now).apply()
+        prefs.edit().putLong(KEY_LAST_SYNC, now).putLong(KEY_CLEAN_AT, startedAt).apply()
         CloudSyncStatus.Done(now, action)
     }
 
@@ -187,7 +207,7 @@ class CloudSyncService(
         val response = request("GET", "/storage/v1/object/authenticated/$BUCKET/$path", null, null)
         if (response.status !in 200..299) error("Não deu para baixar os dados (${response.status}).")
         val remoteText = response.body
-        if (Sha256.digest(remoteText.encodeToByteArray()).toHex() != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
+        if (sha256Hex(remoteText) != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
         val base = runCatching { baseFile().takeIf { it.exists() }?.readText()?.let(::JSONObject) }.getOrNull()
         val merged = SnapshotMerge.merge(base, JSONObject(localSnapshot), JSONObject(remoteText))
         keepLocalCopy()
@@ -196,7 +216,7 @@ class CloudSyncService(
         br.com.estudario.data.FolhaLookStore.applyRemote(context, merged.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
         SyncedPrefs.applyRemote(context, merged.optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
         val snapshot = canonicalSnapshot()
-        upload(userId, snapshot, Sha256.digest(snapshot.encodeToByteArray()).toHex(), head.revision)
+        upload(userId, snapshot, sha256Hex(snapshot), head.revision)
     }
 
     private suspend fun upload(userId: String, snapshot: String, sha: String, expectedRevision: Long) {
@@ -254,7 +274,7 @@ class CloudSyncService(
         val response = request("GET", "/storage/v1/object/authenticated/$BUCKET/$path", null, null)
         if (response.status !in 200..299) error("Não deu para baixar os dados (${response.status}).")
         val text = response.body
-        val sha = Sha256.digest(text.encodeToByteArray()).toHex()
+        val sha = sha256Hex(text)
         if (sha != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
         keepLocalCopy()
         restoring = true
@@ -264,7 +284,7 @@ class CloudSyncService(
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair
         // diferente da foto recebida); assim a próxima rodada não confunde isso com uma edição.
         val restored = canonicalSnapshot()
-        val restoredSha = Sha256.digest(restored.encodeToByteArray()).toHex()
+        val restoredSha = sha256Hex(restored)
         remember(head.revision, restoredSha, restored)
     }
 
@@ -324,6 +344,12 @@ class CloudSyncService(
         private const val KEY_BASE_REVISION = "base_revision"
         private const val KEY_BASE_SHA = "base_sha"
         private const val KEY_LAST_SYNC = "last_sync"
+        /** Início da última rodada completa: mudança local depois disso pede outra rodada. */
+        private const val KEY_CLEAN_AT = "clean_at"
+
+        /** Resumo SHA-256 pelo próprio Android (nativo; o cálculo em Kotlin levava segundos em 10 MB). */
+        internal fun sha256Hex(text: String): String =
+            java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
         private const val KEY_LOCAL_CHANGED_AT = "local_changed_at"
 
         private fun allTables(database: AppDatabase): Array<String> = runCatching {
