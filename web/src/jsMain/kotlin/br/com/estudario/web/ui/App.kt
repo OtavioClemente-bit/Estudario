@@ -242,7 +242,18 @@ private fun Shell(content: @Composable () -> Unit) {
                 Div({ classes("spacer") })
                 FocusBar()
                 SaveIndicator()
-                A(href = "#/perfil", { classes("avatar"); attr("aria-label", "Perfil") }) {
+                // O anel em volta da foto diz como está a sincronização (além do aviso do Folha): vermelho
+                // pulsando cada vez mais forte enquanto sincroniza, verde em dia, âmbar sem conexão.
+                val ring = when {
+                    Store.demo || Store.session == null -> null
+                    Store.save == SaveState.Offline -> "sync-off"
+                    Store.syncing || Store.save == SaveState.Saving || Store.save == SaveState.Pending -> "sync-on"
+                    else -> "sync-ok"
+                }
+                A(href = "#/perfil", {
+                    classes(*listOfNotNull("avatar", ring?.let { "sync-ring" }, ring).toTypedArray())
+                    attr("aria-label", when (ring) { "sync-on" -> "Perfil (sincronizando)"; "sync-ok" -> "Perfil (tudo sincronizado)"; "sync-off" -> "Perfil (sem conexão)"; else -> "Perfil" })
+                }) {
                     val session = Store.session
                     AvatarContent()
                 }

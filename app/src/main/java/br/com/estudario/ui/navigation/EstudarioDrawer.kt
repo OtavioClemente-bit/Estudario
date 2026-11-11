@@ -51,6 +51,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -395,11 +398,35 @@ fun EstudarioTopBar(
             trailing()
             IconAction(Icons.Outlined.Search, "Pesquisar", onSearch)
             Spacer(Modifier.width(EstudarioSpacing.hairline))
+            // O anel em volta da foto diz como está a sincronização com a conta (além do aviso do Folha):
+            // vermelho pulsando cada vez mais forte enquanto sincroniza, verde quando está em dia,
+            // âmbar se não deu para sincronizar. Sem conta, sem anel.
+            val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as? br.com.estudario.EstudarioApplication
+            val sync = app?.cloudSync?.status?.collectAsState()?.value
+            val ringColor: androidx.compose.ui.graphics.Color? = when (sync) {
+                br.com.estudario.data.sync.CloudSyncStatus.Running -> androidx.compose.ui.graphics.Color(0xFFE5484D)
+                is br.com.estudario.data.sync.CloudSyncStatus.Done -> androidx.compose.ui.graphics.Color(0xFF2FBF8A)
+                is br.com.estudario.data.sync.CloudSyncStatus.Failed, is br.com.estudario.data.sync.CloudSyncStatus.Conflict -> androidx.compose.ui.graphics.Color(0xFFFFB421)
+                else -> null
+            }
+            val syncing = sync == br.com.estudario.data.sync.CloudSyncStatus.Running
+            val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "sync-ring")
+            // a intensidade sobe (fraco → forte) e recomeça, como um batimento acelerando
+            val beat by pulse.animateFloat(0.25f, 1f, androidx.compose.animation.core.infiniteRepeatable<Float>(androidx.compose.animation.core.tween<Float>(900, easing = androidx.compose.animation.core.FastOutLinearInEasing)), label = "beat")
+            val ringAlpha by androidx.compose.animation.core.animateFloatAsState(if (ringColor == null) 0f else 1f, androidx.compose.animation.core.tween(400), label = "ring")
             Box(
                 profileModifier
-                    .size(40.dp)
+                    .size(44.dp)
+                    .drawBehind {
+                        val color = ringColor ?: return@drawBehind
+                        val strength = if (syncing) beat else 1f
+                        val stroke = (if (syncing) 2.5f + 2.5f * strength else 2.5f).dp.toPx()
+                        // brilho por fora, mais forte a cada batida
+                        if (syncing) drawCircle(color.copy(alpha = 0.35f * strength * ringAlpha), radius = size.minDimension / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke * 2.2f))
+                        drawCircle(color.copy(alpha = (if (syncing) 0.45f + 0.55f * strength else 0.9f) * ringAlpha), radius = size.minDimension / 2 - stroke / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                    }
                     .clip(RoundedCornerShape(50))
-                    .semantics { contentDescription = "Abrir perfil" }
+                    .semantics { contentDescription = when { syncing -> "Abrir perfil (sincronizando)"; ringColor == androidx.compose.ui.graphics.Color(0xFF2FBF8A) -> "Abrir perfil (tudo sincronizado)"; else -> "Abrir perfil" } }
                     .clickable(onClick = onProfile),
                 contentAlignment = Alignment.Center,
             ) {
