@@ -627,118 +627,230 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
 
 @Composable
 fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit, onTheory: (Long) -> Unit, onTrain: (Long) -> Unit) {
-    val topics = rememberNotebookTopics(viewModel) ?: run { NotebookLoading(); return }
-    val subjects by viewModel.subjects.collectAsState()
-    val questions by viewModel.questions.collectAsState()
     val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
     LaunchedEffect(topicId) { prefs.edit().putLong("ultima", topicId).apply() }
-    val topic = topics.firstOrNull { it.id == topicId }
+    val page = rememberNotebookPage(viewModel, topicId)
+    val subjects by viewModel.subjects.collectAsState()
     val now = remember { System.currentTimeMillis() }
-    LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") }; Text("Caderno", Modifier.weight(1f), fontWeight = FontWeight.Black); NotebookHelpButton() } }
-        if (topic == null) {
-            item { Text("Esta página ainda está em branco: estude o tópico (leia a teoria e marque como estudado) e ele vira página do seu caderno.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            item { Button(onClick = { onTheory(topicId) }) { Text("Abrir o tópico") } }
-            return@LazyColumn
+    // Cada parte da página é um item próprio da lista: a tela só desenha o que está visível e os botões
+    // respondem na hora. (Antes a página inteira era um item só, montado junto com o caderno todo.)
+    LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item(key = "top") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") }
+                Text("Caderno", Modifier.weight(1f), fontWeight = FontWeight.Black)
+                NotebookHelpButton()
+            }
         }
-        item {
-            // A página montada para estudar sem abrir a teoria (NotebookPageMap, igual ao site).
-            // Montado em segundo plano (matéria grande travava a tela); enquanto isso, a página aparece sem o mapa.
-            val map: br.com.estudario.domain.NotebookPageMap.Map by androidx.compose.runtime.produceState<br.com.estudario.domain.NotebookPageMap.Map>(br.com.estudario.domain.NotebookPageMap.Map(emptyList(), emptyList(), emptyList(), topic.tips, topic.traps, emptyList()), topic) {
-                value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall)
+        when {
+            page == null -> item(key = "loading") { NotebookLoading() }
+            page.topic == null -> {
+                item(key = "blank") { Text("Esta página ainda está em branco: estude o tópico (leia a teoria e marque como estudado) e ele vira página do seu caderno.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp)) }
+                item(key = "blank-go") { Button(onClick = { onTheory(topicId) }, Modifier.padding(horizontal = 8.dp)) { Text("Abrir o tópico") } }
+            }
+            else -> notebookPage(page, page.topic, subjects.firstOrNull { it.id == page.topic.subjectId }?.name.orEmpty(), now, onTheory, onTrain)
+        }
+    }
+}
+
+/** Tudo o que a página de um tópico mostra, montado de uma vez fora da linha da tela. */
+private class NotebookPage(
+    val topic: StudyNotebook.Topic?,
+    val map: br.com.estudario.domain.NotebookPageMap.Map,
+    val hasQuestions: Boolean,
+) {
+    val lines get() = map.blocks.flatMap { it.lines }
+    val quotes get() = topic?.marks.orEmpty().map { it.quote.trim() }.filter { it.length >= 8 }
+}
+
+/**
+ * Monta só o tópico aberto (antes a página esperava o caderno inteiro: todos os tópicos, restaurando
+ * todos os grifos de todas as teorias, e refazia tudo a cada mudança de dados, o que travava o celular).
+ */
+@Composable
+private fun rememberNotebookPage(viewModel: AppViewModel, topicId: Long): NotebookPage? {
+    val topics by viewModel.topics.collectAsState()
+    val theories by viewModel.theories.collectAsState()
+    val marks by viewModel.theoryMarks.collectAsState()
+    val snippets by viewModel.snippets.collectAsState()
+    val summaries by viewModel.summaries.collectAsState()
+    val notes by viewModel.notes.collectAsState()
+    val errors by viewModel.errors.collectAsState()
+    val attempts by viewModel.attempts.collectAsState()
+    val questions by viewModel.questions.collectAsState()
+    // As chaves são só os dados deste tópico: mudança em outro tópico não refaz esta página.
+    val raw = topics.firstOrNull { it.id == topicId }
+    val myTheories = remember(theories, topicId) { theories.filter { it.topicId == topicId } }
+    val theoryIds = remember(myTheories) { myTheories.mapTo(hashSetOf()) { it.id } }
+    val myMarks = remember(marks, theoryIds) { marks.filter { it.theoryId in theoryIds } }
+    val mySnippets = remember(snippets, topicId) { snippets.filter { it.topicId == topicId } }
+    val mySummaries = remember(summaries, topicId) { summaries.filter { it.topicId == topicId } }
+    val myNotes = remember(notes, topicId) { notes.filter { it.topicId == topicId }.map { it.text } }
+    val myQuestions = remember(questions, topicId) { questions.filter { it.question.topicId == topicId } }
+    val myQuestionIds = remember(myQuestions) { myQuestions.mapTo(hashSetOf()) { it.question.id } }
+    val myWrong = remember(errors, topicId) { errors.filter { it.entry.pending && it.question.topicId == topicId }.map { it.entry.questionId } }
+    val myAnswers = remember(attempts, myQuestionIds) { attempts.filter { it.questionId in myQuestionIds }.map { it.answeredAt to it.correct } }
+    val built by androidx.compose.runtime.produceState<NotebookPage?>(null, raw, myTheories, myMarks, mySnippets, mySummaries, myNotes, myQuestions, myWrong, myAnswers) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val t = raw?.takeIf { it.status != TopicStatus.NAO_ESTUDADO }
+            if (t == null) return@withContext NotebookPage(null, br.com.estudario.domain.NotebookPageMap.Map(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()), false)
+            val practice = StudyNotebook.practice(myAnswers, System.currentTimeMillis())
+            val cardRegex = Regex("""###\s*(.+?)\n+([\s\S]+?)(?=\n###|$)""")
+            val quickCards = mySummaries.filter { it.kind == SummaryKind.RAPIDO }.flatMap { s -> cardRegex.findAll(s.markdown).map { it.groupValues[1].trim() to it.groupValues[2].trim() }.toList() }
+            val marksByTheory = myMarks.groupBy { it.theoryId }
+            val topic = StudyNotebook.Topic(
+                id = t.id, subjectId = t.subjectId, title = t.title, status = t.status.name,
+                lastSeenAt = listOfNotNull(t.lastReviewedAt, t.lastStudiedAt, practice.lastAt).maxOrNull(),
+                lastPracticeAt = practice.lastAt, recentAnswers = practice.recentAnswers, recentRight = practice.recentRight,
+                summary = (mySummaries.firstOrNull { it.kind == SummaryKind.COMPLETO } ?: mySummaries.firstOrNull { it.kind != SummaryKind.RAPIDO })?.markdown,
+                tips = mySnippets.filter { it.kind == SnippetKind.BIZU }.map { it.text },
+                traps = mySnippets.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text },
+                recall = mySnippets.filter { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }.map { it.text to it.answer!! } + quickCards,
+                marks = myTheories.filter { th -> marksByTheory[th.id].orEmpty().isNotEmpty() }.flatMap { th ->
+                    val b = br.com.estudario.ui.components.studyBlocks(th.markdown)
+                    marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b, it.blockIndex)) }
+                }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }.map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
+                wrongQuestions = myWrong,
+                notes = myNotes,
+                theory = myTheories.map { it.markdown },
+            )
+            val map = br.com.estudario.domain.NotebookPageMap.build(topic.summary, topic.theory, topic.tips, topic.traps, topic.recall)
+            NotebookPage(topic, map, myQuestions.any { !it.question.isHidden })
+        }
+    }
+    return built
+}
+
+/** Uma folha de caderno para cada parte da página. */
+@Composable
+private fun PaperPart(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 14.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.notebookPage(
+    page: NotebookPage, topic: StudyNotebook.Topic, subjectName: String, now: Long,
+    onTheory: (Long) -> Unit, onTrain: (Long) -> Unit,
+) {
+    val map = page.map
+    val quotes = page.quotes
+    item(key = "head") {
+        PaperPart {
+            Text(subjectName.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3), letterSpacing = 0.5.sp)
+            Text(topic.title, fontWeight = FontWeight.Black, fontSize = 23.sp, color = Ink)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val chip = @Composable { t: String, warn: Boolean -> Text(t, Modifier.clip(RoundedCornerShape(50)).background(if (warn) Color(0xFFFFE9D6) else Color(0xFFF1ECFF)).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (warn) Color(0xFFB5560F) else Color(0xFF4232C9)) }
+                topic.lastSeenAt?.let { chip("visto ${since(it, now)}", false) }
+                topic.lastPracticeAt?.let { chip("treinou ${since(it, now)}", false) }
+                if (topic.marks.isNotEmpty()) chip("${topic.marks.size} ${if (topic.marks.size == 1) "grifo" else "grifos"}", false)
+                if (topic.notes.isNotEmpty()) chip("${topic.notes.size} ${if (topic.notes.size == 1) "nota" else "notas"}", false)
+                if (topic.wrongQuestions.isNotEmpty()) chip("${topic.wrongQuestions.size} ${if (topic.wrongQuestions.size == 1) "erro" else "erros"} para refazer", true)
+            }
+            val firm = StudyNotebook.firmness(topic, now)
+            val (stateBg, stateInk) = when (firm) {
+                StudyNotebook.Firmness.FIRM -> Color(0xFFE3F8EE) to Color(0xFF0E5C3F)
+                StudyNotebook.Firmness.MID -> Color(0xFFFFF5D6) to Color(0xFF6E4700)
+                StudyNotebook.Firmness.COLD -> Color(0xFFFFE9E6) to Color(0xFF8A2A1F)
+            }
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(stateBg).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                br.com.estudario.ui.brand.BrandIcon(firmGlyph(firm), size = 48.dp)
+                Column(Modifier.weight(1f)) {
+                    Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}", fontWeight = FontWeight.Black, color = stateInk, fontSize = 15.sp)
+                    Text(StudyNotebook.nextStep(topic, now, page.hasQuestions) ?: "Página em dia. No ? você vê como ela se mantém firme.", color = stateInk, fontSize = 13.sp)
                 }
             }
-            val lines = map.blocks.flatMap { it.lines }
-            val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
-            val thin = lines.size < 3 && map.examCount < 3 && topic.tips.size < 3 && topic.recall.size < 4
-            Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3), letterSpacing = 0.5.sp)
-                Text(topic.title, fontWeight = FontWeight.Black, fontSize = 23.sp, color = Ink)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val chip = @Composable { t: String, warn: Boolean -> Text(t, Modifier.clip(RoundedCornerShape(50)).background(if (warn) Color(0xFFFFE9D6) else Color(0xFFF1ECFF)).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (warn) Color(0xFFB5560F) else Color(0xFF4232C9)) }
-                    topic.lastSeenAt?.let { chip("visto ${since(it, now)}", false) }
-                    topic.lastPracticeAt?.let { chip("treinou ${since(it, now)}", false) }
-                    if (topic.marks.isNotEmpty()) chip("${topic.marks.size} ${if (topic.marks.size == 1) "grifo" else "grifos"}", false)
-                    if (topic.notes.isNotEmpty()) chip("${topic.notes.size} ${if (topic.notes.size == 1) "nota" else "notas"}", false)
-                    if (topic.wrongQuestions.isNotEmpty()) chip("${topic.wrongQuestions.size} ${if (topic.wrongQuestions.size == 1) "erro" else "erros"} para refazer", true)
-                }
-                val hasQuestions = questions.any { it.question.topicId == topic.id && !it.question.isHidden }
-                val firm = StudyNotebook.firmness(topic, now)
-                val (stateBg, stateInk) = when (firm) {
-                    StudyNotebook.Firmness.FIRM -> Color(0xFFE3F8EE) to Color(0xFF0E5C3F)
-                    StudyNotebook.Firmness.MID -> Color(0xFFFFF5D6) to Color(0xFF6E4700)
-                    StudyNotebook.Firmness.COLD -> Color(0xFFFFE9E6) to Color(0xFF8A2A1F)
-                }
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(stateBg).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    br.com.estudario.ui.brand.BrandIcon(firmGlyph(firm), size = 48.dp)
-                    Column(Modifier.weight(1f)) {
-                        Text("${StudyNotebook.firmnessLabel(firm)} · ${StudyNotebook.firmnessReason(topic, now)}", fontWeight = FontWeight.Black, color = stateInk, fontSize = 15.sp)
-                        Text(StudyNotebook.nextStep(topic, now, hasQuestions) ?: "Página em dia. No ? você vê como ela se mantém firme.", color = stateInk, fontSize = 13.sp)
-                    }
-                }
-                if (thin) Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF5D6)).clickable { onTheory(topic.id) }.padding(10.dp), color = Color(0xFF6E4700), fontSize = 13.sp)
-                if (lines.isNotEmpty()) {
-                    Section(if (map.blocks.size > 1) "MAPA DO TÓPICO · ${map.blocks.size} PARTES" else "O ESSENCIAL")
-                    map.blocks.forEachIndexed { i, block ->
-                        block.title?.let { blockTitle -> Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Os botões vêm no alto (antes ficavam só no fim da página, depois de tudo).
+            PageActions(topic.id, page.hasQuestions, onTheory, onTrain)
+            val thin = page.lines.size < 3 && map.examCount < 3 && topic.tips.size < 3 && topic.recall.size < 4
+            if (thin) Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF5D6)).clickable { onTheory(topic.id) }.padding(10.dp), color = Color(0xFF6E4700), fontSize = 13.sp)
+        }
+    }
+    if (map.blocks.isNotEmpty()) {
+        item(key = "map-title") { Section(if (map.blocks.size > 1) "MAPA DO TÓPICO · ${map.blocks.size} PARTES" else "O ESSENCIAL") }
+        map.blocks.forEachIndexed { i, block ->
+            item(key = "block-$i") {
+                PaperPart {
+                    block.title?.let { blockTitle ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(Color(0xFF1B1464)), contentAlignment = Alignment.Center) { Text("${i + 1}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black) }
                             Text(inkInline(blockTitle), fontWeight = FontWeight.Black, color = Ink, fontSize = 15.sp)
-                        } }
-                        PointList(block.lines, quotes, first = if (map.blocks.size > 1) 4 else 8)
-                    }
-                }
-                if (map.formulas.isNotEmpty()) {
-                    Section("FÓRMULAS")
-                    map.formulas.forEach { f ->
-                        Text(f, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardBg).border(1.5.dp, LineC, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
-                            color = Ink, fontSize = 16.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
-                    }
-                }
-                if (map.exam.isNotEmpty()) {
-                    Section("COMO CAI NA PROVA")
-                    map.exam.forEach { block ->
-                        block.title?.takeIf { map.exam.size > 1 }?.let { Text(inkInline(it), Modifier.padding(top = 6.dp), fontWeight = FontWeight.Black, color = Color(0xFF6B5BE0), fontSize = 13.5.sp) }
-                        PointList(block.lines, quotes, first = 3, exam = true)
-                    }
-                }
-                if (map.tables.isNotEmpty()) {
-                    Section(if (map.tables.size == 1) "QUADRO PARA REVISAR" else "QUADROS PARA REVISAR")
-                    map.tables.forEach { table ->
-                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CardBg).border(1.5.dp, LineC, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            table.title?.let { tt -> Text(inkInline(tt), fontWeight = FontWeight.Black, color = Ink, fontSize = 14.sp) }
-                            br.com.estudario.ui.components.MarkdownText(table.markdown)
                         }
                     }
-                }
-                if (topic.marks.isNotEmpty()) {
-                    Section("SEUS GRIFOS")
-                    topic.marks.take(8).forEach { m -> MarkQuote(m) }
-                }
-                topic.notes.take(3).forEach { PostIt(it) }
-                if (map.tips.isNotEmpty()) {
-                    Section("DICAS DE PROVA")
-                    PointList(map.tips, tips = true)
-                }
-                if (map.traps.isNotEmpty()) {
-                    Section("ONDE A BANCA PEGA")
-                    map.traps.forEach { trap -> StampText("PEGADINHA"); Text(inkInline(trap), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
-                }
-                if (map.cards.isNotEmpty()) {
-                    Section("PARA LEMBRAR · TOQUE PARA VIRAR")
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) { map.cards.forEach { (q, a) -> MiniCard(q, a) } }
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { onTheory(topic.id) }, Modifier.weight(1f)) { Icon(Icons.Outlined.MenuBook, null); Spacer(Modifier.width(6.dp)); Text("Ler a teoria") }
-                    if (questions.any { it.question.topicId == topic.id && !it.question.isHidden }) Button(onClick = { onTrain(topic.id) }, Modifier.weight(1f)) { Icon(Icons.Outlined.Quiz, null); Spacer(Modifier.width(6.dp)); Text("Treinar 5") }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tem erro nesta página?", Modifier.weight(1f), fontSize = 13.sp, color = Muted)
-                    br.com.estudario.ui.components.ReportErrorButton(br.com.estudario.data.remote.ReportKind.SUMMARY, { lines.take(3).joinToString(" ") }, topic.title)
+                    PointList(block.lines, quotes, first = if (map.blocks.size > 1) 4 else 8)
                 }
             }
         }
+    }
+    if (map.formulas.isNotEmpty()) item(key = "formulas") {
+        PaperPart {
+            Section("FÓRMULAS")
+            map.formulas.forEach { f ->
+                Text(f, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardBg).border(1.5.dp, LineC, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+                    color = Ink, fontSize = 16.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+            }
+        }
+    }
+    map.exam.forEachIndexed { i, block ->
+        item(key = "exam-$i") {
+            PaperPart {
+                if (i == 0) Section("COMO CAI NA PROVA")
+                block.title?.takeIf { map.exam.size > 1 }?.let { Text(inkInline(it), fontWeight = FontWeight.Black, color = Color(0xFF6B5BE0), fontSize = 13.5.sp) }
+                PointList(block.lines, quotes, first = 3, exam = true)
+            }
+        }
+    }
+    map.tables.forEachIndexed { i, table ->
+        item(key = "table-$i") {
+            PaperPart {
+                if (i == 0) Section(if (map.tables.size == 1) "QUADRO PARA REVISAR" else "QUADROS PARA REVISAR")
+                table.title?.let { tt -> Text(inkInline(tt), fontWeight = FontWeight.Black, color = Ink, fontSize = 14.sp) }
+                br.com.estudario.ui.components.MarkdownText(table.markdown)
+            }
+        }
+    }
+    if (topic.marks.isNotEmpty()) item(key = "marks") {
+        PaperPart {
+            Section("SEUS GRIFOS")
+            topic.marks.take(8).forEach { m -> MarkQuote(m) }
+        }
+    }
+    if (topic.notes.isNotEmpty()) item(key = "notes") { PaperPart { topic.notes.take(3).forEach { PostIt(it) } } }
+    if (map.tips.isNotEmpty()) item(key = "tips") {
+        PaperPart {
+            Section("DICAS DE PROVA")
+            PointList(map.tips, tips = true)
+        }
+    }
+    if (map.traps.isNotEmpty()) item(key = "traps") {
+        PaperPart {
+            Section("ONDE A BANCA PEGA")
+            map.traps.forEach { trap -> StampText("PEGADINHA"); Text(inkInline(trap), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
+        }
+    }
+    if (map.cards.isNotEmpty()) item(key = "cards") {
+        PaperPart {
+            Section("PARA LEMBRAR · TOQUE PARA VIRAR")
+            // Os cartões lado a lado numa lista própria (deslizam sozinhos, sem disputar o gesto com a página).
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(end = 12.dp)) {
+                items(map.cards.size, key = { it }) { i -> MiniCard(map.cards[i].first, map.cards[i].second) }
+            }
+        }
+    }
+    item(key = "end") {
+        PaperPart {
+            PageActions(topic.id, page.hasQuestions, onTheory, onTrain)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Tem erro nesta página?", Modifier.weight(1f), fontSize = 13.sp, color = Muted)
+                br.com.estudario.ui.components.ReportErrorButton(br.com.estudario.data.remote.ReportKind.SUMMARY, { page.lines.take(3).joinToString(" ") }, topic.title)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageActions(topicId: Long, hasQuestions: Boolean, onTheory: (Long) -> Unit, onTrain: (Long) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { onTheory(topicId) }, Modifier.weight(1f)) { Icon(Icons.Outlined.MenuBook, null); Spacer(Modifier.width(6.dp)); Text("Ler a teoria") }
+        if (hasQuestions) Button(onClick = { onTrain(topicId) }, Modifier.weight(1f)) { Icon(Icons.Outlined.Quiz, null); Spacer(Modifier.width(6.dp)); Text("Treinar 5") }
     }
 }
 
@@ -795,10 +907,22 @@ fun NotebookTabs(saved: Boolean, onNotebook: () -> Unit, onSaved: () -> Unit, vi
 /** Enquanto as páginas do caderno são montadas (em segundo plano). */
 @Composable
 private fun NotebookLoading() {
-    Box(Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            androidx.compose.material3.CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
-            Text("Abrindo seu caderno…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // A espera com a cara do Estudário: o Folha folheando numa página de caderno, e não uma rodinha genérica.
+    val lines = listOf("Abrindo seu caderno…", "Folheando suas páginas…", "Separando o que esfriou…")
+    var step by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1400); step = (step + 1) % lines.size } }
+    Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 40.dp, bottom = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            br.com.estudario.ui.assistant.Folha(96.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
+            Text(lines[step], fontWeight = FontWeight.Black, color = Ink, fontSize = 18.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(br.com.estudario.ui.brand.Glyph.Check, br.com.estudario.ui.brand.Glyph.Thermo, br.com.estudario.ui.brand.Glyph.Ice).forEachIndexed { i, g ->
+                    br.com.estudario.ui.brand.BrandIcon(g, size = if (i == step) 40.dp else 30.dp, muted = i != step)
+                }
+            }
         }
     }
 }
