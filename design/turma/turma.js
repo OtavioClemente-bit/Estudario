@@ -556,6 +556,118 @@ export const TURMA = {
     face: [66, 52, 0.55, "oops"],
   }) },
   // ---------------------------------------------------------------- matérias e áreas de concurso
+  // ---------------------------------------------------------------- ações do dia a dia (11/11)
+  Joystick: { anim: "zap", about: "Cartão do jogador: controle de videogame animado", draw: () => ({
+    body: [
+      solid("M20 40a18 18 0 0 1 17-14h26a18 18 0 0 1 17 14l8 30a10 10 0 0 1-17 9l-9-11H38l-9 11a10 10 0 0 1-17-9z", "violet"),
+      paint("M27 41h6v5h5v6h-5v5h-6v-5h-5v-6h5z", WHITE),
+      flat(ell(70, 42, 4), "coral", { w: 3 }),
+      flat(ell(78, 51, 4), "amber", { w: 3 }),
+      shine("M30 32h14"),
+    ],
+    face: [52, 54, 0.62, "grin"],
+    fx: [fxFill(star(14, 18, 6, 2.4), "#FFD84A"), fxFill(star(88, 14, 5, 2), "#FFFFFF")],
+  }) },
+  Door: { anim: "peek", about: "Sair da conta: porta acenando até logo", draw: () => ({
+    body: [
+      solid("M22 8h38a6 6 0 0 1 6 6v78H16V14a6 6 0 0 1 6-6z", "wood"),
+      flat(rr(24, 16, 34, 24, 4), "paper", { w: 3.5, noHalo: true }),
+      paint(ell(57, 58, 3.6), INK),
+      ...inkLine("M66 60h26M82 50l10 10-10 10", "green", 6),
+    ],
+    face: [41, 28, 0.62, "wink"],
+  }) },
+  Trash: { anim: "wiggle", about: "Excluir: lixeira com cuidado", draw: () => ({
+    body: [
+      line("M40 18v-6h20v6", "ink", 5),
+      solid("M20 32h60l-6 54a6 6 0 0 1-6 5H32a6 6 0 0 1-6-5z", "sky"),
+      line("M38 44v8M62 44v8M50 44v8", WHITE, 4, { noHalo: true, o: 0.6 }),
+      solid(rr(12, 20, 76, 13, 6), "sky", { lipY: 3 }),
+    ],
+    face: [50, 66, 0.85, "worried"],
+  }) },
+  Plus: { anim: "cheer", about: "Novo: bolinha que chega com um mais", draw: () => ({
+    body: [
+      solid(ell(46, 56, 36), "green"),
+      shine("M22 42a28 28 0 0 1 14-16"),
+      solid(ell(80, 22, 15), "amber", { lipY: 3 }),
+      line("M80 14v16M72 22h16", WHITE, 5, { noHalo: true }),
+    ],
+    face: [46, 58, 0.9, "happy"],
+    fx: [fxFill(star(92, 46, 5, 2), "#FFD84A")],
+  }) },
+  Forward: { anim: "zap", about: "Adiantar: setas correndo para a frente", draw: () => ({
+    body: [
+      solid("M10 26a6 6 0 0 1 9.4-5l30 22a8 8 0 0 1 0 13l-30 22A6 6 0 0 1 10 83z", "sky"),
+      solid("M42 22a6 6 0 0 1 9.4-5l36 27a8 8 0 0 1 0 13l-36 27A6 6 0 0 1 42 79z", "indigo"),
+    ],
+    face: [60, 50, 0.62, "fierce", { smile: true }],
+    fx: [fxLine("M2 40h8M0 54h10M2 68h8", "#FFFFFF", 3)],
+  }) },
+  Eye: { anim: "pulse", about: "Ver: carinha de óculos olhando de perto", draw: () => ({
+    body: [
+      solid(ell(50, 54, 38), "paper"),
+      line(`${ell(39, 50, 11)}${ell(61, 50, 11)}M50 50h0M28 48 14 42M72 48 86 42`, "ink", 4.5),
+      paint(ell(39, 50, 9.5), "#D9F2FF", { o: 0.8 }),
+      paint(ell(61, 50, 9.5), "#D9F2FF", { o: 0.8 }),
+    ],
+    face: [50, 50, 1, "curious"],
+  }) },
+  Camera: { anim: "pulse", about: "Foto: câmera sorridente", draw: () => ({
+    body: [
+      solid("M32 32l6-12h24l6 12z", "indigo", { lipY: 3 }),
+      solid(rr(8, 30, 84, 56, 14), "indigo"),
+      solid(ell(50, 58, 20), "paper", { lipY: 3 }),
+      flat(ell(77, 42, 4.5), "amber", { w: 3 }),
+      shine("M16 44v14"),
+    ],
+    face: [50, 58, 0.62, "happy"],
+    fx: [fxFill(star(86, 12, 7, 2.6, 4), "#FFFFFF")],
+  }) },
+  Pin: { anim: "hop", about: "Fixar: tachinha firme no lugar", draw: () => ({
+    body: [
+      line("M50 64v28", "steel", 6),
+      solid(rr(36, 50, 28, 12, 5), "coral", { lipY: 3 }),
+      solid(ell(50, 32, 24), "coral"),
+      shine("M38 22a16 16 0 0 1 10-6"),
+    ],
+    face: [50, 34, 0.72, "smile"],
+  }) },
+  Eraser: { anim: "wiggle", about: "Apagar: borracha esfregando", draw: () => ({
+    body: [
+      solid("M10 64 44 30a6 6 0 0 1 8.5 0l26 26a6 6 0 0 1 0 8.5L58 85H36L10 72.5a6 6 0 0 1 0-8.5z", "pink"),
+      flat("M10 64 30 44l26 26-18 15H36L10 72.5a6 6 0 0 1 0-8.5z", "sky", { noHalo: true }),
+      line("M60 92h30", "ink", 4),
+    ],
+    face: [56, 48, 0.62, "grin"],
+    fx: [fxFill(ell(20, 90, 3), "#FF7BB0"), fxFill(ell(30, 94, 2.4), "#FF7BB0")],
+  }) },
+  Highlighter: { anim: "write", about: "Grifar: marca-texto passando no texto", draw: () => ({
+    body: [
+      line("M6 92h46", "sun", 9, { o: 0.7 }),
+      solid("M26 70 62 20a8 8 0 0 1 11-1.5l9 7a8 8 0 0 1 1.5 11L48 86z", "sun"),
+      solid("M26 70 48 86l-14 8-14-10z", "amber", { lipY: 3 }),
+      shine("M64 28 44 56"),
+    ],
+    face: [60, 46, 0.6, "happy"],
+  }) },
+  Go: { anim: "zap", about: "Começar: seta de play animada", draw: () => ({
+    body: [
+      solid("M24 18a8 8 0 0 1 12.4-6.6l50 36a8 8 0 0 1 0 13L36.4 96.6A8 8 0 0 1 24 90z", "green"),
+      shine("M32 22v20"),
+    ],
+    face: [46, 54, 0.82, "grin"],
+    fx: [fxLine("M2 40h10M0 54h12M2 68h10", "#FFFFFF", 3)],
+  }) },
+  Plane: { anim: "float", about: "Enviar: aviãozinho de papel", draw: () => ({
+    body: [
+      solid("M6 50 92 12 66 90 48 64z", "paper"),
+      flat("M48 64 92 12 56 78z", "steel", { w: 4 }),
+      line("M48 64 92 12", "#B7AFCC", 3, { noHalo: true }),
+    ],
+    face: [46, 48, 0.6, "happy"],
+    fx: [fxLine("M2 70q10 -6 20 0t20 0", "#FFFFFF", 3)],
+  }) },
   Idioma: { anim: "wiggle", about: "Idiomas: balões conversando", draw: () => ({
     body: [
       solid(rr(40, 6, 54, 40, 14) + "M80 44l8 12-18-10z", "coral"),

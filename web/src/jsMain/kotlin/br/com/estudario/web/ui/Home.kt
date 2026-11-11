@@ -648,7 +648,7 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
                     // Tarefa de um dia que ainda vem: "Adiantar" (no Grátis, adiantar segue a regra dele, mostrada ao tocar).
                     if (task.status == "PLANEJADA" && task.day > todayEpoch) Btn("Adiantar", { advanceTask(task) }, small = true, style = "primary", icon = "fast_forward")
                     else Btn(if (task.status == "EM_ANDAMENTO") "Continuar" else if (overdue) "Fazer agora" else "Começar", { openTask(task) }, small = true, style = "primary")
-                    Btn("Concluir", { latest.value() }, small = true, style = "tonal", icon = "check")
+                    Btn("Concluir", { latest.value() }, small = true, style = "tonal", icon = "task_alt")
                     if (!task.locked && !Store.demo) Btn("Reprogramar", { Reprogram.task = task }, small = true, style = if (overdue) "outline" else "ghost", icon = "event_repeat")
                 }
             }

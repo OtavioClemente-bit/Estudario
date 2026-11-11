@@ -118,6 +118,19 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "Checkroom" -> Glyph.Hanger
     "PanTool", "BackHand", "FrontHand" -> Glyph.Hand
     "WavingHand" -> Glyph.Wave
+    "SportsEsports", "VideogameAsset" -> Glyph.Joystick
+    "Logout", "ExitToApp" -> Glyph.Door
+    "Delete", "DeleteOutline", "DeleteForever" -> Glyph.Trash
+    "AddCircle", "AddCircleOutline", "AddBox", "LibraryAdd" -> Glyph.Plus
+    "FastForward", "SkipNext", "DoubleArrow" -> Glyph.Forward
+    "Visibility", "Preview" -> Glyph.Eye
+    "PhotoCamera", "AddAPhoto", "CameraAlt" -> Glyph.Camera
+    "PushPin" -> Glyph.Pin
+    "InkEraser" -> Glyph.Eraser
+    "BorderColorOutlined", "Highlight" -> Glyph.Highlighter
+    "PlayArrow" -> Glyph.Go
+    "Send" -> Glyph.Plane
+    "RestartAlt", "Undo" -> Glyph.Cycle
     "Celebration", "Cake" -> Glyph.Party
     "Block" -> Glyph.Lock
     "Casino" -> Glyph.Dice

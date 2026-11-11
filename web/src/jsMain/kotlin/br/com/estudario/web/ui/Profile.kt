@@ -761,7 +761,7 @@ fun PlanLimitsScreen() {
     // ---------- seu mês
     Div({ classes("pl-section-head") }) {
         org.jetbrains.compose.web.dom.H2 { Text("Seu mês") }
-        current.usage.firstNotNullOfOrNull { shortIso(it.resetAt) }?.let { Span({ classes("pl-muted") }) { Text("renova em $it") } }
+        current.usage.firstNotNullOfOrNull { shortIso(it.resetAt) }?.let { Span({ classes("pl-muted", "pl-renew") }) { Icon("event_repeat"); Text("renova em $it") } }
     }
     Div({ classes("pl-usage") }) {
         val free = current.free

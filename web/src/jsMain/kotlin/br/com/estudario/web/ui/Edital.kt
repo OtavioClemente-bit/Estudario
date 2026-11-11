@@ -58,7 +58,7 @@ fun EditalScreen() {
     val compPriority = competitionPriority(data, competitionId)
 
     PageHead("Meus concursos", "Cada tópico vira material de estudo") {
-        Btn("Novo concurso", { Store.startEmpty(); Router.go(Route.Setup) }, style = "tonal", small = true, icon = "add")
+        Btn("Novo concurso", { Store.startEmpty(); Router.go(Route.Setup) }, style = "tonal", small = true, icon = "add_circle")
         if (competition != null && !Store.demo) Btn("Excluir", { deletingCompetition = true }, style = "ghost", small = true, icon = "delete")
     }
     if (deletingCompetition && competition != null) ConfirmDeleteModal(
