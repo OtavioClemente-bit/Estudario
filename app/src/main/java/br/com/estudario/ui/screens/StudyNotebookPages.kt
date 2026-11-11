@@ -635,12 +635,9 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
     // Cada parte da página é um item próprio da lista: a tela só desenha o que está visível e os botões
     // respondem na hora. (Antes a página inteira era um item só, montado junto com o caderno todo.)
     LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // A barra do app já tem a seta de voltar e o título "Caderno de estudo": aqui fica só o "?".
         item(key = "top") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") }
-                Text("Caderno", Modifier.weight(1f), fontWeight = FontWeight.Black)
-                NotebookHelpButton()
-            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { NotebookHelpButton() }
         }
         when {
             page == null -> item(key = "loading") { NotebookLoading() }
