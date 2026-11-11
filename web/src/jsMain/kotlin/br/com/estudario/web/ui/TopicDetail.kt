@@ -941,7 +941,8 @@ private fun TheoryReader(theory: Theory) {
             if (mark.note.isNotBlank()) Span({ classes("grifo-note") }) { Text(mark.note.take(80)) }
         }
     }
-    picked?.let { p ->
+    // Com a folha de anotação aberta, a barra de grifo some (antes ficava por cima e tapava a folha).
+    picked?.takeIf { noteFor == null }?.let { p ->
         Div({
             classes("grifo-bar")
             attr("style", "left:${p.x}px;top:${(p.y - 54).coerceAtLeast(8.0)}px")
@@ -954,7 +955,7 @@ private fun TheoryReader(theory: Theory) {
                     Span({ classes("tone-dot"); attr("style", "background:${tone.hex}") }); Text(tone.label)
                 }
             }
-            Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null } }) { Icon("edit_note"); Text("Grifar com nota") }
+            Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null; window.asDynamic().getSelection()?.removeAllRanges() } }) { Icon("edit_note"); Text("Grifar com nota") }
             Button({ classes("grifo-btn"); attr("title", "Abre o trecho numa janelinha por cima da página"); onClick {
                 val md = pinMarkdown(p, blocks)
                 if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser")
@@ -970,7 +971,7 @@ private fun TheoryReader(theory: Theory) {
             blockText = ctx.block?.let { blocks.getOrNull(it) },
             markHasNote = mark?.note?.isNotBlank() == true,
             onColor = { color -> if (pick != null) saveMark(pick, "", color) },
-            onNote = { if (pick != null) noteFor = pick },
+            onNote = { if (pick != null) { noteFor = pick; picked = null; window.asDynamic().getSelection()?.removeAllRanges() } },
             onPinSelection = {
                 // Trecho dentro de uma tabela fixa a tabela inteira (o texto solto perderia as colunas).
                 val md = pick?.let { pinMarkdown(it, blocks) }.orEmpty()

@@ -75,11 +75,18 @@ fun NotePaperEditor(
         }
         val place = fixedPlace ?: topics?.firstOrNull { it.first == topicId }?.second ?: "Geral (sem tópico)"
         Div({ classes("note-place-row") }) {
+            val canPick = topics != null && fixedPlace == null
             Button({
-                classes("note-place")
-                if (topics == null || fixedPlace != null) attr("disabled", "")
-                onClick { picking = !picking }
-            }) { Icon("sell"); Span({ classes("clamp-1") }) { Text(place) }; if (topics != null && fixedPlace == null) Span({ classes("xs") }) { Text("trocar") } }
+                classes(*listOfNotNull("note-place", "cb-sticker", if (!canPick) "fixed" else null).toTypedArray())
+                attr("type", "button")
+                attr("title", if (canPick) "Trocar o tópico desta anotação" else "Tópico desta anotação")
+                onClick { e ->
+                    // a etiqueta da turma pula a cada toque, como os outros desenhos
+                    val el = e.currentTarget.asDynamic()
+                    el.classList.remove("go"); el.getBoundingClientRect(); el.classList.add("go")
+                    if (canPick) picking = !picking
+                }
+            }) { Icon("bookmark"); Span({ classes("clamp-1") }) { Text(place) }; if (canPick) Span({ classes("xs") }) { Text(if (picking) "fechar" else "trocar") } }
         }
         if (picking && topics != null) Div({ classes("note-picker") }) {
             Input(org.jetbrains.compose.web.attributes.InputType.Search) { classes("input"); attr("placeholder", "Buscar tópico"); value(search); onInput { search = it.value } }
