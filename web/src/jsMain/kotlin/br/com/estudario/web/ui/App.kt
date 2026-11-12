@@ -244,14 +244,9 @@ private fun Shell(content: @Composable () -> Unit) {
                 SaveIndicator()
                 // O anel em volta da foto diz como está a sincronização (além do aviso do Folha): vermelho
                 // pulsando cada vez mais forte enquanto sincroniza, verde em dia, âmbar sem conexão.
-                val ring = when {
-                    Store.demo || Store.session == null -> null
-                    Store.save == SaveState.Offline -> "sync-off"
-                    Store.syncing || Store.save == SaveState.Saving || Store.save == SaveState.Pending -> "sync-on"
-                    else -> "sync-ok"
-                }
+                val ring = syncRingClass()
                 A(href = "#/perfil", {
-                    classes(*listOfNotNull("avatar", ring?.let { "sync-ring" }, ring).toTypedArray())
+                    classes(*listOfNotNull("avatar", "top-avatar", ring?.let { "sync-ring" }, ring).toTypedArray())
                     attr("aria-label", when (ring) { "sync-on" -> "Perfil (sincronizando)"; "sync-ok" -> "Perfil (tudo sincronizado)"; "sync-off" -> "Perfil (sem conexão)"; else -> "Perfil" })
                 }) {
                     val session = Store.session
@@ -292,7 +287,7 @@ private fun SidebarContent(section: Route) {
         onMouseLeave { cheer = false }
         onClick { drawerOpen = false; clicks++ }
     }) {
-        Span({ classes("brand-folha") }) { Folha(if (cheer) "happy" else "idle", 46, live = true) }
+        // Sem o Folha aqui: ele já aparece na tela (na missão do dia) e ficava repetido.
         Div { Wordmark(); Span({ classes("brand-tag") }) { Text("do edital à aprovação") } }
     }
     // Cabeçalho do menu: o perfil, com nível e XP (como no app).
@@ -300,7 +295,7 @@ private fun SidebarContent(section: Route) {
     // na foto, título da patente e a barra de XP até o próximo nível.
     val rank = br.com.estudario.domain.LevelCrest.rank(progress.level)
     A(href = "#/perfil", {
-        classes("drawer-profile", "player-card")
+        classes(*listOfNotNull("drawer-profile", "player-card", syncRingClass()).toTypedArray())
         attr("style", "--pc-light:${rank.light};--pc-mid:${rank.mid};--pc-dark:${rank.dark}")
         attr("aria-label", "Perfil: nível ${progress.level}, ${rank.title}, ${progress.totalXp} XP")
         onClick { drawerOpen = false }
@@ -472,4 +467,16 @@ private fun WelcomeScreen() {
             Btn("Já liguei, atualizar", { Store.start() }, style = "outline", icon = "refresh")
         }
     }
+}
+
+/**
+ * Como está a sincronização com a conta, para o anel do perfil: vermelho pulsando enquanto sincroniza,
+ * verde em dia, âmbar sem conexão (no computador o anel fica em volta do cartão do menu; no celular,
+ * em volta da foto no alto).
+ */
+internal fun syncRingClass(): String? = when {
+    Store.demo || Store.session == null -> null
+    Store.save == SaveState.Offline -> "sync-off"
+    Store.syncing || Store.save == SaveState.Saving || Store.save == SaveState.Pending -> "sync-on"
+    else -> "sync-ok"
 }
