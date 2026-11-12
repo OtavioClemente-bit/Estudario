@@ -279,7 +279,8 @@ fun TopicScreen(topicId: Long) {
                 if (inPlanToday) Span({ classes("tchip", "tertiary") }) { Icon("event"); Text("No plano de hoje") }
             }
         }
-        Div({ classes("row"); attr("style", "position:relative;gap:8px;align-items:center") }) {
+        Div({ classes("row"); id("topic-actions-$topicId"); attr("style", "position:relative;gap:8px;align-items:center") }) {
+            if (menuOpen) CloseOnOutside("topic-actions-$topicId") { menuOpen = false }
             Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como usar esta página"); attr("title", "Como usar esta página: grifar, anotar, fixar e mais"); onClick { helpOpen = true } }) { Icon("help") }
             IconButton("more_vert", "Mais ações") { menuOpen = !menuOpen }
             if (menuOpen) Div({ classes("menu-pop") }) {
@@ -814,7 +815,8 @@ private fun TheoryReader(theory: Theory) {
             org.jetbrains.compose.web.dom.Button({ classes("reader-aa", "reader-help"); attr("aria-label", "Como usar a leitura"); attr("title", "Como usar a leitura: grifar, anotar, fixar"); onClick { helpOpen = true } }) { Icon("help") }
             if (helpOpen) TopicHelp { helpOpen = false }
             // Ajustes de leitura: tamanho da letra e fonte (ficam neste navegador).
-            Div({ attr("style", "position:relative") }) {
+            Div({ id("reader-aa-${theory.id}"); attr("style", "position:relative") }) {
+                if (readerOpen) CloseOnOutside("reader-aa-${theory.id}") { readerOpen = false }
                 org.jetbrains.compose.web.dom.Button({ classes("reader-aa"); attr("aria-label", "Ajustar a leitura"); onClick { readerOpen = !readerOpen } }) { Text("Aa") }
                 if (readerOpen) ReaderSettingsPop { readerOpen = false }
             }

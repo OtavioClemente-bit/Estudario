@@ -296,3 +296,26 @@ fun BrandCounter(
         GxCounter(value, onChange, min = min, max = max, step = step, unit = unit, chips = chips, mood = mood, label = label, range = max - min in 1..400)
     }
 }
+
+/**
+ * Fecha um menu ou janelinha quando a pessoa clica (ou toca) fora dele, ou aperta Esc. [id] é o do
+ * elemento que contém o botão e o menu: clicar no próprio botão continua alternando.
+ */
+@Composable
+fun CloseOnOutside(id: String, onClose: () -> Unit) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(onClose)
+    androidx.compose.runtime.DisposableEffect(id) {
+        val down: (org.w3c.dom.events.Event) -> Unit = { e ->
+            val box = kotlinx.browser.document.getElementById(id)
+            val target = e.target as? org.w3c.dom.Node
+            if (box != null && target != null && !box.contains(target)) latest.value()
+        }
+        val key: (org.w3c.dom.events.Event) -> Unit = { e -> if ((e as org.w3c.dom.events.KeyboardEvent).key == "Escape") latest.value() }
+        kotlinx.browser.document.addEventListener("pointerdown", down)
+        kotlinx.browser.document.addEventListener("keydown", key)
+        onDispose {
+            kotlinx.browser.document.removeEventListener("pointerdown", down)
+            kotlinx.browser.document.removeEventListener("keydown", key)
+        }
+    }
+}
