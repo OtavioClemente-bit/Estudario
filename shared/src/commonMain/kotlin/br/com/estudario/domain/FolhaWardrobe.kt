@@ -83,37 +83,89 @@ object FolhaWardrobe {
 
     /**
      * A área do edital principal da conta (o app e o site atualizam ao ler os concursos). As peças dela
-     * saem pelo número de dias de [FolhaItem.days]; as das outras áreas, [OTHER_AREA_FACTOR] vezes mais.
+     * seguem a escada normal de objetivos ([GOALS]); as das outras áreas pedem [OTHER_AREA_FACTOR] vezes
+     * mais. Trocou o edital principal, troca a área que fica mais fácil.
      */
     var homeArea: FolhaArea? = null
 
     /**
-     * Peças que a conta já ganhou ("hat:capacete"), guardadas na conta (lista "wardrobeOwned" da foto
-     * sincronizada). Trocar ou apagar o edital muda a área, mas o que já saiu continua: só aparência.
+     * Peças que a conta já ganhou por objetivo ("hat:capacete"), guardadas na conta (lista "wardrobeEarned"
+     * da foto sincronizada): trocar ou apagar o edital não tira o que já foi conquistado.
      */
     var owned: Set<String> = emptySet()
 
-    /** Quantas vezes mais dias uma peça de outra área pede (a da área do edital principal sai antes). */
-    const val OTHER_AREA_FACTOR = 4
+    /** Quantas vezes mais uma peça de outra área pede (a da área do edital principal sai antes). */
+    const val OTHER_AREA_FACTOR = 5
+
+    /** O que um objetivo conta. */
+    enum class GoalKind(val unit: String, val phrase: String) {
+        DIAS("dias", "dias estudados"),
+        QUESTOES("questões", "questões respondidas"),
+        TOPICOS("tópicos", "tópicos estudados"),
+    }
+
+    /** Um objetivo do armário: [target] de [kind]. */
+    data class Goal(val kind: GoalKind, val target: Int)
+
+    /**
+     * A escada de objetivos, a mesma para todas as áreas (e para as peças de todo mundo): a primeira peça de
+     * cada área sai com o primeiro degrau, a segunda com o segundo... Alterna dias, questões e tópicos e
+     * vai ficando mais difícil, como os emblemas.
+     */
+    val GOALS: List<Goal> = listOf(
+        Goal(GoalKind.DIAS, 3), Goal(GoalKind.QUESTOES, 60), Goal(GoalKind.TOPICOS, 5),
+        Goal(GoalKind.DIAS, 7), Goal(GoalKind.QUESTOES, 150), Goal(GoalKind.TOPICOS, 12),
+        Goal(GoalKind.DIAS, 14), Goal(GoalKind.QUESTOES, 350), Goal(GoalKind.TOPICOS, 25),
+        Goal(GoalKind.DIAS, 25), Goal(GoalKind.QUESTOES, 700), Goal(GoalKind.TOPICOS, 45),
+        Goal(GoalKind.DIAS, 40), Goal(GoalKind.QUESTOES, 1200), Goal(GoalKind.TOPICOS, 70),
+        Goal(GoalKind.DIAS, 60), Goal(GoalKind.QUESTOES, 2000), Goal(GoalKind.TOPICOS, 100),
+        Goal(GoalKind.DIAS, 90), Goal(GoalKind.QUESTOES, 3200), Goal(GoalKind.TOPICOS, 140),
+        Goal(GoalKind.DIAS, 120), Goal(GoalKind.QUESTOES, 4500), Goal(GoalKind.TOPICOS, 180),
+        Goal(GoalKind.DIAS, 160), Goal(GoalKind.QUESTOES, 6000), Goal(GoalKind.TOPICOS, 230),
+        Goal(GoalKind.DIAS, 200), Goal(GoalKind.QUESTOES, 8000), Goal(GoalKind.TOPICOS, 280),
+        Goal(GoalKind.DIAS, 250), Goal(GoalKind.QUESTOES, 10000), Goal(GoalKind.TOPICOS, 340),
+        Goal(GoalKind.DIAS, 300), Goal(GoalKind.QUESTOES, 13000), Goal(GoalKind.TOPICOS, 400),
+        Goal(GoalKind.DIAS, 365),
+    )
+
+    /** O degrau de cada peça na escada: pela ordem de [FolhaItem.days] dentro da área (ou das de todo mundo). */
+    private val stepOf: Map<String, Int> by lazy {
+        items.filter { it.days != null }.groupBy { it.area }.flatMap { (_, list) ->
+            list.sortedWith(compareBy({ it.days }, { it.slot.ordinal })).mapIndexed { i, item -> key(item) to i }
+        }.toMap()
+    }
 
     /** A chave da peça na lista do que a conta já ganhou. */
     fun key(item: FolhaItem): String = "${item.slot.key}:${item.id}"
 
-    /** Dias estudados que a peça pede para esta conta (nulo quando não sai por dias). */
-    fun daysNeeded(item: FolhaItem): Int? {
-        val d = item.days ?: return null
-        return if (item.area == null || item.area == homeArea) d else d * OTHER_AREA_FACTOR
+    /** O objetivo que a peça pede para esta conta (nulo quando ela não sai por objetivo). */
+    fun goalOf(item: FolhaItem): Goal? {
+        val step = stepOf[key(item)] ?: return null
+        val base = GOALS[step.coerceAtMost(GOALS.lastIndex)]
+        return if (item.area == null || item.area == homeArea) base else base.copy(target = base.target * OTHER_AREA_FACTOR)
     }
 
-    private fun byDays(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean =
-        daysNeeded(item)?.let { summary.studyDays >= it } == true
+    private fun current(kind: GoalKind, summary: ProgressEngine.ProgressSummary) = when (kind) {
+        GoalKind.DIAS -> summary.studyDays
+        GoalKind.QUESTOES -> summary.totalQuestions
+        GoalKind.TOPICOS -> summary.topicsStudied
+    }
+
+    private fun byGoal(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean =
+        goalOf(item)?.let { current(it.kind, summary) >= it.target } == true
+
+    /** Ordem de dificuldade para listar as trancadas (as da área do edital e as mais fáceis primeiro). */
+    fun goalOrder(item: FolhaItem): Int = (stepOf[key(item)] ?: 0) * (if (item.area == null || item.area == homeArea) 1 else OTHER_AREA_FACTOR)
+
+    /** O objetivo em uma linha curta ("150 questões"). */
+    fun goalLabel(item: FolhaItem): String? = goalOf(item)?.let { "${it.target} ${it.kind.unit}" }
 
     /**
-     * Peças que saíram por dias estudados e ainda não estão guardadas na conta: o app e o site juntam à
-     * lista "wardrobeOwned" para elas ficarem mesmo se a área mudar depois.
+     * Peças que saíram por objetivo e ainda não estão guardadas na conta: o app e o site juntam à lista
+     * "wardrobeEarned" para elas ficarem mesmo se a área mudar depois.
      */
     fun toKeep(summary: ProgressEngine.ProgressSummary): Set<String> =
-        items.filter { it.days != null && key(it) !in owned && byDays(it, summary) }.mapTo(linkedSetOf()) { key(it) }
+        items.filter { it.days != null && key(it) !in owned && byGoal(it, summary) }.mapTo(linkedSetOf()) { key(it) }
 
     private val C = FolhaRarity.COMUM
     private val R = FolhaRarity.RARA
@@ -534,8 +586,8 @@ object FolhaWardrobe {
         item.plan != null -> planRank(subscriberTier) >= planRank(item.plan)
         key(item) in owned -> true
         item.collection != null -> collection(item.collection)?.let { c -> piecesOf(c).all { unlocked(it, summary) } } ?: false
-        // Peça de carreira: sai pelos dias estudados ou pelo caminho antigo (emblema ou nível), o que vier antes.
-        item.days != null -> byDays(item, summary) ||
+        // Peça por objetivo: sai pelo degrau dela na escada ou pelo caminho antigo (emblema ou nível), o que vier antes.
+        item.days != null -> byGoal(item, summary) ||
             (item.badgeId != null && summary.badges.any { it.badge.id == item.badgeId && it.earned }) ||
             (item.level != null && summary.level >= item.level)
         item.badgeId != null -> summary.badges.any { it.badge.id == item.badgeId && it.earned }
@@ -548,12 +600,12 @@ object FolhaWardrobe {
         item.plan == "PRO" -> "Exclusiva de quem assina o Pro"
         item.plan != null -> "Exclusiva de quem assina o Essencial ou o Pro"
         item.collection != null -> "Complete a coleção ${collection(item.collection)?.name ?: ""}"
-        item.days != null -> daysNeeded(item)!!.let { d ->
-            val days = if (d == 1) "1 dia estudado" else "$d dias estudados"
+        item.days != null -> goalOf(item)!!.let { g ->
+            val text = "${g.target} ${g.kind.phrase}"
             when {
-                item.area == null -> days.replaceFirstChar { it.uppercase() }
-                item.area == homeArea -> "${days.replaceFirstChar { it.uppercase() }} (área do seu edital: ${item.area.label})"
-                else -> "${days.replaceFirstChar { it.uppercase() }} (área ${item.area.label}; com edital dessa área, ${item.days})"
+                item.area == null -> text.replaceFirstChar { it.uppercase() }
+                item.area == homeArea -> "${text.replaceFirstChar { it.uppercase() }} (área do seu edital: ${item.area.label})"
+                else -> "${text.replaceFirstChar { it.uppercase() }} (área ${item.area.label}; com edital dessa área, ${g.target / OTHER_AREA_FACTOR})"
             }
         }
         item.badgeId != null -> BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.let { "Emblema ${it.name}: ${it.requirement.replaceFirstChar { c -> c.lowercaseChar() }}" } ?: "Emblema"
@@ -566,7 +618,7 @@ object FolhaWardrobe {
     fun progress(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Triple<Int, Int, String>? {
         if (item.plan != null) return null
         item.collection?.let { id -> val c = collection(id) ?: return null; val ps = piecesOf(c); return Triple(ps.count { unlocked(it, summary) }, ps.size, "peças") }
-        daysNeeded(item)?.let { return Triple(summary.studyDays.coerceAtMost(it), it, "dias") }
+        goalOf(item)?.let { g -> return Triple(current(g.kind, summary).coerceAtMost(g.target), g.target, g.kind.unit) }
         item.level?.let { return Triple(summary.level.coerceAtMost(it), it, "nível") }
         val p = summary.badges.firstOrNull { it.badge.id == item.badgeId } ?: return null
         return Triple(p.current.coerceAtMost(p.target), p.target, p.badge.unit)

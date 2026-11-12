@@ -156,10 +156,10 @@ object Progress {
         // de sair por dias estudados vão para a lista da conta (fora deste cálculo, para não refazer a foto
         // no meio dele), e ficam mesmo se o edital mudar.
         br.com.estudario.domain.FolhaWardrobe.homeArea = homeArea(data)
-        br.com.estudario.domain.FolhaWardrobe.owned = (Prefs.synced(data)["wardrobeOwned"] as? kotlinx.serialization.json.JsonArray)
+        br.com.estudario.domain.FolhaWardrobe.owned = (Prefs.synced(data)["wardrobeEarned"] as? kotlinx.serialization.json.JsonArray)
             ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }?.toSet().orEmpty()
         val keep = br.com.estudario.domain.FolhaWardrobe.toKeep(progress)
-        if (keep.isNotEmpty() && !Store.demo && Store.session != null) kotlinx.browser.window.setTimeout({ Prefs.addSynced("wardrobeOwned", keep) }, 0)
+        if (keep.isNotEmpty() && !Store.demo && Store.session != null) kotlinx.browser.window.setTimeout({ Prefs.addSynced("wardrobeEarned", keep) }, 0)
         return ProgressView(streak, progress).also { lastData = data; lastGoal = goal; last = it }
     }
 

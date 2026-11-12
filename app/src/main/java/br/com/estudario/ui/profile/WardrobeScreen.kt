@@ -373,8 +373,8 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x22FFB421)).border(2.dp, Color(0x99FFB421), RoundedCornerShape(16.dp)).padding(12.dp)) {
                             Text(if (area != null) "Seu edital é da área ${area.label}" else "Escolha um edital principal", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
                             Text(
-                                if (area != null) "As peças de ${area.label} saem ${FolhaWardrobe.OTHER_AREA_FACTOR}x mais rápido. As das outras áreas também saem, com mais dias de estudo. O que você ganha fica na sua conta, mesmo trocando de edital."
-                                else "Com um edital principal, as peças da área dele saem mais rápido.",
+                                if (area != null) "As peças de ${area.label} têm os objetivos normais. As das outras áreas também saem, com objetivos ${FolhaWardrobe.OTHER_AREA_FACTOR}x maiores. Trocando o edital principal, a área muda; o que você já conquistou continua seu."
+                                else "Com um edital principal, as peças da área dele ficam mais fáceis de conquistar.",
                                 color = GameMute, fontSize = 12.sp, lineHeight = 16.sp,
                             )
                         }
@@ -387,7 +387,7 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                 }
             } else {
                 // Liberadas primeiro; das trancadas, as que saem antes (a área do edital vem na frente).
-                val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, summary) }, { it.collection != null }, { if (FolhaWardrobe.unlocked(it, summary)) 0 else FolhaWardrobe.daysNeeded(it) ?: 0 }))
+                val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, summary) }, { it.collection != null }, { if (FolhaWardrobe.unlocked(it, summary)) 0 else FolhaWardrobe.goalOrder(it) }))
                 LazyVerticalGrid(GridCells.Fixed(3), Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Column {
@@ -474,7 +474,7 @@ private fun ItemCard(
                 open -> Text("Equipar", color = Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp))
                 else -> {
                     Text(
-                        item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: FolhaWardrobe.daysNeeded(item)?.let { "$it dias estudados" } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
+                        item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: FolhaWardrobe.goalLabel(item) ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
                         color = GameMute, fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     if (progress != null) Box(Modifier.fillMaxWidth(0.8f).height(4.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))) {

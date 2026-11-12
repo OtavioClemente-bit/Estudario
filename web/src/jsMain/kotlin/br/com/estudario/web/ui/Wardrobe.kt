@@ -344,7 +344,7 @@ fun WardrobeScreen() {
                         (LEFT_SLOTS + RIGHT_SLOTS).forEach { s -> EquipSlot(s, progress, s == slot) { slot = s; trying = null } }
                     }
                     // Liberadas primeiro; das trancadas, as que saem antes (a área do edital vem na frente).
-                    val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, progress) }, { it.collection != null }, { if (FolhaWardrobe.unlocked(it, progress)) 0 else FolhaWardrobe.daysNeeded(it) ?: 0 }))
+                    val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, progress) }, { it.collection != null }, { if (FolhaWardrobe.unlocked(it, progress)) 0 else FolhaWardrobe.goalOrder(it) }))
                     Div({ classes("wdg-inv-head") }) {
                         Div {
                             B { Text(slot.label) }
@@ -380,8 +380,8 @@ private fun AreaBanner() {
         Icon("workspace_premium")
         Div {
             B { Text(if (area != null) "Seu edital é da área ${area.label}" else "Escolha um edital principal") }
-            P { Text(if (area != null) "As peças de ${area.label} saem ${FolhaWardrobe.OTHER_AREA_FACTOR}x mais rápido. As das outras áreas também saem, com mais dias de estudo. O que você ganha fica na sua conta, mesmo trocando de edital."
-                else "Com um edital principal, as peças da área dele saem mais rápido.") }
+            P { Text(if (area != null) "As peças de ${area.label} têm os objetivos normais. As das outras áreas também saem, com objetivos ${FolhaWardrobe.OTHER_AREA_FACTOR}x maiores. Trocando o edital principal, a área muda; o que você já conquistou continua seu."
+                else "Com um edital principal, as peças da área dele ficam mais fáceis de conquistar.") }
         }
     }
 }
@@ -435,7 +435,7 @@ private fun ItemCard(item: FolhaItem, progress: ProgressEngine.ProgressSummary, 
             open -> Span({ classes("wdg-item-state") }) { Text("Equipar") }
             else -> {
                 Span({ classes("wdg-item-state", "lock") }) {
-                    Text(item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: FolhaWardrobe.daysNeeded(item)?.let { "$it dias estudados" } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema")
+                    Text(item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: FolhaWardrobe.goalLabel(item) ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema")
                 }
                 FolhaWardrobe.progress(item, progress)?.let { (cur, target, _) ->
                     Span({ classes("wdg-mini") }) { Span({ attr("style", "width:${(cur * 100.0 / target.coerceAtLeast(1)).toInt()}%") }) }

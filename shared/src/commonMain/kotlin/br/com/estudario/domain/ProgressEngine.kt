@@ -155,6 +155,9 @@ object ProgressEngine {
         val badges: List<BadgeProgress> = emptyList(),
         /** Dias com algum estudo (questões, revisão, tarefa do plano, foco ou sessão): libera as peças por área do armário. */
         val studyDays: Int = 0,
+        /** Questões respondidas e tópicos estudados (objetivos do armário). */
+        val totalQuestions: Int = 0,
+        val topicsStudied: Int = 0,
     ) {
         val levelProgress: Float get() = if (xpForNextLevel <= 0) 1f else (xpIntoLevel.toFloat() / xpForNextLevel).coerceIn(0f, 1f)
         val earnedBadges: List<BadgeProgress> get() = badges.filter { it.earned }
@@ -231,6 +234,8 @@ object ProgressEngine {
         val studyDays = input.days.count { it.questions > 0 || it.reviews > 0 || it.planTasks > 0 || it.studySessions > 0 || it.minutes > 0 }
         return ProgressSummary(
             studyDays = studyDays,
+            totalQuestions = input.totalQuestions,
+            topicsStudied = input.topicsStudied,
             totalXp = totalXp,
             level = level,
             levelTitle = levelTitle(level),

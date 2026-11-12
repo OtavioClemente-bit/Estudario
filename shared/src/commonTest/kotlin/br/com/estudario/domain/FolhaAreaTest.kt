@@ -22,25 +22,39 @@ class FolhaAreaTest {
         assertEquals(FolhaArea.ADMINISTRATIVO, FolhaArea.of("INSS", "Instituto Nacional do Seguro Social", "Técnico do Seguro Social"))
     }
 
-    @Test fun `peca da area do edital sai antes e as das outras areas tambem saem, mais devagar`() {
-        val jaleco = FolhaWardrobe.find(FolhaSlot.CAPA, "pijama-cirurgico")!!
-        val dias = jaleco.days!!
+    @Test fun `peca da area do edital segue a escada normal e a de outra area pede bem mais`() {
+        val pijama = FolhaWardrobe.find(FolhaSlot.CAPA, "pijama-cirurgico")!!
         FolhaWardrobe.homeArea = FolhaArea.SAUDE
-        assertTrue(FolhaWardrobe.unlocked(jaleco, ProgressEngine.ProgressSummary(studyDays = dias)))
+        val goal = FolhaWardrobe.goalOf(pijama)!!
+        fun with(n: Int) = when (goal.kind) {
+            FolhaWardrobe.GoalKind.DIAS -> ProgressEngine.ProgressSummary(studyDays = n)
+            FolhaWardrobe.GoalKind.QUESTOES -> ProgressEngine.ProgressSummary(totalQuestions = n)
+            FolhaWardrobe.GoalKind.TOPICOS -> ProgressEngine.ProgressSummary(topicsStudied = n)
+        }
+        assertFalse(FolhaWardrobe.unlocked(pijama, with(goal.target - 1)))
+        assertTrue(FolhaWardrobe.unlocked(pijama, with(goal.target)))
         FolhaWardrobe.homeArea = FolhaArea.MILITAR
-        assertFalse(FolhaWardrobe.unlocked(jaleco, ProgressEngine.ProgressSummary(studyDays = dias)))
-        assertTrue(FolhaWardrobe.unlocked(jaleco, ProgressEngine.ProgressSummary(studyDays = dias * FolhaWardrobe.OTHER_AREA_FACTOR)))
+        assertFalse(FolhaWardrobe.unlocked(pijama, with(goal.target)))
+        assertTrue(FolhaWardrobe.unlocked(pijama, with(goal.target * FolhaWardrobe.OTHER_AREA_FACTOR)))
+    }
+
+    @Test fun `quem comeca nao ganha quase nada e as primeiras pecas sao da propria area`() {
+        FolhaWardrobe.homeArea = FolhaArea.TI
+        val iniciante = ProgressEngine.ProgressSummary(studyDays = 4, totalQuestions = 80, topicsStudied = 3)
+        val ganhou = FolhaWardrobe.items.filter { it.days != null && FolhaWardrobe.unlocked(it, iniciante) }
+        assertTrue(ganhou.size <= 6, "iniciante ganhou ${ganhou.size} peças: ${ganhou.map { it.id }}")
+        assertTrue(ganhou.none { it.area != null && it.area != FolhaArea.TI }, "peça de outra área cedo demais: ${ganhou.map { it.id }}")
     }
 
     @Test fun `o que ja saiu fica mesmo trocando de edital`() {
         FolhaWardrobe.homeArea = FolhaArea.SAUDE
-        val summary = ProgressEngine.ProgressSummary(studyDays = 40)
+        val summary = ProgressEngine.ProgressSummary(studyDays = 400, totalQuestions = 20000, topicsStudied = 500)
         val keep = FolhaWardrobe.toKeep(summary)
-        assertTrue("capa:pijama-cirurgico".replace("capa", FolhaSlot.CAPA.key) in keep)
+        assertTrue("${FolhaSlot.CAPA.key}:pijama-cirurgico" in keep)
         FolhaWardrobe.owned = keep
         FolhaWardrobe.homeArea = FolhaArea.TI
         val pijama = FolhaWardrobe.find(FolhaSlot.CAPA, "pijama-cirurgico")!!
-        assertTrue(FolhaWardrobe.unlocked(pijama, ProgressEngine.ProgressSummary(studyDays = 0)))
+        assertTrue(FolhaWardrobe.unlocked(pijama, ProgressEngine.ProgressSummary()))
     }
 
     @Test fun `armario com cerca de 300 pecas, sem repetir lugar e id, e coleções apontando para pecas que existem`() {

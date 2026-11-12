@@ -31,8 +31,8 @@ object FolhaLookStore {
     /** O último plano conhecido da conta (as peças de assinante dependem dele); chamado ao abrir o app. */
     fun loadTier(context: Context) { FolhaWardrobe.subscriberTier = prefs(context).getString(KEY_TIER, "FREE") ?: "FREE" }
 
-    /** Lista das peças já ganhas (a mesma "wardrobeOwned" do site, sincronizada por SyncedPrefs). */
-    const val KEY_OWNED = "owned"
+    /** Lista das peças já ganhas (a mesma "wardrobeEarned" do site, sincronizada por SyncedPrefs). */
+    const val KEY_OWNED = "earned"
 
     /**
      * Armário por área: a área do edital principal e as peças já ganhas. As que acabaram de sair por dias
