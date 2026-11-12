@@ -28,6 +28,12 @@ class StudyPlannerEngine(
         // Antes, concluir a teoria do dia puxava a teoria atrasada para hoje e as questões do dia iam
         // para a semana seguinte, sem ninguém pedir (caso real de 09/11).
         val dayKeeping = reason in dayKeepingReasons
+        // Tópico com a teoria atrasada (de um dia que passou e não foi feita): as questões dele não ficam
+        // presas na semana estável, voltam a ser encaixadas depois da teoria. Questão antes da teoria não.
+        val theoryLate = snapshot.tasks.filter {
+            it.type == PlanTaskType.THEORY && it.topicId != null && it.date < snapshot.today &&
+                it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
+        }.mapTo(hashSetOf()) { it.topicId }
         val fixedTasks = snapshot.tasks.filter { task ->
             task.status == PlanTaskStatus.CONCLUIDA ||
                 (dayKeeping && task.date <= snapshot.today && task.status == PlanTaskStatus.PLANEJADA) ||
@@ -36,7 +42,7 @@ class StudyPlannerEngine(
                 // tempo e as questões encolhiam), e um dia de 2 h virava 1h13 (caso real de 12/11).
                 // Dia marcado como folga solta o que estava nele.
                 (stableUntil != null && task.status == PlanTaskStatus.PLANEJADA && task.date >= snapshot.today && task.date < stableUntil &&
-                    snapshot.dayOverrides[task.date]?.unavailable != true) ||
+                    snapshot.dayOverrides[task.date]?.unavailable != true && task.topicId !in theoryLate) ||
                 task.locked ||
                 snapshot.dayOverrides[task.date]?.locked == true ||
                 task.subjectId == null ||
@@ -58,7 +64,9 @@ class StudyPlannerEngine(
             .filter { it.id !in fixedIds && it.status == PlanTaskStatus.EM_ANDAMENTO && it.date in rawCapacity.keys }
             .groupBy { it.date }
             .mapValues { (_, tasks) -> tasks.sumOf { task -> minOf(task.plannedMinutes, executionsByTask[task.id].orEmpty().sumOf { it.minutes }) } }
-        val reserve = reviewReserve(snapshot, rawCapacity)
+        // Revisão espaçada é extra (aba Revisões, quando a pessoa quiser): não toma tempo da teoria e das
+        // questões do plano. Antes até 35% do dia ficava separado para elas e as atrasadas encolhiam o dia.
+        val reserve = emptyMap<LocalDate, Int>()
         val allocatableByDate = rawCapacity.mapValues { (date, minutes) ->
             if (snapshot.dayOverrides[date]?.locked == true || (keepToday && date == snapshot.today)) 0
             else (minutes - lockedUsage.getOrElse(date) { 0 } - partialUsage.getOrElse(date) { 0 } - reserve.getOrElse(date) { 0 }).coerceAtLeast(0)

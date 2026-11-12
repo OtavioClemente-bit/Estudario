@@ -281,15 +281,15 @@ object StudyPlanBlueprint {
 
         // 1. Revisões espaçadas (D+1, D+7, D+30 e as seguintes) vivem na aba Revisões, com o ritmo que
         // a pessoa dá a cada uma (Difícil volta amanhã). O plano não cria um cartão por revisão, o que
-        // lotaria o dia; ele reserva o tempo delas em cada dia (ver StudyPlannerEngine.reviewReserve)
+        // lotaria o dia; nem tira tempo do dia: revisão é extra
         // e o cartão "revisões para hoje" mostra quantas são.
         val horizonEnd = input.today.plusDays(input.horizonDays.toLong())
         val studiedTopicIds = input.topics.filter { it.studied }.mapTo(hashSetOf()) { it.topicId }
         val dueReviews = input.pendingReviews.filter { it.topicId in studiedTopicIds && it.dueDate.isBefore(horizonEnd) }
         val overdueCount = dueReviews.filter { !it.dueDate.isAfter(input.today) }.distinctBy { it.topicId }.size
         if (dueReviews.isNotEmpty()) {
-            notes += if (overdueCount > 0) "$overdueCount revisão(ões) para hoje na aba Revisões: o tempo delas já está separado no seu dia."
-            else "As revisões espaçadas do período já têm o tempo separado nos dias em que vencem."
+            notes += if (overdueCount > 0) "$overdueCount revisão(ões) para hoje na aba Revisões, como extra: elas não tiram tempo do seu plano."
+            else "As revisões espaçadas ficam na aba Revisões, como extra: elas não tiram tempo do seu plano."
         }
 
 
