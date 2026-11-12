@@ -668,6 +668,21 @@ export const TURMA = {
     face: [46, 48, 0.6, "happy"],
     fx: [fxLine("M2 70q10 -6 20 0t20 0", "#FFFFFF", 3)],
   }) },
+  Armario: { anim: "peek", about: "Armário do Folha: guarda-roupa com peça espiando", draw: () => ({
+    body: [
+      ...inkLine("M38 10q12-8 24 0", "steel", 4),
+      flat("M36 12h28l-14 12z", "pink", { w: 3.5 }),
+      solid(rr(14, 20, 72, 70, 12), "violet"),
+      flat(rr(20, 26, 28, 58, 7), "indigo", { w: 3.5, noHalo: true }),
+      flat(rr(52, 26, 28, 58, 7), "indigo", { w: 3.5, noHalo: true }),
+      paint(ell(44, 64, 2.6), "#FFD84A"),
+      paint(ell(56, 64, 2.6), "#FFD84A"),
+      line("M22 90v6M78 90v6", "ink", 5),
+      shine("M20 32v14"),
+    ],
+    face: [50, 44, 0.8, "happy"],
+    fx: [fxFill(star(90, 14, 6, 2.3), "#FFD84A"), fxFill(star(8, 30, 4.5, 1.8), "#FFFFFF")],
+  }) },
   Idioma: { anim: "wiggle", about: "Idiomas: balões conversando", draw: () => ({
     body: [
       solid(rr(40, 6, 54, 40, 14) + "M80 44l8 12-18-10z", "coral"),

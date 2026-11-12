@@ -565,7 +565,7 @@ internal fun WardrobeBand(summary: ProgressEngine.ProgressSummary, onWardrobe: (
     val owned = FolhaWardrobe.items.count { FolhaWardrobe.unlocked(it, summary) }
     val next = FolhaWardrobe.next(summary)
     Row(Modifier.fillMaxWidth().clickable(onClick = onWardrobe).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) { Folha(56.dp, mood = FolhaMood.WAVE, enter = false) }
+        Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) { br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Armario, size = 58.dp) }
         Column(Modifier.weight(1f)) {
             Text("ARMÁRIO DO FOLHA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("$owned de ${FolhaWardrobe.items.size} peças liberadas", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)

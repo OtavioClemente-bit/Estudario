@@ -144,7 +144,7 @@ fun ViradaScreen() {
     CompetitionTabs()
     Div({ classes("vr-wrap") }) {
         Div({ classes("vr-score", "rise") }) {
-            Button({ classes("vr-help"); attr("type", "button"); attr("aria-label", "O que é a Virada?"); attr("title", "O que é a Virada?"); onClick { help = true } }) { Text("?") }
+            Button({ classes("vr-help"); attr("type", "button"); attr("aria-label", "O que é a Virada?"); attr("title", "O que é a Virada?"); onClick { help = true } }) { Icon("help") }
             Div({ classes("vr-score-row") }) {
                 Folha(if (all.isEmpty()) "happy" else if (won.size * 2 >= all.size) "proud" else "talking", 72)
                 Div {

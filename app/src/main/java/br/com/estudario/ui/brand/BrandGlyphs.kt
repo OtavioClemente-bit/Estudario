@@ -33,7 +33,7 @@ enum class Glyph {
     Lock, Star, Trophy, Medal, Bulb, Warning, Oops, Fire, Bolt, Heart, Bell, Chart, Cycle, Target, Folder,
     Gear, Help, Person, Shield, Cards, Dice, Play, Cloud, Doc, Pencil, Sun, Moon, Phone, Gem, Brain, Trap, Coffee, Hanger, Hand, Wave, Party, Speaker,
     Thermo, Ice,
-    Joystick, Door, Trash, Plus, Forward, Eye, Camera, Pin, Eraser, Highlighter, Go, Plane,
+    Joystick, Door, Trash, Plus, Forward, Eye, Camera, Pin, Eraser, Highlighter, Go, Plane, Armario,
     // Matérias e áreas de concurso (SubjectArt)
     Idioma, Pena, Calculadora, Laptop, Colunas, Martelo, Moedas, Maleta, Pergaminho, Balanca, Globo, KitMedico,
     Frasco, Barco, Lupa, Recibo, Urna, Cofrinho,

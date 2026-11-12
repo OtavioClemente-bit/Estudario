@@ -497,7 +497,7 @@ fun WardrobeCard(progress: ProgressEngine.ProgressSummary) {
     val owned = FolhaWardrobe.items.count { FolhaWardrobe.unlocked(it, progress) }
     val next = FolhaWardrobe.next(progress)
     org.jetbrains.compose.web.dom.A(href = "#/${Route.Wardrobe.path}", { classes("card", "pad-lg", "wd-card") }) {
-        Div({ classes("wd-card-folha") }) { Folha("wave", 64, live = false) }
+        Div({ classes("wd-card-folha", "wd-card-ic") }) { Icon("checkroom") }
         Div({ classes("grow") }) {
             Div({ classes("eyebrow") }) { Text("ARMÁRIO DO FOLHA") }
             B { Text("$owned de ${FolhaWardrobe.items.size} peças liberadas") }

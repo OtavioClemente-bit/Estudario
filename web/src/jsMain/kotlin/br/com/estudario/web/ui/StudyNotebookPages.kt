@@ -131,7 +131,7 @@ private fun NotebookHelp(onClose: () -> Unit) {
 private fun NotebookHelpButton() {
     var help by remember { mutableStateOf(false) }
     if (help) NotebookHelp { help = false }
-    Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funciona o caderno"); attr("title", "Como funciona o caderno"); onClick { it.stopPropagation(); help = true } }) { Text("?") }
+    Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funciona o caderno"); attr("title", "Como funciona o caderno"); onClick { it.stopPropagation(); help = true } }) { Icon("help") }
 }
 
 /** Pontos numerados, um por cartãozinho (o essencial e as dicas): antes ia tudo num bloco só, difícil de ler. */

@@ -114,7 +114,7 @@ fun TrainScreen() {
                             B { Text(title) }
                             Span { Text(why) }
                         }
-                        Span({ classes("dg-rec-go") }) { Icon("play_arrow", plain = true) }
+                        Span({ classes("dg-rec-go") }) { Icon("play_arrow") }
                     }
                 }
             }
@@ -157,7 +157,7 @@ fun TrainScreen() {
                 Span({ classes("gx-kicker") }) { Text("ESTÚDIO DE TREINO") }
                 H2 { Text("Monte o seu treino") }
             }
-            Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funciona o treino"); attr("title", "Como funciona o treino"); onClick { help = true } }) { Text("?") }
+            Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funciona o treino"); attr("title", "Como funciona o treino"); onClick { help = true } }) { Icon("help") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("gps_fixed", "Modo", "Como as questões vão ser escolhidas", "#A78BFF") {

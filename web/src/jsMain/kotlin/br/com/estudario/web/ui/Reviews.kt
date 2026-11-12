@@ -95,7 +95,7 @@ fun ReviewsScreen() {
     var help by remember { mutableStateOf(false) }
     if (help) ReviewHelp { help = false }
     PageHead("Revisões espaçadas", "Revisar na hora certa é o que faz o conteúdo ficar", actions = {
-        Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funcionam as etapas"); attr("title", "Como funcionam as etapas"); onClick { help = true } }) { Text("?") }
+        Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funcionam as etapas"); attr("title", "Como funcionam as etapas"); onClick { help = true } }) { Icon("help") }
         IconButton("settings", "Configurar revisão") { ReviewPracticePanels.openSettings() }
     })
     CompetitionTabs()
@@ -153,7 +153,7 @@ fun ReviewsScreen() {
                                         )
                                     }
                                 }
-                                Span({ classes("rvx-go") }) { Icon("play_arrow", plain = true); Span({ classes("rvx-go-l") }) { Text("Revisar") } }
+                                Span({ classes("rvx-go") }) { Icon("play_arrow"); Span({ classes("rvx-go-l") }) { Text("Revisar") } }
                             }
                             Button({ classes("rvx-skip"); attr("type", "button"); attr("title", "Pular esta revisão"); attr("aria-label", "Pular esta revisão"); onClick { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") } }) { Text("Pular") }
                         }

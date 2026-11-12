@@ -199,7 +199,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             GxTiles(blockChoices.map { GxOption(it.key, it.title, it.hint, it.icon, BLOCK_COLORS[it.key] ?: "#A78BFF") }, { it in blocks }, cols = 3) { key ->
                                 blocks = if (key in blocks) blocks - key else blocks + key
                             }
-                            if (blocks.isEmpty()) P({ classes("gx-err") }) { Icon("error", plain = true); Text("Ligue pelo menos uma parte do material.") }
+                            if (blocks.isEmpty()) P({ classes("gx-err") }) { Icon("error"); Text("Ligue pelo menos uma parte do material.") }
                         }
                         if ("THEORY" in blocks || "SUMMARY" in blocks) GxSection("menu_book", "Profundidade da teoria", "Quão completa deve ser", "#22D3EE") {
                             GxSeg(depthChoices.mapIndexed { i, c -> GxOption(c.key, c.title, c.hint, color = listOf("#22D3EE", "#6F9BFF", "#A78BFF")[i]) }, depth, { depth = it }) { option ->
@@ -235,7 +235,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             P({ classes("gx-note") }) { Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.") }
                         }
                         if (p is AiContent.Progress.Failed) {
-                            Div({ classes("gx-fail") }) { Icon("error", plain = true); Text(p.message) }
+                            Div({ classes("gx-fail") }) { Icon("error"); Text(p.message) }
                             var upgradeSeen by remember(p) { mutableStateOf(false) }
                             val reason = upgradeReasonFor(p.message, questionsOnly)
                             if (reason != null && !upgradeSeen) UpgradeModal(reason) { upgradeSeen = true }

@@ -142,7 +142,7 @@ fun ProfileScreen() {
                 }
                 // o brasão da patente: troca de metal e cresce um pouco a cada título
                 Span({ classes("gm-avatar-crest") }) { LevelCrestView(progress.level, 46 + br.com.estudario.domain.LevelCrest.rankIndex(progress.level) * 2) }
-                Button({ classes("gm-avatar-cam"); attr("type", "button"); attr("aria-label", "Trocar a imagem do perfil"); attr("title", "Trocar a imagem"); onClick { AvatarChoice.picking = true } }) { Icon("photo_camera", plain = true) }
+                Button({ classes("gm-avatar-cam"); attr("type", "button"); attr("aria-label", "Trocar a imagem do perfil"); attr("title", "Trocar a imagem"); onClick { AvatarChoice.picking = true } }) { Icon("photo_camera") }
             }
             Div({ classes("gm-card-id") }) {
                 Span({ classes("gm-class") }) { Text(progress.levelTitle.uppercase()) }
@@ -300,7 +300,7 @@ fun ProfileScreen() {
                     GameLink("tune", "Ajustes", "Aparência e sons", Route.Settings, "#22D3EE")
                     GameLink("workspace_premium", "Planos", "Seu plano e o mês", Route.PlanLimits, "#A78BFF")
                     Button({ classes("gm-tile", "exit"); attr("style", "--k:#FF5A7A"); onClick { Store.signOut() } }) {
-                        Span({ classes("gm-tile-ic") }) { Icon("logout", plain = true) }
+                        Span({ classes("gm-tile-ic") }) { Icon("logout") }
                         B { Text(if (Store.demo) "Sair da demo" else "Sair da conta") }
                         Span { Text(if (Store.demo) "Volta ao início" else "Até a próxima") }
                     }
@@ -504,7 +504,7 @@ fun NotificationsScreen() {
                 Btn("Permitir avisos neste navegador", { Notify.request { perm = it } }, style = "primary", icon = "notifications")
                 Span({ classes("xs", "muted") }) { Text("O navegador pergunta uma vez.") }
             }
-            "denied" -> Div({ classes("banner"); attr("style", "margin-top:14px") }) { Icon("block", plain = true); Text("Os avisos estão bloqueados neste navegador. Libere nas configurações do site (cadeado ao lado do endereço).") }
+            "denied" -> Div({ classes("banner"); attr("style", "margin-top:14px") }) { Icon("block"); Text("Os avisos estão bloqueados neste navegador. Libere nas configurações do site (cadeado ao lado do endereço).") }
             "granted" -> Div({ classes("banner", "ok"); attr("style", "margin-top:14px") }) { Icon("check_circle"); Text("Avisos liberados neste navegador.") }
             else -> Div({ classes("banner"); attr("style", "margin-top:14px") }) { Icon("info"); Text("Este navegador não mostra avisos; o aviso aparece aqui na tela, e o título da aba pisca.") }
         }

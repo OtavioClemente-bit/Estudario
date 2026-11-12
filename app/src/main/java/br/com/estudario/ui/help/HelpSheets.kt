@@ -54,7 +54,7 @@ fun HelpButton(label: String, onClick: () -> Unit) {
             .padding(end = 2.dp, bottom = 3.dp)
             .clip(CircleShape).background(Color(0xFFFFD23F)).border(2.5.dp, Color(0xFF1C1E25), CircleShape),
         contentAlignment = Alignment.Center,
-    ) { Text("?", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color(0xFF1C1E25)) }
+    ) { br.com.estudario.ui.brand.BrandIcon(Glyph.Help, size = 30.dp) }
 }
 
 @Composable

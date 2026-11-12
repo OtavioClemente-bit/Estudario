@@ -280,7 +280,7 @@ fun TopicScreen(topicId: Long) {
             }
         }
         Div({ classes("row"); attr("style", "position:relative;gap:8px;align-items:center") }) {
-            Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como usar esta página"); attr("title", "Como usar esta página: grifar, anotar, fixar e mais"); onClick { helpOpen = true } }) { Text("?") }
+            Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como usar esta página"); attr("title", "Como usar esta página: grifar, anotar, fixar e mais"); onClick { helpOpen = true } }) { Icon("help") }
             IconButton("more_vert", "Mais ações") { menuOpen = !menuOpen }
             if (menuOpen) Div({ classes("menu-pop") }) {
                 if (children.isEmpty() && !Store.demo) MenuItem("auto_awesome", "Gerar material com o Estudário") { menuOpen = false; generating = true }
@@ -811,7 +811,7 @@ private fun TheoryReader(theory: Theory) {
                 B({ classes("theory-name") }) { Text(theory.title.ifBlank { "Teoria" }) }
                 Div({ classes("small", "muted") }) { Text(listOfNotNull("${chapters.size.coerceAtLeast(1)} capítulo(s)", "$percent% lido", if (marks > 0) "$marks grifo(s)" else null).joinToString(" · ")) }
             }
-            org.jetbrains.compose.web.dom.Button({ classes("reader-aa", "reader-help"); attr("aria-label", "Como usar a leitura"); attr("title", "Como usar a leitura: grifar, anotar, fixar"); onClick { helpOpen = true } }) { Text("?") }
+            org.jetbrains.compose.web.dom.Button({ classes("reader-aa", "reader-help"); attr("aria-label", "Como usar a leitura"); attr("title", "Como usar a leitura: grifar, anotar, fixar"); onClick { helpOpen = true } }) { Icon("help") }
             if (helpOpen) TopicHelp { helpOpen = false }
             // Ajustes de leitura: tamanho da letra e fonte (ficam neste navegador).
             Div({ attr("style", "position:relative") }) {

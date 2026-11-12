@@ -22,16 +22,20 @@ fun DeskNote() {
     if (DeskNoteState.gone) return
     var falling by remember { mutableStateOf(false) }
     LaunchedEffect(falling) { if (falling) { kotlinx.coroutines.delay(1100); DeskNoteState.gone = true } }
-    val tip = remember { DESK_TIPS[((kotlin.js.Date.now() / 86_400_000).toLong() % DESK_TIPS.size).toInt()] }
-    Div({ classes(*listOfNotNull("desk-note", if (falling) "falling" else null).toTypedArray()); attr("aria-hidden", "true") }) {
+    // Todo dia um post-it diferente: a dica, a cor do papel, a fita, os adesivos da turma em volta e a
+    // carinha do Folha mudam juntos (antes só a frase mudava e o adesivo era sempre o mesmo).
+    val day = remember { (kotlin.js.Date.now() / 86_400_000).toLong() }
+    val tip = remember { DESK_TIPS[(day % DESK_TIPS.size).toInt()] }
+    val look = remember { DESK_LOOKS[((day * 7 + 3) % DESK_LOOKS.size).toInt()] }
+    Div({ classes(*listOfNotNull("desk-note", "dl-${look.key}", if (falling) "falling" else null).toTypedArray()); attr("aria-hidden", "true") }) {
         Div({ classes("desk-postit"); attr("title", "Descolar"); onClick { falling = true } }) {
             Span({ classes("desk-tape") })
-            B { Text("dica do Folha") }
+            B { Text(look.kicker) }
             Div({ classes("desk-tip") }) { Text(tip) }
-            Div({ classes("desk-sign") }) { Folha("wink", 34, live = false); Span { Text("Folha") } }
+            Div({ classes("desk-sign") }) { Folha(look.mood, 34, live = false); Span { Text("Folha") } }
         }
-        Span({ classes("desk-pencil") }) { Icon("Pencil") }
-        Span({ classes("desk-bulb") }) { Icon("Bulb") }
+        Span({ classes("desk-pencil", "tu-hover") }) { Icon(look.left) }
+        Span({ classes("desk-bulb", "tu-hover") }) { Icon(look.right) }
     }
 }
 
@@ -46,6 +50,19 @@ private val DESK_TIPS = listOf(
     "Melhor 40 minutos todo dia que 6 horas no domingo.",
     "Explique em voz alta: se travou, é ali que falta.",
     "Simulado é treino de prova, não de ansiedade.",
+)
+
+/** O visual do post-it do dia: cor do papel (classe dl-*), título, humor do Folha e os dois adesivos. */
+private class DeskLook(val key: String, val kicker: String, val mood: String, val left: String, val right: String)
+
+private val DESK_LOOKS = listOf(
+    DeskLook("sun", "dica do Folha", "wink", "edit_note", "lightbulb"),
+    DeskLook("mint", "lembrete do dia", "happy", "check_circle", "local_fire_department"),
+    DeskLook("pink", "recado do Folha", "proud", "format_ink_highlighter", "favorite"),
+    DeskLook("sky", "papo de prova", "thinking", "push_pin", "gps_fixed"),
+    DeskLook("lilac", "bizu do dia", "wink", "style", "star"),
+    DeskLook("peach", "anota aí", "happy", "bookmark", "coffee"),
+    DeskLook("lime", "dica do Folha", "proud", "emoji_events", "bolt"),
 )
 
 /** Só na memória: um F5 traz o post-it de volta. */

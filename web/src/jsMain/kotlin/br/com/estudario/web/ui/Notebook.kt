@@ -406,7 +406,7 @@ private fun NotesTab(
     Button({ classes("note-new"); onClick { creating = true } }) {
         Span({ classes("note-new-ic") }) { Icon("edit_note") }
         Span({ classes("grow") }) { B { Text("Nova anotação") }; Span({ classes("small", "muted") }) { Text("Macete, resumo, dúvida… com suas palavras. Na teoria, selecione um trecho e use Grifar com nota.") } }
-        Icon("add", plain = true)
+        Icon("add_circle")
     }
     if (notes.isEmpty() && markNotes.isEmpty()) { Empty("edit_note", "Nenhuma anotação ainda", "Suas anotações e as notas dos trechos grifados aparecem aqui."); return }
     val rows: List<Pair<Long?, Any>> = (notes.map { it.topicId to (it as Any) } + markNotes.map { topicOfMark(it) to (it as Any) })

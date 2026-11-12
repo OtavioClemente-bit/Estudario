@@ -141,7 +141,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
             if (monthOffset != 0) Btn("Hoje", { onMonth(0); selected = todayEpoch }, style = "ghost", small = true)
         }
         Div({ classes("mo-tools") }) {
-            Button({ classes("mo-help-b"); attr("aria-label", "Como usar o mês"); onClick { help = true } }) { Text("?") }
+            Button({ classes("mo-help-b"); attr("aria-label", "Como usar o mês"); onClick { help = true } }) { Icon("help") }
         }
         Div({ classes("mo-legend") }) {
             listOf("Teoria" to "theory", "Questões" to "questions", "Revisão" to "review", "Simulado" to "sim", "Atrasado" to "late").forEach { (label, k) ->
