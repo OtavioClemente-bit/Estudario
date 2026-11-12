@@ -85,6 +85,9 @@ for (const arquivo of arquivos) {
       .replace(/^\s*(?:[\d_]*[A-Z0-9]{6,}\s+)?(?:CEBRASPE|FGV|FUNDATEC|CESGRANRIO|AOCP)\s*\|\s*[^\n–-]{1,60}[–-]\s*Edital:\s*\d{4}\s*/i, "")
       .replace(/^\s*--\s*CONHECIMENTOS\s+(?:B[ÁA]SICOS|ESPEC[ÍI]FICOS|GERAIS|COMPLEMENTARES)\s*--\s*/i, "")
       .replace(/\s*P[áa]gina\s+\d+\s*(?:de|\/)\s*\d+\s*/gi, " ")
+      // Cabeçalho de bloco do caderno em qualquer ponto, com ou sem o código antes ("8140090123355 -- CONHECIMENTOS
+      // ESPECÍFICOS --", "-- CADERNO DE PROVAS OBJETIVAS --"): 655 questões no app mostravam isso (12/11).
+      .replace(/(?:\b[\d_]*[A-Z0-9]{6,}\s*)?--\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ ]{3,60}?\s*--\s*/g, "")
       .trim();
     const statement = `${q.base && q.base.length > 20 && !/^\(?Dispon[ií]vel em/i.test(q.base) ? `${limpo(q.base)}\n\n` : ""}${limpo(String(q.enunciado))}`;
     // Questão que depende de um texto que não veio (sem texto-base e o comando fala em "linha 12", "no texto", "aspectos
