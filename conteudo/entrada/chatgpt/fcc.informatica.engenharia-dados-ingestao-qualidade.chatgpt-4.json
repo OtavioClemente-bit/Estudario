@@ -1,0 +1,546 @@
+{
+  "secoes": [
+    {
+      "numero": 1,
+      "titulo": "2. Pipelines, ETL/ELT, lotes, streaming e CDC"
+    },
+    {
+      "numero": 2,
+      "titulo": "3. Qualidade, integridade, governança e segurança"
+    },
+    {
+      "numero": 3,
+      "titulo": "4. Limpeza, transformação e preparo analítico"
+    },
+    {
+      "numero": 4,
+      "titulo": "5. Operação confiável, serviços gerenciados e casos integrados"
+    },
+    {
+      "numero": 5,
+      "titulo": "1. Fundamentos, fontes e formatos de ingestão"
+    }
+  ],
+  "questoes": [
+    {
+      "secao": 1,
+      "enunciado": "Uma rotina incremental consulta uma tabela operacional pelo campo atualizado_em. Diversas linhas podem compartilhar o mesmo instante de atualização, e a extração é paginada. Para reduzir o risco de omissões na retomada, a equipe deve adotar como marcador",
+      "alternativas": [
+        "um par ordenado composto pelo instante da atualização e por uma chave única, aplicando comparação lexicográfica na próxima leitura.",
+        "a contagem de páginas processadas, reiniciando a consulta na primeira página ao ocorrer qualquer falha.",
+        "o menor instante observado no lote, excluindo todos os registros com horário igual ao marcador.",
+        "apenas a maior chave primária já extraída, pois atualizações nunca alteram a posição de registros existentes, sem exigir verificação de empates no campo de atualização.",
+        "a hora local de execução da rotina, dispensando a consulta a marcadores armazenados pela aplicação."
+      ],
+      "gabarito": "A",
+      "explicacao": "O desempate por chave única evita perder linhas que compartilham o mesmo horário no limite da paginação. Apenas horário, chave isolada ou contagem de páginas não asseguram retomada consistente de atualizações."
+    },
+    {
+      "secao": 1,
+      "enunciado": "No desenho de captura de mudanças em um banco transacional, um sistema deve propagar inclusões, alterações e exclusões sem acrescentar consultas periódicas volumosas às tabelas. A técnica mais adequada, quando suportada pela origem, consiste em",
+      "alternativas": [
+        "capturar somente alterações cujo valor final tenha aumentado em comparação ao registro anterior.",
+        "substituir o log de transações por índices textuais sobre as colunas alteradas pelos usuários.",
+        "interpretar os registros do log transacional e transmitir operações identificadas, inclusive exclusões, aos consumidores.",
+        "transformar todo comando de exclusão em uma nova inclusão com a mesma chave e todos os campos nulos.",
+        "comparar diariamente todas as colunas das tabelas de origem e destino, sem preservar a sequência de operações."
+      ],
+      "gabarito": "C",
+      "explicacao": "A leitura do log de transações é apropriada para CDC, pois identifica operações efetivadas sem varreduras completas recorrentes. Comparação integral, filtros de aumento e nulificação não equivalem à captura fiel de mudanças."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma aplicação recebe eventos de forma contínua, mas os disponibiliza ao consumidor em grupos coletados a cada poucos segundos. Em comparação ao processamento evento a evento, essa escolha caracteriza",
+      "alternativas": [
+        "uma extração completa de base de dados, obrigatória quando o intervalo de execução é inferior a um minuto, independentemente do volume recebido e da retenção do histórico.",
+        "uma sincronização síncrona que garante latência nula entre a publicação e a materialização dos eventos.",
+        "uma transação distribuída global, que mantém todas as origens bloqueadas até a conclusão do lote.",
+        "uma carga estática, pois dados contínuos deixam de ser fluxos assim que são acumulados por segundos.",
+        "microprocessamento em lotes, com compromisso entre frequência de atualização e custo de inicialização de cada execução."
+      ],
+      "gabarito": "E",
+      "explicacao": "Microbatches agrupam eventos por intervalos curtos e podem amortizar custos de execução, embora introduzam espera. Isso não transforma a fonte em estática nem implica bloqueios globais, cargas completas ou latência zero."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma esteira utiliza um broker de mensagens que permite reentrega após falhas. A equipe deseja impedir que a reexecução de um evento gere duas cobranças no banco de destino. Uma medida suficiente para tratar essa duplicação lógica é",
+      "alternativas": [
+        "adotar compressão sem perdas, já que ela impede a reprodução de mensagens com conteúdo idêntico.",
+        "persistir uma chave de idempotência da operação e impedir, de modo atômico, nova aplicação da mesma cobrança.",
+        "desabilitar confirmações de consumo, deixando ao broker a escolha sobre repetir ou descartar cada evento.",
+        "gravar a cobrança antes e confirmar o evento em seguida, sem controle adicional sobre reprocessamentos.",
+        "aumentar o número de consumidores, presumindo que o paralelismo elimine reentregas de mensagens."
+      ],
+      "gabarito": "B",
+      "explicacao": "A chave de idempotência, verificada e registrada atomicamente com o efeito, permite neutralizar reentregas. Paralelismo, compressão e mera ordem entre gravação e confirmação não evitam cobrança duplicada após falhas."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Um enriquecimento de fluxo cruza eventos de pedidos com atualizações de uma segunda corrente. Eventos correspondentes podem chegar com atraso, e a memória do processador é finita. É tecnicamente adequado",
+      "alternativas": [
+        "ordenar lexicalmente os nomes das correntes para garantir que os eventos relacionados cheguem juntos.",
+        "eliminar todo pedido cujo evento correspondente não chegue no mesmo milissegundo, sem medir atraso.",
+        "conservar indefinidamente todos os eventos em memória, pois um fluxo nunca conclui a emissão de suas chaves.",
+        "manter estado de correlação limitado por política temporal e definir o tratamento dos pares que não cheguem no intervalo aceito.",
+        "executar a junção sem armazenar qualquer chave, uma vez que ambos os eventos serão recebidos simultaneamente, dispensando qualquer estrutura de estado ao longo da execução."
+      ],
+      "gabarito": "D",
+      "explicacao": "Junções entre fluxos exigem estado para correlacionar eventos que não chegam juntos. Limitar retenção e definir política para ausências torna a operação viável; memória ilimitada e simultaneidade presumida são inadequadas."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Um fluxo de trabalho contém extração de clientes e produtos, executadas independentemente, e um cálculo que requer ambas concluídas. No orquestrador, a dependência correta é representada por",
+      "alternativas": [
+        "uma tarefa de cálculo sem predecessoras, para antecipar resultados ainda que as bases não tenham sido atualizadas.",
+        "duas tarefas de entrada paralelizáveis convergindo para a tarefa de cálculo, que só se inicia após as duas terminarem com êxito.",
+        "um ciclo entre as três tarefas, de forma que cada uma aguarde a conclusão das demais.",
+        "uma fila única que exige execução sequencial de clientes, produtos e cálculo, mesmo sem dependência entre fontes.",
+        "três tarefas simultâneas, transferindo ao banco de destino toda a responsabilidade por aguardar as duas extrações."
+      ],
+      "gabarito": "B",
+      "explicacao": "Um grafo acíclico representa a convergência de dependências, permitindo paralelismo nas extrações e bloqueando o cálculo até ambas concluírem. Ciclos, ausência de predecessores e serialização forçada não expressam o requisito."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Ao iniciar um conector CDC sobre uma tabela já povoada, a equipe precisa obter o estado preexistente e depois acompanhar mudanças sem criar intervalo invisível entre essas etapas. A estratégia mais consistente é",
+      "alternativas": [
+        "consumir apenas mensagens futuras, pois a presença de registros antigos no banco significa que eles já foram replicados.",
+        "bloquear permanentemente gravações na origem para impedir diferenças entre extração inicial e captura contínua.",
+        "descartar as operações realizadas durante a leitura inicial e gerar apenas uma estimativa das alterações omitidas.",
+        "ler a tabela inteira e iniciar a captura somente no dia seguinte, presumindo que nenhuma atualização ocorrerá nesse intervalo, mesmo com transações de produção em andamento e sem guardar marcador.",
+        "produzir um retrato inicial consistente e coordená-lo com uma posição conhecida do log de mudanças, avançando a partir desse ponto."
+      ],
+      "gabarito": "E",
+      "explicacao": "A fotografia consistente associada à posição do log permite transição controlada para CDC, sem lacuna entre estado inicial e alterações posteriores. Iniciar depois, ignorar histórico ou bloquear para sempre não resolve a sincronização."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma organização utiliza um repositório analítico com capacidade de processamento SQL e deseja evitar que um job externo transfira bilhões de linhas para aplicar filtros simples. A otimização coerente é",
+      "alternativas": [
+        "exportar previamente todas as tabelas para CSV, mesmo quando a consulta usa apenas duas colunas.",
+        "desabilitar otimizações do motor SQL e concentrar operações relacionais em um processo cliente único.",
+        "executar projeções, filtros e agregações viáveis junto ao mecanismo analítico, reduzindo o volume movimentado.",
+        "materializar integralmente cada tabela na memória do orquestrador antes de iniciar a transformação.",
+        "converter todos os números para cadeias de caracteres para tornar uniforme o tráfego pela rede."
+      ],
+      "gabarito": "C",
+      "explicacao": "Empurrar operações compatíveis para o mecanismo de consulta reduz transferência e aproveita o processamento próximo aos dados. Exportação integral, materialização no cliente e conversões indiscriminadas tendem a ampliar custos."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma carga de registros de atendimento apresenta identificadores de unidades inexistentes na tabela de referência. Os relatórios exigem rastreabilidade das ocorrências rejeitadas. A medida de controle mais adequada é",
+      "alternativas": [
+        "eliminar os registros da fonte sem trilha de auditoria, evitando que apareçam em cargas seguintes.",
+        "validar a referência, isolar registros sem correspondência e registrar motivo e origem para correção posterior.",
+        "atribuir uma unidade aleatória a cada atendimento para preservar o total de linhas carregadas.",
+        "desativar permanentemente a integridade referencial, admitindo qualquer identificador no destino analítico.",
+        "multiplicar os atendimentos pelo número de unidades cadastradas, para garantir associação com ao menos uma delas."
+      ],
+      "gabarito": "B",
+      "explicacao": "A quarentena auditável conserva a evidência do erro e impede uso indevido de identificadores órfãos. Associação aleatória, apagamento sem registro e suspensão indiscriminada da regra sacrificam a integridade."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um conjunto crítico exige que CPF cadastral e data de contratação estejam preenchidos. A auditoria deseja um indicador verificável dessa exigência ao longo do tempo. Deve-se medir",
+      "alternativas": [
+        "a velocidade de transferência da rede que liga a origem ao repositório de destino.",
+        "exclusivamente a quantidade de colunas adicionais que não estavam previstas no catálogo de dados.",
+        "o tempo de vida das credenciais do processo de ingestão, dispensando avaliação das linhas carregadas, usando a validade do token como evidência de preenchimento dos campos.",
+        "a proporção de registros válidos em relação ao preenchimento dos campos obrigatórios, com critério de aceitação documentado.",
+        "somente a soma dos bytes dos arquivos recebidos, independentemente dos atributos ausentes."
+      ],
+      "gabarito": "D",
+      "explicacao": "Completude pode ser aferida pela proporção de registros com atributos obrigatórios presentes, sob regra explicitada. Tamanho de arquivo, rede, colunas extras e credenciais não medem diretamente essa dimensão da qualidade."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Para conferir a transferência de lançamentos financeiros entre sistemas, a equipe deseja detectar casos em que o número de registros permanece igual, mas valores de alguns registros foram alterados. O controle deve comparar",
+      "alternativas": [
+        "quantidades e totais monetários, com comparação por chave ou hashes para detectar alterações compensadas entre lançamentos.",
+        "apenas os nomes dos arquivos exportados e importados, sem inspecionar seu conteúdo.",
+        "somente o horário de conclusão das cargas, pois atrasos implicam inexatidão monetária.",
+        "a taxa média de compressão dos registros, como substituto da conciliação dos saldos.",
+        "somente a contagem de linhas, pois ela prova a preservação de todos os valores numéricos, inclusive se valores diferentes se compensarem no total da carga."
+      ],
+      "gabarito": "A",
+      "explicacao": "Contagens e totais monetários detectam várias divergências, mas alterações compensadas exigem comparações por chave ou hashes. Nomes, horários e compressão não substituem a conciliação de conteúdo."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma solução precisa permitir que uma equipe de atendimento consulte o identificador real de clientes mediante autorização, mas analistas devem trabalhar com substitutos sem acesso à identidade. Recomenda-se",
+      "alternativas": [
+        "aplicar uma função de hash e assumir que ela permite recuperar o texto original sempre que autorizado.",
+        "duplicar os identificadores originais em toda tabela analítica, desde que o arquivo esteja compactado.",
+        "tokenizar os identificadores e proteger, separadamente, o serviço ou mapeamento que permite sua reversão autorizada.",
+        "renomear a coluna que contém os identificadores, mantendo os valores reais acessíveis a todos os perfis.",
+        "substituir os identificadores por uma máscara fixa e publicá-los com a chave de recuperação no mesmo arquivo."
+      ],
+      "gabarito": "C",
+      "explicacao": "Tokenização pode separar o identificador substituto da capacidade controlada de recuperar o original. Hash unidirecional não oferece reversão, e mascaramento com exposição de chaves ou valores reais não protege a identidade."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Em uma plataforma compartilhada, cada regional pode consultar somente linhas relativas à sua área, embora todas as regionais usem a mesma tabela. O controle de acesso diretamente alinhado ao requisito é",
+      "alternativas": [
+        "o uso obrigatório de um algoritmo de compactação diferente para cada regional.",
+        "a divisão do código SQL em arquivos distintos, sem impor filtros na camada de autorização dos dados.",
+        "a concessão indiscriminada de leitura de todas as linhas, acompanhada de aviso para não consultar dados alheios.",
+        "a exclusão das colunas de data de cada registro, sem restrições sobre quais linhas são retornadas.",
+        "uma política de segurança em nível de linha, aplicada conforme o contexto de identidade da sessão."
+      ],
+      "gabarito": "E",
+      "explicacao": "Segurança em nível de linha filtra o conjunto visível segundo a identidade e a política aplicável. Compactação, avisos, divisão de arquivos e remoção de coluna não impõem a segregação requerida entre regionais."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Após um indicador de margem apresentar valor incorreto, a equipe precisa saber quais colunas de origem participaram do cálculo e em quais transformações foram combinadas. A capacidade procurada é",
+      "alternativas": [
+        "controle de versão da interface gráfica, suficiente para obter automaticamente a procedência de cada campo.",
+        "particionamento aleatório, responsável por distribuir fisicamente blocos e explicar a fórmula de margem.",
+        "linhagem de dados em nível de coluna, registrando dependências e etapas de transformação do indicador.",
+        "balanceamento de carga, que informa quais atributos comerciais são utilizados nos cálculos de negócio.",
+        "compressão de dicionário, cuja finalidade é reconstruir todas as decisões semânticas da transformação."
+      ],
+      "gabarito": "C",
+      "explicacao": "A linhagem em nível de coluna identifica origens e transformações que alimentam uma métrica, apoiando diagnóstico de erros. Partição, compressão, balanceamento e histórico de telas não substituem esse encadeamento."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um fornecedor mantém um campo numérico chamado valor_compra, mas informa que passará a preenchê-lo em centavos, e não mais em reais. Mesmo sem mudar o tipo da coluna, a medida mais apropriada é",
+      "alternativas": [
+        "tratar a unidade de medida como parte de um contrato de dados e coordenar sua alteração com consumidores e validações.",
+        "converter o conteúdo em texto para impedir qualquer necessidade de atualização dos relatórios.",
+        "retirar todos os testes de valores, já que o campo continuará aceitando números positivos.",
+        "mudar o nome físico do banco de destino, mantendo os cálculos existentes intactos.",
+        "aceitar automaticamente a mudança, pois tipos numéricos idênticos asseguram semântica invariável, ainda que o contrato de dados passe a definir unidade de medida distinta."
+      ],
+      "gabarito": "A",
+      "explicacao": "Um contrato de dados deve incluir significado e unidade dos campos, não apenas tipo físico. A mudança de reais para centavos pode distorcer métricas; renomeações, conversão a texto e ausência de validação não corrigem a semântica."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um repositório contém dados sigilosos cifrados. A administração quer trocar periodicamente a chave mestra sem recifrar manualmente cada registro de negócio. Uma arquitetura apropriada utiliza",
+      "alternativas": [
+        "codificação Base64, cuja conversão textual fornece confidencialidade equivalente à criptografia.",
+        "uma única senha gravada no código-fonte de todos os serviços, eliminando dependência de gestão de chaves.",
+        "assinaturas digitais como substitutas de toda operação de cifragem, garantindo sigilo do conteúdo.",
+        "criptografia de envelope, com chaves de dados protegidas por uma chave mestra gerida e passível de rotação.",
+        "armazenamento de texto puro em tabelas temporárias, para permitir que a chave mestra seja apagada."
+      ],
+      "gabarito": "D",
+      "explicacao": "Na criptografia de envelope, chaves de dados cifram informações e são protegidas por chaves mestras gerenciadas. Rotacionar a proteção das chaves de dados facilita a gestão; Base64 e assinaturas não proporcionam sigilo equivalente."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Na preparação de uma variável de gasto com poucos valores extremos legítimos, o analista deseja reduzir a influência dos extremos sem excluir os respectivos registros. Uma transformação possível é",
+      "alternativas": [
+        "apagar todas as observações com valor maior que a média, independentemente do contexto.",
+        "duplicar os valores extremos para preservar sua representatividade no resultado final.",
+        "winsorizar a variável, limitando valores abaixo e acima de percentis definidos segundo regra documentada.",
+        "converter a variável em identificador textual e calcular posteriormente sua média aritmética, sem revisar a adequação dos tipos usados no cálculo da estatística.",
+        "substituir toda a coluna pelo valor máximo observado, preservando apenas a escala original."
+      ],
+      "gabarito": "C",
+      "explicacao": "A winsorização limita extremos a pontos de corte predefinidos e mantém as linhas no conjunto. Excluir valores indiscriminadamente, replicá-los ou uniformizar a coluna altera a distribuição sem atender ao objetivo."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma variável categórica possui milhões de identificadores quase únicos. O treinamento de um modelo se torna inviável com a criação de uma coluna binária por categoria. Para obter representação compacta, pode-se avaliar",
+      "alternativas": [
+        "a criação de um campo booleano distinto para cada ocorrência de cada identificador no histórico.",
+        "a conversão de todos os identificadores em valores ausentes, sem medir perda de informação.",
+        "a ordenação alfabética dos identificadores, que dispensa a escolha de uma representação numérica.",
+        "a codificação one-hot integral, que sempre reduz a dimensionalidade em relação ao número de categorias.",
+        "a técnica de hashing de características, que mapeia categorias para um número fixo de dimensões, admitindo colisões."
+      ],
+      "gabarito": "E",
+      "explicacao": "Feature hashing limita a quantidade de dimensões e evita dicionário completo, com possível colisão entre categorias. One-hot integral, booleanos por ocorrência e eliminação de valores não satisfazem a compactação proposta."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Um sistema registra instantes com deslocamentos de fuso diferentes, e um relatório precisa ordenar os acontecimentos globalmente e exibir a hora local em cada unidade. O tratamento tecnicamente consistente é",
+      "alternativas": [
+        "ordenar as datas unicamente pelo nome das unidades administrativas, independentemente dos instantes.",
+        "normalizar instantes para uma referência temporal comum, preservando os fusos necessários à apresentação local.",
+        "somar a mesma quantidade fixa de horas a todos os registros, quaisquer que sejam os deslocamentos originais, mesmo quando os valores originais usam zonas geográficas distintas.",
+        "substituir todos os horários pelo fuso do computador que executa a carga, sem registrar a origem.",
+        "retirar o deslocamento de todas as cadeias de data e comparar apenas suas horas aparentes."
+      ],
+      "gabarito": "B",
+      "explicacao": "A ordenação temporal deve usar instantes comparáveis, como UTC, enquanto o fuso pertinente viabiliza exibição local. Ignorar deslocamentos ou impor uma correção fixa pode trocar a ordem real dos acontecimentos."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma origem republica eventos de um mesmo contrato com chave de negócio idêntica, mas versões sucessivas do estado. O destino deve manter apenas a versão mais recente de cada contrato. É adequado",
+      "alternativas": [
+        "somar os valores das versões de um contrato, tratando modificações como novas receitas acumuláveis.",
+        "manter o primeiro registro recebido para sempre, ainda que existam versões de correção posteriores.",
+        "agrupar os eventos pelo nome do arquivo de origem, sem observar chaves ou sequência de versões.",
+        "selecionar, para cada chave de contrato, o evento de maior versão válida, com desempate determinístico quando necessário.",
+        "eliminar todos os contratos com mais de um evento, por considerar obrigatória a exclusividade da chave na origem."
+      ],
+      "gabarito": "D",
+      "explicacao": "A consolidação por chave e versão distingue atualização de duplicidade e mantém o estado mais recente. Escolher sempre a primeira ocorrência, excluir chaves repetidas ou somar versões destrói o significado das alterações."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Ao preparar uma base para análise, observa-se que um exame laboratorial deixa de ser registrado justamente nos casos mais graves, porque o atendimento é interrompido. Essa situação sugere que os ausentes",
+      "alternativas": [
+        "podem depender do próprio fenômeno de interesse, exigindo investigação do mecanismo de ausência antes de imputar valores.",
+        "representam apenas erro de formatação do campo e não têm relação com o processo de coleta.",
+        "provam que todos os pacientes sem exame possuem o valor mínimo possível no indicador.",
+        "devem ser descartados sem avaliação, pois a exclusão de linhas preserva sempre a distribuição original, mesmo quando o motivo da ausência é associado à gravidade clínica.",
+        "são necessariamente completamente aleatórios, permitindo substituição automática pela média sem risco."
+      ],
+      "gabarito": "A",
+      "explicacao": "A ausência associada à gravidade pode ser não aleatória e induzir viés em imputações simples. Não se pode pressupor aleatoriedade, atribuir extremos por convenção ou excluir casos sem examinar a coleta."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Na integração de cadastros, os códigos postais são identificadores de tamanho fixo e alguns começam por zero. Para evitar perda de informação durante a transformação, convém",
+      "alternativas": [
+        "usar números de ponto flutuante, que representam códigos com precisão superior à representação textual.",
+        "substituir todos os códigos por sua soma de algarismos, garantindo identificação unívoca de endereços.",
+        "eliminar qualquer registro cujo código comece com zero, considerando inválido o primeiro dígito.",
+        "tratá-los como texto sujeito a validação de formato, preservando zeros iniciais e evitando operações aritméticas.",
+        "convertê-los para inteiro, pois zeros iniciais são sempre irrelevantes em identificadores."
+      ],
+      "gabarito": "D",
+      "explicacao": "Códigos postais têm função identificadora, não quantitativa; armazená-los como texto preserva zeros e permite validar o padrão. Inteiros, ponto flutuante e somas de dígitos podem eliminar distinções importantes."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma planilha de metas contém as colunas janeiro, fevereiro e março, cada uma com o valor de um mês. A equipe quer produzir registros com os campos mês e valor, facilitando filtros e agregações. A operação é",
+      "alternativas": [
+        "agrupar as linhas por total anual, removendo a informação sobre a distribuição mensal.",
+        "despivotar as colunas mensais, convertendo os nomes de mês em valores de uma coluna e os conteúdos em outra.",
+        "multiplicar todos os valores por três para representar a frequência mensal de atualização.",
+        "transpor a tabela substituindo todos os identificadores por números sequenciais sem metadados, sem conservar os nomes dos meses como dimensão de negócio.",
+        "criar uma cópia da planilha inteira para cada mês, sem alterar o esquema de colunas."
+      ],
+      "gabarito": "B",
+      "explicacao": "O despivotamento converte uma estrutura larga em registros do tipo mês-valor, adequada a filtros e agregações temporais. Duplicação, multiplicação ou consolidação anual não produzem o formato solicitado."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Um modelo de previsão de inadimplência utiliza o cadastro de clientes tal como existia na data de cada contratação. Para evitar informações que só foram conhecidas posteriormente, a junção dos atributos deve",
+      "alternativas": [
+        "reunir todas as versões históricas em uma linha e utilizar os valores máximos de cada atributo.",
+        "consultar sempre o cadastro atual, já que atributos corrigidos no futuro são mais exatos para qualquer previsão passada.",
+        "ignorar completamente as datas de cadastro e contratação, preservando apenas a chave do cliente.",
+        "preencher atributos antigos com informações obtidas após o desfecho da inadimplência, para melhorar o treinamento.",
+        "selecionar a versão do cadastro válida no instante de referência do contrato, respeitando a disponibilidade histórica dos dados."
+      ],
+      "gabarito": "E",
+      "explicacao": "A junção temporal coerente evita vazamento de dados futuros no conjunto de treinamento. Consultar somente o estado atual ou atributos conhecidos após o resultado cria vantagem artificial e distorce a avaliação do modelo."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma equipe deseja programar dependências, agendas e retentativas de tarefas, enquanto mantém cálculos distribuídos sobre grandes conjuntos em outro motor. A separação de responsabilidades correta é",
+      "alternativas": [
+        "transformar cada registro em uma tarefa manual independente, dispensando coordenação entre etapas.",
+        "exigir que o orquestrador mantenha todas as partições do conjunto de dados em sua própria memória.",
+        "substituir a agenda por um único índice de banco, pois índices executam transformações e retentativas, dispensando a definição explícita das precedências entre etapas.",
+        "usar um orquestrador para controlar o fluxo de execução e um mecanismo distribuído para processar os dados.",
+        "atribuir ao sistema de arquivos a definição dos predecessores de cada tarefa e da política de falhas."
+      ],
+      "gabarito": "D",
+      "explicacao": "Orquestração governa dependências, agendas e tentativas; o motor de processamento executa transformações distribuídas. Misturar esses papéis pode sobrecarregar o coordenador e não oferece controle confiável do fluxo."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um DAG executou sem erros, mas a tabela final contém como registro mais recente uma data anterior ao limite aceito pelo negócio. Para detectar essa falha de disponibilidade, o indicador específico é",
+      "alternativas": [
+        "a atualização temporal dos dados, comparando a idade do registro mais recente ao limite contratual de frescor.",
+        "a quantidade de núcleos da máquina do orquestrador, independentemente das datas dos registros.",
+        "o total de mensagens de log produzidas pelo agendador, sem inspeção dos dados finais.",
+        "o percentual de compressão física do arquivo final, tomado como prova da atualização.",
+        "o tamanho em bytes do código-fonte do pipeline, medido após cada publicação."
+      ],
+      "gabarito": "A",
+      "explicacao": "A execução bem-sucedida não comprova frescor dos dados. Comparar a última referência temporal disponível com o limite esperado detecta atraso no produto; tamanho de código, logs e compressão não o revelam."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um conector de API enfrenta respostas temporárias de indisponibilidade. Para minimizar novas sobrecargas e evitar retentativas sincronizadas entre diversos workers, recomenda-se",
+      "alternativas": [
+        "tratar qualquer erro de autenticação permanente como falha temporária que exige tentativas ilimitadas, mesmo após confirmação de que a senha informada é inválida.",
+        "desligar todos os mecanismos de observabilidade para não aumentar o número de requisições enviadas.",
+        "aplicar espera exponencial com variação aleatória e limitar o número de tentativas conforme a classe de erro.",
+        "reiniciar a base de dados de destino a cada resposta de indisponibilidade recebida da API.",
+        "repetir as chamadas sem pausa, até que todos os workers obtenham uma resposta bem-sucedida."
+      ],
+      "gabarito": "C",
+      "explicacao": "Backoff exponencial com jitter dispersa retentativas e reduz o efeito de rajadas durante falhas transitórias. Tentativas imediatas ou ilimitadas podem agravar o incidente; erros permanentes requerem tratamento distinto."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma carga consolidada pode ser repetida para a mesma partição de referência por solicitação do auditor. O resultado deve permanecer idêntico, e não duplicar linhas. No destino, a escrita deve",
+      "alternativas": [
+        "acrescentar sempre todas as linhas a cada execução, sem chave que identifique registros já materializados.",
+        "desabilitar restrições e controles de duplicidade, pois o reprocessamento é uma operação excepcional.",
+        "eliminar o histórico de todas as outras partições, embora somente uma referência precise ser refeita.",
+        "alterar aleatoriamente as chaves do conjunto a cada reexecução, para diferenciar os lotes de carga.",
+        "utilizar chaves estáveis e operação de substituição controlada ou MERGE idempotente para o recorte reprocessado."
+      ],
+      "gabarito": "E",
+      "explicacao": "MERGE por chave estável ou substituição atômica do recorte permite repetir a carga sem multiplicar registros. Append irrestrito, chaves aleatórias e apagamento amplo não preservam o mesmo estado lógico."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um consumidor de fila recebe uma mensagem cujo conteúdo não atende ao formato esperado, mesmo após várias tentativas. Para não impedir o processamento de mensagens válidas posteriores, a abordagem usual é",
+      "alternativas": [
+        "alterar automaticamente a mensagem para um registro vazio e gravá-la como se fosse válida.",
+        "encaminhar a mensagem a uma fila de falhas com contexto diagnóstico, mantendo um procedimento de inspeção e reprocessamento.",
+        "cancelar permanentemente todo o tópico de origem sempre que um único registro for incompatível.",
+        "reexecutar indefinidamente a mesma mensagem na cabeça da fila, bloqueando qualquer outra entrega, ainda que a falha seja determinística e nunca desapareça com nova tentativa.",
+        "silenciar a falha e confirmar sucesso, sem guardar cópia ou evidência do conteúdo rejeitado."
+      ],
+      "gabarito": "B",
+      "explicacao": "Uma dead-letter queue separa mensagens problemáticas e preserva elementos para correção e redrive. Bloqueio infinito, descarte silencioso e adulteração do conteúdo prejudicam disponibilidade e rastreabilidade."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma empresa escolhe serviços gerenciados da AWS para executar códigos de transformação em lotes e controlar a sequência entre diferentes tarefas. Na composição mais adequada, utiliza",
+      "alternativas": [
+        "Amazon Route 53 para transformar tabelas e AWS KMS para decidir automaticamente a ordem das tarefas.",
+        "Amazon CloudFront para processar relacionamentos SQL e Amazon S3 para executar condições de ramificação.",
+        "Amazon CloudWatch Logs para substituir o motor de transformação e AWS Secrets Manager para realizar junções.",
+        "AWS IAM para executar agregações distribuídas e Amazon VPC para armazenar o estado de cada tarefa.",
+        "jobs do AWS Glue para transformações e AWS Step Functions para orquestrar transições e tratamento de estados."
+      ],
+      "gabarito": "E",
+      "explicacao": "Jobs do Glue podem executar transformações de dados, enquanto Step Functions coordena etapas e estados do fluxo. Os demais serviços citados atendem a rede, segurança, armazenamento ou observabilidade, não a esses papéis."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Na arquitetura de ingestão em Google Cloud, eventos são publicados de forma assíncrona, precisam passar por transformações contínuas e então alimentar consultas analíticas SQL. A combinação que distribui corretamente os papéis é",
+      "alternativas": [
+        "Cloud Logging como barramento transacional, Cloud Monitoring como banco relacional e Dataflow como DNS.",
+        "Dataflow exclusivamente como cofre de chaves, Pub/Sub como mecanismo SQL e BigQuery como serviço de notificações.",
+        "Pub/Sub na mensageria, Dataflow no processamento do fluxo e BigQuery na consulta e armazenagem analítica.",
+        "Cloud Storage como controlador de sessões SQL, Cloud IAM como processador de eventos e Pub/Sub como painel analítico.",
+        "BigQuery como broker principal, Cloud DNS como motor de transformação e Pub/Sub como banco analítico SQL."
+      ],
+      "gabarito": "C",
+      "explicacao": "Pub/Sub desacopla publicação e consumo, Dataflow executa processamento de fluxo e BigQuery atende ao armazenamento e às consultas analíticas. Os demais arranjos atribuem a serviços funções que não lhes cabem."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma plataforma analítica sofre concorrência entre cargas intensas de transformação e consultas interativas de gestores. Sem alterar as definições das tabelas, a organização quer reduzir a interferência entre os grupos. A medida é",
+      "alternativas": [
+        "separar recursos computacionais dos workloads, com capacidade e políticas de execução adequadas a cada perfil.",
+        "desativar os controles de concorrência para forçar execuções simultâneas sobre os mesmos recursos.",
+        "remover índices, estatísticas e demais recursos de otimização de todas as tabelas consultadas.",
+        "misturar obrigatoriamente todas as cargas em um único executor de capacidade fixa, sem prioridades, independentemente das necessidades de simultaneidade dos grupos.",
+        "exportar os mesmos resultados para arquivos de texto e proibir mecanismos de consulta paralela."
+      ],
+      "gabarito": "A",
+      "explicacao": "O isolamento de recursos computacionais entre ingestão e consultas reduz disputas por capacidade e permite ajustar prioridades. Misturar tudo em um único executor ou remover otimizações tende a piorar a concorrência."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma fonte de dados de transações possui dezenas de colunas, mas os analistas consultam frequentemente apenas três atributos em grandes períodos. Para armazenamento analítico, a opção mais favorável à leitura seletiva é",
+      "alternativas": [
+        "uma imagem raster com os registros desenhados em células, sem representação tipada dos valores.",
+        "um único documento de apresentação contendo as tabelas como fotografias não estruturadas.",
+        "um arquivo de texto sem estrutura que requer varrer todos os caracteres para localizar os atributos desejados.",
+        "um arquivo binário sem esquema nem índice cujo leitor precise interpretar todos os campos sequencialmente.",
+        "um formato colunar, como Parquet, que permite ler apenas as colunas necessárias e explorar metadados de blocos."
+      ],
+      "gabarito": "E",
+      "explicacao": "Formatos colunares favorecem projeção de poucas colunas em grandes volumes e podem explorar estatísticas de blocos. Textos sem estrutura e formatos sem esquema exigem leitura mais ampla ou dificultam processamento tabular."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um produtor de mensagens serializadas em Avro acrescentará um campo obrigatório do ponto de vista da aplicação nova. Consumidores antigos ainda precisarão interpretar os registros. Na evolução de esquema, deve-se",
+      "alternativas": [
+        "assumir que o nome do tópico elimina a necessidade de registrar os esquemas usados na serialização.",
+        "avaliar a compatibilidade escritor-leitor e o uso de valores padrão apropriados no esquema de leitura, conforme os cenários de versão.",
+        "supor que qualquer acréscimo de campo é incompatível, mesmo quando o leitor antigo ignora campos desconhecidos, inclusive quando existam mecanismos de leitura tolerantes a campos adicionais.",
+        "substituir todas as mensagens por bytes aleatórios, já que Avro não depende da interpretação de tipos.",
+        "omitir o esquema de escrita e usar apenas a ordem física das colunas como regra universal de decodificação."
+      ],
+      "gabarito": "B",
+      "explicacao": "A resolução de esquemas Avro compara as versões de escrita e leitura; campos extras podem ser ignorados pelo leitor antigo, e padrões importam quando o leitor espera campos ausentes. Compatibilidade exige análise do sentido da leitura."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma API de catálogo acrescenta registros a todo momento. Um extrator consulta páginas ordenadas por inserção e sofre repetições ao usar deslocamento numérico enquanto novos itens entram no início da lista. É preferível",
+      "alternativas": [
+        "retirar o parâmetro de paginação e supor que a API responderá com todos os registros em uma única chamada.",
+        "descartar metade de cada página para neutralizar possíveis repetições e reduzir uso de memória.",
+        "aumentar arbitrariamente o deslocamento em dobro a cada consulta, presumindo que itens não possam mudar de posição.",
+        "utilizar paginação por cursor estável ou marcador de continuação fornecido pela API, respeitando a semântica do serviço.",
+        "ordenar as respostas pelo tamanho dos nomes dos produtos, sem considerar identidade ou marcador de continuação."
+      ],
+      "gabarito": "D",
+      "explicacao": "Cursores de continuação podem manter a navegação coerente quando a coleção muda, conforme a garantia da API. Deslocamentos em listas mutáveis favorecem sobreposições e saltos; descartar itens não é solução."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Na integração com um serviço HTTP, o coletor recebe status 429 acompanhado de cabeçalho Retry-After. O comportamento compatível com a limitação anunciada é",
+      "alternativas": [
+        "respeitar o intervalo indicado antes de nova tentativa e aplicar política de limites de chamadas.",
+        "reiniciar todos os bancos de dados locais, já que o status indica corrupção de armazenamento.",
+        "ignorar o cabeçalho e repetir imediatamente a requisição até não restarem conexões livres.",
+        "converter o código 429 em confirmação de sucesso, presumindo que a API já tenha processado os dados.",
+        "apagar permanentemente as credenciais do serviço, pois o código demonstra necessariamente senha incorreta."
+      ],
+      "gabarito": "A",
+      "explicacao": "O HTTP 429 indica excesso de requisições; Retry-After informa quando retentar, se fornecido e aplicável. Repetições imediatas agravam o limite, enquanto o status não comprova sucesso, credencial inválida ou corrupção."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma aplicação publica alterações de contas em um tópico particionado. O requisito é preservar a sequência dos eventos referentes a cada conta, mantendo paralelismo entre contas diferentes. A chave de partição deve ser",
+      "alternativas": [
+        "um contador global que muda em todo envio e permite roteamento alternado de cada conta.",
+        "um número aleatório calculado de novo a cada evento, espalhando as alterações da mesma conta por partições distintas.",
+        "o identificador estável da conta, assegurando que eventos da mesma conta sigam para a mesma partição.",
+        "o instante atual em milissegundos, mesmo que eventos da mesma conta sejam emitidos em momentos diferentes.",
+        "o nome do consumidor, pois ele identifica a origem das alterações independentemente da conta afetada."
+      ],
+      "gabarito": "C",
+      "explicacao": "Particionar pela chave de conta mantém seus eventos na mesma partição, onde a ordem de registro pode ser preservada. Chaves aleatórias ou que variam a cada evento dispersam uma conta e não asseguram ordem entre partições."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Ao extrair tabelas relacionadas enquanto a origem continua recebendo transações, uma equipe observa que uma tabela foi copiada antes de uma venda e outra depois dela. Para obter um conjunto coerente no tempo, recomenda-se",
+      "alternativas": [
+        "empregar mecanismo de leitura consistente ou snapshot transacional compatível com a origem durante a extração.",
+        "classificar os arquivos copiados pelo nome para reproduzir exatamente as mesmas versões de transações.",
+        "executar SELECTs independentes sem isolamento, pois cada tabela isoladamente garante consistência global.",
+        "desativar chaves estrangeiras e acreditar que isso sincroniza o instante de leitura de todas as tabelas.",
+        "alterar a codificação de caracteres dos arquivos para forçar a coincidência dos estados capturados."
+      ],
+      "gabarito": "A",
+      "explicacao": "Um snapshot consistente permite ler relações no mesmo recorte lógico de transações, evitando combinações de instantes. SELECTs desconexos, nomes de arquivos e codificações não oferecem essa garantia temporal."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma mensagem JSON representa um pedido contendo uma lista de três itens, enquanto a tabela analítica terá uma linha por item. A transformação correta, preservando a identificação do pedido, exige",
+      "alternativas": [
+        "multiplicar o valor total do pedido por três e atribuir o resultado a cada item da lista.",
+        "armazenar somente o primeiro item, pois coleções JSON devem ser reduzidas a um elemento em bases relacionais, pois os outros dois elementos devem ser considerados dados redundantes.",
+        "transformar os itens em três bancos separados sem referência ao pedido original.",
+        "expandir a lista em três registros relacionados à mesma chave de pedido, transportando os campos comuns necessários.",
+        "concatenar os nomes dos itens na chave primária e manter uma única linha sem valores individuais."
+      ],
+      "gabarito": "D",
+      "explicacao": "A expansão de coleção produz uma linha por elemento e replica a chave do pedido para preservar o relacionamento. Manter um só item, perder a chave ou multiplicar totais altera a cardinalidade e o significado das medidas."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um data lake recebe centenas de milhares de arquivos muito pequenos por dia, gerando alto custo de listagem e abertura antes da leitura útil. Sem alterar a informação, uma melhoria possível é",
+      "alternativas": [
+        "dispersar cada registro em seu próprio diretório, ampliando o número de operações de metadados.",
+        "compactar arquivos pequenos em unidades maiores apropriadas ao motor de leitura, mantendo partições e limites operacionais.",
+        "aumentar indefinidamente a quantidade de arquivos, reduzindo cada um a um único byte.",
+        "converter todos os dados em imagens, para dispensar esquemas e leitores de arquivos estruturados.",
+        "desativar qualquer mecanismo de leitura em paralelo, independentemente do tamanho final das partições."
+      ],
+      "gabarito": "B",
+      "explicacao": "A compactação de pequenos arquivos reduz operações de metadados e abertura, mantendo paralelismo se os tamanhos forem planejados. Fragmentação adicional e conversão para imagem aumentam custos ou inviabilizam análises."
+    }
+  ]
+}
