@@ -683,6 +683,40 @@ export const TURMA = {
     face: [50, 44, 0.8, "happy"],
     fx: [fxFill(star(90, 14, 6, 2.3), "#FFD84A"), fxFill(star(8, 30, 4.5, 1.8), "#FFFFFF")],
   }) },
+  Chat: { anim: "wiggle", about: "Comentar: balão de conversa com reticências", draw: () => ({
+    body: [
+      solid(rr(8, 14, 84, 58, 20) + "M26 70l-8 22 26-20z", "sky"),
+      paint(ell(36, 54, 4), WHITE, { o: 0.85 }),
+      paint(ell(50, 54, 4), WHITE, { o: 0.85 }),
+      paint(ell(64, 54, 4), WHITE, { o: 0.85 }),
+      shine("M18 30v14"),
+    ],
+    face: [50, 36, 0.75, "happy"],
+  }) },
+  Pause: { anim: "pulse", about: "Pausar: duas barrinhas descansando", draw: () => ({
+    body: [
+      solid(rr(18, 14, 24, 74, 10), "amber"),
+      solid(rr(58, 14, 24, 74, 10), "amber"),
+      shine("M24 22v18"),
+      shine("M64 22v18"),
+    ],
+    face: [50, 50, 0.7, "sleepy", { mouth: false }],
+    fx: [fxLine("M84 12h8l-8 8h8", "#FFFFFF", 2.5)],
+  }) },
+  EyeOff: { anim: "wiggle", about: "Esconder: carinha de olhos fechados", draw: () => ({
+    body: [
+      solid(ell(50, 54, 38), "paper"),
+      line("M18 84 82 20", "coral", 6),
+    ],
+    face: [50, 52, 0.95, "sleepy"],
+  }) },
+  Cross: { anim: "wiggle", about: "Fechar: xis de massinha", draw: () => ({
+    body: [
+      solid("M22 12 50 40 78 12 90 24 62 52 90 80 78 92 50 64 22 92 10 80 38 52 10 24z", "coral"),
+      shine("M20 22l10 10"),
+    ],
+    face: [50, 52, 0.62, "worried", { mouth: false }],
+  }) },
   Idioma: { anim: "wiggle", about: "Idiomas: balões conversando", draw: () => ({
     body: [
       solid(rr(40, 6, 54, 40, 14) + "M80 44l8 12-18-10z", "coral"),

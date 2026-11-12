@@ -90,7 +90,8 @@ class PlanAuditSimulation {
     fun audit() {
         if (System.getenv("AUDIT") != "1") return
         val out = StringBuilder()
-        students().forEach { out.append(run(it)).append("\n\n") }
+        val only = System.getenv("AUDIT_ONLY")?.split(",")?.map { it.trim() }
+        students().filter { s -> only == null || only.any { s.name.startsWith("$it.") } }.forEach { out.append(run(it)).append("\n\n") }
         File("build/plan-audit.txt").writeText(out.toString())
         println(out)
     }
@@ -133,6 +134,7 @@ class PlanAuditSimulation {
 
         // Estabilidade: a cada conclusão, quanto da próxima semana (o que a pessoa já viu marcado) mudou.
         var weekSlots = 0; var weekChanged = 0
+        val overBorn = mutableMapOf<LocalDate, String>()
         fun weekView(day: LocalDate) = tasks.filter { it.status == PlanTaskStatus.PLANEJADA && it.date > day && daysBetween(day, it.date) < 7 }
             .map { "${it.date}|${it.topicId}|${it.type}" }.toSet()
         fun replan(day: LocalDate, reason: ReplanReason) {
@@ -148,6 +150,11 @@ class PlanAuditSimulation {
             val moved = proposal.transitions.associateBy { it.taskId }
             tasks = tasks.map { t -> moved[t.id]?.let { t.copy(status = it.to) } ?: t }.toMutableList()
             tasks += proposal.newTasks
+            run {
+                val capNow = { d: LocalDate -> availability.first { it.isoDayOfWeek == (d.dayOfWeek.ordinal + 1) }.minutes }
+                tasks.filter { (it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA) && it.date >= day }.groupBy { it.date }
+                    .forEach { (d, l) -> if (d !in overBorn && capNow(d) > 0 && l.sumOf { it.plannedMinutes } > capNow(d)) overBorn[d] = "${reason.name}${if (d == day) "(hoje)" else "(+" + daysBetween(day, d) + ")"}" }
+            }
             if (reason == ReplanReason.TASK_COMPLETED) { val after = weekView(day); weekSlots += before.size; weekChanged += (before - after).size }
         }
 
@@ -327,9 +334,21 @@ class PlanAuditSimulation {
 run { val left = topics.filter { t -> !t.studied && t.id !in studiedOn }; if (left.isNotEmpty()) appendLine("Incidência média: dos que ficaram de fora ${left.mapNotNull { it.incidence }.average().toInt()} questões · do edital ${topics.mapNotNull { it.incidence }.average().toInt()}") }
             appendLine("Tempo feito: teoria ${tot.theory * 100 / allMin}% · questões ${tot.questions * 100 / allMin}% · revisão ${tot.review * 100 / allMin}% · reforço ${tot.recall * 100 / allMin}% · outros ${tot.other * 100 / allMin}% (total ${allMin / 60} h de ${st.weeklyMinutes * st.examInDays / 7 / 60} h disponíveis)")
             appendLine("Estabilidade: ${if (weekSlots == 0) 0 else weekChanged * 100 / weekSlots}% da próxima semana mudou a cada conclusão · dias acima do limite: $overDays · ex.: $overSample")
+            run {
+                val excess = tasks.filter { it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }
+                    .filter { (d, _) -> capOf(d) > 0 }.map { (d, l) -> l.sumOf { it.plannedMinutes } - capOf(d) }.filter { it > 0 }.sorted()
+                appendLine("Excesso planejado por dia (min): mediana ${excess.getOrNull(excess.size / 2) ?: 0} · máx ${excess.lastOrNull() ?: 0} · dias com +15 min: ${excess.count { it > 15 }}")
+                appendLine("Onde nasce o excesso: " + overBorn.values.groupingBy { it.substringBefore("(") + if ("hoje" in it) " hoje" else " futuro" }.eachCount())
+            }
             if (events.isNotEmpty()) appendLine("Eventos: " + events.joinToString(" · "))
             appendLine("Carga real (tarefas + revisões): ${over10} dias passaram mais de 10% das horas do dia; pior: ${worst?.let { "+${it.first} min em ${it.second} (dia de ${capOf(it.second)})" } ?: "-"} · teoria partida em 2+ dias: $splitTheory tópicos · por mês: " + realOver.filter { (o, d) -> o * 10 > capOf(d) }.groupingBy { "${it.second.year}-${it.second.monthNumber}" }.eachCount().entries.joinToString(" ") { "${it.key}:${it.value}" })
             appendLine("Teorias de retomada (tópico em que errava muito): $retakesDone · Simulados do plano feitos: ${simus.size} (${simus.joinToString(", ")})")
+            run {
+                // Questão antes da teoria: questões feitas num tópico de matéria que a pessoa não conhecia, antes do dia da teoria dele.
+                val early = tasks.filter { it.type == PlanTaskType.QUESTIONS && it.status == PlanTaskStatus.CONCLUIDA && it.topicId != null }
+                    .count { q -> val s = subOf.getValue(q.subjectId!!); s.knowledge == InitialKnowledge.NONE && s.name !in st.markStudied && (studiedOn[q.topicId!!]?.let { q.date < it } ?: true) }
+                appendLine("Questões antes da teoria (matéria nova): $early tarefas · horas de estudo do plano por semana (média): ${(tot.theory + tot.questions + tot.other) / 60 / weeks.size.coerceAtLeast(1)} h de ${st.weeklyMinutes / 60} h")
+            }
             appendLine("Teoria gasta em matérias que a pessoa disse dominar: ${theoryOnKnown[0] / 60} h · revisões espaçadas feitas: $reviewsDone")
             appendLine("Semana | teoria questões revisão reforço | tópicos novos | tarefas vencidas | revisões vencidas | dias vazios | horizonte (dias)")
             weeks.forEachIndexed { i, w -> appendLine("S${(i + 1).toString().padStart(2)}    | ${w.theory / 60}h ${w.questions / 60}h ${w.review / 60}h ${w.recall / 60}h | ${w.newTopics} | ${w.overdueTasks} | ${w.overdueReviews} | ${w.emptyDays} | ${w.horizon}") }

@@ -500,7 +500,7 @@ private fun CatalogPicker(
                     attr("aria-label", "Buscar edital")
                     onInput { onQuery(it.value) }
                 }
-                if (query.isNotEmpty()) Button({ classes("icon-btn"); attr("aria-label", "Limpar busca"); onClick { onQuery("") } }) { Icon("close", plain = true) }
+                if (query.isNotEmpty()) Button({ classes("icon-btn"); attr("aria-label", "Limpar busca"); onClick { onQuery("") } }) { Icon("close") }
             }
             if (query.isBlank()) Div({ classes("cat-quick") }) {
                 Span({ classes("cat-quick-l") }) { Text("Mais procurados:") }

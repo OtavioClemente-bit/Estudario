@@ -56,7 +56,7 @@ private fun ReviewHelp(onClose: () -> Unit) {
                 H2 { Text("Revisão espaçada, etapa por etapa") }
                 P({ classes("gx-topic") }) { Text("A gente esquece rápido o que estuda. Revisar na hora certa, um pouco antes de esquecer, é o que faz o conteúdo ficar.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("menu_book", "Estudou um tópico, nasceu uma revisão", "Cada tópico que você estuda entra aqui sozinho, com a data certa de voltar.", "#A78BFF") {}

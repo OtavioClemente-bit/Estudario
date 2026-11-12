@@ -200,7 +200,9 @@ class StudyPlannerEngine(
                 val rest = left - chunk
                 if (rest in 1 until minimum) {
                     when {
-                        left - free <= minimum && left <= snapshot.policy.preferredBlockMinutes + minimum -> chunk = left
+                        // Junta a sobra só se couber no dia: sem a reserva de revisão os dias ficam cheios
+                        // e passar "um pouquinho" virava +20 min em quase todo dia.
+                        left <= free && left <= snapshot.policy.preferredBlockMinutes + minimum -> chunk = left
                         chunk - (minimum - rest) >= minimum -> chunk -= (minimum - rest)
                     }
                 }

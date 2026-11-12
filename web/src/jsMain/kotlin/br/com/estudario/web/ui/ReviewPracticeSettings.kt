@@ -39,7 +39,7 @@ internal fun ReviewPracticeSettings(onSaved: () -> Unit = {}, onClose: () -> Uni
                 H2 { Text("Seu ritmo de revisão") }
                 P({ classes("gx-topic") }) { Text("Personalize as próximas sessões") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar configurações da revisão"); onClick { onClose() } }) { Icon("close", plain = true) }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar configurações da revisão"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("quiz", "Questões por revisão", null, "#2FD39A") {

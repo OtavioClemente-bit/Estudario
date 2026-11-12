@@ -107,7 +107,7 @@ private fun NotebookHelp(onClose: () -> Unit) {
                 H2 { Text("O caderno que se escreve sozinho") }
                 P({ classes("gx-topic") }) { Text("Cada tópico que você estuda vira uma página. O caderno acompanha o que está firme na memória e avisa o que está esfriando.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("auto_stories", "Você não monta nada", "Estudou o tópico, a página aparece pronta: o essencial em pontos curtos, seus grifos e notas, as dicas de prova, as pegadinhas e os cartões para lembrar.", "#A78BFF") {}

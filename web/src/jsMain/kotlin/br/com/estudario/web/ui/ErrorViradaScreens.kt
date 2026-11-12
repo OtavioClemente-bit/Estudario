@@ -99,7 +99,7 @@ private fun ViradaHelp(onClose: () -> Unit) {
                 H2 { Text("A Virada: erro que vira acerto") }
                 P({ classes("gx-topic") }) { Text("O caderno de erros não é um depósito. Cada erro é uma questão que você ainda vai acertar na prova.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("error", "1. Errou, foi para a mesa", "Toda questão que você erra vem para cá sozinha, com o tópico e o motivo do erro.", "#FF5A7A") {}

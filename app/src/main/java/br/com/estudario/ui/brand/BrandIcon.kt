@@ -42,7 +42,7 @@ fun Icon(
     }
     val scheme = androidx.compose.material3.MaterialTheme.colorScheme
     // Estrela, coração e marcador "vazios" são o estado desligado: cinza, para o toque ter resposta visível.
-    val empty = imageVector.name.endsWith("Border")
+    val empty = imageVector.name.endsWith("Border") || imageVector.name.endsWith("StarOutline")
     val muted = empty || tint.isSpecified && (
         tint.alpha < 0.6f ||
             listOf(scheme.outline, scheme.outlineVariant).any { it.copy(alpha = 1f) == tint.copy(alpha = 1f) }
@@ -125,6 +125,10 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "AddCircle", "AddCircleOutline", "AddBox", "LibraryAdd" -> Glyph.Plus
     "FastForward", "SkipNext", "DoubleArrow" -> Glyph.Forward
     "Visibility", "Preview" -> Glyph.Eye
+    "VisibilityOff" -> Glyph.EyeOff
+    "Forum", "Chat", "Comment", "ChatBubble", "ChatBubbleOutline", "QuestionAnswer" -> Glyph.Chat
+    "Pause", "PauseCircle" -> Glyph.Pause
+    "Close", "Clear", "Cancel" -> Glyph.Cross
     "PhotoCamera", "AddAPhoto", "CameraAlt" -> Glyph.Camera
     "PushPin" -> Glyph.Pin
     "InkEraser" -> Glyph.Eraser

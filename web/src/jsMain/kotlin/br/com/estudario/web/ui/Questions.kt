@@ -210,7 +210,7 @@ private fun TrainHelp(onClose: () -> Unit) {
                 H2 { Text("Treinar do seu jeito") }
                 P({ classes("gx-topic") }) { Text("Escolha o modo, filtre se quiser e comece. O que você erra vai para o caderno de erros sozinho.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("insights", "Seu diagnóstico", "O medidor mostra seu acerto geral. Embaixo, até 3 treinos prontos (o primeiro é o recomendado agora) e as matérias da mais fraca para a mais forte: toque numa para treinar só ela.", "#22D3EE") {}

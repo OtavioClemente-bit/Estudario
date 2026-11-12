@@ -27,7 +27,8 @@ import org.w3c.dom.HTMLDivElement
  */
 @Composable
 fun Icon(name: String, filled: Boolean = false, extraClass: String? = null, plain: Boolean = false) {
-    val muted = extraClass == "faint"
+    // Estrela, coração e marcador vazios são o estado desligado: o desenho em cinza (como no app).
+    val muted = extraClass == "faint" || name in setOf("star_outline", "star_border", "favorite_border", "bookmark_border")
     val svg = if (plain) null else androidx.compose.runtime.remember(name, muted) { glyphSvg(name, muted) }
     if (svg != null) {
         androidx.compose.runtime.key(name, muted) {

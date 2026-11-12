@@ -95,7 +95,7 @@ fun AvatarPickerHost() {
                 H2 { Text("Quem é você no Estudário?") }
                 P({ classes("gx-topic") }) { Text("Escolha um dos nossos personagens ou use uma foto sua.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { close() } }) { Icon("close", plain = true) }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { close() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             Div({ classes("av-grid") }) {

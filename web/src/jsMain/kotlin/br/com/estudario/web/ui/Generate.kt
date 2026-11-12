@@ -179,7 +179,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                         org.jetbrains.compose.web.dom.H2 { Text(title) }
                         topic?.title?.let { P({ classes("gx-topic") }) { Text(it) } }
                     }
-                    Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+                    Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
                 }
                 Div({ classes("gx-main") }) {
                     Div({ classes("gx-controls") }) {

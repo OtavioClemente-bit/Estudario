@@ -152,7 +152,7 @@ private fun TopicHelp(onClose: () -> Unit) {
                 H2 { Text("Tudo o que dá para fazer aqui") }
                 P({ classes("gx-topic") }) { Text("Grifar, anotar, fixar na tela e ajustar a letra. Grifos e notas vão para o Caderno de estudo e aparecem no app e no site.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("menu_book", "Ler e voltar de onde parou", "O progresso sobe sozinho conforme você rola o texto e vai para o celular. \"Continuar leitura\" leva ao ponto onde você parou.", "#A78BFF") {
@@ -1298,7 +1298,12 @@ object TheoryJump {
 
     fun blockOf(blocks: List<String>, quote: String, fallback: Int): Int {
         val needle = plain(quote).take(60)
-        if (needle.length >= 8) blocks.indexOfFirst { plain(it).contains(needle) }.takeIf { it >= 0 }?.let { return it }
+        // O bloco gravado vence quando o trecho está nele: a mesma frase repetida em outro ponto da teoria
+        // (no resumo, num quadro "Atenção") levava o grifo para a primeira ocorrência e ele não aparecia.
+        if (needle.length >= 8) {
+            if (blocks.getOrNull(fallback)?.let { plain(it).contains(needle) } == true) return fallback
+            blocks.indexOfFirst { plain(it).contains(needle) }.takeIf { it >= 0 }?.let { return it }
+        }
         return fallback.coerceIn(0, (blocks.size - 1).coerceAtLeast(0))
     }
 }
