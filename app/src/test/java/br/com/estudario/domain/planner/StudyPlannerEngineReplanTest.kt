@@ -37,6 +37,16 @@ class StudyPlannerEngineReplanTest {
     }
 
     @Test
+    fun `daily reorganization keeps the tasks already planned for today`() {
+        val today = monday.plusDays(1)
+        val planned = listOf(task("a", today, 50), task("b", today, 40), task("c", today, 30))
+        val proposal = engine.plan(snapshot(today = today, dailyMinutes = 120, tasks = planned), ReplanReason.DAY_MISSED)
+
+        assertTrue(proposal.transitions.none { it.taskId in setOf("a", "b", "c") })
+        assertTrue(proposal.newTasks.none { it.date == today })
+    }
+
+    @Test
     fun `partial execution preserves actual minutes and schedules only the remainder`() {
         val original = task("task-1", monday, 60, PlanTaskStatus.EM_ANDAMENTO)
         val execution = TaskExecution("execution-1", "task-1", 10L, 100L, monday, 25, 0, 0)

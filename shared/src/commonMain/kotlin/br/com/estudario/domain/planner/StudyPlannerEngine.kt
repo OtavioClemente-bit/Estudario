@@ -31,7 +31,12 @@ class StudyPlannerEngine(
         val fixedTasks = snapshot.tasks.filter { task ->
             task.status == PlanTaskStatus.CONCLUIDA ||
                 (dayKeeping && task.date <= snapshot.today && task.status == PlanTaskStatus.PLANEJADA) ||
-                (stableUntil != null && task.status == PlanTaskStatus.PLANEJADA && task.date > snapshot.today && task.date < stableUntil) ||
+                // Inclui o próprio dia de hoje: o que a pessoa viu ontem para hoje é o que ela encontra ao
+                // abrir. Antes a reorganização da manhã remontava o dia (as revisões atrasadas reservavam o
+                // tempo e as questões encolhiam), e um dia de 2 h virava 1h13 (caso real de 12/11).
+                // Dia marcado como folga solta o que estava nele.
+                (stableUntil != null && task.status == PlanTaskStatus.PLANEJADA && task.date >= snapshot.today && task.date < stableUntil &&
+                    snapshot.dayOverrides[task.date]?.unavailable != true) ||
                 task.locked ||
                 snapshot.dayOverrides[task.date]?.locked == true ||
                 task.subjectId == null ||
