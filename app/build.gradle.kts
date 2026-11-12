@@ -1,4 +1,4 @@
-﻿import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.dsl.ApplicationExtension
 import java.util.Base64
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -94,8 +94,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 256
-        versionName = "3.3.229"
+        versionCode = 257
+        versionName = "3.3.230"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
