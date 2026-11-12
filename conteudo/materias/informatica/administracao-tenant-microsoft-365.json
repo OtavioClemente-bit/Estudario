@@ -1,0 +1,1931 @@
+{
+  "id": "informatica.administracao-tenant-microsoft-365",
+  "subject": "Informática",
+  "title": "Configuração e administração do tenant Microsoft 365",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Configuração de tenant Office 365",
+    "Configuração de tenant Office 365."
+  ],
+  "scope": {
+    "covers": "Fundamentos e planejamento de tenant Microsoft 365/Office 365; diretório Microsoft Entra ID; domínios e DNS; criação de usuários e grupos; licenciamento; identidade híbrida; papéis administrativos; MFA; padrões de segurança; Acesso Condicional; administração de serviços, relatórios e diagnóstico.",
+    "excludes": "Procedimentos contratuais específicos, comandos avançados de PowerShell, preços e limites de cada SKU, migração detalhada entre tenants, normas de segurança próprias de órgão e configurações que dependam de recursos não incluídos na assinatura."
+  },
+  "theoryTitle": "Configuração de tenant do Office 365 (Microsoft 365): teoria e prática para concursos",
+  "chapters": [
+    {
+      "title": "Arquitetura do tenant, planejamento e centros de administração",
+      "markdown": "## 1. O que é um tenant\nO **tenant** (locatário) do Microsoft 365 é o ambiente lógico de uma organização, vinculado a uma instância de diretório do **Microsoft Entra ID**. Abriga identidades, grupos, configurações, assinaturas e relações de acesso aos serviços contratados. Cada tenant tem uma **ID exclusiva**, normalmente representada como GUID, diferente do nome comercial, do domínio DNS e do endereço de um usuário. No primeiro provisionamento do ambiente costuma ser estabelecido um domínio inicial no formato `organizacao.onmicrosoft.com`; um domínio público próprio pode ser adicionado depois. **Não confunda tenant com assinatura**: a assinatura representa contratação e direitos de uso; o tenant é a fronteira administrativa e de identidade. Um mesmo tenant pode ter diferentes assinaturas e produtos, com licenças distribuídas conforme suas regras.\n\n## 2. Ciclo de implantação\nO administrador deve levantar os requisitos antes de ativar serviços: pessoas e grupos a atender, domínios de e-mail existentes, localização e tratamento de dados, plano de migração, integração com diretório local, funcionalidades desejadas, orçamento, papéis administrativos e requisitos de segurança. A criação de um tenant não representa, por si só, a habilitação universal de todos os serviços: o acesso a funcionalidades pode depender da assinatura, do licenciamento individual, das permissões e de políticas em vigor. O planejamento também deve mapear o provedor que hospeda a zona DNS e a pessoa autorizada a alterá-la. É recomendável preparar contas administrativas de emergência protegidas, documentar responsáveis e verificar um roteiro de reversão para alterações críticas.\n\n## 3. Identidade corporativa e região\nMicrosoft Entra ID é o serviço de identidade e acesso que autentica contas da organização e oferece mecanismos de grupos, funções, registro de aplicativos e políticas de acesso. O **tenant de força de trabalho** é usado para empregados, contas organizacionais e aplicações internas; a colaboração com convidados de outras organizações pode ocorrer sem transformar esses convidados em empregados. Há também cenários de tenants externos para aplicações dirigidas a clientes, que não são o modelo comum de um tenant Microsoft 365 corporativo. Ao provisionar o tenant, o país ou região informado tem efeitos de configuração e residência de dados; não se deve presumir que a simples troca posterior de idioma ou de domínio altera a região estabelecida na criação. A mudança de tenant pode exigir planejamento de migração, e não um botão de transferência irrestrita de tudo.\n\n## 4. Onde administrar\nO **Centro de administração do Microsoft 365** concentra usuários, licenças, domínios, cobrança, configurações gerais, integridade dos serviços, suporte e relatórios de uso. O **Centro de administração do Microsoft Entra** concentra identidades, funções de diretório e controles como autenticação e acesso condicional. Existem ainda centros específicos: **Exchange** (caixas de correio e fluxo de mensagens), **SharePoint** (sites e compartilhamento), **Teams** (políticas e funcionamento das equipes), **Intune** (gerenciamento de dispositivos, quando contratado) e **Microsoft Purview** (governança, retenção, auditoria e conformidade, conforme licenciamento). Centros diferentes não significam tenants diferentes: são interfaces de administração de componentes da mesma organização.\n\n## 5. Sequência operacional para prova e prática\nUma implantação consistente costuma seguir: avaliar assinaturas e funções; preparar contas administrativas; identificar o domínio próprio; adicionar e comprovar seu controle; provisionar usuários e grupos; atribuir licenças; configurar métodos de autenticação e segurança; configurar DNS dos serviços contratados; testar entrada e correio; estabelecer governança e monitoramento. A ordem entre etapas pode mudar por projeto, mas a **troca de MX deve respeitar a prontidão das caixas postais** para evitar interrupções. Administração no Microsoft 365 não é sinônimo de instalação do Word ou Excel: a configuração envolve identidade, acesso, faturamento, rede, segurança e operação contínua. A expressão histórica \"Office 365\" aparece em editais, mas a nomenclatura Microsoft 365 é mais ampla; ainda existem assinaturas Office 365.\n\n## 6. Exemplo comentado\nUma autarquia utiliza `autarquia.gov.br` para e-mail em um provedor antigo e contrata Microsoft 365. O técnico identifica a assinatura, prepara administradores com autenticação forte, valida controle do domínio, cadastra usuários e licenças, configura Exchange e somente então planeja a alteração do MX. As equipes de trabalho podem ser organizadas por grupos e políticas, mas não se deve dar privilégio de Administrador Global a todos os responsáveis por suporte. A checagem final inclui testes de envio e recebimento, aplicativos, compartilhamentos e registros de mudanças."
+    },
+    {
+      "title": "Domínios personalizados, DNS e ativação de serviços",
+      "markdown": "## 1. Domínio inicial versus domínio personalizado\nO tenant possui um domínio inicial `onmicrosoft.com`; ele identifica a organização no ecossistema Microsoft mesmo antes de haver domínio corporativo verificado. A organização pode associar um domínio próprio, como `empresa.com.br`, para endereços e identidades. Adicionar um domínio NÃO transfere automaticamente o registro do domínio, não muda o titular no registrador e não implica que os servidores DNS sejam hospedados pela Microsoft. Em muitos projetos os registros continuam gerenciados no painel do registrador ou de um serviço de DNS. O mesmo tenant pode comportar mais de um domínio verificado, observadas as condições e a disponibilidade do nome.\n\n## 2. Comprovação de propriedade e propagação\nO administrador informa o domínio no Centro de administração do Microsoft 365, em configurações de domínios, e comprova que tem controle sobre ele. Uma forma típica de validação é publicar um **registro TXT de verificação**, com valor gerado para aquele processo, na zona DNS autoritativa. A Microsoft consulta o registro para confirmar a posse. Esse TXT **não é o SPF** e também não é um MX de roteamento de correio; são finalidades diferentes. Dependendo do assistente, existem métodos alternativos de comprovação. O Domain Connect pode automatizar parte do processo quando o provedor DNS é compatível, mas não elimina a necessidade de validação nem autoriza mudanças não planejadas. Mudanças em DNS dependem de TTL, caches e atualização de registros; falhas temporárias podem ocorrer por valor digitado incorretamente ou propagação ainda pendente. Evite inventar prazos fixos para toda a Internet.\n\n## 3. MX e a chegada de e-mails\nO registro **MX (Mail Exchanger)** identifica o servidor responsável por receber mensagens endereçadas ao domínio. Ao apontá-lo para a infraestrutura do Exchange Online, o tráfego de recebimento passa a ser dirigido ao novo serviço, de acordo com a resolução DNS. Não confunda isso com enviar mensagens: o MX tem propósito de **recepção**. Antes da troca, é necessário preparar caixas de correio, contas e políticas para todos os destinatários que serão afetados. Em coexistência ou migração por etapas, um desenho mais avançado do fluxo pode ser necessário. Alterar o MX precipitadamente pode causar perda operacional de acesso e mensagens não entregues.\n\n## 4. CNAME, Autodiscover e registros dos serviços\nO **CNAME** define um alias para outro nome DNS. Nos cenários suportados, o `autodiscover` facilita que clientes Outlook encontrem as informações para configurar o Exchange Online. Outros CNAME ou registros SRV podem ser solicitados para serviços específicos; a lista depende do produto, da nuvem e do ambiente, e não deve ser copiada cegamente de outro tenant. A verificação de domínio, o roteamento de e-mail e a descoberta de serviços são etapas **distintas**. Um domínio pode estar verificado e ainda não estar pronto para correio, caso os registros de serviço ou licenças não tenham sido configurados.\n\n## 5. SPF, DKIM e DMARC: proteção de e-mail\n**SPF** é normalmente publicado por registro TXT e declara origens autorizadas a enviar e-mail em nome do domínio de envelope. **DKIM** aplica assinatura criptográfica às mensagens, permitindo verificar sua integridade e a ligação com um domínio de assinatura. **DMARC** define política e relatórios para autenticação com alinhamento ao domínio visível no campo \"De\"; exige que SPF ou DKIM passe **com alinhamento**, conforme as regras aplicáveis. Portanto, SPF isolado não resolve toda a falsificação de remetente; DMARC não substitui SPF nem DKIM, e DKIM não indica qual destino receberá correio. Planeje todos os sistemas emissores, como gateways, sistemas de protocolo, ERP e provedores de disparo legítimos. Um SPF incompleto pode levar a falhas de autenticação de mensagens legítimas.\n\n## 6. Diagnóstico inteligente\nSe o domínio não verifica, confirme que o TXT correto foi publicado no host correto e que o provedor salvou a alteração; consulte o DNS autoritativo. Se mensagens não chegam, analise MX, caixas de correio, licenças, conectores e rastreamento de mensagens. Se chegam mas o Outlook não se configura, confira Autodiscover e políticas pertinentes. Se o e-mail sai mas há rejeições por falsificação, verifique SPF, DKIM, DMARC, alinhamento de domínios e cabeçalhos `Authentication-Results`. Esses sintomas **não são intercambiáveis**. Em mudanças críticas, faça testes de envio e recebimento interno e externo e registre a configuração anterior para contingência.\n\n## 7. Caso de concurso\nUma empresa publica corretamente o TXT de validação de `instituicao.com.br`, e o Microsoft 365 passa a reconhecer o domínio. Isso não significa que o MX foi mudado, que o correio já está no Exchange Online ou que as caixas tenham sido criadas. Essa é a pegadinha clássica: **validar o nome não configura automaticamente todos os serviços**."
+    },
+    {
+      "title": "Contas, grupos, licenciamento e identidade híbrida",
+      "markdown": "## 1. Identidades e atributos\nTodo colaborador que deva acessar serviços organizacionais precisa de uma identidade adequada no tenant ou de um modelo de acesso externo suportado. Uma conta de usuário possui atributos como nome de exibição, nome de entrada ou **UPN** (User Principal Name), localização de uso e associação a grupos. Embora um UPN costume parecer um endereço de e-mail, ele é sobretudo um identificador de entrada; não se conclui, sem examinar as configurações, que UPN e endereço SMTP primário sejam sempre idênticos. Contas podem ser criadas uma a uma, em lote por CSV ou por processos de provisionamento suportados. Usuários convidados têm ciclo de vida e permissões diferentes dos colaboradores internos; não devem ser tratados como administradores por padrão.\n\n## 2. Licença e serviço ativado\nA existência de uma conta não implica que todas as ferramentas estejam disponíveis. Licenças controlam direitos de uso de produtos e planos de serviço. O administrador pode atribuir uma licença na criação do usuário, pela ficha do usuário, pela página de licenças ou por mecanismos de grupos aplicáveis. Dentro de certos produtos, é possível ativar ou desativar planos de serviço por usuário, sem confundir isso com cancelar toda a assinatura. Atribuição direta e atribuição por grupo são métodos de distribuição; sua disponibilidade e gestão dependem do ambiente. Erros frequentes incluem falta de unidades disponíveis, conflito entre planos e local de uso inadequado. A página de licenças pode listar problemas para análise e reprocessamento após a correção.\n\n## 3. Grupos no Microsoft 365\nGrupos facilitam colaboração, atribuição de permissões e, em cenários compatíveis, licenciamento. **Grupo de segurança** é empregado em cenários de controle de acesso; **grupo do Microsoft 365** oferece recursos de colaboração relacionados a caixa de correio de grupo, calendário e integração com aplicativos compatíveis, conforme o serviço. **Lista de distribuição** prioriza o envio de mensagens a uma lista de destinatários, não sendo automaticamente equivalente a um grupo de segurança com as mesmas permissões. Membros podem ser gerenciados manualmente ou por associação dinâmica, quando atendidos os requisitos de licenciamento e recursos. Em grupos dinâmicos, uma regra avalia atributos de usuários ou dispositivos e atualiza a composição; isso não equivale a atribuir toda e qualquer função privilegiada ao grupo.\n\n## 4. Identidade exclusivamente em nuvem e híbrida\nNo modelo **cloud-only**, o usuário é gerenciado diretamente no diretório de nuvem. Em um cenário **híbrido**, pode haver sincronização de objetos a partir do Active Directory local para o Microsoft Entra ID por soluções como Microsoft Entra Connect ou Cloud Sync, respeitados os requisitos da arquitetura escolhida. Sincronizar identidade não significa automaticamente migrar caixas de correio, arquivos de rede, permissões em todos os aplicativos ou instalar Office. Métodos de autenticação podem incluir sincronização de hash de senha, autenticação de passagem ou federação, em desenhos suportados. Um atributo sincronizado pode ter sua origem de autoridade no diretório local; editar apenas a cópia na nuvem pode não produzir o efeito esperado. Exames gostam de confundir **identidade** com **dados e aplicativos**.\n\n## 5. Ciclo de vida, convidados e desligamento\nOnboarding envolve provisionar a conta, incluir nos grupos corretos, atribuir licenças e permitir acesso de acordo com a política. Mudança de equipe exige revisar grupos e acessos, não apenas o nome do setor no cadastro. Offboarding deve priorizar bloqueio de acesso, invalidação de sessões quando apropriado, preservação e transferência de dados conforme políticas vigentes, revisão de propriedade de grupos e eventual retirada da licença. **Remover a licença não equivale a excluir a identidade nem a garantir preservação indefinida de e-mails.** Retenção, caixas inativas e OneDrive seguem regras e capacidades próprias; avalie a documentação da assinatura antes de tomar decisões irreversíveis. Contas de convidados também devem ser periodicamente revisadas.\n\n## 6. Exemplo de diagnóstico\nUma servidora aparece na lista de usuários, mas não consegue ativar os aplicativos. O técnico verifica o produto atribuído, o plano de serviço habilitado e a quantidade de licenças. Se houver integração híbrida e o nome de entrada não atualizar, ele analisa onde o atributo é gerenciado e a sincronização. São duas linhas de investigação distintas: **licenciamento** para habilitação do produto e **sincronização/identidade** para coerência dos objetos."
+    },
+    {
+      "title": "Segurança, MFA, privilégios e acesso condicional",
+      "markdown": "## 1. Modelo de confiança e menor privilégio\nA proteção do tenant começa pelas contas que podem administrá-lo. O princípio do **menor privilégio** determina conceder somente a função e os recursos necessários ao trabalho. O **Administrador Global** possui poderes amplos e não deve ser usado indiscriminadamente para tarefas comuns; funções especializadas, como Administrador de Usuários, de Licenças, do Exchange ou do Teams, ajudam a limitar o impacto de falhas e comprometimentos. As funções podem ser verificadas nos centros de administração correspondentes. Conceder uma função administrativa NÃO é o mesmo que atribuir uma licença: função define poder de gestão, enquanto licença define direitos de uso de serviços.\n\n## 2. Autenticação multifator (MFA)\nMFA requer mais de uma categoria ou evidência de autenticação para comprovar a identidade, reduzindo o risco de senhas comprometidas permitirem acesso. O registro de métodos de autenticação e a exigência do segundo fator devem ser planejados com comunicação, suporte e recuperação de contas. O simples cadastramento de número de telefone não equivale a afirmar que toda entrada exigirá MFA; a imposição efetiva depende das políticas. Contas privilegiadas precisam de proteção reforçada. Boas práticas incluem métodos resistentes a phishing quando disponíveis, acompanhamento de entradas suspeitas e procedimentos controlados de emergência.\n\n## 3. Padrões de segurança\nO Microsoft Entra oferece **padrões de segurança** para estabelecer proteção inicial de identidade, inclusive ações relacionadas a MFA e bloqueio de mecanismos antigos ou inseguros de autenticação. São convenientes como linha de base, mas não dão a mesma granularidade de regras sob medida. A configuração e o comportamento variam conforme o contexto e a evolução do serviço; não memorize que todo tenant nasce sempre com o mesmo conjunto operacional imutável. Antes de desabilitá-los, avalie uma alternativa de proteção equivalente ou superior, em especial políticas de Acesso Condicional devidamente licenciadas e testadas.\n\n## 4. Acesso Condicional\nO **Acesso Condicional** aplica regras do tipo \"se condições, então decisão\", com base em sinais como usuário ou grupo, aplicativo, localização e estado do dispositivo. Entre os controles estão bloquear acesso, exigir MFA ou exigir dispositivo compatível, conforme capacidades e licenças. Exemplo: exigir MFA quando um usuário tenta entrar em um aplicativo corporativo; outro: bloquear um cenário de acesso que descumpra a política. Esse mecanismo é avaliado no fluxo de autenticação, mas **não é firewall de rede, antivírus, cópia de segurança nem proteção universal contra negação de serviço**. Recursos de acesso condicional tipicamente exigem Microsoft Entra ID P1 ou direito equivalente; cenários baseados em riscos podem exigir P2. Os padrões de segurança, por sua vez, oferecem proteção inicial sem a mesma personalização.\n\n## 5. Identidades privilegiadas, proteção e auditoria\nUma organização madura separa contas comuns de contas administrativas, limita a quantidade de usuários altamente privilegiados, revisa acessos e observa logs de entrada e auditoria. Quando contratado, o **Privileged Identity Management (PIM)** permite mecanismos de gestão de acesso privilegiado conforme o plano e configuração; não se deve pressupor que esteja em toda licença básica. Informações sensíveis exigem controles de acesso e governança, observando proteção de compartilhamento externo, prevenção de perda de dados, retenção e políticas dos aplicativos. A conformidade envolve processos e configuração, não uma propriedade automática de qualquer tenant.\n\n## 6. Erros conceituais recorrentes\n(1) Confundir MFA com troca frequente de senha: são mecanismos diferentes. (2) Achar que a função Administrador Global é necessária para todos os chamados: a segregação reduz exposição. (3) Acreditar que Acesso Condicional dispensa licenciamento ou opera de forma idêntica aos padrões de segurança. (4) Supor que uma política de segurança aplicada no Microsoft Entra configura automaticamente toda a retenção de dados do SharePoint ou do Exchange. (5) Julgar que todo convidado externo tem poderes administrativos: o acesso de convidado depende de atribuições e políticas.\n\n## 7. Situação-problema\nUma empresa quer liberar consulta de relatórios sem conceder gestão de contas. A alternativa adequada é avaliar uma função de leitura compatível; atribuir Administrador Global é desproporcional. Se quer obrigar MFA somente em determinado aplicativo sob certas condições, o caminho é estudar Acesso Condicional, direitos de licença e testes controlados. Se apenas deseja uma proteção inicial para um ambiente simples, os padrões de segurança podem atender melhor do que um conjunto complexo de políticas."
+    },
+    {
+      "title": "Serviços, governança, monitoramento e resolução de incidentes",
+      "markdown": "## 1. Administração por cargas de trabalho\nO Microsoft 365 reúne serviços com administração especializada. **Exchange Online** gerencia caixas de correio, destinatários, regras e fluxo de mensagens; **SharePoint Online** oferece sites e bibliotecas para colaboração e gestão de conteúdo; **OneDrive** atende principalmente ao armazenamento de trabalho associado a usuários e à colaboração em arquivos; **Teams** articula reuniões, conversas e colaboração integrada a outras cargas. A criação de uma equipe no Teams pode estar associada a recursos do Microsoft 365, incluindo grupo e armazenamento no SharePoint, conforme a configuração. Entretanto, os serviços não são sinônimos nem possuem necessariamente políticas idênticas de acesso, retenção e compartilhamento.\n\n## 2. Configurações de compartilhamento\nAo planejar colaboração, o administrador deve distinguir **usuários internos, convidados e links de compartilhamento**, observando limites organizacionais e políticas do site ou serviço. A autorização para compartilhamento externo deve ser definida com base no risco e na necessidade de negócio. Um usuário ter acesso ao OneDrive não significa poder publicar todos os arquivos indiscriminadamente; o compartilhamento pode ser restringido por políticas e permissões. De modo semelhante, ser membro de uma equipe não significa possuir permissão de Administrador Global no tenant. A diferença entre pertencimento a equipe, dono de site, proprietário de grupo e função administrativa costuma aparecer em itens de prova.\n\n## 3. Governança e conformidade\n**Microsoft Purview** concentra, conforme planos e funcionalidades, recursos de governança e conformidade como auditoria, retenção, descoberta eletrônica e prevenção de perda de dados. Uma política de retenção responde a objetivos próprios, distintos de cópia de segurança tradicional e recuperação de desastres. Retenção pode preservar ou eliminar conteúdo sob critérios definidos; backup visa capacidade de restauração. Não se deve afirmar que toda licença contém todos os recursos avançados de conformidade. Planeje classificação da informação, responsáveis, períodos de retenção definidos pela organização e acesso controlado aos registros.\n\n## 4. Operação contínua e indicadores\nA implantação do tenant não termina após o primeiro login. O administrador acompanha o **estado de integridade dos serviços**, comunicados e incidentes, relatórios de uso e disponibilidade de licenças. Relatórios ajudam a identificar adoção baixa, produtos ociosos e necessidade de suporte, mas não substituem análise de segurança: um serviço pouco utilizado não é necessariamente inseguro, nem um alto uso comprova configuração correta. A Microsoft disponibiliza informações de uso por serviço em relatórios, com prazos de atualização e diferentes níveis de detalhamento; a identificação nominal pode ficar oculta por critérios de privacidade. Métricas devem ser interpretadas no contexto de licença, privacidade e período de apuração.\n\n## 5. Procedimento de troubleshooting\nDiagnostique por camadas: (a) a identidade existe, está habilitada e consegue autenticar? (b) há licença válida e plano de serviço adequado? (c) o usuário possui permissão para o recurso? (d) existe política de MFA ou Acesso Condicional bloqueando a sessão? (e) o serviço enfrenta incidente? (f) DNS e cliente estão configurados? Para correio, acrescente MX, Autodiscover, SPF, DKIM, DMARC e rastreamento de mensagens; para arquivos, analise local, propriedade e políticas de compartilhamento. Não altere muitas variáveis simultaneamente, pois isso prejudica a identificação da causa. Registre o sintoma, a hipótese, o teste, o resultado e as medidas de reversão.\n\n## 6. Gestão de mudanças e incidentes\nMudanças em domínio, MX, políticas de acesso, permissões, sincronização e licenciamento podem interromper atividades. Use janela planejada quando necessário, comunicação aos usuários, testes com grupo piloto e mecanismo de contingência. Um incidente de segurança pode exigir bloquear contas, revogar sessões, revisar funções e investigar entradas indevidas, segundo autorização e procedimentos internos. É arriscado simplesmente excluir contas sem verificar retenção e preservação de evidências. Uma boa resposta administrativa separa: **contenção do risco, restauração do serviço e prevenção de recorrência**.\n\n## 7. Matriz comparativa para fixação\n| Sintoma | Primeiro eixo de verificação |\n|---|---|\n| Domínio não validado | TXT de comprovação e DNS autoritativo |\n| E-mail externo não chega | MX, caixa de correio, conectores e rastreamento |\n| Aplicativo não ativa | Assinatura, licença e plano de serviço |\n| Entrada bloqueada após digitar senha | MFA, Acesso Condicional, estado da conta e logs |\n| Arquivo não pode ser compartilhado | Permissões do item e políticas SharePoint/OneDrive |\n| Conta híbrida não atualiza | Origem do atributo e sincronização |\n\nA chave para acertar questões sobre tenant é sempre identificar **a camada afetada**: domínio, identidade, licença, papel, segurança ou serviço."
+    }
+  ],
+  "summary": "## Revisão de alta incidência\nO tenant é a fronteira lógica de identidade e administração vinculada ao Microsoft Entra ID. Possui ID exclusiva e pode incluir múltiplos domínios e assinaturas. O domínio inicial `onmicrosoft.com` não impede o uso de um domínio próprio. Na ativação, o TXT de verificação comprova controle do domínio, mas **não** roteia correio; quem indica o recebimento é o MX. CNAME Autodiscover auxilia clientes; SPF, DKIM e DMARC apoiam autenticação de e-mails e prevenção de falsificação, com atenção ao alinhamento exigido pelo DMARC.\n\nUma conta pode existir sem licença; uma licença pode ter serviços específicos desabilitados. Grupos podem apoiar colaboração, autorização e licenciamento, mas listas de distribuição não equivalem universalmente a grupos de segurança. Na identidade híbrida, sincronizar diretórios não migra automaticamente caixas postais. Funções administrativas concedem poderes e devem respeitar menor privilégio; MFA e Acesso Condicional tratam da autenticação e decisão de acesso, observadas as licenças. Para a operação diária, distinga Exchange (e-mail), SharePoint/OneDrive (conteúdo), Teams (colaboração), Purview (governança), integridade de serviços e relatórios de uso. Retenção não é sinônimo de backup. A investigação eficiente parte do sintoma e separa as camadas de identidade, DNS, licença, política e serviço.",
+  "flashcards": [
+    {
+      "front": "O que é tenant no Microsoft 365?",
+      "back": "Ambiente lógico da organização associado ao diretório Microsoft Entra ID, com identidades, configurações e acesso a serviços."
+    },
+    {
+      "front": "Tenant e assinatura são sinônimos?",
+      "back": "Não. Tenant é fronteira de identidade e gestão; assinatura é contratação e direito de uso."
+    },
+    {
+      "front": "Qual é a diferença entre ID do tenant e domínio?",
+      "back": "ID do tenant é identificador exclusivo do diretório; domínio é nome DNS usado em identidades e serviços."
+    },
+    {
+      "front": "O que representa o domínio onmicrosoft.com?",
+      "back": "Domínio inicial atribuído ao ambiente; domínios personalizados podem ser associados depois."
+    },
+    {
+      "front": "Para que serve TXT de verificação?",
+      "back": "Para comprovar controle do domínio ao Microsoft 365, sem definir, por si só, o roteamento de e-mail."
+    },
+    {
+      "front": "Qual é o papel do registro MX?",
+      "back": "Informar o destino de recebimento das mensagens enviadas ao domínio."
+    },
+    {
+      "front": "O que é Autodiscover?",
+      "back": "Mecanismo que auxilia clientes a localizar parâmetros do Exchange para configuração automática."
+    },
+    {
+      "front": "Qual a função do SPF?",
+      "back": "Declarar as origens de envio de e-mail autorizadas em nome de um domínio de envelope."
+    },
+    {
+      "front": "O que verifica DKIM?",
+      "back": "Assinatura digital e integridade de elementos da mensagem associados ao domínio de assinatura."
+    },
+    {
+      "front": "Qual a característica central do DMARC?",
+      "back": "Avalia autenticação SPF ou DKIM com alinhamento ao domínio visível do remetente e publica política e relatórios."
+    },
+    {
+      "front": "Uma conta de usuário garante todos os serviços?",
+      "back": "Não. Os direitos de uso dependem de licença, planos de serviço e políticas."
+    },
+    {
+      "front": "O que é licenciamento baseado em grupo?",
+      "back": "Distribuição de licenças de produto conforme associação do usuário a grupos compatíveis."
+    },
+    {
+      "front": "Grupo de segurança equivale a lista de distribuição?",
+      "back": "Não. O grupo de segurança apoia autorização; lista de distribuição tem finalidade principal de mensagens."
+    },
+    {
+      "front": "A sincronização de identidade migra caixas postais?",
+      "back": "Não automaticamente; ela se concentra em objetos e atributos de identidade."
+    },
+    {
+      "front": "Por que verificar a origem do atributo no ambiente híbrido?",
+      "back": "Porque certos atributos devem ser alterados no diretório local e podem ser sobrescritos pela sincronização."
+    },
+    {
+      "front": "Qual é o princípio do menor privilégio?",
+      "back": "Conceder somente as funções necessárias para executar tarefas autorizadas."
+    },
+    {
+      "front": "Função administrativa e licença são diferentes?",
+      "back": "Sim. A função confere poder de gestão; a licença habilita direitos de uso de produtos."
+    },
+    {
+      "front": "Padrões de segurança e Acesso Condicional são idênticos?",
+      "back": "Não. Padrões oferecem linha de base; Acesso Condicional permite regras granulares quando licenciado."
+    },
+    {
+      "front": "MFA é a mesma coisa que alterar senha?",
+      "back": "Não. MFA exige evidências adicionais de autenticação; troca de senha é outra medida."
+    },
+    {
+      "front": "Qual é a diferença essencial entre retenção e backup?",
+      "back": "Retenção administra preservação e descarte; backup busca restaurar dados."
+    },
+    {
+      "front": "Qual é a finalidade dos relatórios de uso?",
+      "back": "Acompanhar adoção e utilização de serviços, não substituir uma auditoria de segurança."
+    },
+    {
+      "front": "Que verificação fazer antes de trocar MX?",
+      "back": "Confirmar destinatários, licenças e caixas postais no destino e planejar a transição."
+    }
+  ],
+  "tips": [
+    "Em questões sobre tenant, separe sempre diretório, domínio DNS, assinatura e licença: são quatro objetos distintos.",
+    "Para DNS, memorize o papel: TXT verifica; MX recebe; Autodiscover facilita configuração; SPF, DKIM e DMARC autenticam remetentes.",
+    "Antes de apontar MX para Exchange Online, prepare as caixas e planeje migração e reversão.",
+    "Em reclamação de aplicativo não licenciado, examine produto atribuído, plano de serviço e local de uso antes de mexer no DNS.",
+    "Em autenticação híbrida, rastreie o sistema que é fonte do atributo antes de editar nomes e grupos.",
+    "Em segurança, priorize menor privilégio, MFA e políticas de acesso, respeitando os requisitos de licença."
+  ],
+  "traps": [
+    "\"Domínio validado\" não implica \"caixas postais criadas\" nem \"MX alterado\".",
+    "\"Assinatura adquirida\" não significa \"licença automaticamente atribuída a cada usuário\".",
+    "\"Administrador Global\" não é sinônimo de suporte técnico nem de usuário licenciado.",
+    "\"SPF aprovado\" não significa necessariamente \"DMARC aprovado\" quando falta alinhamento.",
+    "\"Sincronização do diretório\" não equivale a migração automática de mensagens e arquivos.",
+    "\"Retenção\" não assegura, por si só, cópia de segurança restaurável."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre tenant, domínio e licença.",
+      "answer": "Tenant identifica o ambiente lógico e diretório; domínio é nome DNS verificado; licença confere direitos de uso de produtos a pessoas."
+    },
+    {
+      "question": "Por que o TXT de validação não substitui o MX?",
+      "answer": "Porque comprovação de controle do domínio e roteamento de e-mail de entrada são funções DNS distintas."
+    },
+    {
+      "question": "Quais protocolos protegem a autenticidade das mensagens e como se relacionam?",
+      "answer": "SPF identifica origens autorizadas; DKIM assina mensagens; DMARC exige SPF ou DKIM com alinhamento e orienta a política."
+    },
+    {
+      "question": "Como diagnosticar usuário que entra no portal mas não abre aplicativo licenciado?",
+      "answer": "Verificar atribuição de licença, plano de serviço habilitado, local de uso e restrições de política."
+    },
+    {
+      "question": "O que deve ser verificado quando atributo de usuário híbrido não atualiza na nuvem?",
+      "answer": "A fonte de autoridade no AD local, o escopo e a execução de sincronização e conflitos de atributos."
+    },
+    {
+      "question": "Como escolher entre padrões de segurança e acesso condicional?",
+      "answer": "Padrões servem como linha inicial; regras granulares por usuário/aplicativo/contexto exigem Acesso Condicional devidamente licenciado."
+    },
+    {
+      "question": "Qual a sequência de triagem para falha de acesso ao serviço?",
+      "answer": "Conferir identidade, licença, permissões, políticas de autenticação, integridade do serviço, rede e DNS conforme o sintoma."
+    },
+    {
+      "question": "Por que o desligamento não deve se limitar a remover licença?",
+      "answer": "É preciso conter acesso, tratar dados e retenção, revisar grupos/propriedades e cumprir procedimentos de preservação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Tenant, domínio e assinatura não são equivalentes",
+      "summary": "Tenant é a fronteira lógica de identidade e administração; domínio é um nome DNS verificado; assinatura e licenças concedem direitos de uso. Alterar um deles não substitui os demais."
+    },
+    {
+      "key": "e2",
+      "title": "Verificação DNS não ativa automaticamente o correio",
+      "summary": "O TXT verifica controle do domínio; o MX define o destino de recebimento; CNAME e outros registros suportam serviços. Cada etapa tem função própria."
+    },
+    {
+      "key": "e3",
+      "title": "Conta criada não é sinônimo de serviço licenciado",
+      "summary": "Usuário pode existir sem licença ou com plano de serviço desabilitado. Atribuição de licenças, grupos e atributos de uso precisam ser conferidos."
+    },
+    {
+      "key": "e4",
+      "title": "Função administrativa não se confunde com autenticação ou licença",
+      "summary": "Funções concedem privilégios; licenças habilitam serviços; MFA valida identidade; Acesso Condicional impõe decisões conforme sinais e políticas."
+    },
+    {
+      "key": "e5",
+      "title": "Governança, compartilhamento e backup são controles diferentes",
+      "summary": "Permissões e políticas limitam colaboração; retenção regula preservação ou eliminação de dados; backup procura viabilizar restauração; métricas de uso não são auditoria de segurança."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A ID de tenant identifica de modo exclusivo o diretório organizacional do Microsoft Entra e não se confunde, por si só, com o domínio de e-mail utilizado pela empresa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A ID de tenant é um identificador do diretório. Já o domínio de e-mail é um nome DNS associado à organização, que pode coexistir com outros domínios no mesmo ambiente.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao contratar duas assinaturas Microsoft 365, a empresa terá obrigatoriamente dois tenants separados, ainda que use as mesmas contas organizacionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A contratação de produtos não determina automaticamente uma fronteira de diretório distinta. O mesmo tenant pode reunir assinaturas e planos diferentes sob gestão organizada.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O centro de administração do Microsoft Entra concentra tarefas de identidade e acesso, ao passo que o centro do Exchange é especializado na administração do correio eletrônico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Microsoft Entra e Exchange atendem camadas diferentes da solução: diretório e controle de acesso, de um lado, e mensagens e caixas de correio, de outro. Ambos podem pertencer ao mesmo tenant.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência do domínio inicial onmicrosoft.com impede que a organização adicione posteriormente um domínio personalizado verificado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O domínio inicial serve à identificação no ambiente Microsoft. O tenant pode receber domínios próprios após comprovação de controle; não se exige substituir ou apagar o domínio inicial.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O planejamento inicial do tenant deve considerar usuários, licenciamento, domínio existente, segurança administrativa e eventual migração de correio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A implantação não se resume a instalar aplicativos. O administrador precisa compatibilizar identidade, contrato, DNS, acesso, segurança e continuidade do serviço antes de executar alterações críticas.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade pública possui assinaturas diferentes de Microsoft 365 e deseja manter um único diretório de usuários. Qual compreensão está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tenant pode unir identidades de várias assinaturas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada licença individual representa um diretório autônomo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada domínio personalizado exige sempre uma nova instância de tenant.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tenant corresponde unicamente ao endereço DNS público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura substitui a necessidade de contas de usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tenant é a unidade lógica de identidade e administração, enquanto assinaturas concedem direitos de uso. Múltiplos produtos podem ser administrados no mesmo ambiente, observadas suas regras.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao documentar uma implantação, a equipe deve indicar onde localizar o identificador exclusivo do diretório. Qual é o dado apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nome de exibição da organização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ID do tenant no Microsoft Entra.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alias de um usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registro MX do domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identificador do computador do administrador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ID do tenant é própria da instância de diretório e pode ser consultada nas propriedades do Microsoft Entra. Nome de organização, endereços e registros DNS não cumprem essa função.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização está configurando fluxos de mensagens do Exchange Online. Qual centro é mais diretamente especializado nessa tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Centro de administração do SharePoint.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Centro de administração do Teams.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Centro de administração do Exchange.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Portal de gerenciamento de dispositivos Intune.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Centro de cobrança de assinaturas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Exchange administra caixas de correio e fluxo de mensagens. Sites, equipes, dispositivos e cobrança possuem administrações específicas, que não substituem a gestão de transporte de e-mail.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na adoção de Microsoft 365, há intenção de trocar o recebimento do e-mail corporativo. Qual é a preparação mais coerente antes da mudança de DNS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar imediatamente as caixas do provedor antigo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conceder Administrador Global a todos os funcionários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o MX antes de cadastrar qualquer usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Provisionar caixas postais e validar o plano de migração.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Tratar a verificação do domínio como migração integral de mensagens.",
+          "correct": false
+        }
+      ],
+      "explanation": "A alteração do MX direciona novas mensagens ao destino configurado. O ambiente de destino precisa estar preparado para receber os destinatários e os testes devem anteceder uma mudança com impacto coletivo.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe compara centros de administração e conclui que são tenants separados por existirem portais distintos. Qual avaliação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada portal exige usuário de outro domínio público.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada serviço exige nova verificação de propriedade de domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A existência de um portal elimina a integração entre serviços.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente o centro do Microsoft Entra pode exibir informações administrativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Portais distintos podem gerir serviços diferentes dentro do mesmo tenant.",
+          "correct": true
+        }
+      ],
+      "explanation": "Microsoft 365, Entra, Exchange, Teams e SharePoint apresentam interfaces especializadas, sem que isso crie necessariamente diretórios organizacionais separados.",
+      "section": "Arquitetura do tenant, planejamento e centros de administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A publicação de um TXT destinado à verificação do domínio prova seu controle, mas não altera, por si só, o destino de recebimento de e-mails.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro de verificação tem finalidade de comprovação. O destino do correio recebido depende principalmente da configuração MX e do cenário de roteamento, que é uma etapa separada.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro DNS MX é utilizado primordialmente para indicar os servidores autorizados a assinar mensagens com DKIM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "MX indica o destino para entrega de mensagens do domínio. A assinatura de mensagens é função do DKIM, que não pode ser inferida do valor de um registro MX.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um CNAME de Autodiscover pode auxiliar aplicativos Outlook a localizar informações necessárias à configuração automática do serviço de e-mail.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Autodiscover permite localizar a infraestrutura de correio apropriada para o cliente. Ele não substitui a caixa postal, a licença nem os registros responsáveis pela recepção de mensagens.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A verificação bem-sucedida da propriedade do domínio garante que todos os usuários já disponham de caixas postais operacionais no Exchange Online.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Verificação atesta controle sobre o nome DNS. Caixas postais exigem identidades, licenças, provisionamento e configuração do serviço; o MX também precisa estar coerente com a migração.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política DMARC considera o alinhamento do domínio da identidade visível do remetente com mecanismos de autenticação como SPF ou DKIM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "DMARC não verifica apenas se existe algum SPF ou DKIM aprovado. Para passar, exige o alinhamento pertinente com o domínio visível do remetente e aplica política e relatórios configurados.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa verifica seu domínio no Microsoft 365, mas ainda recebe e-mails no provedor antigo. Qual alteração DNS está mais diretamente ligada ao redirecionamento do recebimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualização do registro MX para o destino de correio apropriado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criação de novo TXT apenas para provar propriedade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ajuste exclusivo do nome de exibição dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mudança do registro SPF para conter o administrador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alteração do nome do tenant no Microsoft Entra.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro MX informa aos servidores remetentes para onde entregar correspondências. Os demais elementos podem ter sua importância, mas não representam o mecanismo básico de roteamento de entrada.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O técnico observa um registro TXT no formato de código de comprovação fornecido pelo assistente de domínio. Qual sua principal função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Habilitar MFA para o administrador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Demonstrar controle do domínio ao serviço de verificação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conceder licenças aos usuários automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indicar endereço de entrega das mensagens recebidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a configuração de assinatura DKIM.",
+          "correct": false
+        }
+      ],
+      "explanation": "O assistente consulta o TXT de verificação para validar o domínio. Não se confunde a comprovação de propriedade com autenticação multifator, atribuição de licenças ou operação de correio.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma companhia utiliza Microsoft 365, sistema de CRM e plataforma de atendimento para enviar mensagens legítimas. Que providência deve orientar o SPF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar vários SPF conflitantes para o mesmo domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas o registro MX como lista de remetentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorizar no SPF todas as origens legítimas de envio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar DKIM para evitar assinaturas simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder acesso administrativo às plataformas externas.",
+          "correct": false
+        }
+      ],
+      "explanation": "SPF descreve origens permitidas de envio do domínio. Ignorar emissores legítimos causa falhas; multiplicar registros SPF incompatíveis e confundir MX ou permissões não resolve a autenticação.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem passa na checagem SPF, mas falha no DMARC por desalinhamento. Qual explicação técnica é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aprovação no SPF sempre implica aprovação automática no DMARC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DMARC avalia unicamente o endereço IP do computador destinatário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DKIM é o mecanismo que define o servidor de recebimento MX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SPF pode passar sem estar alinhado ao domínio visível em De.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A existência de CNAME Autodiscover exige que DMARC falhe.",
+          "correct": false
+        }
+      ],
+      "explanation": "DMARC depende de autenticação aprovada e alinhada ao domínio do cabeçalho De, seja por SPF, seja por DKIM. Uma aprovação SPF sem alinhamento não garante sucesso de DMARC.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após publicar os registros DNS, o verificador ainda não encontra o valor de comprovação. Qual conduta é tecnicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir imediatamente o tenant e criar outro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar a função do usuário para Administrador do Teams.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todas as licenças do Microsoft 365.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar compulsoriamente o MX antes de validar o TXT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir TXT, zona autoritativa e propagação DNS.",
+          "correct": true
+        }
+      ],
+      "explanation": "O problema de verificação é diagnosticado primeiro no DNS e no valor do registro. Alterações em identidade, licença ou roteamento de e-mail não corrigem um TXT ausente ou incorreto.",
+      "section": "Domínios personalizados, DNS e ativação de serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criação de uma conta de usuário no tenant, desacompanhada de licenciamento adequado, não garante acesso a todos os aplicativos contratáveis do Microsoft 365.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A identidade é condição de entrada; as funcionalidades dependem de direitos de uso, planos ativados e políticas. A conta pode existir sem licença ou com parte dos serviços desabilitada.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de distribuição do Exchange equivale necessariamente a um grupo de segurança do Microsoft Entra para quaisquer concessões de permissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A lista de distribuição atende prioritariamente ao envio de mensagens a destinatários. Grupos de segurança têm função de autorização e não devem ser tratados como equivalentes universais.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No licenciamento baseado em grupo, a associação do usuário pode ser utilizada para receber licenças de produtos atribuídas ao grupo, conforme os requisitos aplicáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O licenciamento por grupos permite aplicar direitos de uso a conjuntos de pessoas. Ainda é preciso observar licença disponível, compatibilidade de planos e políticas do serviço.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sincronizar usuários do Active Directory local com Microsoft Entra ID provoca automaticamente a migração de todas as caixas de correio locais para Exchange Online.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sincronização de diretório transfere ou mantém atributos e objetos de identidade, mas não é um motor universal de migração de caixas postais, arquivos ou aplicativos.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em identidade híbrida, o administrador deve considerar onde um atributo é gerenciado antes de tentar corrigir diretamente na nuvem um campo sincronizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem de autoridade de certos atributos pode estar no ambiente local. Mudanças feitas no lugar inadequado podem ser rejeitadas ou sobrescritas em sincronizações posteriores.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma usuária consegue entrar no portal, mas os aplicativos de produtividade exibem aviso de produto não licenciado. O que verificar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuição do produto e planos de serviço da conta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Existência de um registro MX para cada aplicativo Office.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantidade de administradores globais conectados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exclusão do domínio personalizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criação compulsória de segundo tenant.",
+          "correct": false
+        }
+      ],
+      "explanation": "O login bem-sucedido confirma a identidade, não os direitos de uso do produto. O primeiro diagnóstico deve recair sobre licença e planos, além da compatibilidade com a assinatura.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização pretende automatizar a concessão de licenças a empregados de um departamento por associação. Qual recurso atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inclusão dos empregados no registro MX.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Licenciamento baseado em grupo, quando suportado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Atribuição da função Administrador Global a cada empregado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criação de regra de encaminhamento de e-mail para o departamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajuste de política DMARC para o endereço de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A vinculação da licença à associação de grupo organiza direitos de uso. Registros DNS, permissões elevadas e regras de correio não substituem o mecanismo de distribuição de licenças.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome de exibição de usuário sincronizado de diretório local não persiste quando editado apenas no serviço de nuvem. Qual hipótese é a mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O registro SPF impõe valores de nomes de exibição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O MX restaura nomes com base no servidor de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O atributo é gerido no diretório local e ressincroniza.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A licença do Word determina o nome do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Autodiscover escolhe o atributo exibido pelo diretório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em identidade híbrida, a origem de autoridade para atributos sincronizados deve ser observada. Mudar DNS ou licença não corrige uma atualização feita fora do sistema responsável pelo atributo.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A administração deseja adicionar dezenas de empregados, com dados padronizados, sem inserir um a um. Qual meio é admitido pelo centro de administração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criação de registros DKIM para cada empregado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definição do domínio do usuário como endereço MX.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicação de políticas DMARC por matrícula.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Importação em lote com arquivo CSV no fluxo de adição de usuários.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Mudança manual das configurações do servidor DNS para cada conta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A adição em lote por CSV é recurso do gerenciamento de usuários. Registros DNS são aplicados ao domínio e aos serviços, não constituem método de criação de contas por matrícula.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No desligamento de colaborador, a equipe pretende remover sua licença e considera que isso assegurará preservação ilimitada do correio. Qual orientação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar a licença é idêntico a criar automaticamente uma cópia de segurança permanente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma conta sem licença mantém todas as funções e serviços sem restrição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A preservação depende exclusivamente do registro SPF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É obrigatório excluir imediatamente todos os grupos sem verificar propriedade de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar desligamento e retenção, pois remover licença não preserva dados indefinidamente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Desligamento exige conter acessos e observar regras de retenção e destino dos dados. A mera remoção de licenças não preserva indefinidamente o conteúdo nem substitui um plano de offboarding.",
+      "section": "Contas, grupos, licenciamento e identidade híbrida",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O princípio do menor privilégio recomenda restringir a atribuição de Administrador Global e preferir funções específicas quando elas bastarem à tarefa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Papéis especializados limitam o alcance de contas e reduzem o impacto de erros ou comprometimento. A função global é ampla e não é requisito para toda atividade administrativa.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A atribuição de uma licença de aplicativo a um usuário concede automaticamente a esse usuário a função de Administrador Global.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Licenças tratam de direito de uso dos produtos; funções administrativas controlam poderes de gestão. A concessão de um direito não implica a outra. A afirmação deve ser avaliada pela função efetiva de cada componente, e não por semelhança de nomes ou pela existência do serviço no portal.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Políticas de Acesso Condicional podem empregar sinais de usuário, aplicativo e dispositivo para exigir MFA ou bloquear determinadas tentativas de acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O Acesso Condicional implementa decisões com base em condições configuradas. Requisitos adicionais como MFA e dispositivo compatível diferem de licenciamento e de regras DNS.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os padrões de segurança do Microsoft Entra permitem a mesma personalização granular de condições por aplicativo e localização que uma política de Acesso Condicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Padrões de segurança oferecem proteção inicial padronizada, sem a personalização das políticas de Acesso Condicional. Tratá-los como mecanismos idênticos é confundir escopo e recursos.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de Acesso Condicional depende da observância dos requisitos de licenciamento apropriados e não substitui, por si só, todas as demais camadas de segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Acesso Condicional envolve direito de uso específico, como Entra ID P1 em cenários usuais, e administra condições de entrada. Não elimina necessidade de proteção dos dados e dos dispositivos.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O suporte precisa administrar contas comuns, sem acesso irrestrito aos controles organizacionais. Qual princípio orienta a atribuição de função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder apenas os privilégios necessários às tarefas de suporte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atribuir Administrador Global por padrão a todos os atendentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder a mesma função elevada a todo usuário licenciado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar MFA para facilitar mudanças de senha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que o registro TXT determine papéis administrativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menor privilégio orienta funções com escopo restrito. Papéis globais excessivos ampliam risco e não são necessários para todas as tarefas; DNS e licenças não administram privilégios por si.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A empresa quer exigir MFA somente em cenários de acesso definidos por usuário, aplicativo e contexto. Qual mecanismo é mais compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alteração de MX para todos os domínios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Políticas de Acesso Condicional com requisitos e licenças apropriados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Registro DKIM ligado a cada grupo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuição obrigatória de Administrador Global a todos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas renomear o tenant na página de propriedades.",
+          "correct": false
+        }
+      ],
+      "explanation": "Acesso Condicional aplica decisões com base em sinais de autenticação. Registros de e-mail e nomes do tenant não expressam condições de entrada nem impõem autenticação multifator por cenário.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gestor considera que registrar telefone de todos os empregados comprova que o MFA já é exigido em todo login. Qual é a avaliação correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo número cadastrado cria acesso condicional automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um telefone publicado no DNS basta para segunda autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registro de método e efetiva imposição de MFA são etapas diferentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "MFA dispensa qualquer política de identidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar telefone é o mesmo que atribuir uma licença de Exchange.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cadastrar método não equivale a exigir prova adicional no fluxo de entrada. A obrigação de MFA decorre de políticas e configurações efetivas, que devem ser testadas.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O órgão já utiliza padrões de segurança, mas precisa de regras personalizadas para situações específicas. Qual distinção deve observar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Padrões de segurança são um sistema de backup da plataforma.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acesso Condicional configura o destino MX dos e-mails.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acesso Condicional pode ser tratado como um antivírus universal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acesso Condicional é granular e licenciado; padrões são base.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "As duas soluções impõem sempre regras idênticas e sem variações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os padrões de segurança e as políticas personalizadas não possuem a mesma flexibilidade. Confundir controles de acesso com DNS, antivírus ou backup conduz a configurações inadequadas.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador pretende eliminar toda proteção de e-mail porque ativou uma política de Acesso Condicional. Qual resposta é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar SPF, DKIM e DMARC para evitar duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acesso Condicional substitui os registros MX para recebimento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bloquear todos os usuários, pois essa é sua única finalidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover qualquer política de compartilhamento e retenção de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter controles complementares de autenticação e proteção de e-mail.",
+          "correct": true
+        }
+      ],
+      "explanation": "Acesso Condicional protege decisões de entrada. Autenticação de domínio de e-mail, fluxo de mensagens, compartilhamento e retenção de dados são camadas independentes que continuam necessárias.",
+      "section": "Segurança, MFA, privilégios e acesso condicional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Exchange Online está associado à gestão de caixas de correio e mensagens, enquanto SharePoint Online é voltado a sites e colaboração em conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os serviços possuem propósitos administrativos distintos. A integração no Microsoft 365 não transforma a administração de mensagens em administração de bibliotecas de documentos.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fato de um usuário integrar uma equipe do Microsoft Teams confere-lhe, obrigatoriamente, privilégios de Administrador Global sobre o tenant.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Pertencer a uma equipe é papel de colaboração, não uma função administrativa geral. As permissões do tenant são controladas por atribuições específicas de função e políticas.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os relatórios de uso podem subsidiar decisões sobre adoção de serviços e consumo de licenças, sem substituir a avaliação específica de segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Indicadores de uso auxiliam gestão de capacidade e adesão. Eles não provam que os controles de identidade e de dados estão adequados, pois medem aspectos distintos da operação.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Política de retenção de documentos equivale, em qualquer cenário, à existência de backup íntegro e restaurável de todos os arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Retenção define preservação ou exclusão sob condições; backup está relacionado à restauração. Um controle não pode ser presumido como substituto universal do outro.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao diagnosticar falha de compartilhamento no OneDrive, a equipe deve considerar permissões do arquivo e políticas organizacionais, mesmo que o usuário possua licença ativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A licença permite acesso a funcionalidades contratadas, mas não derruba restrições de compartilhamento. O acesso ao item depende também das autorizações e políticas de serviço.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um funcionário consegue abrir seus arquivos, mas não pode compartilhá-los com um convidado externo. Onde concentrar a investigação inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permissões do item e política de compartilhamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas no registro MX do domínio de e-mail.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusivamente na disponibilidade de licenças de Word.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na conversão do usuário em Administrador Global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na exclusão do TXT de verificação do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compartilhamento depende de políticas do serviço e permissões no arquivo ou site. MX e TXT têm finalidades DNS, e licenciamento ou privilégios globais não corrigem automaticamente uma restrição de acesso.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A administração deseja acompanhar a utilização de aplicativos e serviços por períodos de referência. Qual recurso é mais indicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registro SPF do domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relatórios de uso disponibilizados no Centro de administração do Microsoft 365.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Menu de alteração de MX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lista de funções globais como único indicador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro de validação de propriedade DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Relatórios de uso apoiam análise de adoção e gestão. Os demais recursos cuidam de DNS ou privilégios, não de métricas de utilização por serviço. As demais propostas confundem funções administrativas, identidades, registros DNS, licenciamento ou políticas, sem resolver o requisito apresentado.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria exige preservar documentos por critérios institucionais definidos. Qual abordagem está ligada diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar o registro MX para impedir qualquer exclusão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente MFA como garantia de preservação documental.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar políticas de retenção adequadas às necessidades e ao licenciamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar apenas uma lista de distribuição para arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o domínio de entrada de todos os empregados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A retenção é controle de governança documental e possui mecanismos próprios, frequentemente administrados em soluções de conformidade. DNS, MFA ou listas de e-mail não definem preservação de conteúdo.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após reclamação de indisponibilidade, o técnico quer distinguir falha geral do serviço de problema isolado da conta. Qual providência é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar imediatamente o domínio principal do tenant.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir todas as contas de usuários afetados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar as proteções de autenticação sem investigação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ver a integridade do serviço e testar a conta do usuário.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover o MX, independentemente do serviço reclamado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diagnóstico por camadas compara eventos gerais de serviço com condições particulares de identidade, licença e política. Alterações destrutivas antes da investigação podem agravar o incidente.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer classificar controles de conformidade e recuperação. Qual afirmação melhor distingue retenção de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retenção serve apenas para atribuição de licenças.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Backup é o registro TXT de comprovação da propriedade do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backup e MFA são a mesma política de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma regra de retenção necessariamente restaura qualquer versão removida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retenção disciplina preservação e descarte; backup permite restaurar.",
+          "correct": true
+        }
+      ],
+      "explanation": "Embora possam se complementar, retenção e backup respondem a objetivos diferentes. É inadequado confundir governança do ciclo de vida com restauração de dados ou controle de identidade.",
+      "section": "Serviços, governança, monitoramento e resolução de incidentes",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Planejar a configuração do Microsoft 365 para empresas",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/microsoft-365/admin/setup/plan-your-setup?view=o365-worldwide",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Criar um locatário do Microsoft Entra",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/entra/fundamentals/create-new-tenant",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Localizar ID de tenant do Microsoft Entra",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/entra/fundamentals/how-to-find-tenant",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Adicionar domínio personalizado ao Microsoft 365",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/microsoft-365/admin/setup/add-domain?view=o365-worldwide",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Registros DNS externos do Microsoft 365",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/microsoft-365/enterprise/external-domain-name-system-records?view=o365-worldwide",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Adicionar usuários e atribuir licenças",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/microsoft-365/admin/add-users/add-users?view=o365-worldwide",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Atribuir licenças para usuários",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/microsoft-365/admin/manage/assign-licenses-to-users?view=o365-worldwide",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Funções administrativas do Microsoft 365",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/microsoft-365/admin/add-users/about-admin-roles?view=o365-worldwide",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Padrões de segurança do Microsoft Entra",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/azure/active-directory/fundamentals/security-defaults",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Visão geral do Acesso Condicional",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/entra/identity/conditional-access/overview",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Autenticação de e-mail no Microsoft 365",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/defender-office-365/email-authentication-about",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Relatórios de uso do Microsoft 365",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial Microsoft Learn",
+      "url": "https://learn.microsoft.com/pt-br/microsoft-365/admin/activity-reports/activity-reports",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}
