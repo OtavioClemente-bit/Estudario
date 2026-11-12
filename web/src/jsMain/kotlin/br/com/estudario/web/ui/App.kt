@@ -296,15 +296,35 @@ private fun SidebarContent(section: Route) {
         Div { Wordmark(); Span({ classes("brand-tag") }) { Text("do edital à aprovação") } }
     }
     // Cabeçalho do menu: o perfil, com nível e XP (como no app).
-    A(href = "#/perfil", { classes("drawer-profile"); onClick { drawerOpen = false } }) {
-        Span({ classes("avatar"); attr("style", "width:44px;height:44px;font-size:16px") }) {
-            AvatarContent()
+    // Cartão de jogador: moldura no metal da patente, brilho de carta rara passando, brasão do nível
+    // na foto, título da patente e a barra de XP até o próximo nível.
+    val rank = br.com.estudario.domain.LevelCrest.rank(progress.level)
+    A(href = "#/perfil", {
+        classes("drawer-profile", "player-card")
+        attr("style", "--pc-light:${rank.light};--pc-mid:${rank.mid};--pc-dark:${rank.dark}")
+        attr("aria-label", "Perfil: nível ${progress.level}, ${rank.title}, ${progress.totalXp} XP")
+        onClick { drawerOpen = false }
+    }) {
+        Span({ classes("pc-shine") })
+        Div({ classes("pc-top") }) {
+            Div({ classes("pc-photo") }) {
+                Span({ classes("avatar"); attr("style", "width:52px;height:52px;font-size:18px") }) { AvatarContent() }
+                Span({ classes("pc-crest") }) { LevelCrestView(progress.level, 30) }
+            }
+            Div({ attr("style", "min-width:0;flex:1") }) {
+                B({ classes("clamp-2", "pc-name") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
+                Span({ classes("pc-rank") }) { Text("Nível ${progress.level}") }
+                Span({ classes("pc-title") }) { Text(rank.title) }
+            }
+            Icon("chevron_right", extraClass = "faint")
         }
-        Div({ attr("style", "min-width:0;flex:1") }) {
-            B({ classes("clamp-2") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
-            Div({ classes("xs", "muted") }) { Text("Nível ${progress.level} · ${progress.totalXp} XP") }
+        Div({ classes("pc-xp") }) {
+            Div({ classes("pc-bar") }) { Span({ attr("style", "width:${(progress.levelProgress * 100).toInt()}%") }) }
+            Div({ classes("pc-xp-row") }) {
+                Span { Text("${progress.xpIntoLevel}/${progress.xpForNextLevel} XP") }
+                Span { Text("${progress.totalXp} XP no total") }
+            }
         }
-        Icon("chevron_right", extraClass = "faint")
     }
     // A seção Equipe só aparece depois que o servidor confirmar que a conta é da equipe (TeamAccess).
     val teamUser = Store.session?.userId
