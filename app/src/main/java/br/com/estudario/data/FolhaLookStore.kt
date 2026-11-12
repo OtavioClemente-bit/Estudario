@@ -31,6 +31,26 @@ object FolhaLookStore {
     /** O último plano conhecido da conta (as peças de assinante dependem dele); chamado ao abrir o app. */
     fun loadTier(context: Context) { FolhaWardrobe.subscriberTier = prefs(context).getString(KEY_TIER, "FREE") ?: "FREE" }
 
+    /** Lista das peças já ganhas (a mesma "wardrobeOwned" do site, sincronizada por SyncedPrefs). */
+    const val KEY_OWNED = "owned"
+
+    /**
+     * Armário por área: a área do edital principal e as peças já ganhas. As que acabaram de sair por dias
+     * estudados entram na lista da conta e ficam mesmo se o edital mudar.
+     */
+    fun syncAreaPieces(context: Context, area: br.com.estudario.domain.FolhaArea?, summary: br.com.estudario.domain.ProgressEngine.ProgressSummary?) {
+        val stored = prefs(context).getString(KEY_OWNED, null)?.split(",")?.filter { it.isNotBlank() }?.toSet().orEmpty()
+        val changed = FolhaWardrobe.homeArea != area || FolhaWardrobe.owned != stored
+        FolhaWardrobe.homeArea = area
+        FolhaWardrobe.owned = stored
+        val keep = summary?.let { FolhaWardrobe.toKeep(it) }.orEmpty()
+        if (keep.isNotEmpty()) {
+            FolhaWardrobe.owned = stored + keep
+            prefs(context).edit().putString(KEY_OWNED, FolhaWardrobe.owned.sorted().joinToString(",")).apply()
+        }
+        if (changed || keep.isNotEmpty()) _changes.value++
+    }
+
     /** O servidor disse qual é o plano: guarda e, se mudou, o Folha e o armário se redesenham. */
     fun rememberTier(context: Context, tier: String) {
         val changed = FolhaWardrobe.subscriberTier != tier

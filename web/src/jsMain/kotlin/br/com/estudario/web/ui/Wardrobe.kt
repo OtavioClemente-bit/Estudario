@@ -334,14 +334,17 @@ fun WardrobeScreen() {
                 }
                 if (showCollections) {
                     P({ classes("wdg-hint") }) { Text("Toque numa peça para o Folha experimentar. Com as peças de uma coleção, a recompensa exclusiva é sua.") }
+                    AreaBanner()
                     Div({ classes("wd-crows") }) {
-                        FolhaWardrobe.collections.forEach { c -> key(c.id) { CollectionRow(c, progress, trying, onDress = { items -> FolhaLook.chooseAll(items); trying = null; cheer++ }, onTry = { trying = if (trying?.let { t -> t.slot == it.slot && t.id == it.id } == true) null else it }, onTrySet = { set -> trying = null; tryingSet = if (tryingSet?.first == c.name) null else c.name to set }, tryingAll = tryingSet?.first == c.name) } }
+                        // A coleção da área do edital principal primeiro, depois as outras áreas e as de todo mundo.
+                        FolhaWardrobe.collections.sortedBy { c -> when { c.area != null && c.area == FolhaWardrobe.homeArea -> 0; c.area != null -> 1; else -> 2 } }.forEach { c -> key(c.id) { CollectionRow(c, progress, trying, onDress = { items -> FolhaLook.chooseAll(items); trying = null; cheer++ }, onTry = { trying = if (trying?.let { t -> t.slot == it.slot && t.id == it.id } == true) null else it }, onTrySet = { set -> trying = null; tryingSet = if (tryingSet?.first == c.name) null else c.name to set }, tryingAll = tryingSet?.first == c.name) } }
                     }
                 } else {
                     Div({ classes("wdg-strip"); attr("role", "tablist"); attr("aria-label", "Partes do visual") }) {
                         (LEFT_SLOTS + RIGHT_SLOTS).forEach { s -> EquipSlot(s, progress, s == slot) { slot = s; trying = null } }
                     }
-                    val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, progress) }, { it.collection != null }))
+                    // Liberadas primeiro; das trancadas, as que saem antes (a área do edital vem na frente).
+                    val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, progress) }, { it.collection != null }, { if (FolhaWardrobe.unlocked(it, progress)) 0 else FolhaWardrobe.daysNeeded(it) ?: 0 }))
                     Div({ classes("wdg-inv-head") }) {
                         Div {
                             B { Text(slot.label) }
@@ -362,6 +365,23 @@ fun WardrobeScreen() {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * A faixa da área: o edital principal define a área cujas peças saem mais rápido. As outras áreas também
+ * saem, só que pedem mais dias; o que já saiu fica na conta mesmo trocando de edital.
+ */
+@Composable
+private fun AreaBanner() {
+    val area = FolhaWardrobe.homeArea
+    Div({ classes("wdg-areabar") }) {
+        Icon("workspace_premium")
+        Div {
+            B { Text(if (area != null) "Seu edital é da área ${area.label}" else "Escolha um edital principal") }
+            P { Text(if (area != null) "As peças de ${area.label} saem ${FolhaWardrobe.OTHER_AREA_FACTOR}x mais rápido. As das outras áreas também saem, com mais dias de estudo. O que você ganha fica na sua conta, mesmo trocando de edital."
+                else "Com um edital principal, as peças da área dele saem mais rápido.") }
         }
     }
 }
@@ -402,6 +422,7 @@ private fun ItemCard(item: FolhaItem, progress: ProgressEngine.ProgressSummary, 
         onClick { onClick() }
     }) {
         Span({ classes("wdg-item-rar") }) { Text(item.rarity.label) }
+        item.area?.let { a -> Span({ classes(*listOfNotNull("wdg-area", if (a == FolhaWardrobe.homeArea) "home" else null).toTypedArray()); attr("title", "Peça da área ${a.label}") }) { Text(a.label) } }
         if (fresh) Span({ classes("wdg-new") }) { Text("NOVO") }
         if (item.collection != null) Span({ classes("wdg-excl"); attr("title", "Recompensa de coleção") }) { Icon("emoji_events", filled = true) }
         Span({ classes("wdg-item-art") }) {
@@ -414,7 +435,7 @@ private fun ItemCard(item: FolhaItem, progress: ProgressEngine.ProgressSummary, 
             open -> Span({ classes("wdg-item-state") }) { Text("Equipar") }
             else -> {
                 Span({ classes("wdg-item-state", "lock") }) {
-                    Text(item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema")
+                    Text(item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: FolhaWardrobe.daysNeeded(item)?.let { "$it dias estudados" } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema")
                 }
                 FolhaWardrobe.progress(item, progress)?.let { (cur, target, _) ->
                     Span({ classes("wdg-mini") }) { Span({ attr("style", "width:${(cur * 100.0 / target.coerceAtLeast(1)).toInt()}%") }) }

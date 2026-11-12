@@ -367,14 +367,27 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
             if (showCollections) {
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item { Text("Toque numa peça para o Folha experimentar. Com as peças de uma coleção, a recompensa exclusiva é sua.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    items(FolhaWardrobe.collections, key = { "col-" + it.id }) { c ->
+                    item {
+                        // A área do edital principal: as peças dela saem mais rápido; o que sai fica na conta.
+                        val area = FolhaWardrobe.homeArea
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x22FFB421)).border(2.dp, Color(0x99FFB421), RoundedCornerShape(16.dp)).padding(12.dp)) {
+                            Text(if (area != null) "Seu edital é da área ${area.label}" else "Escolha um edital principal", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                            Text(
+                                if (area != null) "As peças de ${area.label} saem ${FolhaWardrobe.OTHER_AREA_FACTOR}x mais rápido. As das outras áreas também saem, com mais dias de estudo. O que você ganha fica na sua conta, mesmo trocando de edital."
+                                else "Com um edital principal, as peças da área dele saem mais rápido.",
+                                color = GameMute, fontSize = 12.sp, lineHeight = 16.sp,
+                            )
+                        }
+                    }
+                    items(FolhaWardrobe.collections.sortedBy { c -> when { c.area != null && c.area == FolhaWardrobe.homeArea -> 0; c.area != null -> 1; else -> 2 } }, key = { "col-" + it.id }) { c ->
                         CollectionRow(c, summary, trying, onDress = { items -> FolhaWardrobePrefs.write(context, items); trying = null; cheer++ },
                             onTry = { item -> trying = if (trying?.let { it.slot == item.slot && it.id == item.id } == true) null else item },
                             onTrySet = { set -> trying = null; tryingSet = if (tryingSet?.first == c.name) null else c.name to set }, tryingAll = tryingSet?.first == c.name)
                     }
                 }
             } else {
-                val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, summary) }, { it.collection != null }))
+                // Liberadas primeiro; das trancadas, as que saem antes (a área do edital vem na frente).
+                val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, summary) }, { it.collection != null }, { if (FolhaWardrobe.unlocked(it, summary)) 0 else FolhaWardrobe.daysNeeded(it) ?: 0 }))
                 LazyVerticalGrid(GridCells.Fixed(3), Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Column {
@@ -461,7 +474,7 @@ private fun ItemCard(
                 open -> Text("Equipar", color = Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp))
                 else -> {
                     Text(
-                        item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
+                        item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: FolhaWardrobe.daysNeeded(item)?.let { "$it dias estudados" } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
                         color = GameMute, fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     if (progress != null) Box(Modifier.fillMaxWidth(0.8f).height(4.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))) {
@@ -475,6 +488,12 @@ private fun ItemCard(
         if (isNew) Text("NOVO", color = Color.White, fontWeight = FontWeight.Black, fontSize = 8.5.sp,
             modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFFF5C7A)).padding(horizontal = 5.dp, vertical = 1.dp))
         else if (item.collection != null) Icon(Icons.Outlined.EmojiEvents, "Recompensa de coleção", Modifier.align(Alignment.TopEnd).padding(4.dp).size(15.dp), tint = GoldG)
+        // A área da peça (a do edital principal em dourado).
+        item.area?.let { a ->
+            val home = a == FolhaWardrobe.homeArea
+            Text(a.label, color = if (home) Color(0xFF4A2A00) else Color.White.copy(alpha = 0.75f), fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 24.dp, end = 4.dp).clip(RoundedCornerShape(50)).background(if (home) Color(0xFFFFC94A) else Color.White.copy(alpha = 0.12f)).padding(horizontal = 5.dp, vertical = 1.dp))
+        }
     }
 }
 

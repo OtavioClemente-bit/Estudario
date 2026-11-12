@@ -153,6 +153,8 @@ object ProgressEngine {
         val xpThisWeek: Int = 0,
         val sources: List<XpSource> = emptyList(),
         val badges: List<BadgeProgress> = emptyList(),
+        /** Dias com algum estudo (questões, revisão, tarefa do plano, foco ou sessão): libera as peças por área do armário. */
+        val studyDays: Int = 0,
     ) {
         val levelProgress: Float get() = if (xpForNextLevel <= 0) 1f else (xpIntoLevel.toFloat() / xpForNextLevel).coerceIn(0f, 1f)
         val earnedBadges: List<BadgeProgress> get() = badges.filter { it.earned }
@@ -226,7 +228,9 @@ object ProgressEngine {
         val floor = xpForLevel(level)
         val ceiling = xpForLevel(level + 1)
 
+        val studyDays = input.days.count { it.questions > 0 || it.reviews > 0 || it.planTasks > 0 || it.studySessions > 0 || it.minutes > 0 }
         return ProgressSummary(
+            studyDays = studyDays,
             totalXp = totalXp,
             level = level,
             levelTitle = levelTitle(level),

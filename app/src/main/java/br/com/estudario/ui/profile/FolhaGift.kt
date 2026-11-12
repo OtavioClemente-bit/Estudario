@@ -42,13 +42,14 @@ fun FolhaGiftHost(viewModel: AppViewModel, enabled: Boolean) {
     val queue = remember { mutableStateListOf<List<FolhaItem>>() }
     LaunchedEffect(progress) {
         val summary = progress ?: return@LaunchedEffect
-        val owned = FolhaWardrobe.items.filter { (it.badgeId != null || it.level != null || it.collection != null) && FolhaWardrobe.unlocked(it, summary) }
+        val owned = FolhaWardrobe.items.filter { (it.badgeId != null || it.level != null || it.collection != null || it.days != null) && FolhaWardrobe.unlocked(it, summary) }
         val seen = FolhaGiftSeen.read(context)
         if (seen == null) { FolhaGiftSeen.write(context, owned.map { it.key() }.toSet()); return@LaunchedEffect }
         val fresh = owned.filter { it.key() !in seen }
         if (fresh.isEmpty()) return@LaunchedEffect
         FolhaGiftSeen.write(context, seen + fresh.map { it.key() })
-        queue += fresh.sortedByDescending { it.rarity.ordinal }
+        // Muitas de uma vez (a primeira vez com o armário por área): o presente mostra as 6 mais raras.
+        queue += fresh.sortedByDescending { it.rarity.ordinal }.take(6)
     }
     val items = queue.firstOrNull()
     if (enabled && items != null) FolhaGiftDialog(items, onUse = { br.com.estudario.data.FolhaLookStore.write(context, items); queue.removeAt(0) }, onClose = { queue.removeAt(0) })

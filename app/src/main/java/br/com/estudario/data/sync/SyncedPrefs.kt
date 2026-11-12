@@ -21,7 +21,7 @@ object SyncedPrefs {
     const val SNAPSHOT_KEY = "userPrefs"
     private const val FOLHA_PREFS = "folha_look"
     /** Lista na foto -> chave em folha_look (as mesmas de WardrobeScreen e FolhaGift). */
-    private val folhaSets = mapOf("wardrobeSeen" to "vistos", "celebratedPieces" to "celebrated", "flashDecks" to br.com.estudario.data.FlashDeckLog.KEY)
+    private val folhaSets = mapOf("wardrobeSeen" to "vistos", "celebratedPieces" to "celebrated", "flashDecks" to br.com.estudario.data.FlashDeckLog.KEY, "wardrobeOwned" to br.com.estudario.data.FolhaLookStore.KEY_OWNED)
     private const val BADGES = "celebratedBadges"
 
     private fun app(context: Context) = context.applicationContext as EstudarioApplication

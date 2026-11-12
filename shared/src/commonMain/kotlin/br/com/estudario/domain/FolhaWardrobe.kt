@@ -33,6 +33,8 @@ data class FolhaCollection(
     val description: String,
     val pieces: List<Pair<FolhaSlot, String>>,
     val reward: Pair<FolhaSlot, String>,
+    /** A área de carreira da coleção (a do edital principal aparece primeiro no armário). */
+    val area: FolhaArea? = null,
 )
 
 /** Raridade da peça: quanto mais difícil a conquista, mais rara. */
@@ -53,6 +55,13 @@ data class FolhaItem(
     val collection: String? = null,
     /** Exclusiva de quem assina: "ESSENCIAL" (vale também no Pro) ou "PRO". Some se a assinatura acabar. */
     val plan: String? = null,
+    /** Peça de carreira: sai rápido para quem tem o edital principal nessa área e devagar para as outras. */
+    val area: FolhaArea? = null,
+    /**
+     * Dias estudados que liberam a peça. Na área do edital principal vale este número; nas outras áreas,
+     * [FolhaWardrobe.OTHER_AREA_FACTOR] vezes ele. Sem área, vale para todo mundo.
+     */
+    val days: Int? = null,
 )
 
 /**
@@ -61,8 +70,8 @@ data class FolhaItem(
  * comprado nem ganho por engano, e quem troca de aparelho recupera tudo junto com o histórico.
  */
 object FolhaWardrobe {
-    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null, collection: String? = null, plan: String? = null) =
-        FolhaItem(id, slot, name, rarity, badge, level, collection, plan)
+    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null, collection: String? = null, plan: String? = null, area: FolhaArea? = null, days: Int? = null) =
+        FolhaItem(id, slot, name, rarity, badge, level, collection, plan, area, days)
 
     /**
      * O plano da conta (FREE, ESSENCIAL, PRO ou TESTE), que libera as peças de assinante. O app e o site
@@ -71,6 +80,40 @@ object FolhaWardrobe {
     var subscriberTier: String = "FREE"
 
     private fun planRank(tier: String?): Int = when (tier) { "PRO", "TESTE" -> 2; "ESSENCIAL" -> 1; else -> 0 }
+
+    /**
+     * A área do edital principal da conta (o app e o site atualizam ao ler os concursos). As peças dela
+     * saem pelo número de dias de [FolhaItem.days]; as das outras áreas, [OTHER_AREA_FACTOR] vezes mais.
+     */
+    var homeArea: FolhaArea? = null
+
+    /**
+     * Peças que a conta já ganhou ("hat:capacete"), guardadas na conta (lista "wardrobeOwned" da foto
+     * sincronizada). Trocar ou apagar o edital muda a área, mas o que já saiu continua: só aparência.
+     */
+    var owned: Set<String> = emptySet()
+
+    /** Quantas vezes mais dias uma peça de outra área pede (a da área do edital principal sai antes). */
+    const val OTHER_AREA_FACTOR = 4
+
+    /** A chave da peça na lista do que a conta já ganhou. */
+    fun key(item: FolhaItem): String = "${item.slot.key}:${item.id}"
+
+    /** Dias estudados que a peça pede para esta conta (nulo quando não sai por dias). */
+    fun daysNeeded(item: FolhaItem): Int? {
+        val d = item.days ?: return null
+        return if (item.area == null || item.area == homeArea) d else d * OTHER_AREA_FACTOR
+    }
+
+    private fun byDays(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean =
+        daysNeeded(item)?.let { summary.studyDays >= it } == true
+
+    /**
+     * Peças que saíram por dias estudados e ainda não estão guardadas na conta: o app e o site juntam à
+     * lista "wardrobeOwned" para elas ficarem mesmo se a área mudar depois.
+     */
+    fun toKeep(summary: ProgressEngine.ProgressSummary): Set<String> =
+        items.filter { it.days != null && key(it) !in owned && byDays(it, summary) }.mapTo(linkedSetOf()) { key(it) }
 
     private val C = FolhaRarity.COMUM
     private val R = FolhaRarity.RARA
@@ -126,31 +169,31 @@ object FolhaWardrobe {
         item("graficos", FolhaSlot.AURA, "Gráficos e moedas", L, collection = "controle"),
 
         // coleções de carreira: peças de quem estuda para a área militar, a saúde e os tribunais
-        item("oliva", FolhaSlot.CAPA, "Verde-oliva", R, level = 11),
-        item("boina-militar", FolhaSlot.CHAPEU, "Boina militar", R, badge = "seq-14"),
-        item("aviador", FolhaSlot.OCULOS, "Óculos de aviador", R, level = 13),
-        item("medalha-militar", FolhaSlot.PESCOCO, "Medalha de honra", E, badge = "meta-100"),
-        item("bandeira", FolhaSlot.MAO, "Bandeira do Brasil", R, badge = "plano-200"),
-        item("jaleco", FolhaSlot.CAPA, "Jaleco branco", R, level = 16),
-        item("touca", FolhaSlot.CHAPEU, "Touca de plantão", R, level = 17),
-        item("estetoscopio", FolhaSlot.PESCOCO, "Estetoscópio", R, badge = "acerto-80"),
-        item("prancheta", FolhaSlot.MAO, "Prancheta de plantão", E, badge = "maratona-360"),
-        item("vademecum", FolhaSlot.CAPA, "Vade Mecum", R, level = 18),
-        item("meia-lua", FolhaSlot.OCULOS, "Óculos meia-lua", R, level = 19),
-        item("balanca", FolhaSlot.PESCOCO, "Broche da balança", E, badge = "edital-75"),
-        item("martelo", FolhaSlot.MAO, "Martelo de juiz", E, badge = "simulado-20"),
+        item("oliva", FolhaSlot.CAPA, "Verde-oliva", R, level = 11, area = FolhaArea.MILITAR, days = 2),
+        item("boina-militar", FolhaSlot.CHAPEU, "Boina militar", R, badge = "seq-14", area = FolhaArea.MILITAR, days = 4),
+        item("aviador", FolhaSlot.OCULOS, "Óculos de aviador", R, level = 13, area = FolhaArea.MILITAR, days = 11),
+        item("medalha-militar", FolhaSlot.PESCOCO, "Medalha de honra", E, badge = "meta-100", area = FolhaArea.MILITAR, days = 16),
+        item("bandeira", FolhaSlot.MAO, "Bandeira do Brasil", R, badge = "plano-200", area = FolhaArea.MILITAR, days = 7),
+        item("jaleco", FolhaSlot.CAPA, "Jaleco branco", R, level = 16, area = FolhaArea.SAUDE, days = 2),
+        item("touca", FolhaSlot.CHAPEU, "Touca de plantão", R, level = 17, area = FolhaArea.SAUDE, days = 4),
+        item("estetoscopio", FolhaSlot.PESCOCO, "Estetoscópio", R, badge = "acerto-80", area = FolhaArea.SAUDE, days = 7),
+        item("prancheta", FolhaSlot.MAO, "Prancheta de plantão", E, badge = "maratona-360", area = FolhaArea.SAUDE, days = 12),
+        item("vademecum", FolhaSlot.CAPA, "Vade Mecum", R, level = 18, area = FolhaArea.TRIBUNAIS, days = 2),
+        item("meia-lua", FolhaSlot.OCULOS, "Óculos meia-lua", R, level = 19, area = FolhaArea.TRIBUNAIS, days = 5),
+        item("balanca", FolhaSlot.PESCOCO, "Broche da balança", E, badge = "edital-75", area = FolhaArea.TRIBUNAIS, days = 9),
+        item("martelo", FolhaSlot.MAO, "Martelo de juiz", E, badge = "simulado-20", area = FolhaArea.TRIBUNAIS, days = 14),
         // polícia, educação e controle (fiscal, auditoria, contas): as áreas que mais aparecem nos editais
-        item("farda", FolhaSlot.CAPA, "Farda azul-marinho", R, level = 21),
-        item("quepe", FolhaSlot.CHAPEU, "Quepe", R, badge = "seq-60"),
-        item("distintivo", FolhaSlot.PESCOCO, "Distintivo", E, badge = "quest-5000"),
-        item("radio", FolhaSlot.MAO, "Rádio da viatura", E, badge = "foco-50"),
-        item("lousa", FolhaSlot.CAPA, "Lousa verde", R, level = 25),
-        item("cracha", FolhaSlot.PESCOCO, "Crachá de professor", R, badge = "caderno-100"),
-        item("maca", FolhaSlot.MAO, "Maçã do professor", R, badge = "revisao-400"),
-        item("chumbo", FolhaSlot.CAPA, "Risca de giz", R, level = 27),
-        item("viseira", FolhaSlot.CHAPEU, "Viseira de contador", R, badge = "plano-500"),
-        item("caneta", FolhaSlot.PESCOCO, "Caneta-tinteiro", E, badge = "acerto-90"),
-        item("calculadora", FolhaSlot.MAO, "Calculadora", R, badge = "erros-100"),
+        item("farda", FolhaSlot.CAPA, "Farda azul-marinho", R, level = 21, area = FolhaArea.POLICIA, days = 2),
+        item("quepe", FolhaSlot.CHAPEU, "Quepe", R, badge = "seq-60", area = FolhaArea.POLICIA, days = 4),
+        item("distintivo", FolhaSlot.PESCOCO, "Distintivo", E, badge = "quest-5000", area = FolhaArea.POLICIA, days = 9),
+        item("radio", FolhaSlot.MAO, "Rádio da viatura", E, badge = "foco-50", area = FolhaArea.POLICIA, days = 13),
+        item("lousa", FolhaSlot.CAPA, "Lousa verde", R, level = 25, area = FolhaArea.EDUCACAO, days = 2),
+        item("cracha", FolhaSlot.PESCOCO, "Crachá de professor", R, badge = "caderno-100", area = FolhaArea.EDUCACAO, days = 4),
+        item("maca", FolhaSlot.MAO, "Maçã do professor", R, badge = "revisao-400", area = FolhaArea.EDUCACAO, days = 8),
+        item("chumbo", FolhaSlot.CAPA, "Risca de giz", R, level = 27, area = FolhaArea.CONTROLE, days = 2),
+        item("viseira", FolhaSlot.CHAPEU, "Viseira de contador", R, badge = "plano-500", area = FolhaArea.CONTROLE, days = 5),
+        item("caneta", FolhaSlot.PESCOCO, "Caneta-tinteiro", E, badge = "acerto-90", area = FolhaArea.CONTROLE, days = 9),
+        item("calculadora", FolhaSlot.MAO, "Calculadora", R, badge = "erros-100", area = FolhaArea.CONTROLE, days = 13),
 
         // peças que eram de coleção e agora saem por nível
         item("tweed", FolhaSlot.CAPA, "Tweed de detetive", E, level = 22),
@@ -252,6 +295,188 @@ object FolhaWardrobe {
         item("coruja", FolhaSlot.COMPANHEIRO, "Coruja de capelo", R, level = 12),
         item("robo", FolhaSlot.COMPANHEIRO, "Robozinho", E, level = 24),
         item("dragao", FolhaSlot.COMPANHEIRO, "Dragãozinho", E, level = 20),
+
+        // ===== Peças de carreira por área (armário 2.0): saem por dias estudados, rápido na área do
+        // edital principal e devagar nas outras. A ordem de cada área é a ordem em que elas saem.
+
+        // Saúde
+        item("pijama-cirurgico", FolhaSlot.CAPA, "Pijama cirúrgico", R, area = FolhaArea.SAUDE, days = 18),
+        item("espelho-frontal", FolhaSlot.CHAPEU, "Espelho frontal", R, area = FolhaArea.SAUDE, days = 24),
+        item("protecao", FolhaSlot.OCULOS, "Óculos de proteção", C, area = FolhaArea.SAUDE, days = 10),
+        item("cruz-saude", FolhaSlot.PESCOCO, "Broche da cruz", C, area = FolhaArea.SAUDE, days = 3),
+        item("termometro", FolhaSlot.MAO, "Termômetro", C, area = FolhaArea.SAUDE, days = 5),
+        item("receituario", FolhaSlot.PAGINAS, "Receituário", C, area = FolhaArea.SAUDE, days = 1),
+        item("verde-cirurgico", FolhaSlot.FITA, "Verde-cirúrgico", C, area = FolhaArea.SAUDE, days = 1),
+        item("procedimento", FolhaSlot.LUVAS, "Luvas de procedimento", C, area = FolhaArea.SAUDE, days = 8),
+        item("ursinho", FolhaSlot.COMPANHEIRO, "Ursinho com curativo", E, area = FolhaArea.SAUDE, days = 30),
+        item("socorro", FolhaSlot.COSTAS, "Mochila de primeiros socorros", E, area = FolhaArea.SAUDE, days = 40),
+
+        // Militar
+        item("deserto", FolhaSlot.CAPA, "Camuflado do deserto", R, area = FolhaArea.MILITAR, days = 20),
+        item("capacete", FolhaSlot.CHAPEU, "Capacete camuflado", R, area = FolhaArea.MILITAR, days = 14),
+        item("divisas", FolhaSlot.PESCOCO, "Divisas de sargento", C, area = FolhaArea.MILITAR, days = 9),
+        item("plaqueta", FolhaSlot.PESCOCO, "Plaqueta de identificação", C, area = FolhaArea.MILITAR, days = 3),
+        item("binoculo", FolhaSlot.MAO, "Binóculo", R, area = FolhaArea.MILITAR, days = 12),
+        item("cantil", FolhaSlot.MAO, "Cantil", C, area = FolhaArea.MILITAR, days = 5),
+        item("mapa", FolhaSlot.PAGINAS, "Mapa de campanha", C, area = FolhaArea.MILITAR, days = 1),
+        item("camuflada", FolhaSlot.FITA, "Camuflada", C, area = FolhaArea.MILITAR, days = 1),
+        item("taticas", FolhaSlot.LUVAS, "Luvas táticas", R, area = FolhaArea.MILITAR, days = 24),
+        item("pastor", FolhaSlot.COMPANHEIRO, "Pastor-alemão", E, area = FolhaArea.MILITAR, days = 30),
+        item("patente", FolhaSlot.AURA, "Estrelas da patente", E, area = FolhaArea.MILITAR, days = 40),
+
+        // Polícia
+        item("colete", FolhaSlot.CAPA, "Colete tático", R, area = FolhaArea.POLICIA, days = 18),
+        item("bone-tatico", FolhaSlot.CHAPEU, "Boné tático", C, area = FolhaArea.POLICIA, days = 6),
+        item("tatico", FolhaSlot.OCULOS, "Óculos táticos", R, area = FolhaArea.POLICIA, days = 11),
+        item("brasao", FolhaSlot.PESCOCO, "Brasão da corporação", R, area = FolhaArea.POLICIA, days = 22),
+        item("apito", FolhaSlot.MAO, "Apito", C, area = FolhaArea.POLICIA, days = 3),
+        item("lanterna", FolhaSlot.MAO, "Lanterna", R, area = FolhaArea.POLICIA, days = 16),
+        item("boletim", FolhaSlot.PAGINAS, "Boletim de ocorrência", C, area = FolhaArea.POLICIA, days = 1),
+        item("zebrada", FolhaSlot.FITA, "Fita zebrada", C, area = FolhaArea.POLICIA, days = 1),
+        item("operacional", FolhaSlot.LUVAS, "Luvas operacionais", C, area = FolhaArea.POLICIA, days = 8),
+        item("k9", FolhaSlot.COMPANHEIRO, "Cão farejador", E, area = FolhaArea.POLICIA, days = 30),
+        item("mochila-tatica", FolhaSlot.COSTAS, "Mochila tática", E, area = FolhaArea.POLICIA, days = 40),
+
+        // Tribunais
+        item("processo", FolhaSlot.CAPA, "Capa de processo", R, area = FolhaArea.TRIBUNAIS, days = 18),
+        item("barrete", FolhaSlot.CHAPEU, "Barrete de jurista", R, area = FolhaArea.TRIBUNAIS, days = 22),
+        item("pincene", FolhaSlot.OCULOS, "Pincenê", R, area = FolhaArea.TRIBUNAIS, days = 11),
+        item("jabo", FolhaSlot.PESCOCO, "Jabô de renda", R, area = FolhaArea.TRIBUNAIS, days = 16),
+        item("autos", FolhaSlot.MAO, "Autos do processo", C, area = FolhaArea.TRIBUNAIS, days = 4),
+        item("timbrado", FolhaSlot.PAGINAS, "Papel timbrado", C, area = FolhaArea.TRIBUNAIS, days = 1),
+        item("vinho", FolhaSlot.FITA, "Vinho", C, area = FolhaArea.TRIBUNAIS, days = 1),
+        item("gala", FolhaSlot.LUVAS, "Luvas de gala", C, area = FolhaArea.TRIBUNAIS, days = 7),
+        item("tartaruga", FolhaSlot.COMPANHEIRO, "Tartaruga sábia", E, area = FolhaArea.TRIBUNAIS, days = 30),
+        item("colunas", FolhaSlot.AURA, "Colunas do fórum", E, area = FolhaArea.TRIBUNAIS, days = 40),
+
+        // Fiscal (Receita e tributos)
+        item("nota-fiscal", FolhaSlot.CAPA, "Nota fiscal", C, area = FolhaArea.FISCAL, days = 2),
+        item("fedora", FolhaSlot.CHAPEU, "Fedora de auditor", R, area = FolhaArea.FISCAL, days = 6),
+        item("lupa-dupla", FolhaSlot.OCULOS, "Óculos de lupa", R, area = FolhaArea.FISCAL, days = 14),
+        item("leao", FolhaSlot.PESCOCO, "Broche do leão", R, area = FolhaArea.FISCAL, days = 10),
+        item("leitor", FolhaSlot.MAO, "Leitor de código de barras", C, area = FolhaArea.FISCAL, days = 4),
+        item("livro-caixa", FolhaSlot.PAGINAS, "Livro-caixa", C, area = FolhaArea.FISCAL, days = 1),
+        item("cedula", FolhaSlot.FITA, "Verde-cédula", C, area = FolhaArea.FISCAL, days = 1),
+        item("couro-marrom", FolhaSlot.LUVAS, "Couro marrom", C, area = FolhaArea.FISCAL, days = 8),
+        item("leaozinho", FolhaSlot.COMPANHEIRO, "Leãozinho", E, area = FolhaArea.FISCAL, days = 20),
+        item("cifroes", FolhaSlot.AURA, "Cifrões", R, area = FolhaArea.FISCAL, days = 26),
+        item("cofre", FolhaSlot.COSTAS, "Cofre nas costas", L, collection = "fiscal"),
+
+        // Controle (tribunais de contas e auditoria)
+        item("auditor", FolhaSlot.OCULOS, "Óculos de auditor", C, area = FolhaArea.CONTROLE, days = 4),
+        item("selo", FolhaSlot.PESCOCO, "Selo de conformidade", R, area = FolhaArea.CONTROLE, days = 16),
+        item("planilha", FolhaSlot.MAO, "Planilha no tablet", R, area = FolhaArea.CONTROLE, days = 20),
+        item("planilha", FolhaSlot.PAGINAS, "Planilha", C, area = FolhaArea.CONTROLE, days = 1),
+        item("relatorio", FolhaSlot.FITA, "Azul-relatório", C, area = FolhaArea.CONTROLE, days = 1),
+        item("chumbo", FolhaSlot.LUVAS, "Cinza-chumbo", C, area = FolhaArea.CONTROLE, days = 7),
+        item("castor", FolhaSlot.COMPANHEIRO, "Castor contador", E, area = FolhaArea.CONTROLE, days = 30),
+        item("arquivo", FolhaSlot.COSTAS, "Arquivo de pastas", E, area = FolhaArea.CONTROLE, days = 40),
+
+        // Bancos
+        item("bancario", FolhaSlot.CAPA, "Azul de agência", C, area = FolhaArea.BANCOS, days = 2),
+        item("coco", FolhaSlot.CHAPEU, "Chapéu-coco", R, area = FolhaArea.BANCOS, days = 9),
+        item("dourados", FolhaSlot.OCULOS, "Armação dourada", R, area = FolhaArea.BANCOS, days = 13),
+        item("seda", FolhaSlot.PESCOCO, "Gravata de seda", C, area = FolhaArea.BANCOS, days = 4),
+        item("maquininha", FolhaSlot.MAO, "Maquininha", C, area = FolhaArea.BANCOS, days = 6),
+        item("cofrinho", FolhaSlot.MAO, "Cofrinho", R, area = FolhaArea.BANCOS, days = 17),
+        item("extrato", FolhaSlot.PAGINAS, "Extrato", C, area = FolhaArea.BANCOS, days = 1),
+        item("ouro-velho", FolhaSlot.FITA, "Ouro-velho", C, area = FolhaArea.BANCOS, days = 1),
+        item("marinho", FolhaSlot.LUVAS, "Azul-marinho", C, area = FolhaArea.BANCOS, days = 8),
+        item("porquinho", FolhaSlot.COMPANHEIRO, "Porquinho-cofre", E, area = FolhaArea.BANCOS, days = 22),
+        item("malote", FolhaSlot.COSTAS, "Malote", R, area = FolhaArea.BANCOS, days = 28),
+        item("chuva-moedas", FolhaSlot.AURA, "Chuva de moedas", L, collection = "bancos"),
+
+        // Legislativo
+        item("plenario", FolhaSlot.CAPA, "Verde do plenário", C, area = FolhaArea.LEGISLATIVO, days = 2),
+        item("redondos", FolhaSlot.OCULOS, "Óculos redondos", C, area = FolhaArea.LEGISLATIVO, days = 6),
+        item("parlamentar", FolhaSlot.PESCOCO, "Broche parlamentar", R, area = FolhaArea.LEGISLATIVO, days = 9),
+        item("microfone", FolhaSlot.MAO, "Microfone da tribuna", R, area = FolhaArea.LEGISLATIVO, days = 13),
+        item("projeto", FolhaSlot.MAO, "Projeto de lei", C, area = FolhaArea.LEGISLATIVO, days = 4),
+        item("diario-oficial", FolhaSlot.PAGINAS, "Diário Oficial", C, area = FolhaArea.LEGISLATIVO, days = 1),
+        item("senado", FolhaSlot.FITA, "Azul-Senado", C, area = FolhaArea.LEGISLATIVO, days = 1),
+        item("plenario", FolhaSlot.LUVAS, "Verde-plenário", C, area = FolhaArea.LEGISLATIVO, days = 8),
+        item("pombo", FolhaSlot.COMPANHEIRO, "Pombo-correio", E, area = FolhaArea.LEGISLATIVO, days = 20),
+        item("votos", FolhaSlot.AURA, "Votos voando", R, area = FolhaArea.LEGISLATIVO, days = 26),
+        item("cupulas", FolhaSlot.COSTAS, "Cúpulas do Congresso", L, collection = "legislativo"),
+
+        // Educação
+        item("espiral", FolhaSlot.CAPA, "Caderno de espiral", R, area = FolhaArea.EDUCACAO, days = 16),
+        item("chapeu-lapis", FolhaSlot.CHAPEU, "Chapéu de lápis", R, area = FolhaArea.EDUCACAO, days = 12),
+        item("gatinho", FolhaSlot.OCULOS, "Óculos gatinho", C, area = FolhaArea.EDUCACAO, days = 6),
+        item("estrelinha", FolhaSlot.PESCOCO, "Estrelinha de boa nota", C, area = FolhaArea.EDUCACAO, days = 10),
+        item("regua", FolhaSlot.MAO, "Régua", C, area = FolhaArea.EDUCACAO, days = 3),
+        item("globo", FolhaSlot.MAO, "Globo terrestre", R, area = FolhaArea.EDUCACAO, days = 20),
+        item("caligrafia", FolhaSlot.PAGINAS, "Caligrafia", C, area = FolhaArea.EDUCACAO, days = 1),
+        item("giz", FolhaSlot.FITA, "Giz colorido", C, area = FolhaArea.EDUCACAO, days = 1),
+        item("giz", FolhaSlot.LUVAS, "Mãos de giz", C, area = FolhaArea.EDUCACAO, days = 14),
+        item("minhoca", FolhaSlot.COMPANHEIRO, "Minhoca leitora", E, area = FolhaArea.EDUCACAO, days = 30),
+        item("mochila-escolar", FolhaSlot.COSTAS, "Mochila escolar", E, area = FolhaArea.EDUCACAO, days = 40),
+
+        // Tecnologia
+        item("circuito", FolhaSlot.CAPA, "Placa de circuito", C, area = FolhaArea.TI, days = 2),
+        item("headset", FolhaSlot.CHAPEU, "Headset de suporte", R, area = FolhaArea.TI, days = 9),
+        item("vr", FolhaSlot.OCULOS, "Óculos de realidade virtual", E, area = FolhaArea.TI, days = 22),
+        item("pendrive", FolhaSlot.PESCOCO, "Pendrive no cordão", C, area = FolhaArea.TI, days = 4),
+        item("notebook", FolhaSlot.MAO, "Notebookzinho", R, area = FolhaArea.TI, days = 13),
+        item("caneca", FolhaSlot.MAO, "Caneca de café", C, area = FolhaArea.TI, days = 6),
+        item("terminal", FolhaSlot.PAGINAS, "Terminal", C, area = FolhaArea.TI, days = 1),
+        item("cabo-rede", FolhaSlot.FITA, "Cabo de rede", C, area = FolhaArea.TI, days = 1),
+        item("rgb", FolhaSlot.LUVAS, "Luvas RGB", R, area = FolhaArea.TI, days = 17),
+        item("terminal", FolhaSlot.TINTA, "Verde-terminal", C, area = FolhaArea.TI, days = 3),
+        item("pixel", FolhaSlot.COMPANHEIRO, "Gatinho de pixel", E, area = FolhaArea.TI, days = 28),
+        item("codigo", FolhaSlot.AURA, "Chuva de código", L, collection = "ti"),
+
+        // Administrativo (agências, prefeituras e órgãos em geral)
+        item("pasta-arquivo", FolhaSlot.CAPA, "Pasta-arquivo", C, area = FolhaArea.ADMINISTRATIVO, days = 2),
+        item("clipe", FolhaSlot.CHAPEU, "Clipe gigante", R, area = FolhaArea.ADMINISTRATIVO, days = 12),
+        item("postits", FolhaSlot.PESCOCO, "Post-its no peito", C, area = FolhaArea.ADMINISTRATIVO, days = 4),
+        item("carimbo", FolhaSlot.MAO, "Carimbo", C, area = FolhaArea.ADMINISTRATIVO, days = 6),
+        item("grampeador", FolhaSlot.MAO, "Grampeador", R, area = FolhaArea.ADMINISTRATIVO, days = 16),
+        item("formulario", FolhaSlot.PAGINAS, "Formulário", C, area = FolhaArea.ADMINISTRATIVO, days = 1),
+        item("clipes", FolhaSlot.FITA, "Corrente de clipes", C, area = FolhaArea.ADMINISTRATIVO, days = 1),
+        item("areia", FolhaSlot.LUVAS, "Areia", C, area = FolhaArea.ADMINISTRATIVO, days = 8),
+        item("peixinho", FolhaSlot.COMPANHEIRO, "Peixinho no aquário", E, area = FolhaArea.ADMINISTRATIVO, days = 22),
+        item("papeis", FolhaSlot.AURA, "Papéis voando", R, area = FolhaArea.ADMINISTRATIVO, days = 28),
+        item("pastas", FolhaSlot.COSTAS, "Torre de pastas", L, collection = "administrativo"),
+
+        // ===== Peças de todo mundo, por dias estudados (para qualquer edital, inclusive os sem área clara)
+        item("gorro", FolhaSlot.CHAPEU, "Gorro de lã", C, days = 5),
+        item("orelhas-gato", FolhaSlot.CHAPEU, "Orelhinhas de gato", C, days = 9),
+        item("tiara-flores", FolhaSlot.CHAPEU, "Tiara de flores", R, days = 15),
+        item("bandana", FolhaSlot.CHAPEU, "Bandana", C, days = 20),
+        item("chef", FolhaSlot.CHAPEU, "Chapéu de chef", R, days = 30),
+        item("praia", FolhaSlot.CHAPEU, "Chapéu de praia", R, days = 45),
+        item("pirata", FolhaSlot.CHAPEU, "Chapéu de pirata", E, days = 70),
+        item("viking", FolhaSlot.CHAPEU, "Capacete viking", E, days = 100),
+        item("astronauta", FolhaSlot.CHAPEU, "Capacete de astronauta", L, days = 180),
+        item("neon", FolhaSlot.OCULOS, "Óculos neon", C, days = 12),
+        item("3d", FolhaSlot.OCULOS, "Óculos 3D", R, days = 35),
+        item("mergulho", FolhaSlot.OCULOS, "Máscara de mergulho", E, days = 80),
+        item("perolas", FolhaSlot.PESCOCO, "Colar de pérolas", R, days = 25),
+        item("lenco", FolhaSlot.PESCOCO, "Lenço de seda", C, days = 14),
+        item("sininho", FolhaSlot.PESCOCO, "Sininho", C, days = 7),
+        item("guarda-chuva", FolhaSlot.MAO, "Guarda-chuva", C, days = 10),
+        item("sorvete", FolhaSlot.MAO, "Sorvete", C, days = 18),
+        item("pipoca", FolhaSlot.MAO, "Pipoca", R, days = 28),
+        item("violao", FolhaSlot.MAO, "Violãozinho", E, days = 60),
+        item("pincel", FolhaSlot.MAO, "Pincel de pintor", R, days = 40),
+        item("cachorrinho", FolhaSlot.COMPANHEIRO, "Cachorrinho", R, days = 25),
+        item("pinguim", FolhaSlot.COMPANHEIRO, "Pinguim", R, days = 50),
+        item("abelha", FolhaSlot.COMPANHEIRO, "Abelhinha", C, days = 15),
+        item("polvo", FolhaSlot.COMPANHEIRO, "Polvinho", E, days = 90),
+        item("bolhas", FolhaSlot.AURA, "Bolhas de sabão", C, days = 8),
+        item("outono", FolhaSlot.AURA, "Folhas de outono", R, days = 33),
+        item("neve", FolhaSlot.AURA, "Neve", R, days = 55),
+        item("arcoiris", FolhaSlot.AURA, "Arco-íris", E, days = 120),
+        item("borboleta", FolhaSlot.COSTAS, "Asas de borboleta", E, days = 75),
+        item("heroi", FolhaSlot.COSTAS, "Capa de herói", L, days = 150),
+        item("girassol", FolhaSlot.CAPA, "Girassóis", C, days = 6),
+        item("oceano", FolhaSlot.CAPA, "Ondas do mar", R, days = 22),
+        item("melancia", FolhaSlot.CAPA, "Melancia", R, days = 40),
+        item("cosmos", FolhaSlot.CAPA, "Cosmos", E, days = 110),
+        item("rosa-choque", FolhaSlot.TINTA, "Rosa-choque", C, days = 4),
+        item("laranja", FolhaSlot.TINTA, "Laranja", C, days = 11),
+        item("turquesa", FolhaSlot.TINTA, "Turquesa", R, days = 24),
         // de assinante: o Essencial ganha os aviõezinhos de papel; o Pro, as asas de fênix e a supernova
         item("avioes", FolhaSlot.AURA, "Aviõezinhos de papel", E, plan = "ESSENCIAL"),
         item("asas-fenix", FolhaSlot.COSTAS, "Asas de fênix", L, plan = "PRO"),
@@ -269,17 +494,27 @@ object FolhaWardrobe {
         FolhaCollection("executivo", "Executivo", "Cartola, monóculo, gravata e capa grafite. Ganha uma mochila-foguete que liga quando ele pula.",
             listOf(FolhaSlot.CAPA to "grafite", FolhaSlot.CHAPEU to "cartola", FolhaSlot.OCULOS to "monoculo", FolhaSlot.PESCOCO to "gravata"), FolhaSlot.COSTAS to "foguete"),
         FolhaCollection("saude", "Saúde", "Jaleco, touca, estetoscópio e a prancheta do plantão. Ganha os batimentos do monitor em volta dele.",
-            listOf(FolhaSlot.CAPA to "jaleco", FolhaSlot.CHAPEU to "touca", FolhaSlot.PESCOCO to "estetoscopio", FolhaSlot.MAO to "prancheta"), FolhaSlot.AURA to "batimentos"),
+            listOf(FolhaSlot.CAPA to "jaleco", FolhaSlot.CHAPEU to "touca", FolhaSlot.PESCOCO to "estetoscopio", FolhaSlot.MAO to "prancheta"), FolhaSlot.AURA to "batimentos", FolhaArea.SAUDE),
         FolhaCollection("militar", "Militar", "Verde-oliva, boina, óculos de aviador, medalha de honra e a bandeira. Ganha um paraquedas verde e amarelo.",
-            listOf(FolhaSlot.CAPA to "oliva", FolhaSlot.CHAPEU to "boina-militar", FolhaSlot.OCULOS to "aviador", FolhaSlot.PESCOCO to "medalha-militar", FolhaSlot.MAO to "bandeira"), FolhaSlot.COSTAS to "paraquedas"),
+            listOf(FolhaSlot.CAPA to "oliva", FolhaSlot.CHAPEU to "boina-militar", FolhaSlot.OCULOS to "aviador", FolhaSlot.PESCOCO to "medalha-militar", FolhaSlot.MAO to "bandeira"), FolhaSlot.COSTAS to "paraquedas", FolhaArea.MILITAR),
         FolhaCollection("juridico", "Tribunais", "Vade Mecum, óculos meia-lua, a balança da Justiça e o martelo. Ganha a toga de magistrado.",
-            listOf(FolhaSlot.CAPA to "vademecum", FolhaSlot.OCULOS to "meia-lua", FolhaSlot.PESCOCO to "balanca", FolhaSlot.MAO to "martelo"), FolhaSlot.COSTAS to "toga"),
+            listOf(FolhaSlot.CAPA to "vademecum", FolhaSlot.OCULOS to "meia-lua", FolhaSlot.PESCOCO to "balanca", FolhaSlot.MAO to "martelo"), FolhaSlot.COSTAS to "toga", FolhaArea.TRIBUNAIS),
         FolhaCollection("policia", "Polícia", "Farda azul-marinho, quepe, distintivo e o rádio da viatura. Ganha o giroflex, vermelho e azul.",
-            listOf(FolhaSlot.CAPA to "farda", FolhaSlot.CHAPEU to "quepe", FolhaSlot.PESCOCO to "distintivo", FolhaSlot.MAO to "radio"), FolhaSlot.AURA to "giroflex"),
+            listOf(FolhaSlot.CAPA to "farda", FolhaSlot.CHAPEU to "quepe", FolhaSlot.PESCOCO to "distintivo", FolhaSlot.MAO to "radio"), FolhaSlot.AURA to "giroflex", FolhaArea.POLICIA),
         FolhaCollection("educacao", "Educação", "Lousa verde, crachá, armação grossa e a maçã do professor. Ganha letras de giz flutuando.",
-            listOf(FolhaSlot.CAPA to "lousa", FolhaSlot.PESCOCO to "cracha", FolhaSlot.OCULOS to "nerd", FolhaSlot.MAO to "maca"), FolhaSlot.AURA to "abc"),
+            listOf(FolhaSlot.CAPA to "lousa", FolhaSlot.PESCOCO to "cracha", FolhaSlot.OCULOS to "nerd", FolhaSlot.MAO to "maca"), FolhaSlot.AURA to "abc", FolhaArea.EDUCACAO),
         FolhaCollection("controle", "Controle e Fiscal", "Risca de giz, viseira de contador, caneta-tinteiro e calculadora. Ganha gráficos subindo e moedas.",
-            listOf(FolhaSlot.CAPA to "chumbo", FolhaSlot.CHAPEU to "viseira", FolhaSlot.PESCOCO to "caneta", FolhaSlot.MAO to "calculadora"), FolhaSlot.AURA to "graficos"),
+            listOf(FolhaSlot.CAPA to "chumbo", FolhaSlot.CHAPEU to "viseira", FolhaSlot.PESCOCO to "caneta", FolhaSlot.MAO to "calculadora"), FolhaSlot.AURA to "graficos", FolhaArea.CONTROLE),
+        FolhaCollection("fiscal", "Fiscal", "Nota fiscal, fedora de auditor, broche do leão, leitor de código e o leãozinho. Ganha um cofre nas costas.",
+            listOf(FolhaSlot.CAPA to "nota-fiscal", FolhaSlot.CHAPEU to "fedora", FolhaSlot.PESCOCO to "leao", FolhaSlot.MAO to "leitor", FolhaSlot.COMPANHEIRO to "leaozinho"), FolhaSlot.COSTAS to "cofre", FolhaArea.FISCAL),
+        FolhaCollection("bancos", "Bancos", "Azul de agência, chapéu-coco, gravata de seda, maquininha e o porquinho-cofre. Ganha uma chuva de moedas.",
+            listOf(FolhaSlot.CAPA to "bancario", FolhaSlot.CHAPEU to "coco", FolhaSlot.PESCOCO to "seda", FolhaSlot.MAO to "maquininha", FolhaSlot.COMPANHEIRO to "porquinho"), FolhaSlot.AURA to "chuva-moedas", FolhaArea.BANCOS),
+        FolhaCollection("legislativo", "Legislativo", "Verde do plenário, óculos redondos, broche parlamentar, microfone da tribuna e o pombo-correio. Ganha as cúpulas do Congresso.",
+            listOf(FolhaSlot.CAPA to "plenario", FolhaSlot.OCULOS to "redondos", FolhaSlot.PESCOCO to "parlamentar", FolhaSlot.MAO to "microfone", FolhaSlot.COMPANHEIRO to "pombo"), FolhaSlot.COSTAS to "cupulas", FolhaArea.LEGISLATIVO),
+        FolhaCollection("ti", "Tecnologia", "Placa de circuito, headset, pendrive, notebookzinho e o gatinho de pixel. Ganha uma chuva de código.",
+            listOf(FolhaSlot.CAPA to "circuito", FolhaSlot.CHAPEU to "headset", FolhaSlot.PESCOCO to "pendrive", FolhaSlot.MAO to "notebook", FolhaSlot.COMPANHEIRO to "pixel"), FolhaSlot.AURA to "codigo", FolhaArea.TI),
+        FolhaCollection("administrativo", "Administrativo", "Pasta-arquivo, clipe gigante, post-its, carimbo e o peixinho no aquário. Ganha uma torre de pastas.",
+            listOf(FolhaSlot.CAPA to "pasta-arquivo", FolhaSlot.CHAPEU to "clipe", FolhaSlot.PESCOCO to "postits", FolhaSlot.MAO to "carimbo", FolhaSlot.COMPANHEIRO to "peixinho"), FolhaSlot.COSTAS to "pastas", FolhaArea.ADMINISTRATIVO),
         FolhaCollection("mago", "Mago", "Chapéu, varinha, óculos de estrela e o dragãozinho. Ganha um círculo mágico no chão.",
             listOf(FolhaSlot.CHAPEU to "mago", FolhaSlot.OCULOS to "estrela", FolhaSlot.MAO to "varinha", FolhaSlot.COMPANHEIRO to "dragao"), FolhaSlot.AURA to "runas"),
         FolhaCollection("realeza", "Realeza", "Coroa, roseta, luvas e marcador de ouro. Ganha um manto real esvoaçante.",
@@ -292,12 +527,17 @@ object FolhaWardrobe {
 
     fun of(slot: FolhaSlot): List<FolhaItem> = items.filter { it.slot == slot }
     /** A peça padrão de cada lugar (a primeira não exclusiva). */
-    fun default(slot: FolhaSlot): FolhaItem = of(slot).first { it.collection == null && it.badgeId == null && it.level == null && it.plan == null }
+    fun default(slot: FolhaSlot): FolhaItem = of(slot).first { it.collection == null && it.badgeId == null && it.level == null && it.plan == null && it.days == null }
     fun find(slot: FolhaSlot, id: String?): FolhaItem? = items.firstOrNull { it.slot == slot && it.id == id }
 
     fun unlocked(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean = when {
         item.plan != null -> planRank(subscriberTier) >= planRank(item.plan)
+        key(item) in owned -> true
         item.collection != null -> collection(item.collection)?.let { c -> piecesOf(c).all { unlocked(it, summary) } } ?: false
+        // Peça de carreira: sai pelos dias estudados ou pelo caminho antigo (emblema ou nível), o que vier antes.
+        item.days != null -> byDays(item, summary) ||
+            (item.badgeId != null && summary.badges.any { it.badge.id == item.badgeId && it.earned }) ||
+            (item.level != null && summary.level >= item.level)
         item.badgeId != null -> summary.badges.any { it.badge.id == item.badgeId && it.earned }
         item.level != null -> summary.level >= item.level
         else -> true
@@ -308,6 +548,14 @@ object FolhaWardrobe {
         item.plan == "PRO" -> "Exclusiva de quem assina o Pro"
         item.plan != null -> "Exclusiva de quem assina o Essencial ou o Pro"
         item.collection != null -> "Complete a coleção ${collection(item.collection)?.name ?: ""}"
+        item.days != null -> daysNeeded(item)!!.let { d ->
+            val days = if (d == 1) "1 dia estudado" else "$d dias estudados"
+            when {
+                item.area == null -> days.replaceFirstChar { it.uppercase() }
+                item.area == homeArea -> "${days.replaceFirstChar { it.uppercase() }} (área do seu edital: ${item.area.label})"
+                else -> "${days.replaceFirstChar { it.uppercase() }} (área ${item.area.label}; com edital dessa área, ${item.days})"
+            }
+        }
         item.badgeId != null -> BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.let { "Emblema ${it.name}: ${it.requirement.replaceFirstChar { c -> c.lowercaseChar() }}" } ?: "Emblema"
         item.level != null -> "Chegar ao nível ${item.level}"
         item.slot.group == FolhaGroup.SEU_FOLHA && item.slot != FolhaSlot.CAPA && item.slot != FolhaSlot.FITA && item.slot != FolhaSlot.LUVAS -> "Livre para escolher"
@@ -318,6 +566,7 @@ object FolhaWardrobe {
     fun progress(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Triple<Int, Int, String>? {
         if (item.plan != null) return null
         item.collection?.let { id -> val c = collection(id) ?: return null; val ps = piecesOf(c); return Triple(ps.count { unlocked(it, summary) }, ps.size, "peças") }
+        daysNeeded(item)?.let { return Triple(summary.studyDays.coerceAtMost(it), it, "dias") }
         item.level?.let { return Triple(summary.level.coerceAtMost(it), it, "nível") }
         val p = summary.badges.firstOrNull { it.badge.id == item.badgeId } ?: return null
         return Triple(p.current.coerceAtMost(p.target), p.target, p.badge.unit)

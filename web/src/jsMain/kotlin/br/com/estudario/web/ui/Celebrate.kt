@@ -132,7 +132,7 @@ fun CelebrationHost() {
         val at = if (CelebrationQueue.items.isEmpty()) 0 else 1
         CelebrationQueue.items.add(at, Celebration.StreakDay(view.streak.current, view.streak.best, week, view.progress.xpToday))
     }
-    val owned = br.com.estudario.domain.FolhaWardrobe.items.filter { br.com.estudario.domain.FolhaWardrobe.unlocked(it, view.progress) && (it.badgeId != null || it.level != null || it.collection != null) }
+    val owned = br.com.estudario.domain.FolhaWardrobe.items.filter { br.com.estudario.domain.FolhaWardrobe.unlocked(it, view.progress) && (it.badgeId != null || it.level != null || it.collection != null || it.days != null) }
         .map { it.slot.name + ":" + it.id }.toSet()
     LaunchedEffect(owned, ready) {
         val known = readSet(KEY_PIECES)?.plus(br.com.estudario.web.data.Prefs.syncedSet("celebratedPieces"))
@@ -142,7 +142,9 @@ fun CelebrationHost() {
         if (fresh.isEmpty()) return@LaunchedEffect
         write(KEY_PIECES, (known + fresh).sorted().joinToString(","))
         br.com.estudario.web.data.Prefs.addSynced("celebratedPieces", known + fresh)
-        val pieces = br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }.sortedByDescending { it.rarity.ordinal }
+        // Muitas de uma vez (a primeira vez com o armário por área): o presente mostra as 6 mais raras; as
+        // outras aparecem como NOVO no armário.
+        val pieces = br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }.sortedByDescending { it.rarity.ordinal }.take(6)
         if (pieces.isNotEmpty()) CelebrationQueue.items += Celebration.NewPiece(pieces)
     }
     LaunchedEffect(level, ready) {

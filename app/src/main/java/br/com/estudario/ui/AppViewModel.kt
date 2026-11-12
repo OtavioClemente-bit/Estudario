@@ -391,6 +391,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    init {
+        // Armário por área: a área do edital principal (nome do concurso e cargo dos planos dele) e as
+        // peças que já saíram por dias estudados, guardadas na conta.
+        viewModelScope.launch {
+            combine(competitions, studyPlans, progress) { contests, plans, summary ->
+                val primary = contests.firstOrNull { it.isPrimary } ?: contests.firstOrNull()
+                val area = primary?.let { c ->
+                    val role = plans.filter { it.competitionId == c.id }.joinToString(" ") { it.objective + " " + it.name }
+                    br.com.estudario.domain.FolhaArea.of(c.name, c.name, "${c.name} $role")
+                }
+                area to summary
+            }.distinctUntilChanged().collect { (area, summary) ->
+                br.com.estudario.data.FolhaLookStore.syncAreaPieces(application, area, summary)
+            }
+        }
+    }
+
     private val _badgeUnlock = MutableStateFlow<List<Badge>>(emptyList())
     /** Emblemas conquistados agora, esperando a tela de comemoração. */
     val badgeUnlock: StateFlow<List<Badge>> = _badgeUnlock.asStateFlow()
