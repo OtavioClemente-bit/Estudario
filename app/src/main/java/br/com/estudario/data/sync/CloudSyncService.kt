@@ -278,7 +278,7 @@ class CloudSyncService(
         if (sha != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
         keepLocalCopy()
         restoring = true
-        try { backup.restore(text) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
+        try { backup.restore(SnapshotMerge.withoutStaleCopies(JSONObject(text)).toString()) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
         br.com.estudario.data.FolhaLookStore.applyRemote(context, JSONObject(text).optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
         SyncedPrefs.applyRemote(context, JSONObject(text).optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair

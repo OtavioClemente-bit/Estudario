@@ -154,7 +154,29 @@ class Snapshot private constructor(val root: JsonObject, parent: Snapshot? = nul
             val root = snapshotJson.parseToJsonElement(text).jsonObject
             val format = root.str("format")
             require(format == null || format == "estudario-backup" || format == "backup") { "Formato de dados desconhecido." }
-            return Snapshot(JsonObject(root - "exportedAt"))
+            return Snapshot(withoutStaleCopies(JsonObject(root - "exportedAt")))
+        }
+
+        /**
+         * Cópia de tarefa que outro aparelho criou ao reorganizar o dia enquanto a original era concluída
+         * (StaleCopies): fica cancelada, para a mesma teoria não aparecer duas vezes pedindo estudo.
+         */
+        private fun withoutStaleCopies(root: JsonObject): JsonObject {
+            val tasks = root[Keys.TASKS] as? JsonArray ?: return root
+            val rows = tasks.mapNotNull { el ->
+                val o = el as? JsonObject ?: return@mapNotNull null
+                val id = (o["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                br.com.estudario.domain.planner.StaleCopies.Row(id, (o["replannedFrom"] as? JsonPrimitive)?.contentOrNull, (o["status"] as? JsonPrimitive)?.contentOrNull.orEmpty())
+            }
+            val stale = br.com.estudario.domain.planner.StaleCopies.ids(rows)
+            if (stale.isEmpty()) return root
+            val at = JsonPrimitive(kotlin.js.Date.now().toLong())
+            val fixed = JsonArray(tasks.map { el ->
+                val o = el as? JsonObject
+                val id = (o?.get("id") as? JsonPrimitive)?.contentOrNull
+                if (o != null && id in stale) JsonObject(o + mapOf("status" to JsonPrimitive("CANCELADA"), "updatedAt" to at)) else el
+            })
+            return JsonObject(root + (Keys.TASKS to fixed))
         }
 
         fun empty(): Snapshot = Snapshot(

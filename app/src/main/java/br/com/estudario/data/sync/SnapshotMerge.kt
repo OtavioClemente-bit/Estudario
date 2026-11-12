@@ -54,7 +54,28 @@ object SnapshotMerge {
                 else -> out.put(key, l)
             }
         }
-        return out
+        return withoutStaleCopies(out)
+    }
+
+    /**
+     * Cópia de tarefa criada num aparelho ao reorganizar o dia enquanto o outro concluía a original:
+     * fica cancelada (StaleCopies), para a mesma teoria não voltar pedindo estudo nem aparecer duas vezes.
+     */
+    fun withoutStaleCopies(snapshot: JSONObject): JSONObject {
+        val tasks = snapshot.optJSONArray("planTasks") ?: return snapshot
+        val rows = (0 until tasks.length()).mapNotNull { i ->
+            val o = tasks.optJSONObject(i) ?: return@mapNotNull null
+            val id = o.optString("id").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            br.com.estudario.domain.planner.StaleCopies.Row(id, o.optString("replannedFrom").takeIf { !o.isNull("replannedFrom") && it.isNotEmpty() }, o.optString("status"))
+        }
+        val stale = br.com.estudario.domain.planner.StaleCopies.ids(rows)
+        if (stale.isEmpty()) return snapshot
+        val at = System.currentTimeMillis()
+        for (i in 0 until tasks.length()) {
+            val o = tasks.optJSONObject(i) ?: continue
+            if (o.optString("id") in stale) o.put("status", "CANCELADA").put("updatedAt", at)
+        }
+        return snapshot
     }
 
     private fun mergeArray(table: String, base: JSONArray?, local: JSONArray, remote: JSONArray, noBase: Boolean): JSONArray {
