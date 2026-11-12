@@ -25,6 +25,18 @@ export const LIBRARY_MODEL_VERSION = "biblioteca";
  * Divide um capítulo pelas seções dele ("## " ou "### "), de 2 a 6 partes: o recorte de um capítulo
  * só continua com o formato de matéria. Nulo quando o capítulo não tem seções para dividir.
  */
+// "Como a banca cobra este tópico" vinha como um bloco único de 10+ frases, cansativo de ler (12/11). Só muda a
+// forma, nunca as palavras: as duas primeiras frases ficam de introdução e as demais viram uma lista, uma por
+// item. Texto que já tem quebra de linha ou lista (escrito em Markdown) passa como está.
+export function formatHowItFalls(text: string): string {
+  const clean = text.trim();
+  if (/\n/.test(clean)) return clean;
+  const sentences = clean.split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÀÇ"“'‘(])/).map((s) => s.trim()).filter(Boolean);
+  if (sentences.length <= 3) return clean;
+  const lead = sentences.slice(0, 2).join(" ");
+  return `${lead}\n\n${sentences.slice(2).map((s) => `- ${s}`).join("\n")}`;
+}
+
 export function splitChapter(chapter: Json): Json[] | null {
   const lines = String(chapter.markdown ?? "").split("\n");
   const level = ["## ", "### "].find((mark) => lines.filter((line) => line.startsWith(mark)).length >= 2);
@@ -882,7 +894,7 @@ export function assembleFromLibrary(
     if (kept.length >= 80) summary = kept;
   }
   if (howItFalls && wants("THEORY") && chapters.length < 6) {
-    chapters.push({ title: `Como a ${who} cobra este tópico`, markdown: howItFalls });
+    chapters.push({ title: `Como a ${who} cobra este tópico`, markdown: formatHowItFalls(howItFalls) });
   } else if (howItFalls && wants("SUMMARY")) {
     summary = `**Como a ${who} cobra:** ${howItFalls}\n\n${summary}`;
   }
