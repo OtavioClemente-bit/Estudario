@@ -1,0 +1,2186 @@
+{
+  "topic": "informatica.bancos-dados-oracle-mysql-mongodb",
+  "board": "Copese/UFT",
+  "role": null,
+  "incidence": "ALTA",
+  "howItFalls": "A banca Copese/UFT aborda bancos de dados em provas da área de Tecnologia da Informação com foco eminentemente prático e estrutural, contextualizando os itens em cenários operacionais de órgãos públicos ou universidades. Para o Oracle 19c, os comandos cobram a distinção entre memória compartilhada (SGA) e privativa (PGA), os papéis dos processos de background (SMON, PMON, LGWR e DBWn) e os fundamentos da arquitetura Multitenant (CDB versus PDBs). No MySQL, a banca prioriza as particularidades da engine InnoDB, explorando conformidade ACID, níveis de isolamento de transações, tipos de bloqueio (como Next-Key Locks para conter leituras fantasmas) e formatos de replicação pelo binlog. Em relação ao MongoDB, as questões concentram-se na estrutura BSON, na elaboração de pipelines no framework de agregação e nas diretrizes de consistência (Write Concern e Read Concern) e particionamento (Sharding). As pegadinhas mais comuns consistem em inverter funções de processos internos do SGBD, confundir índices clustered com secundários ou atribuir comportamento relacional com esquemas rígidos a coleções NoSQL. Exemplos de enunciado: 1) 'Um administrador de banco de dados do Oracle 19c precisa isolar a memória de ordenação de consultas concorrentes sem compartilhar blocos na SGA. Assinale a estrutura adequada.'; 2) 'Durante uma transação no MySQL InnoDB sob isolamento REPEATABLE READ, uma consulta com SELECT FOR UPDATE bloqueia inserções em intervalos adjacentes por meio de qual mecanismo de trava?'.",
+  "tips": [
+    "Memorize as atribuições dos processos de segundo plano do Oracle, diferenciando com precisão a recuperação de instância feita pelo SMON da limpeza de conexões pelo PMON.",
+    "Lembre-se de que o nível padrão de isolamento do MySQL InnoDB é o REPEATABLE READ, o qual previne leituras fantasmas por meio de travas do tipo Next-Key Lock.",
+    "No MongoDB, otimize pipelines de agregação posicionando o estágio $match sempre antes de $group ou $project para filtrar os dados precocemente.",
+    "Diferencie replicação GTID da replicação tradicional baseada em coordenadas de arquivo e posição no MySQL, destacando o alinhamento automático de réplicas.",
+    "Identifique que o Oracle Active Data Guard viabiliza consultas somente-leitura na base standby enquanto a aplicação dos registros de redo permanece em execução contínua."
+  ],
+  "traps": [
+    "Trocar as finalidades da SGA e da PGA no Oracle, atribuindo à SGA a exclusividade de ordenação individual de cada sessão de usuário.",
+    "Supor que índices secundários no InnoDB armazenam ponteiros físicos diretos para o disco, quando na verdade referenciam o valor da chave primária clustered.",
+    "Acreditar que o Write Concern { w: 1 } no MongoDB garante tolerância a falhas na maioria dos nós do Replica Set, ignorando que apenas o primário confirma.",
+    "Confundir a arquitetura Shared-Everything do Oracle RAC com soluções de Shared-Nothing, esquecendo que no RAC as instâncias compartilham o mesmo storage.",
+    "Ignorar que Shard Keys com valores sequenciais monotônicos no MongoDB criam gargalos de escrita e desbalanceamento severo de chunks no cluster."
+  ],
+  "version": 1,
+  "questions": [
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "A equipe de TI de uma universidade federal precisa consolidar três sistemas legados em um único servidor físico executando Oracle 19c. O projeto exige que cada sistema disponha de seu próprio dicionário de dados independente, mas compartilhando as estruturas globais de memória da instância e os processos em segundo plano. Para atender a esses requisitos técnicos, o administrador deve adotar:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "A criação de múltiplos bancos autônomos instalados em instâncias operacionais separadas.",
+          "correct": false,
+          "comentario": "Instâncias separadas não compartilham estruturas de memória nem processos de fundo."
+        },
+        {
+          "key": "B",
+          "text": "A arquitetura Multitenant com um CDB hospedeiro e múltiplos PDBs isolados.",
+          "correct": true,
+          "comentario": "O CDB compartilha memória e processos enquanto cada PDB mantém seu dicionário isolado."
+        },
+        {
+          "key": "C",
+          "text": "A divisão de uma única tabela em esquemas particionados sem dicionário dedicado.",
+          "correct": false,
+          "comentario": "Esquemas comuns compartilham o mesmo dicionário de dados do banco tradicional."
+        },
+        {
+          "key": "D",
+          "text": "A configuração de réplicas lógicas somente-leitura em servidores espelhados locais.",
+          "correct": false,
+          "comentario": "Réplicas lógicas servem para contingência e leitura, não para consolidação de aplicações distintas."
+        },
+        {
+          "key": "E",
+          "text": "O emprego de clusters físicos independentes integrados por meio de Database Links.",
+          "correct": false,
+          "comentario": "Database Links conectam bases dispersas sem compartilhar memória e processos de instância."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "No Oracle 19c, a arquitetura Multitenant permite que uma única instância do Container Database (CDB) gerencie múltiplos Pluggable Databases (PDBs), compartilhando SGA e processos de fundo enquanto isola os metadados de cada aplicação. O erro comum é sugerir instâncias separadas, o que desperdiçaria memória e processamento do servidor.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um administrador de banco de dados do Oracle 19c observa que consultas analíticas pesadas com cláusulas de ordenação (ORDER BY) executadas por diferentes sessões concorrentes estão disputando memória. Ele precisa configurar uma região de memória que seja dedicada e privativa para cada processo servidor conectado, sem compartilhamento com outros usuários. Trata-se da:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "System Global Area (SGA), que mantém os blocos de dados de tabelas compartilhados globalmente.",
+          "correct": false,
+          "comentario": "A SGA é uma estrutura de memória compartilhada por todos os processos da instância."
+        },
+        {
+          "key": "B",
+          "text": "Shared Pool, que armazena planos de execução em cache e instruções SQL compartilhadas.",
+          "correct": false,
+          "comentario": "A Shared Pool integra a SGA e destina-se a metadados e código compartilhado."
+        },
+        {
+          "key": "C",
+          "text": "Program Global Area (PGA), que aloca áreas exclusivas de ordenação para cada processo servidor.",
+          "correct": true,
+          "comentario": "A PGA é privativa de cada processo servidor e armazena áreas de ordenação e sessão."
+        },
+        {
+          "key": "D",
+          "text": "Redo Log Buffer, que retém temporariamente entradas de log antes da escrita em disco.",
+          "correct": false,
+          "comentario": "O Redo Log Buffer pertence à SGA e guarda alterações antes de irem para disco."
+        },
+        {
+          "key": "E",
+          "text": "Database Buffer Cache, que armazena cópias de blocos lidos dos arquivos de dados locais.",
+          "correct": false,
+          "comentario": "O Database Buffer Cache integra a SGA e é compartilhado entre todas as sessões."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "A PGA é uma região de memória privada alocada exclusivamente para cada processo servidor no Oracle, utilizada para ordenações e pilhas de sessão, sem compartilhamento com outros usuários. A falha típica reside em confundir a memória privativa com a SGA, que é compartilhada por todos os processos da instância.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Durante uma oscilação repentina de energia no datacenter de um órgão estadual, o servidor físico que hospeda o Oracle 19c foi desligado de maneira abrupta. Ao religar a máquina, o SGBD foi iniciado e uma rotina interna recuperou automaticamente o estado consistente dos arquivos, desfazendo transações incompletas. O processo em segundo plano responsável por essa recuperação de instância é o:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Process Monitor (PMON), liberando recursos de travas apenas de sessões finalizadas ativamente.",
+          "correct": false,
+          "comentario": "O PMON monitora processos de conexão e limpa sessões abortadas de usuários."
+        },
+        {
+          "key": "B",
+          "text": "System Monitor (SMON), executando a recuperação de falha da instância durante a reabertura.",
+          "correct": true,
+          "comentario": "O SMON é o responsável por executar a recuperação de falha da instância no startup."
+        },
+        {
+          "key": "C",
+          "text": "Database Writer (DBWn), descartando transações incompletas diretamente dos blocos de dados.",
+          "correct": false,
+          "comentario": "O DBWn apenas grava blocos sujos do cache em disco, sem gerenciar recuperação."
+        },
+        {
+          "key": "D",
+          "text": "Log Writer (LGWR), refazendo transações ativas mediante exclusão definitiva do log em disco.",
+          "correct": false,
+          "comentario": "O LGWR apenas descarrega o buffer de redo para os arquivos físicos de log."
+        },
+        {
+          "key": "E",
+          "text": "Checkpoint (CKPT), restaurando o arquivo de controle a partir de uma cópia de segurança fria.",
+          "correct": false,
+          "comentario": "O CKPT atualiza cabeçalhos de arquivos e sinaliza checkpoints, sem recuperar dados."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "O processo de background SMON é o responsável por realizar a recuperação de falha (instance recovery) na abertura do banco, aplicando os registros de redo e desfazendo transações não confirmadas. O erro recorrente é atribuir essa função ao PMON, que monitora processos de usuários individuais e limpa suas conexões.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um analista de infraestrutura precisa planejar a alocação de espaço para uma nova aplicação contábil no Oracle 19c. Para garantir que os objetos utilizem blocos contíguos de dados e sejam alocados ordenadamente, ele deve compreender a hierarquia das estruturas lógicas de armazenamento. A ordem hierárquica decrescente correta dessas estruturas é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tablespace, Segmento, Extensão e Bloco de Dados.",
+          "correct": true,
+          "comentario": "Uma Tablespace contém Segmentos, que contêm Extensões, formadas por Blocos."
+        },
+        {
+          "key": "B",
+          "text": "Bloco de Dados, Tablespace, Extensão e Segmento.",
+          "correct": false,
+          "comentario": "A ordem está invertida, iniciando pela menor unidade de armazenamento físico/lógico."
+        },
+        {
+          "key": "C",
+          "text": "Segmento, Tablespace, Bloco de Dados e Extensão.",
+          "correct": false,
+          "comentario": "A Tablespace é hierarquicamente superior ao Segmento dentro do armazenamento lógico."
+        },
+        {
+          "key": "D",
+          "text": "Tablespace, Bloco de Dados, Extensão e Segmento.",
+          "correct": false,
+          "comentario": "O Bloco de Dados não engloba Extensões nem Segmentos na hierarquia do banco."
+        },
+        {
+          "key": "E",
+          "text": "Extensão, Segmento, Tablespace e Bloco de Dados.",
+          "correct": false,
+          "comentario": "A Extensão é subordinada ao Segmento e à Tablespace na estrutura lógica."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "No Oracle, a hierarquia lógica decrescente é: Tablespace (nível mais alto), Segmento (espaço alocado a um objeto), Extensão (conjunto de blocos contíguos) e Bloco de Dados (menor unidade de E/S). O engano frequente é inverter a posição entre extensão e segmento ou supor que blocos agrupam tabelas diretamente.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em um tribunal, uma consulta analítica de longa duração sobre a tabela de processos judiciais falhou exibindo o erro 'ORA-01555: snapshot too old'. Enquanto a consulta lia registros históricos para gerar um relatório, diversas transações concorrentes inseriam e confirmavam novos dados na mesma tabela. A causa técnica primordial dessa falha é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "O buffer do Redo Log esgotou o espaço para registro das transações concorrentes.",
+          "correct": false,
+          "comentario": "O Redo Log cuida da recuperação e persistência, sem relação direta com a leitura consistente."
+        },
+        {
+          "key": "B",
+          "text": "A memória da Shared Pool foi purgada por excesso de consultas simultâneas ativas.",
+          "correct": false,
+          "comentario": "A Shared Pool retém planos e metadados, não os dados históricos das leituras em andamento."
+        },
+        {
+          "key": "C",
+          "text": "Os blocos de Undo necessários para leitura consistente foram sobrescritos por transações.",
+          "correct": true,
+          "comentario": "A consulta exigia a imagem anterior no Undo, mas os blocos já tinham sido reutilizados."
+        },
+        {
+          "key": "D",
+          "text": "A tablespace temporária excedeu a cota máxima configurada para tarefas de ordenação.",
+          "correct": false,
+          "comentario": "Esgotamento da tablespace temporária gera o erro ORA-01652, não ORA-01555."
+        },
+        {
+          "key": "E",
+          "text": "O processo Checkpoint interrompeu a consulta para descarregar dados pendentes no disco.",
+          "correct": false,
+          "comentario": "Checkpoints sincronizam cache com disco sem abortar leituras com erro de snapshot."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "O erro ORA-01555 ocorre quando uma consulta exige imagens anteriores de dados para manter a leitura consistente, mas os blocos de Undo que guardavam essas versões foram sobrescritos por outras transações. O equívoco comum é associar essa falha ao Redo Log, que serve para durabilidade e recuperação, e não para consistência de leitura.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "O arquiteto de dados de uma autarquia modelou um Data Warehouse em Oracle 19c contendo uma dimensão de clientes com mais de dez milhões de linhas. Colunas como 'Estado_Civil', 'Sexo' e 'Regiao' apresentam baixíssima cardinalidade e são combinadas frequentemente com operadores lógicos (AND, OR) em consultas analíticas sem DML concorrente. O tipo de índice mais indicado para essa situação é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "O índice B-Tree tradicional, pois previne contenção em ambientes analíticos pesados.",
+          "correct": false,
+          "comentario": "O B-Tree tradicional é menos eficiente para colunas com poucos valores distintos."
+        },
+        {
+          "key": "B",
+          "text": "O índice Bitmap, que reduz espaço e acelera consultas lógicas com baixa cardinalidade.",
+          "correct": true,
+          "comentario": "Índices Bitmap são perfeitos para baixa cardinalidade e operações booleanas em DW."
+        },
+        {
+          "key": "C",
+          "text": "O índice reverso (Reverse Key), pois elimina nós folha fragmentados durante as buscas.",
+          "correct": false,
+          "comentario": "Reverse Key é usado para evitar contenção de inserção em chaves sequenciais."
+        },
+        {
+          "key": "D",
+          "text": "O índice baseado em função, cuja finalidade primária é agrupar valores booleanos nulos.",
+          "correct": false,
+          "comentario": "Índices baseados em função atendem a expressões de consulta, não à baixa cardinalidade."
+        },
+        {
+          "key": "E",
+          "text": "O índice de junção de cluster, que desativa bloqueios de bloco em cargas concorrentes.",
+          "correct": false,
+          "comentario": "Índice de cluster indexa chaves de tabelas agrupadas fisicamente em conjunto."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "Índices Bitmap utilizam cadeias de bits para representar valores com baixa cardinalidade, proporcionando compactação e velocidade em consultas com operadores booleanos em Data Warehouses. A falha usual é recomendar B-Tree sem ponderar o ganho de desempenho ou ignorar que bitmaps geram alto bloqueio em ambientes OLTP com DML frequente.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma secretaria estadual de fazenda armazena notas fiscais eletrônicas em uma tabela do Oracle 19c com centenas de milhões de registros. A equipe técnica precisa garantir a exclusão rápida e de baixo custo de dados fiscais com mais de cinco anos, mantendo alto desempenho nas consultas filtradas por período de emissão. A técnica de particionamento mais indicada é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Particionamento por Lista, agrupando registros pelo identificador sequencial do cliente.",
+          "correct": false,
+          "comentario": "Particionamento por lista exige conjuntos discretos de valores, inadequado para datas."
+        },
+        {
+          "key": "B",
+          "text": "Particionamento Hash puro, distribuindo as notas aleatoriamente entre discos separados.",
+          "correct": false,
+          "comentario": "O particionamento Hash dispersa dados aleatoriamente, impedindo o descarte por período."
+        },
+        {
+          "key": "C",
+          "text": "Particionamento por Range ou Intervalo, segmentando os registros pela data de emissão fiscal.",
+          "correct": true,
+          "comentario": "Range/Interval permite isolar períodos e descartar partições antigas via DROP PARTITION."
+        },
+        {
+          "key": "D",
+          "text": "Particionamento Composto Hash-List, indexando o status de pagamento de modo obrigatório.",
+          "correct": false,
+          "comentario": "A combinação Hash-List não resolve o expurgo histórico baseado em datas."
+        },
+        {
+          "key": "E",
+          "text": "Desnormalização em tabelas anuais separadas unidas exclusivamente por views lógicas.",
+          "correct": false,
+          "comentario": "Tabelas manuais avulsas demandam manutenção complexa e perdem recursos nativos do SGBD."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O particionamento por Range ou Intervalo baseado em data permite a eliminação rápida de partições antigas via DROP PARTITION com impacto mínimo de I/O e sem gerar grande volume de Undo/Redo. O erro comum é sugerir particionamento Hash, que espalha dados de forma uniforme e inviabiliza o expurgo limpo de períodos históricos específicos.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Ao revisar as tabelas de um portal de serviços municipais executado sobre MySQL 8.0, um administrador constatou que a tabela de pagamentos utilizava a engine MyISAM, inviabilizando o uso de chaves estrangeiras e a reversão de transações em falhas com ROLLBACK. Para solucionar essas limitações, a tabela deve ser alterada para a engine:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Memory, que provê persistência atômica e recuperação instantânea em discos físicos.",
+          "correct": false,
+          "comentario": "A engine Memory guarda dados apenas em memória volátil e perde tudo ao reiniciar."
+        },
+        {
+          "key": "B",
+          "text": "InnoDB, que assegura conformidade ACID e suporte nativo a chaves estrangeiras declaradas.",
+          "correct": true,
+          "comentario": "O InnoDB é o mecanismo transacional padrão do MySQL com suporte a ACID e FKs."
+        },
+        {
+          "key": "C",
+          "text": "CSV, que estrutura os registros em arquivos de texto com suporte completo a bloqueios.",
+          "correct": false,
+          "comentario": "A engine CSV não possui suporte a transações nem restrições de integridade."
+        },
+        {
+          "key": "D",
+          "text": "Archive, que foca em índices transacionais de alta concorrência para escrita e leitura.",
+          "correct": false,
+          "comentario": "Archive é voltada apenas a armazenamento compacto sem suporte a transações ACID."
+        },
+        {
+          "key": "E",
+          "text": "Federated, que consolida réplicas remotas mantendo transações atômicas distribuídas.",
+          "correct": false,
+          "comentario": "Federated apenas conecta tabelas remotas sem prover ACID local por padrão."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "A engine InnoDB é o mecanismo de armazenamento padrão do MySQL, fornecendo suporte nativo a transações em conformidade ACID e integridade referencial com chaves estrangeiras. O equívoco costumeiro é confundir seus recursos com os de engines como MyISAM ou Memory, que não possuem suporte transacional com controle de concorrência.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um desenvolvedor precisa ajustar uma rotina no MySQL 8.0 para que consultas sucessivas dentro de uma mesma transação consigam enxergar imediatamente as alterações que já foram confirmadas por outras transações externas, impedindo apenas a leitura de dados não confirmados (leituras sujas). O nível de isolamento adequado é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "READ UNCOMMITTED.",
+          "correct": false,
+          "comentario": "Permite leitura suja (dirty read) de dados ainda não commitados."
+        },
+        {
+          "key": "B",
+          "text": "READ COMMITTED.",
+          "correct": true,
+          "comentario": "Impede leitura suja e permite ler dados recém-confirmados por terceiros."
+        },
+        {
+          "key": "C",
+          "text": "REPEATABLE READ.",
+          "correct": false,
+          "comentario": "Garante leitura consistente da mesma imagem, isolando commits externos."
+        },
+        {
+          "key": "D",
+          "text": "SERIALIZABLE.",
+          "correct": false,
+          "comentario": "Nível mais restritivo que força execução sequencial com bloqueios compartilhados."
+        },
+        {
+          "key": "E",
+          "text": "SNAPSHOT ISOLATION.",
+          "correct": false,
+          "comentario": "Não é um dos quatro níveis padrão SQL configuráveis diretamente no MySQL."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O nível READ COMMITTED impede a leitura suja (dirty read) garantindo que apenas dados confirmados sejam vistos, mas permite leituras não repetíveis quando outra transação confirma alterações. O erro frequente é apontar REPEATABLE READ, que é o padrão do InnoDB e garante leituras idênticas dentro da mesma transação ativa.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em uma tabela de pacientes criada na engine InnoDB do MySQL, a coluna 'id_paciente' foi definida como PRIMARY KEY e existe um índice secundário criado na coluna 'cpf'. O desenvolvedor deseja compreender como o MySQL armazena internamente os nós folha desse índice secundário. No InnoDB, as folhas de um índice secundário armazenam:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço físico exato do arquivo de dados (offset de disco) onde a linha está gravada.",
+          "correct": false,
+          "comentario": "Ponteiros físicos diretos de disco eram usados no MyISAM, não no InnoDB."
+        },
+        {
+          "key": "B",
+          "text": "O valor da chave indexada e a respectiva chave primária para buscar a linha no clustered.",
+          "correct": true,
+          "comentario": "Índices secundários do InnoDB apontam para o valor da PK na árvore B+ principal."
+        },
+        {
+          "key": "C",
+          "text": "Uma cópia integral de todas as colunas da tabela duplicadas para cada entrada secundária.",
+          "correct": false,
+          "comentario": "Duplicar toda a linha causaria redundância excessiva de dados em disco."
+        },
+        {
+          "key": "D",
+          "text": "O ponteiro para a posição do log de transações onde a linha foi originalmente inserida.",
+          "correct": false,
+          "comentario": "Logs de transação não são usados como estrutura de navegação de índices."
+        },
+        {
+          "key": "E",
+          "text": "Apenas o hash criptográfico do campo indexado sem referência à chave primária da linha.",
+          "correct": false,
+          "comentario": "Sem o valor da chave primária seria impossível localizar os outros atributos."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "No InnoDB, a tabela é fisicamente organizada em torno da chave primária (índice clustered). Os índices secundários guardam a chave indexada e o valor da chave primária correspondente, usada para buscar a linha completa. O erro comum é achar que o índice secundário guarda o ponteiro físico de disco como fazia o MyISAM.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "No MySQL 8.0 operando com a engine InnoDB sob o nível padrão REPEATABLE READ, a Sessão 1 executa a instrução 'SELECT * FROM contas WHERE saldo BETWEEN 100 AND 500 FOR UPDATE;'. Logo em seguida, a Sessão 2 tenta inserir um novo registro com saldo igual a 250 e fica bloqueada aguardando liberação. Esse bloqueio de inserção ocorre devido a:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um bloqueio exclusivo de toda a tabela em nível de catálogo para impedir novos acessos.",
+          "correct": false,
+          "comentario": "O InnoDB opera com bloqueios em nível de linha/intervalo, não trava a tabela toda."
+        },
+        {
+          "key": "B",
+          "text": "Uma conversão automática da transação concorrente para o nível restritivo SERIALIZABLE.",
+          "correct": false,
+          "comentario": "O MySQL não altera dinamicamente o nível de isolamento das sessões ativas."
+        },
+        {
+          "key": "C",
+          "text": "Next-Key Locks do InnoDB, bloqueando os registros e os intervalos entre eles (gap locks).",
+          "correct": true,
+          "comentario": "Next-Key Locks combinam Record Lock e Gap Lock, impedindo leituras fantasmas no intervalo."
+        },
+        {
+          "key": "D",
+          "text": "Um travamento temporário disparado pela rotina de purga dos blocos antigos de Undo Log.",
+          "correct": false,
+          "comentario": "A purga de Undo é um processo assíncrono interno que não cria travas DML de usuário."
+        },
+        {
+          "key": "E",
+          "text": "Uma falha de deadlock acionada pela engine ao detectar escritas em intervalos vazios.",
+          "correct": false,
+          "comentario": "Trata-se de uma espera legítima por trava (lock wait), não de um ciclo de deadlock."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "No REPEATABLE READ, o InnoDB emprega Next-Key Locks (junção de Record Lock e Gap Lock), travando os registros existentes e os intervalos adjacentes para impedir inserções fantasmas na faixa consultada. O erro habitual é supor que o banco executou um lock de tabela completa ou converteu a transação para SERIALIZABLE.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um arquiteto de infraestrutura planeja automatizar o failover em um ambiente de missão crítica baseado em MySQL 8.0 com múltiplos nós réplicas. Para permitir que uma réplica seja promovida a novo primário sem a necessidade de calcular manualmente coordenadas de arquivos de log e posições de offset (File e Position), a arquitetura deve utilizar:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "A replicação circular com auto-incremento de chaves primárias configuradas com offset.",
+          "correct": false,
+          "comentario": "Offsets de auto-incremento evitam colisão de IDs, mas não automatizam o failover."
+        },
+        {
+          "key": "B",
+          "text": "A replicação baseada em GTID, que identifica transações globalmente e alinha réplicas direto.",
+          "correct": true,
+          "comentario": "GTID associa IDs únicos a cada transação, permitindo reposicionamento automático na troca."
+        },
+        {
+          "key": "C",
+          "text": "O particionamento federado distribuído que delega o controle de posição ao MySQL Router local.",
+          "correct": false,
+          "comentario": "Particionamento federado não gerencia failover nem substitui o binlog posicional."
+        },
+        {
+          "key": "D",
+          "text": "A sincronização por snapshot físico contínuo via dump lógico com lock de tabelas ativado.",
+          "correct": false,
+          "comentario": "Dumps e locks geram indisponibilidade e não viabilizam failover em tempo real."
+        },
+        {
+          "key": "E",
+          "text": "O uso de Group Replication síncrono mantendo o binlog tradicional por arquivo posicional.",
+          "correct": false,
+          "comentario": "Group Replication exige obrigatoriamente GTID ativado para manter o consenso."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O GTID atribui um identificador único a cada transação confirmada no cluster, permitindo que réplicas sincronizem automaticamente sua posição relativa ao novo primário sem mapear posições de arquivos. A falha recorrente é propor esquemas complexos de incremento manual ou dumps físicos, que não solucionam a troca dinâmica de mestre.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma equipe de desenvolvimento escolheu o MongoDB 6.0 para o catálogo de produtos de um portal de compras governamentais. Os itens licitados possuem características amplamente variáveis: itens de TI contêm dezenas de especificações técnicas, enquanto materiais de escritório possuem apenas descrição e unidade. O formato padrão em que o MongoDB armazena esses dados é o:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tabelas relacionais com esquemas rígidos e integridade referencial mantida por chaves.",
+          "correct": false,
+          "comentario": "Tabelas rígidas pertencem ao modelo relacional, não ao formato nativo do MongoDB."
+        },
+        {
+          "key": "B",
+          "text": "BSON (Binary JSON), que suporta campos flexíveis, tipos variados e subdocumentos aninhados.",
+          "correct": true,
+          "comentario": "O MongoDB usa BSON para combinar flexibilidade de documentos com tipos eficientes."
+        },
+        {
+          "key": "C",
+          "text": "Documentos XML serializados que exigem declaração de esquemas DTD válidos na gravação.",
+          "correct": false,
+          "comentario": "O MongoDB não utiliza representação em arquivos XML para documentos."
+        },
+        {
+          "key": "D",
+          "text": "Arquivos colunares estáticos particionados por dicionários de dados gravados em disco raw.",
+          "correct": false,
+          "comentario": "Formatos colunares puros são típicos de soluções analíticas, não do MongoDB tradicional."
+        },
+        {
+          "key": "E",
+          "text": "Matrizes relacionais em memória mapeadas diretamente por estruturas em formato texto CSV puro.",
+          "correct": false,
+          "comentario": "O MongoDB não baseia seu mecanismo de coleções e persistência em arquivos CSV."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O MongoDB armazena dados no formato BSON, uma representação binária de JSON que viabiliza esquemas flexíveis (documentos na mesma coleção com campos diferentes) e suporta subdocumentos aninhados. O equívoco comum é acreditar que o MongoDB impõe normalização estrita como bancos relacionais ou que armazena puro texto XML.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em uma coleção de 'usuarios' no MongoDB, um analista precisa selecionar apenas o nome e o e-mail de usuários que estejam com o status 'ativo' e com idade estritamente superior a 30 anos. A consulta deve omitir expressamente o identificador padrão '_id' do documento retornado. O comando que atende com exatidão a essa solicitação é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "db.usuarios.find({ status: \"ativo\", idade: { $gt: 30 } }, { nome: 1, email: 1, _id: 0 })",
+          "correct": true,
+          "comentario": "Usa $gt para maior estrito, projeta nome e email e desativa a exibição do _id com 0."
+        },
+        {
+          "key": "B",
+          "text": "db.usuarios.find({ status: \"ativo\", idade: { $gte: 30 } }, { nome: 1, email: 1, _id: 1 })",
+          "correct": false,
+          "comentario": "Usa $gte (maior ou igual) e força a exibição do _id ao definir seu valor como 1."
+        },
+        {
+          "key": "C",
+          "text": "db.usuarios.select({ status: \"ativo\", idade: { $gt: 30 } }).project({ nome: 1, email: 1 })",
+          "correct": false,
+          "comentario": "O método select() não é a sintaxe de consulta padrão de documentos no MongoDB."
+        },
+        {
+          "key": "D",
+          "text": "db.usuarios.filter({ status: \"ativo\", idade: { $in: [30] } }, { nome: true, email: true })",
+          "correct": false,
+          "comentario": "O operador $in compara igualdade em lista e a sintaxe padrão de projeção usa find()."
+        },
+        {
+          "key": "E",
+          "text": "db.usuarios.find({ status: { $eq: \"ativo\" }, idade: 30 }, { exclude: [\"_id\"], fields: \"*\" })",
+          "correct": false,
+          "comentario": "A cláusula idade: 30 testa igualdade e a sintaxe de projeção exclude não existe."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "Na sintaxe do MongoDB, o método find() recebe o filtro no primeiro argumento (usando $gt para maior que) e a projeção no segundo; o campo _id é incluído por padrão e só é suprimido com _id: 0. O erro frequente é usar métodos inexistentes como select() ou esquecer que maior estrito exige $gt em vez de igualdade.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "O setor financeiro de um hospital universitário utiliza MongoDB e precisa gerar um relatório somando o total faturado por paciente, considerando apenas os procedimentos marcados como faturados ('faturado: true'). Para garantir a máxima eficiência no framework de agregação, o pipeline de agregação deve ser estruturado na seguinte sequência:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar primeiro $group para somar todas as despesas e depois filtrar o resultado via $project.",
+          "correct": false,
+          "comentario": "Agrupar antes de filtrar obriga a engine a processar todo o volume de dados da coleção."
+        },
+        {
+          "key": "B",
+          "text": "Executar $unwind sobre todos os registros, em seguida $sort decrescente e finalizar com $out.",
+          "correct": false,
+          "comentario": "$unwind desestrutura arrays e não realiza a filtragem prévia nem a soma requerida."
+        },
+        {
+          "key": "C",
+          "text": "Utilizar primeiro o estágio $match para filtrar faturados e depois $group para totalizar valores.",
+          "correct": true,
+          "comentario": "$match no início reduz os documentos processados pelo $group, otimizando o pipeline."
+        },
+        {
+          "key": "D",
+          "text": "Iniciar com o estágio $facet para paralelizar o cálculo, dispensando qualquer uso de $match.",
+          "correct": false,
+          "comentario": "$facet serve para agregações multifacetadas e não substitui o filtro seletivo."
+        },
+        {
+          "key": "E",
+          "text": "Aplicar a etapa $lookup antes de qualquer agregação para vincular as tabelas do catálogo local.",
+          "correct": false,
+          "comentario": "$lookup realiza junção entre coleções e causaria degradação se executado antes."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "No Aggregation Pipeline do MongoDB, o estágio $match deve ser posicionado no início do pipeline para filtrar os documentos precocemente, reduzindo o volume processado pelo estágio $group posterior. O erro clássico é realizar o agrupamento de toda a base antes da filtragem, provocando consumo desnecessário de CPU e memória.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em uma plataforma de biblioteca digital implementada sobre MongoDB, cada documento da coleção 'livros' contém um array de strings chamado 'palavras_chave' (por exemplo, ['banco de dados', 'sql', 'computacao']). A equipe precisa indexar esse campo para que buscas por palavras-chave individuais sejam muito rápidas. O tipo de índice criado automaticamente pelo MongoDB sobre esse campo é o:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Índice Composto tradicional, que concatena todo o array em uma única chave textual indexada.",
+          "correct": false,
+          "comentario": "O MongoDB não concatena elementos de array em índices convencionais."
+        },
+        {
+          "key": "B",
+          "text": "Índice Multikey, que gera chaves de índice individuais para cada elemento presente no array.",
+          "correct": true,
+          "comentario": "Índices criados sobre campos do tipo array tornam-se automaticamente Multikey."
+        },
+        {
+          "key": "C",
+          "text": "Índice Geoespacial 2dsphere, que converte termos textuais do array em coordenadas de busca.",
+          "correct": false,
+          "comentario": "Índices 2dsphere são específicos para coordenadas e geometria em mapas."
+        },
+        {
+          "key": "D",
+          "text": "Índice TTL, cuja função é reorganizar itens dinâmicos do array após um tempo pré-definido.",
+          "correct": false,
+          "comentario": "Índices TTL servem exclusivamente para expiração e deleção automática de documentos."
+        },
+        {
+          "key": "E",
+          "text": "Índice Textual curinga, que proíbe arrays e indexa apenas atributos simples de primeiro nível.",
+          "correct": false,
+          "comentario": "Campos com arrays podem ser indexados e geram índices Multikey perfeitamente válidos."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "Quando um índice no MongoDB é criado sobre um campo cujo valor é um array, ele é categorizado como Multikey Index, indexando cada elemento do array separadamente para consultas pontuais eficientes. O erro típico é confundir essa funcionalidade com índices de texto completo ou achar que arrays precisam ser concatenados.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um sistema financeiro que emite ordens de pagamento utiliza um Replica Set do MongoDB composto por 5 membros. Para impedir a perda de dados caso o nó primário sofra uma pane de hardware imediatamente após confirmar uma escrita, a aplicação exige que a operação só retorne sucesso após ter sido gravada no journal em disco e propagada para a maioria calculada dos nós. Essa garantia é obtida configurando:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar a gravação com Write Concern { w: 1, j: false }.",
+          "correct": false,
+          "comentario": "Confirma a gravação apenas na memória do primário, sob risco de perda em failover."
+        },
+        {
+          "key": "B",
+          "text": "Configurar o Read Concern no cliente com nível \"local\" e timeout zero.",
+          "correct": false,
+          "comentario": "Read Concern define garantias de leitura, sem efeito sobre a persistência de escritas."
+        },
+        {
+          "key": "C",
+          "text": "Configurar a operação de escrita com Write Concern { w: \"majority\", j: true }.",
+          "correct": true,
+          "comentario": "Garante confirmação na maioria dos membros do replica set e gravação no journal."
+        },
+        {
+          "key": "D",
+          "text": "Definir a escrita no nó primário com parâmetro exclusivo { w: 0, wtimeout: 1000 }.",
+          "correct": false,
+          "comentario": "Write Concern w: 0 sequer aguarda reconhecimento de recebimento pelo primário."
+        },
+        {
+          "key": "E",
+          "text": "Ajustar a propriedade global do cluster para Read Preference \"secondaryPreferred\".",
+          "correct": false,
+          "comentario": "Read Preference define nós para consulta, não a segurança de gravação em disco."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O Write Concern { w: \"majority\", j: true } assegura que a escrita foi gravada no journal em disco e propagada para a maioria calculada dos nós do Replica Set antes do retorno, impedindo perda de dados em failover. O erro comum é usar w: 1, que confirma após gravar apenas na memória do primário, sob risco de reversão (rollback).",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma aplicação de rastreamento de frotas armazena bilhões de leituras de GPS em um cluster MongoDB fragmentado (Sharded Cluster). A equipe de DBA observou que a distribuição de escrita está desequilibrada: praticamente todas as inserções são enviadas para o mesmo shard físico devido à escolha inadequada da chave de partição. Para distribuir uniformemente a carga de inserções entre todos os shards, a melhor prática é adotar:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma Shard Key de chave monotônica crescente baseada estritamente na data e hora da coleta.",
+          "correct": false,
+          "comentario": "Chaves monotônicas concentram todas as inserções no último chunk do mesmo shard (hotspot)."
+        },
+        {
+          "key": "B",
+          "text": "Uma Shard Key de baixa cardinalidade baseada no status booleano de funcionamento do sensor.",
+          "correct": false,
+          "comentario": "Baixa cardinalidade impede a divisão em múltiplos chunks por falta de valores distintos."
+        },
+        {
+          "key": "C",
+          "text": "Uma Shard Key com alta cardinalidade e dispersão uniforme de escritas, como uma chave hash.",
+          "correct": true,
+          "comentario": "Chaves com alta cardinalidade e distribuição hash espalham as escritas entre os shards."
+        },
+        {
+          "key": "D",
+          "text": "Uma Shard Key baseada no identificador do datacenter com valor fixo para toda a instalação.",
+          "correct": false,
+          "comentario": "Valor fixo não possui cardinalidade para permitir particionamento entre servidores."
+        },
+        {
+          "key": "E",
+          "text": "A dispensa da Shard Key, delegando a cada réplica secundária a escolha aleatória do nó.",
+          "correct": false,
+          "comentario": "Coleções fragmentadas exigem obrigatoriamente uma Shard Key para roteamento."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "Uma boa Shard Key deve apresentar alta cardinalidade e distribuição uniforme de escritas (por exemplo, via hashed sharding) para prevenir pontos quentes (hotspots). O erro clássico de projeto é adotar valores monotônicos crescentes (como timestamps), que concentram todas as inserções correntes no último chunk do mesmo shard.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Ao planejar a infraestrutura de dados de um serviço público com replicação geográfica, a equipe de arquitetura analisou os limites teóricos impostos pelo Teorema CAP. Sabendo que falhas de comunicação em links de longa distância (partições de rede) são inevitáveis em sistemas distribuídos, o teorema afirma formalmente que:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "O teorema afirma que a consistência e a disponibilidade nunca sofrem impacto por partições.",
+          "correct": false,
+          "comentario": "Partições de rede obrigam diretamente a escolha entre consistência ou disponibilidade."
+        },
+        {
+          "key": "B",
+          "text": "O teorema estabelece que, diante de uma partição de rede, deve-se escolher entre C ou A.",
+          "correct": true,
+          "comentario": "Sob partição de rede inevitável, o sistema precisa optar entre consistência ou disponibilidade."
+        },
+        {
+          "key": "C",
+          "text": "O teorema comprova que sistemas modernos NoSQL eliminam qualquer risco de perda de partição.",
+          "correct": false,
+          "comentario": "Nenhuma tecnologia de software é capaz de eliminar partições físicas de conectividade de rede."
+        },
+        {
+          "key": "D",
+          "text": "O teorema determina que réplicas de leitura sempre oferecem consistência estrita imediata.",
+          "correct": false,
+          "comentario": "Réplicas assíncronas geram inconsistência temporária (consistência eventual)."
+        },
+        {
+          "key": "E",
+          "text": "O teorema limita o uso de bancos distribuídos a cenários que toleram descarte de dados.",
+          "correct": false,
+          "comentario": "Sistemas consistentes (CP) recusam operações para não corromper nem descartar dados."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O Teorema CAP demonstra que, na ocorrência inevitável de uma partição de rede (P), um sistema distribuído deve optar entre consistência (C - todos os nós leem o mesmo dado) ou disponibilidade (A - toda requisição recebe resposta). O engano usual é acreditar que arquiteturas modernas conseguem assegurar os três atributos de forma plena.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma universidade pública utiliza Oracle Database 19c e quer manter uma base de contingência para Disaster Recovery em um segundo campus. A direção exige que essa réplica fique aberta em modo somente-leitura para atender consultas analíticas dos pesquisadores durante o dia, enquanto continua recebendo e aplicando os registros de redo do primário em tempo real. A solução nativa recomendada é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oracle Flashback Database.",
+          "correct": false,
+          "comentario": "Flashback serve para retornar o estado do banco no tempo, não para réplica analítica."
+        },
+        {
+          "key": "B",
+          "text": "Oracle Active Data Guard.",
+          "correct": true,
+          "comentario": "Active Data Guard permite consultas na base standby enquanto aplica o redo do mestre."
+        },
+        {
+          "key": "C",
+          "text": "Oracle Database Express.",
+          "correct": false,
+          "comentario": "Trata-se de uma edição gratuita de entrada do Oracle, sem recursos avançados de DR."
+        },
+        {
+          "key": "D",
+          "text": "Oracle Recovery Manager RMAN.",
+          "correct": false,
+          "comentario": "RMAN é uma ferramenta de backup e restauração, não uma base ativa em tempo real."
+        },
+        {
+          "key": "E",
+          "text": "Oracle Autonomous Warehouse.",
+          "correct": false,
+          "comentario": "Serviço gerenciado em nuvem voltado a DW, não uma contingência física sob medida."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O Oracle Active Data Guard permite que o banco de dados Physical Standby permaneça aberto em modo de apenas leitura para consultas e relatórios enquanto continua recebendo e aplicando os registros de redo do primário em tempo real. O erro frequente é confundir com o Flashback (retorno no tempo) ou RMAN (ferramenta de backup).",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "O sistema de bilhetagem de uma empresa pública de transporte atinge gargalos de hardware em horários de pico. Em uma reunião de planejamento, a gerência discute as diferenças fundamentais entre estratégias de expansão por Escala Vertical (scale-up) e Escala Horizontal (scale-out). Sobre esses conceitos de escalabilidade, é correto afirmar que:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "A escala vertical distribui a carga por meio de sharding entre diversos servidores pequenos.",
+          "correct": false,
+          "comentario": "Sharding e distribuição entre servidores são característicos da escala horizontal."
+        },
+        {
+          "key": "B",
+          "text": "A escala horizontal adiciona novos servidores ao conjunto; a vertical amplia a máquina atual.",
+          "correct": true,
+          "comentario": "Scale-out adiciona novos nós em rede; scale-up adiciona CPU/RAM no mesmo servidor."
+        },
+        {
+          "key": "C",
+          "text": "A escala horizontal exige a troca obrigatória de todos os discos rígidos por memória flash.",
+          "correct": false,
+          "comentario": "A escala horizontal independe do tipo de tecnologia de disco utilizado nos servidores."
+        },
+        {
+          "key": "D",
+          "text": "A escala vertical elimina limites físicos ao paralelizar transações via rede externa WAN.",
+          "correct": false,
+          "comentario": "A escala vertical é restrita aos limites máximos da placa-mãe e CPU da máquina única."
+        },
+        {
+          "key": "E",
+          "text": "A escala horizontal aplica-se apenas a bancos relacionais com índices clustered nativos.",
+          "correct": false,
+          "comentario": "A escala horizontal é amplamente usada em bancos NoSQL e soluções distribuídas."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "Escala horizontal (scale-out) expande o sistema mediante a adição de novos servidores em cluster, enquanto a escala vertical (scale-up) concentra a ampliação de hardware (CPU, memória) no servidor já existente. O erro frequente é inverter as definições ou acreditar que escala vertical envolve particionamento distribuído de rede.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em um tribunal de contas, o banco de dados Oracle 19c precisa suportar tolerância a falhas e balanceamento ativo-ativo. A arquitetura exige que múltiplos servidores distintos executem instâncias operacionais separadas acessando simultaneamente os mesmos arquivos de dados armazenados em um storage de alta velocidade. Essa topologia corresponde ao:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oracle Data Guard, operando com instâncias ativas que gravam diretamente em storages locais.",
+          "correct": false,
+          "comentario": "O Data Guard mantém bancos primário e standby separados com dados replicados."
+        },
+        {
+          "key": "B",
+          "text": "Oracle GoldenGate, sincronizando dados por replicação de arquivos texto assíncronos no SO.",
+          "correct": false,
+          "comentario": "O GoldenGate é um software de replicação e captura lógica de dados (CDC)."
+        },
+        {
+          "key": "C",
+          "text": "Oracle RAC, provendo instâncias ativas concorrentes sobre o mesmo storage com Cache Fusion.",
+          "correct": true,
+          "comentario": "O RAC opera instâncias ativas sobre armazenamento compartilhado (Shared-Everything)."
+        },
+        {
+          "key": "D",
+          "text": "Oracle Sharding, dividindo os arquivos de dados em instâncias sem compartilhamento físico.",
+          "correct": false,
+          "comentario": "Oracle Sharding usa arquitetura Shared-Nothing com bases isoladas e independentes."
+        },
+        {
+          "key": "E",
+          "text": "Oracle Database Resident Connection Pooling, que substitui clusters por pools em memória.",
+          "correct": false,
+          "comentario": "DRCP é apenas um gerenciador de conexões leves para aplicações em PHP/Web."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "O Oracle RAC (Real Application Clusters) adota a arquitetura de disco compartilhado (Shared-Everything), onde múltiplas instâncias em nós distintos acessam a mesma base de dados física e sincronizam blocos de memória via Cache Fusion. O erro típico é confundir o RAC com o Data Guard (primário/standby) ou Sharding (Shared-Nothing).",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um engenheiro de software projeta uma solução de alta disponibilidade para MySQL 8.0 que proporcione tolerância a falhas com eleição automática de um novo nó mestre caso o primário caia, controle de consenso síncrono para transações e roteamento inteligente de requisições de leitura e escrita. O componente integrado oficial que oferece essa arquitetura completa é o:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação mestre-escravo padrão assíncrona associada a scripts manuais de monitoramento cron.",
+          "correct": false,
+          "comentario": "Scripts artesanais e replicação assíncrona não oferecem consenso nem failover seguro."
+        },
+        {
+          "key": "B",
+          "text": "MySQL InnoDB Cluster, combinando Group Replication, MySQL Router e administração via Shell.",
+          "correct": true,
+          "comentario": "O InnoDB Cluster integra Group Replication para consenso, Router e Shell."
+        },
+        {
+          "key": "C",
+          "text": "MySQL NDB Cluster com replicação baseada puramente em tabelas temporárias voláteis em RAM.",
+          "correct": false,
+          "comentario": "NDB Cluster utiliza um motor próprio em memória, distinto da solução padrão InnoDB."
+        },
+        {
+          "key": "D",
+          "text": "Federated Storage Engine integrado a servidores Apache ZooKeeper para eleição de primário.",
+          "correct": false,
+          "comentario": "A engine Federated não provê consenso transacional nativo nem failover com ZooKeeper."
+        },
+        {
+          "key": "E",
+          "text": "Topologia circular com balanceador de carga genérico operando em nível de transporte UDP.",
+          "correct": false,
+          "comentario": "MySQL requer conexões TCP confiáveis e topologias circulares geram conflitos severos."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O MySQL InnoDB Cluster oferece uma solução integrada de alta disponibilidade baseada no protocolo de consenso do Group Replication, com roteamento de conexões pelo MySQL Router e gerenciamento pelo MySQL Shell. A falha costumeira é recorrer a soluções artesanais de replicação assíncrona ou supor que o engine NDB substitui o InnoDB.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma equipe de TI pública precisa definir o banco de dados ideal para dois novos sistemas. O Sistema 1 é um módulo orçamentário e financeiro que exige transações com isolamento rigoroso, integridade referencial rígida entre tabelas e auditoria estrita. O Sistema 2 é uma plataforma de formulários cidadãos com centenas de atributos dinâmicos e esquemas mutáveis. A recomendação técnica correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "MongoDB para o sistema contábil pela ausência de travas, e Oracle para o repositório de perfis.",
+          "correct": false,
+          "comentario": "Inverte os modelos, comprometendo as garantias transacionais rígidas do contábil."
+        },
+        {
+          "key": "B",
+          "text": "Relacional (Oracle/MySQL) para o contábil, e NoSQL orientado a documentos para o polimórfico.",
+          "correct": true,
+          "comentario": "Relacionais asseguram ACID e integridade, enquanto NoSQL documental atende esquemas dinâmicos."
+        },
+        {
+          "key": "C",
+          "text": "MongoDB para ambos os sistemas, visto que documentos JSON eliminam a utilidade de modelos ACID.",
+          "correct": false,
+          "comentario": "Modelos relacionais continuam sendo o padrão ouro para sistemas financeiros e contábeis."
+        },
+        {
+          "key": "D",
+          "text": "MySQL para ambos os cenários, pois engines relacionais impedem a evolução de novos atributos.",
+          "correct": false,
+          "comentario": "Forçar formulários dinâmicos em tabelas relacionais resulta em modelagens desnecessariamente complexas."
+        },
+        {
+          "key": "E",
+          "text": "Oracle para ambos, pois bancos NoSQL não oferecem mecanismos de indexação ou consulta rápida.",
+          "correct": false,
+          "comentario": "Bancos NoSQL modernos possuem índices eficientes e alta velocidade de consulta."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "Sistemas contábeis e financeiros exigem a rigidez transacional ACID e as restrições relacionais de bancos como Oracle e MySQL, enquanto repositórios com esquemas mutáveis e polimórficos beneficiam-se da flexibilidade de modelos documentais como o MongoDB. O erro frequente é tentar forçar uma única tecnologia em domínios de requisitos opostos.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um administrador de banco de dados monitora uma instância do Oracle Database 19c em um servidor de produção. Durante picos de processamento de transações com alto volume de operações de DML, ele precisa identificar qual processo de segundo plano (background process) é encarregado de gravar os blocos de dados modificados (dirty buffers) da Database Buffer Cache diretamente nos datafiles armazenados no subsistema de armazenamento.\n\nNesse cenário, o processo de segundo plano responsável por essa gravação é o",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "LGWR (Log Writer).",
+          "correct": false,
+          "comentario": "O LGWR grava entradas de redo do Redo Log Buffer nos arquivos de redo log, e não blocos sujos nos datafiles."
+        },
+        {
+          "key": "B",
+          "text": "DBWn (Database Writer).",
+          "correct": true,
+          "comentario": "O DBWn descarrega blocos de dados modificados (dirty buffers) da Database Buffer Cache diretamente nos datafiles."
+        },
+        {
+          "key": "C",
+          "text": "CKPT (Checkpoint).",
+          "correct": false,
+          "comentario": "O CKPT atualiza cabeçalhos de datafiles e arquivos de controle com informações de checkpoint, sem gravar blocos."
+        },
+        {
+          "key": "D",
+          "text": "SMON (System Monitor).",
+          "correct": false,
+          "comentario": "O SMON atua na recuperação de falhas de instância e na coalescência de espaço livre, sem descarregar dirty buffers."
+        },
+        {
+          "key": "E",
+          "text": "PMON (Process Monitor).",
+          "correct": false,
+          "comentario": "O PMON monitora e limpa recursos de conexões de usuários abortadas, sem realizar gravação de blocos em disco."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O processo DBWn grava blocos alterados (dirty buffers) do Database Buffer Cache nos datafiles para liberar espaço na memória e manter a sincronia. O erro comum é confundir com o LGWR, que grava registros do Redo Log Buffer nos arquivos de redo log para assegurar a durabilidade.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Durante o dimensionamento de hardware e memória para uma nova instalação do Oracle Database 19c, o analista de infraestrutura precisa alocar espaço suficiente para a System Global Area (SGA). Ele deve identificar o componente da SGA responsável por armazenar em cache os planos de execução compilados de comandos SQL (Library Cache) e as definições de metadados das tabelas e visões (Data Dictionary Cache).\n\nO componente de memória da SGA projetado para essas funções é a",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Large Pool.",
+          "correct": false,
+          "comentario": "A Large Pool é voltada a operações de backup do RMAN, I/O assíncrono e sessões do servidor compartilhado."
+        },
+        {
+          "key": "B",
+          "text": "Java Pool.",
+          "correct": false,
+          "comentario": "A Java Pool destina-se a armazenar código e objetos Java executados na JVM integrada ao banco Oracle."
+        },
+        {
+          "key": "C",
+          "text": "Streams Pool.",
+          "correct": false,
+          "comentario": "A Streams Pool é utilizada especificamente por recursos do Oracle Streams e replicação do GoldenGate."
+        },
+        {
+          "key": "D",
+          "text": "Shared Pool.",
+          "correct": true,
+          "comentario": "A Shared Pool abriga a Library Cache (código SQL e planos) e a Data Dictionary Cache (metadados de objetos)."
+        },
+        {
+          "key": "E",
+          "text": "Database Buffer Cache.",
+          "correct": false,
+          "comentario": "A Database Buffer Cache armazena cópias de blocos de dados lidos dos datafiles, e não metadados ou planos SQL."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "A Shared Pool é a subdivisão da SGA encarregada de hospedar a Library Cache, que retém comandos SQL e seus planos de execução compilados, e a Data Dictionary Cache, com metadados do esquema. O erro típico é confundi-la com o Database Buffer Cache, que guarda blocos de dados de tabelas.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em um sistema de folha de pagamento estruturado sobre o Oracle Database 19c, dezenas de transações simultâneas realizam operações de UPDATE em milhares de registros de uma mesma tabela. O analista percebe que, diferentemente de alguns outros sistemas gerenciadores de banco de dados, o Oracle preserva o isolamento em nível de linha sem nunca converter esses bloqueios granulares em bloqueios exclusivos de tabela (ausência de lock escalation).\n\nEssa característica da arquitetura do Oracle 19c decorre do fato de que",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "os bloqueios de linha são registrados diretamente no cabeçalho dos blocos de dados e nas transações ativas, sem depender de uma tabela central de locks.",
+          "correct": true,
+          "comentario": "O Oracle armazena marcadores de lock nos próprios blocos de dados (na lista ITL), eliminando limites que forçariam escalonamento."
+        },
+        {
+          "key": "B",
+          "text": "o mecanismo de rollback segment suspende automaticamente transações concorrentes para impedir qualquer disputa de recursos na mesma tabela.",
+          "correct": false,
+          "comentario": "O Oracle não suspende transações concorrentes que acessam linhas distintas; o rollback garante leitura consistente de dados."
+        },
+        {
+          "key": "C",
+          "text": "a tabela de bloqueios da SGA possui memória dinâmica irrestrita que expande de forma indefinida conforme o aumento das transações.",
+          "correct": false,
+          "comentario": "O Oracle não possui uma tabela centralizada de bloqueios na memória com limite que justifique ou force lock escalation."
+        },
+        {
+          "key": "D",
+          "text": "o nível padrão de isolamento SERIALIZABLE do Oracle bloqueia previamente todas as partições físicas afetadas pelos comandos executados.",
+          "correct": false,
+          "comentario": "O nível padrão é READ COMMITTED e o Oracle não promove locks de linha para partições inteiras de forma preventiva."
+        },
+        {
+          "key": "E",
+          "text": "as alterações de linha utilizam travas exclusivas gerenciadas pelo processo CKPT que liberam os blocos imediatamente antes do commit final.",
+          "correct": false,
+          "comentario": "O CKPT não gerencia travas de linha nem coordena concorrência transacional; os locks são liberados no COMMIT ou ROLLBACK."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "O Oracle não realiza lock escalation porque não mantém uma fila central de bloqueios em memória com contadores finitos. As informações de bloqueio residem no cabeçalho do próprio bloco de dados (na estrutura ITL). O erro comum é achar que existe alocação infinita de memória em tabela central.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um operador de banco de dados executou acidentalmente o comando DROP TABLE servidores_temporarios em uma instância de produção do Oracle Database 19c, mas sem utilizar a cláusula PURGE. O analista de suporte foi acionado com urgência para recuperar a tabela e todos os seus índices originais sem a necessidade de restaurar cópias de segurança (backups) do RMAN.\n\nPara restaurar a tabela diretamente da Lixeira do Oracle (Recyclebin), o comando a ser executado é",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "RECOVER TABLE servidores_temporarios FROM RECYCLEBIN;",
+          "correct": false,
+          "comentario": "O comando RECOVER pertence ao RMAN para restauração física e não recupera objetos da lixeira do Oracle."
+        },
+        {
+          "key": "B",
+          "text": "ROLLBACK DROP TABLE servidores_temporarios;",
+          "correct": false,
+          "comentario": "Comandos DDL efetuam commits implícitos antes e depois da execução, impossibilitando reversão com ROLLBACK."
+        },
+        {
+          "key": "C",
+          "text": "FLASHBACK TABLE servidores_temporarios TO BEFORE DROP;",
+          "correct": true,
+          "comentario": "A sintaxe oficial do Flashback Drop restaura a tabela excluída e seus índices associados a partir da Recyclebin."
+        },
+        {
+          "key": "D",
+          "text": "RESTORE TABLE servidores_temporarios USING UNDO_RETENTION;",
+          "correct": false,
+          "comentario": "Não existe a sintaxe RESTORE TABLE USING UNDO_RETENTION para recuperar tabelas excluídas via DDL."
+        },
+        {
+          "key": "E",
+          "text": "UNDROP TABLE servidores_temporarios CASCADE;",
+          "correct": false,
+          "comentario": "O comando UNDROP não existe no dialeto SQL do Oracle Database; a restauração utiliza a tecnologia Flashback."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "A tecnologia Flashback Drop permite recuperar tabelas removidas por DROP TABLE sem PURGE utilizando a sintaxe FLASHBACK TABLE nome TO BEFORE DROP. O erro típico é tentar comandos inexistentes como UNDROP ou ROLLBACK, esquecendo que o comando DDL efetua commit implícito imediato.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Durante a auditoria de continuidade operacional de um datacenter, verificou-se a criticidade dos arquivos de controle (Control Files) em um banco Oracle 19c. O arquiteto de TI destacou que a perda irreparável de todas as cópias desse arquivo impede a montagem e abertura normal da instância, pois ele armazena os metadados de integridade física e o número de mudança do sistema (SCN).\n\nA recomendação oficial de alta resiliência para proteger os Control Files contra falhas de hardware consiste em",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "compactá-los na Shared Pool para evitar a escrita de registros de sincronização no subsistema de armazenamento local.",
+          "correct": false,
+          "comentario": "Os control files são arquivos binários físicos em disco; não são compactados nem residem exclusivamente na memória SGA."
+        },
+        {
+          "key": "B",
+          "text": "desabilitar a gravação de checkpoints no arquivo de controle por meio do parâmetro CHECKPOINT_PROCESS_DISABLE.",
+          "correct": false,
+          "comentario": "Não é possível nem recomendável desabilitar a gravação de checkpoints, essenciais para a integridade e inicialização."
+        },
+        {
+          "key": "C",
+          "text": "convertê-los em arquivos de texto editáveis dentro do diretório de dump para permitir recriação manual rápida em falhas.",
+          "correct": false,
+          "comentario": "O control file ativo é estritamente binário; gerar trace para texto é recurso de emergência, não o arquivo ativo."
+        },
+        {
+          "key": "D",
+          "text": "armazená-los exclusivamente dentro da Fast Recovery Area com substituição periódica automática pelo utilitário RMAN.",
+          "correct": false,
+          "comentario": "Armazenar em local único gera ponto único de falha; a boa prática exige multiplexação em locais físicos separados."
+        },
+        {
+          "key": "E",
+          "text": "multiplexá-los em múltiplos discos físicos ou canais de armazenamento distintos definidos no parâmetro CONTROL_FILES.",
+          "correct": true,
+          "comentario": "A multiplexação grava cópias idênticas em storage/discos independentes; se um falhar, os demais preservam o banco."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "O Oracle exige que os arquivos de controle (Control Files) sejam multiplexados em unidades físicas de disco distintas via parâmetro CONTROL_FILES para evitar ponto único de falha. O erro comum é acreditar que um arquivo de texto de trace substitui a redundância binária em tempo real.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "O DBA de um tribunal planeja desativar um índice B-Tree de grande porte que consome espaço relevante e sobrecarrega comandos de INSERT em uma tabela volumosa no Oracle 19c. Contudo, antes de efetuar a eliminação definitiva, ele precisa certificar-se de que o Otimizador Baseado em Custos (CBO) continuará gerando planos eficientes sem usar o índice, mas mantendo o índice sendo atualizado pelas transações DML para que possa ser reativado instantaneamente caso haja degradação.\n\nA ação técnica que atende com precisão a essa necessidade é",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "alterar o índice para o estado UNUSABLE com o comando ALTER INDEX nome_indice UNUSABLE.",
+          "correct": false,
+          "comentario": "Índices UNUSABLE não são mantidos pelo DML; suas estruturas tornam-se inválidas e exigem rebuild completo para retorno."
+        },
+        {
+          "key": "B",
+          "text": "transferir o índice para uma tablespace temporária com o comando ALTER INDEX nome_indice OFFLINE.",
+          "correct": false,
+          "comentario": "Não é possível mover índices para tablespaces temporárias nem existe o status OFFLINE para desativar índices no otimizador."
+        },
+        {
+          "key": "C",
+          "text": "rebaixar as estatísticas do índice para cardinalidade zero com o comando DBMS_STATS.DELETE_INDEX_STATS.",
+          "correct": false,
+          "comentario": "Deletar estatísticas faz o CBO recorrer a amostragem dinâmica ou valores padrão, podendo ainda escolher o índice degradado."
+        },
+        {
+          "key": "D",
+          "text": "configurar o índice como READ ONLY por meio do comando ALTER INDEX nome_indice READ ONLY.",
+          "correct": false,
+          "comentario": "Não existe sintaxe para colocar índices isolados em READ ONLY; tabelas ou tablespaces inteiras podem ser marcadas assim."
+        },
+        {
+          "key": "E",
+          "text": "alterar o índice para o estado INVISIBLE com o comando ALTER INDEX nome_indice INVISIBLE.",
+          "correct": true,
+          "comentario": "Índices INVISIBLE continuam mantidos pelo DML em cada transação, mas são ignorados pelo CBO na geração dos planos de execução."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "Ao marcar um índice como INVISIBLE, ele continua sendo mantido pelo DML do banco, mas passa a ser ignorado pelo otimizador de consultas (CBO), permitindo testar seu impacto com segurança. O erro comum é usar UNUSABLE, que suspende a manutenção por DML e exige reconstrução cara.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em um servidor executando MySQL 8.0 com o mecanismo de armazenamento InnoDB, o administrador notou que o arquivo de dados compartilhado 'ibdata1' cresceu excessivamente. Mesmo após executar a instrução DROP TABLE para remover tabelas antigas com dezenas de gigabytes, o tamanho do arquivo no sistema operacional permaneceu inalterado. Para novas tabelas, ele deseja que o espaço em disco possa ser liberado diretamente ao sistema operacional no momento em que uma tabela for descartada.\n\nPara que o MySQL crie arquivos dedicados individuais (extensão .ibd) para cada tabela do InnoDB, deve-se manter ativada a variável de sistema",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "innodb_data_file_path",
+          "correct": false,
+          "comentario": "Define o caminho e tamanho inicial dos arquivos do System Tablespace compartilhado, não criando arquivos individuais."
+        },
+        {
+          "key": "B",
+          "text": "innodb_open_files",
+          "correct": false,
+          "comentario": "Controla o número máximo de arquivos .ibd que o InnoDB pode manter abertos simultaneamente na memória."
+        },
+        {
+          "key": "C",
+          "text": "innodb_file_per_table",
+          "correct": true,
+          "comentario": "Quando ativada (padrão no 8.0), cada tabela InnoDB armazena seus dados e índices em seu próprio arquivo .ibd."
+        },
+        {
+          "key": "D",
+          "text": "innodb_buffer_pool_size",
+          "correct": false,
+          "comentario": "Define o tamanho da área de memória alocada para o buffer pool do InnoDB para cache de dados e índices."
+        },
+        {
+          "key": "E",
+          "text": "innodb_undo_tablespaces",
+          "correct": false,
+          "comentario": "Configura a quantidade de tablespaces dedicadas a armazenar logs de desfazer (undo logs), e não tabelas normais."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "A diretiva innodb_file_per_table faz o InnoDB criar um arquivo .ibd separado para cada tabela, permitindo que o sistema operacional recupere o espaço em disco após comandos DROP ou TRUNCATE. O erro típico é confundir com innodb_data_file_path, que rege apenas o tablespace de sistema.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um desenvolvedor de software está analisando a arquitetura interna do MySQL 8.0 para entender como a engine InnoDB cumpre o princípio da Durabilidade (o 'D' do acrônimo ACID). Ele observa que, quando uma instrução COMMIT é processada com sucesso, os dados alterados não são gravados de imediato de forma aleatória nas tabelas nos discos, mas sim registrados de modo sequencial e rápido em uma estrutura de log para garantir a recuperação após falhas súbitas.\n\nO mecanismo de recuperação e persistência rápida utilizado pelo InnoDB nessa operação é o",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redo Log (WAL), registrando alterações sequenciais em disco antes de descarregar os dados nas tabelas.",
+          "correct": true,
+          "comentario": "O Redo Log registra alterações de forma sequencial (Write-Ahead Logging) para garantir a durabilidade e recuperação de falhas."
+        },
+        {
+          "key": "B",
+          "text": "Binary Log, registrando instruções concluídas para fins exclusivos de replicação de réplicas.",
+          "correct": false,
+          "comentario": "O Binary Log pertence à camada do servidor MySQL e é utilizado para replicação e point-in-time recovery, não sendo o WAL do InnoDB."
+        },
+        {
+          "key": "C",
+          "text": "General Query Log, registrando o histórico textual de conexões e instruções para auditoria global.",
+          "correct": false,
+          "comentario": "O General Query Log registra apenas histórico de conexões e instruções recebidas pelo servidor para auditoria geral."
+        },
+        {
+          "key": "D",
+          "text": "Slow Query Log, registrando operações de processamento lento que excedem o limite de tempo estipulado.",
+          "correct": false,
+          "comentario": "O Slow Query Log serve para registrar consultas que excedem um tempo limite de execução predefinido."
+        },
+        {
+          "key": "E",
+          "text": "Relay Log, registrando eventos recebidos pelo serviço de comunicação antes da persistência local.",
+          "correct": false,
+          "comentario": "O Relay Log é utilizado apenas em réplicas para enfileirar eventos recebidos do primário antes da aplicação local."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O Redo Log do InnoDB implementa o mecanismo de Write-Ahead Logging (WAL), gravando modificações em disco de forma sequencial antes da descarga dos dados nas tabelas para garantir a Durabilidade. O erro comum é apontar o Binary Log, que atua na camada do servidor MySQL para replicação.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Durante a operação de uma loja virtual baseada em MySQL 8.0 com InnoDB, duas rotinas de atualização de estoque entram em conflito. A Sessão 1 bloqueia o produto X e aguarda o produto Y, enquanto a Sessão 2 bloqueia o produto Y e aguarda o produto X. Ao perceber o bloqueio mútuo e circular intransponível, o InnoDB intervém de maneira automática para restabelecer a operação normal do banco de dados.\n\nAo identificar esse deadlock, o comportamento padrão adotado pelo InnoDB consiste em",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "encerrar a conexão de ambas as sessões e reiniciar imediatamente o serviço mysqld para purgar as travas em memória.",
+          "correct": false,
+          "comentario": "O MySQL não reinicia o servidor nem desconecta ambas as sessões em face de deadlocks corriqueiros entre transações."
+        },
+        {
+          "key": "B",
+          "text": "escolher a transação de menor custo (com menor volume de alterações de linhas) e executar o seu rollback automático.",
+          "correct": true,
+          "comentario": "O InnoDB elege como vítima a transação com menor número de alterações feitas, emitindo erro e desfazendo suas ações."
+        },
+        {
+          "key": "C",
+          "text": "abortar a transação mais recente e colocá-la em uma fila de espera obrigatória até que a transação antiga conclua.",
+          "correct": false,
+          "comentario": "A escolha não depende simplesmente de qual transação é mais recente, mas sim da métrica de peso/custo de desfazimento."
+        },
+        {
+          "key": "D",
+          "text": "forçar o commit parcial das instruções concluídas em ambas as sessões e converter as instruções pendentes em locks compartilhados.",
+          "correct": false,
+          "comentario": "O InnoDB não realiza commits parciais de transações ativas, pois violaria a Atomicidade e Consistência do ACID."
+        },
+        {
+          "key": "E",
+          "text": "suspender indefinidamente as duas transações até que o parâmetro innodb_lock_wait_timeout expire em ambas simultaneamente.",
+          "correct": false,
+          "comentario": "Com innodb_deadlock_detect ativado (padrão), o motor age instantaneamente sem esperar o lock_wait_timeout expirar."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "O detector de deadlocks do InnoDB identifica o ciclo de espera e escolhe como vítima a transação de menor peso (menor volume de linhas inseridas, atualizadas ou excluídas), realizando seu rollback automático. O erro comum é supor que o motor encerra ambas ou aguarda expirar o tempo limite.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em um ambiente corporativo com alto fluxo de escrita sobre o MySQL 8.0, ocorreu uma falha de energia súbita exatamente no instante em que o InnoDB descarregava páginas de dados modificadas de 16 KB da memória para os arquivos em disco. O subsistema de armazenamento gravou apenas 4 KB da página antes do corte de energia, provocando o fenômeno conhecido como gravação de página parcial (partial page write ou torn page).\n\nO recurso arquitetural nativo do InnoDB projetado especificamente para recuperar a integridade dessa página corrompida antes da aplicação do redo log é o",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Change Buffer, que faz cache de alterações em índices secundários não únicos.",
+          "correct": false,
+          "comentario": "O Change Buffer faz cache de alterações em índices secundários não únicos quando as páginas não estão em memória."
+        },
+        {
+          "key": "B",
+          "text": "Adaptive Hash Index, que constrói tabelas hash em memória para páginas acessadas.",
+          "correct": false,
+          "comentario": "O Adaptive Hash Index cria índices hash em memória para acelerar buscas frequentes em páginas do buffer pool."
+        },
+        {
+          "key": "C",
+          "text": "Undo Tablespace, que armazena registros de desfazimento de transações para o MVCC.",
+          "correct": false,
+          "comentario": "A Undo Tablespace armazena registros de desfazimento de transações para controle MVCC e rollback, sem tratar escritas parciais."
+        },
+        {
+          "key": "D",
+          "text": "Redo Log Archive, que atua na exportação contínua de blocos para recuperação de desastres.",
+          "correct": false,
+          "comentario": "O Redo Log Archive serve para exportação e backup de arquivos de redo log, não atuando na reparação de torn pages."
+        },
+        {
+          "key": "E",
+          "text": "Doublewrite Buffer, que grava as páginas inteiras em área contígua antes da escrita final nos datafiles.",
+          "correct": true,
+          "comentario": "O Doublewrite Buffer grava páginas inteiras sequencialmente antes da gravação final; em falhas parciais, restaura a página."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O Doublewrite Buffer grava as páginas em uma área contígua contínua antes de descarregá-las nos arquivos de dados (.ibd). Em caso de queda com gravação parcial (torn page), o InnoDB restaura a página intacta do buffer duplo antes do redo log. O erro comum é supor que o Redo Log resolve páginas rotas.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Dois analistas de sistemas analisam anomalias transacionais no MySQL 8.0 InnoDB. A Sessão A inicia uma transação e faz um SELECT na tabela de saldos. Em seguida, a Sessão B atualiza o saldo de uma conta, mas não efetua COMMIT nem ROLLBACK. Se a Sessão A executar novamente a mesma consulta e conseguir visualizar o valor alterado que ainda não foi confirmado pela Sessão B (e que poderá ser desfeito em caso de falha), ocorre uma anomalia severa de isolamento.\n\nA ocorrência descrita caracteriza o fenômeno da",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura Fantasma (Phantom Read), provocada pelo nível SERIALIZABLE.",
+          "correct": false,
+          "comentario": "Leitura fantasma refere-se ao surgimento de novas linhas inseridas por outra transação após commit, e não dados não confirmados."
+        },
+        {
+          "key": "B",
+          "text": "Perda de Atualização (Lost Update), característica do isolamento REPEATABLE READ.",
+          "correct": false,
+          "comentario": "Lost update ocorre quando duas transações sobrescrevem o mesmo registro sem bloqueio, anulando uma das atualizações."
+        },
+        {
+          "key": "C",
+          "text": "Leitura Suja (Dirty Read), viabilizada pelo nível READ UNCOMMITTED.",
+          "correct": true,
+          "comentario": "A leitura suja é a visualização de modificações feitas por outra transação antes do commit; só ocorre sob READ UNCOMMITTED."
+        },
+        {
+          "key": "D",
+          "text": "Leitura Não Repetível (Non-Repeatable Read), inerente ao nível READ COMMITTED.",
+          "correct": false,
+          "comentario": "Non-repeatable read ocorre quando dados alterados já sofreram commit por outra transação, e não com dados pendentes."
+        },
+        {
+          "key": "E",
+          "text": "Travamento Cíclico (Deadlock), gerado por bloqueios compartilhados de leitura.",
+          "correct": false,
+          "comentario": "A leitura de dados não confirmados sob READ UNCOMMITTED não gera deadlock nem aguarda locks de escrita."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "A Leitura Suja (Dirty Read) ocorre quando uma transação visualiza alterações não confirmadas de outra transação que podem sofrer ROLLBACK, sendo viabilizada pelo nível READ UNCOMMITTED. O erro típico é confundir com Leitura Não Repetível, na qual as alterações lidas já foram devidamente confirmadas.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma equipe de desenvolvimento está implementando um sistema de gestão de prontuários médicos eletrônicos sobre o MongoDB. Os desenvolvedores precisam armazenar laudos e imagens radiológicas de alta resolução em formatos DICOM e PDF, cujos tamanhos individuais variam frequentemente entre 20 MB e 80 MB. Ao consultar as restrições arquiteturais da tecnologia, eles constatam que o tamanho máximo de um único documento BSON é de 16 MB.\n\nPara viabilizar o armazenamento desses arquivos volumosos de forma nativa e padronizada no MongoDB, deve-se adotar a especificação",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "GridFS, que divide os arquivos grandes em partes menores (chunks) distribuídas em duas coleções.",
+          "correct": true,
+          "comentario": "O GridFS particiona arquivos acima de 16 MB em partes de 255 KB nas coleções fs.files e fs.chunks de modo transparente."
+        },
+        {
+          "key": "B",
+          "text": "WiredTiger Sparse Blocks, que aplica algoritmos de compactação de bloco para comprimir os dados.",
+          "correct": false,
+          "comentario": "A compactação interna do WiredTiger comprime coleções no disco, mas não burla o limite de 16 MB do documento BSON."
+        },
+        {
+          "key": "C",
+          "text": "BSON Stream Splitter, que estende o cabeçalho original do documento para aceitar cargas ilimitadas.",
+          "correct": false,
+          "comentario": "Não existe a tecnologia BSON Stream Splitter; a especificação BSON estabelece limite rígido e inviolável de 16 MB."
+        },
+        {
+          "key": "D",
+          "text": "Capped Collections, que alocam blocos contíguos no sistema de arquivos para gravações contínuas.",
+          "correct": false,
+          "comentario": "Capped Collections são coleções circulares de tamanho fixo com descarte FIFO, sem relação com arquivos de grande porte."
+        },
+        {
+          "key": "E",
+          "text": "Document Object Linking, que grava os binários em variáveis de ambiente da réplica secundária.",
+          "correct": false,
+          "comentario": "O MongoDB não armazena arquivos em variáveis de ambiente de nós réplicas; a persistência é gerenciada no catálogo do banco."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O GridFS é a solução nativa do MongoDB para armazenar e recuperar arquivos que ultrapassam o limite de 16 MB por documento BSON, dividindo-os em pedaços (chunks) de 255 KB em duas coleções (fs.files e fs.chunks). O erro comum é acreditar que a compressão do WiredTiger elimina o teto do BSON.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em um portal de gestão de recursos humanos que utiliza o MongoDB, cada documento da coleção 'colaboradores' possui um campo chamado 'certificacoes', modelado como um array de strings. Durante a atualização cadastral, o sistema precisa adicionar um novo título ao array de certificações de um colaborador, garantindo que o elemento seja inserido apenas se ele ainda não estiver presente no array, prevenindo duplicidades.\n\nO operador de atualização de array que executa exatamente essa verificação e inserção atômica é o",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "$push",
+          "correct": false,
+          "comentario": "O $push insere o elemento no final do array incondicionalmente, permitindo e gerando itens duplicados."
+        },
+        {
+          "key": "B",
+          "text": "$addToSet",
+          "correct": true,
+          "comentario": "O operador $addToSet adiciona um valor a um array apenas se ele já não existir previamente no conjunto."
+        },
+        {
+          "key": "C",
+          "text": "$set",
+          "correct": false,
+          "comentario": "O $set substitui o valor completo do campo por outro, sobrescrevendo todo o conteúdo anterior do array."
+        },
+        {
+          "key": "D",
+          "text": "$put",
+          "correct": false,
+          "comentario": "O operador $put não existe no dialeto de operadores de atualização de documentos do MongoDB."
+        },
+        {
+          "key": "E",
+          "text": "$concatArrays",
+          "correct": false,
+          "comentario": "O $concatArrays é uma expressão de agregação que concatena arrays em pipelines, não um operador de update."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O operador $addToSet adiciona um elemento a um array somente se ele ainda não estiver presente, tratando o array como um conjunto de elementos únicos. O erro frequente é usar $push, que insere o elemento incondicionalmente no final do array, permitindo a duplicação inadvertida de dados.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma empresa de logística armazena o histórico e a posição atualizada de sua frota de caminhões em uma coleção do MongoDB chamada 'veiculos'. Cada documento contém um campo 'localizacao' no formato padrão GeoJSON Point, com coordenadas de longitude e latitude. A equipe precisa realizar consultas espaciais rápidas para localizar todas as carretas que estão a uma distância de até 10 quilômetros de um centro de distribuição.\n\nPara otimizar essa consulta sobre a esfera terrestre, deve-se criar no campo 'localizacao' um índice do tipo",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "2d, realizando a busca por meio do operador $withinBox.",
+          "correct": false,
+          "comentario": "O índice 2d é projetado para geometrias planas euclidianas (2D clássico), não sendo o padrão para dados esféricos GeoJSON."
+        },
+        {
+          "key": "B",
+          "text": "text, realizando a busca por meio do operador $geoSearch.",
+          "correct": false,
+          "comentario": "Índices de texto (text) destinam-se a buscas de palavras-chave textuais, e não ao processamento de coordenadas geográficas."
+        },
+        {
+          "key": "C",
+          "text": "geoHaystack, realizando a busca por meio do operador $polygon.",
+          "correct": false,
+          "comentario": "O índice geoHaystack era obsoleto e foi descontinuado nas versões recentes do MongoDB em favor do índice 2dsphere."
+        },
+        {
+          "key": "D",
+          "text": "multikey, realizando a busca por meio do operador $elemMatch.",
+          "correct": false,
+          "comentario": "Índices multikey indexam arrays genéricos, carecendo dos cálculos matemáticos geodésicos providos pelo 2dsphere."
+        },
+        {
+          "key": "E",
+          "text": "2dsphere, realizando a busca por meio do operador $near.",
+          "correct": true,
+          "comentario": "O índice 2dsphere suporta consultas esféricas GeoJSON sobre a Terra, trabalhando perfeitamente com $near e $maxDistance."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "Para dados geoespaciais em formato GeoJSON sobre superfícies esféricas (como a Terra), o MongoDB exige o índice do tipo 2dsphere, utilizado em conjunto com o operador $near e parâmetros como $maxDistance. O erro típico é escolher o índice plano 2d, que não considera a curvatura terrestre.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "O arquiteto de dados de um portal governamental de emissão de certidões implementou o MongoDB para gerenciar tokens de sessão de usuários na coleção 'sessoes_web'. Os requisitos de segurança determinam que cada token de sessão deve ser permanentemente removido da base de dados exatamente 1.800 segundos após sua emissão, sem depender da execução periódica de cron jobs ou scripts externos de limpeza disparados pelo sistema operacional.\n\nPara que o próprio MongoDB descarte os documentos vencidos de forma automática, a solução recomendada é",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "configurar uma Capped Collection com tamanho máximo de 1.800 bytes e descarte aleatório de registros.",
+          "correct": false,
+          "comentario": "Capped collections limitam tamanho em bytes ou contagem de documentos por ordem FIFO, não medindo tempo decorrido."
+        },
+        {
+          "key": "B",
+          "text": "habilitar a flag auto_purge_delay no arquivo de configuração mongod.conf para 30 minutos.",
+          "correct": false,
+          "comentario": "Não existe a opção global auto_purge_delay; a purga por tempo no MongoDB é controlada via índices TTL por coleção."
+        },
+        {
+          "key": "C",
+          "text": "criar um índice TTL (Time-To-Live) em um campo de data utilizando a opção expireAfterSeconds com valor 1800.",
+          "correct": true,
+          "comentario": "Índices TTL removem automaticamente documentos após o tempo especificado a partir de um campo com data/hora (BSON Date)."
+        },
+        {
+          "key": "D",
+          "text": "criar um gatilho de banco (database trigger) do tipo Change Stream que execute a operação drop() a cada inserção.",
+          "correct": false,
+          "comentario": "Disparar drop() em cada inserção apagaria a coleção inteira em vez de excluir apenas os documentos expirados."
+        },
+        {
+          "key": "E",
+          "text": "utilizar o estágio de agregação $purgeExpired configurado no pipeline do Replica Set de produção.",
+          "correct": false,
+          "comentario": "Não existe o estágio $purgeExpired no pipeline de agregação; a remoção é realizada por thread interna de índice TTL."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "O MongoDB disponibiliza índices TTL (Time-To-Live) aplicados sobre campos do tipo BSON Date, utilizando o parâmetro expireAfterSeconds para excluir documentos expirados de forma transparente via thread em segundo plano. O erro comum é tentar usar coleções capped, que desconsideram prazos cronológicos.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Um sistema bancário de transferências via PIX opera sobre um Replica Set do MongoDB composto por 5 membros distribuídos. Para certas operações críticas de auditoria financeira, o engenheiro de dados precisa configurar a consulta (Read Concern) para garantir a leitura mais estrita possível: a operação de leitura deve aguardar a confirmação de que os dados lidos foram replicados na maioria dos nós e que a réplica local não foi particionada, assegurando que o resultado reflita um histórico linear em tempo real sem qualquer risco de leitura de rollback.\n\nO nível de Read Concern do MongoDB que provê essa garantia formal de consistência estrita é o",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "local",
+          "correct": false,
+          "comentario": "O nível local retorna os dados mais recentes do nó consultado sem garantir persistência na maioria nem proteção contra rollback."
+        },
+        {
+          "key": "B",
+          "text": "available",
+          "correct": false,
+          "comentario": "O nível available tem comportamento idêntico ao local em replica sets, sem oferecer garantias contra dados em rollback."
+        },
+        {
+          "key": "C",
+          "text": "majority",
+          "correct": false,
+          "comentario": "O majority garante que os dados foram confirmados pela maioria, mas não impede leituras defasadas em partições sem quórum estrito."
+        },
+        {
+          "key": "D",
+          "text": "linearizable",
+          "correct": true,
+          "comentario": "O nível linearizable força o primário a validar em tempo real com a maioria que ele ainda é o líder, evitando dados obsoletos."
+        },
+        {
+          "key": "E",
+          "text": "snapshot",
+          "correct": false,
+          "comentario": "O nível snapshot oferece visão transacional consistente em transações multilocais, mas não garante linearidade em tempo real."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O nível de Read Concern linearizable exige que o nó primário se comunique em tempo real com a maioria dos membros do replica set durante a leitura para confirmar sua liderança, assegurando consistência linear estrita. O erro típico é indicar majority, que não previne leitura defasada em líderes isolados.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em uma plataforma de comércio eletrônico com MongoDB, um analista de inteligência de negócios precisa consolidar um relatório de faturamento por departamento. A coleção de 'pedidos' armazena o identificador do comprador (id_cliente) e uma lista embutida de itens comprados no campo 'produtos', onde cada elemento é um subdocumento com código, quantidade e preço. Para cruzar os dados com a coleção de 'clientes' e em seguida desmembrar cada elemento do array de produtos em linhas individuais para cálculo de métricas agregadas, utilizam-se operadores do Aggregation Framework.\n\nA sequência adequada de estágios que realiza a junção de coleções e a expansão do array de subdocumentos é",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "$lookup seguido de $unwind.",
+          "correct": true,
+          "comentario": "O $lookup realiza a junção (left outer join) com outra coleção e o $unwind desmembra arrays em múltiplos documentos."
+        },
+        {
+          "key": "B",
+          "text": "$project seguido de $group.",
+          "correct": false,
+          "comentario": "O $project modela campos e o $group agrega registros, sem realizar junção de coleções nem desdobramento de arrays."
+        },
+        {
+          "key": "C",
+          "text": "$match seguido de $bucket.",
+          "correct": false,
+          "comentario": "O $match realiza filtragem condicional de documentos e o $bucket agrupa valores por faixas numéricas predefinidas."
+        },
+        {
+          "key": "D",
+          "text": "$merge seguido de $split.",
+          "correct": false,
+          "comentario": "O $merge grava saídas em outra coleção e $split é operador de strings em expressões, não estágio de expansão de array."
+        },
+        {
+          "key": "E",
+          "text": "$facet seguido de $replaceRoot.",
+          "correct": false,
+          "comentario": "O $facet executa múltiplos pipelines em paralelo e $replaceRoot substitui a raiz, sem fazer junção ou desmembramento."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "No MongoDB, a junção de documentos entre coleções distintas (left outer join) é realizada pelo estágio $lookup, enquanto o desmembramento de um array em documentos individuais para agregação granular é feito pelo estágio $unwind. O erro comum é confundir $unwind com projeções ou filtros simples.",
+      "section": "3. MongoDB: documentos, consultas e consistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "O comitê de segurança da informação de um tribunal de justiça aprovou o Plano de Recuperação de Desastres (DRP) para a infraestrutura de bancos de dados judiciais. No documento aprovado, ficou estipulado que, na hipótese de falha catastrófica no datacenter primário: (1) a perda aceitável de transações de dados não poderá ultrapassar 10 minutos de histórico; e (2) o sistema de banco de dados deve estar plenamente restabelecido e acessível aos usuários em no máximo 1 hora após o sinistro.\n\nDe acordo com as métricas clássicas de continuidade de negócios, esses dois parâmetros correspondem, respectivamente, a",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTO (Recovery Time Objective) de 10 minutos e RPO (Recovery Point Objective) de 1 hora.",
+          "correct": false,
+          "comentario": "A alternativa inverteu os conceitos: o limite de perda de dados é o RPO e o tempo de retorno é o RTO."
+        },
+        {
+          "key": "B",
+          "text": "RPO (Recovery Point Objective) de 10 minutos e RTO (Recovery Time Objective) de 1 hora.",
+          "correct": true,
+          "comentario": "RPO mede a tolerância máxima a perda de dados no tempo; RTO mede o tempo máximo até o restabelecimento do serviço."
+        },
+        {
+          "key": "C",
+          "text": "SLA (Service Level Agreement) de 10 minutos e SLO (Service Level Objective) de 1 hora.",
+          "correct": false,
+          "comentario": "SLA e SLO tratam de acordos e metas de nível de serviço globais, e não das métricas de tolerância a desastres."
+        },
+        {
+          "key": "D",
+          "text": "MTBF (Mean Time Between Failures) de 10 minutos e MTTR (Mean Time To Repair) de 1 hora.",
+          "correct": false,
+          "comentario": "MTBF mede tempo médio entre falhas de componentes; a tolerância máxima a perda de dados planejada é o RPO."
+        },
+        {
+          "key": "E",
+          "text": "Throughput mínimo de 10 minutos e Latência de failover de 1 hora.",
+          "correct": false,
+          "comentario": "Throughput e latência são medidas de desempenho e velocidade de rede/banco, e não parâmetros contratuais de DRP."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "O RPO (Recovery Point Objective) define o limite máximo aceitável de perda de dados medido em tempo (no caso, 10 minutos). O RTO (Recovery Time Objective) define o prazo máximo tolerável para o retorno do serviço (1 hora). O erro típico é inverter os dois termos ou confundi-los com acordos de SLA.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Em um projeto de expansão de infraestrutura de banco de dados, o arquiteto avalia o modelo de replicação a ser adotado entre o datacenter principal localizado em Palmas e o secundário em Brasília. A equipe de governança exige perda zero de dados (RPO = 0) em caso de parada do primário, enquanto o time de desenvolvimento adverte sobre o impacto direto dessa decisão no tempo de resposta das transações de gravação dos usuários.\n\nO arquiteto deve explicar à governança que a replicação síncrona, embora garanta RPO zero, apresenta como contrapartida operacional",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "a impossibilidade técnica de manter índices primários nas tabelas da réplica.",
+          "correct": false,
+          "comentario": "A replicação síncrona não interfere nem impede a existência de índices primários ou secundários nas réplicas."
+        },
+        {
+          "key": "B",
+          "text": "a restrição mandatória que proíbe comandos de leitura nas tabelas do primário.",
+          "correct": false,
+          "comentario": "O nó primário continua processando normalmente todas as operações de leitura e escrita das aplicações clientes."
+        },
+        {
+          "key": "C",
+          "text": "o acréscimo na latência de confirmação (commit) das transações devido ao tempo de ida e volta da rede.",
+          "correct": true,
+          "comentario": "O primário só confirma o commit após receber a confirmação de escrita da réplica, somando o round-trip time de rede."
+        },
+        {
+          "key": "D",
+          "text": "a desativação permanente do log de transações nas duas pontas da topologia.",
+          "correct": false,
+          "comentario": "Os logs de transação (redo ou binlog) são indispensáveis e permanecem obrigatoriamente ativos na replicação."
+        },
+        {
+          "key": "E",
+          "text": "a necessidade mandatória de conversão dos dados relacionais em documentos JSON.",
+          "correct": false,
+          "comentario": "A replicação síncrona é um modelo de alta disponibilidade e não altera o modelo relacional dos dados em JSON."
+        }
+      ],
+      "difficulty": "FACIL",
+      "explanation": "Na replicação síncrona, a transação só recebe confirmação de COMMIT após a gravação ter sido recebida e confirmada pela réplica, o que adiciona a latência de rede (RTT) a cada escrita e reduz a vazão. O erro clássico é esquecer que RPO zero tem como custo inevitável o acréscimo de tempo de resposta.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Uma equipe de desenvolvimento configurou um cluster fragmentado (Sharded Cluster) no MongoDB para armazenar bilhões de transações de notas fiscais eletrônicas. Como chave de fragmentação (shard key), foi escolhido um campo sequencial auto-incrementado ou timestamp de emissão (campo com aumento monotônico contínuo), utilizando a estratégia padrão de fragmentação por intervalo (ranged sharding). Pouco tempo após a entrada em produção, os engenheiros notaram que apenas um único nó do cluster operava sob sobrecarga extrema de CPU e I/O de disco, enquanto os demais permaneciam praticamente ociosos.\n\nEsse gargalo operacional ocorreu porque a chave escolhida",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "gerou um efeito de ponto de acesso concentrado (hotspotting), direcionando todas as novas gravações ao mesmo shard.",
+          "correct": true,
+          "comentario": "Chaves com valores sempre crescentes sob range sharding caem sempre no intervalo final máximo, concentrando escritas em um único nó."
+        },
+        {
+          "key": "B",
+          "text": "violou a capacidade de particionamento da memória RAM devido ao limite de 16 MB da coleção.",
+          "correct": false,
+          "comentario": "O limite de 16 MB aplica-se a documentos individuais BSON, e não ao volume da coleção ou memória do shard."
+        },
+        {
+          "key": "C",
+          "text": "impediu o mecanismo de balanceador (balancer) de iniciar o processo de divisão de chunks vazios.",
+          "correct": false,
+          "comentario": "O balanceador atua normalmente, mas os chunks criados estão no topo do intervalo, acumulando todo o tráfego de gravação."
+        },
+        {
+          "key": "D",
+          "text": "forçou a conversão da topologia de sharding em réplica assíncrona monolítica sem controle transacional.",
+          "correct": false,
+          "comentario": "A arquitetura do cluster sharded permanece intacta, ocorrendo degradação localizada por má distribuição de dados."
+        },
+        {
+          "key": "E",
+          "text": "causou a corrupção imediata dos índices secundários em todos os servidores do Replica Set primário.",
+          "correct": false,
+          "comentario": "A escolha de chave com alta monotonia não corrompe índices, apenas gera desequilíbrio e saturação do nó receptor."
+        }
+      ],
+      "difficulty": "MEDIA",
+      "explanation": "Ao utilizar uma chave de partição monotonicamente crescente em range sharding, todas as inserções possuem valores maiores que as anteriores, caindo invariavelmente no último chunk do mesmo shard (hotspotting). O erro comum é não optar por hashed sharding para dispersar chaves sequenciais.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Durante uma palestra sobre arquitetura de sistemas distribuídos e modelos de consistência, o palestrante explicou que o Teorema CAP (Consistência, Disponibilidade e Tolerância a Partições) é insuficiente para descrever o comportamento dos bancos de dados modernos durante a operação rotineira em que não há falhas na rede. Ele apresentou então o Teorema PACELC, que analisa os compromissos de projeto tanto na presença quanto na ausência de partição.\n\nSegundo o Teorema PACELC, quando o sistema distribuído está operando normalmente (Else - na ausência de partição), o compromisso arquitetural mandatório a ser arbitrado ocorre entre",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concorrência e Durabilidade.",
+          "correct": false,
+          "comentario": "Concorrência e durabilidade são propriedades do modelo ACID local e não constituem o eixo de compromisso do PACELC."
+        },
+        {
+          "key": "B",
+          "text": "Escalabilidade e Custo.",
+          "correct": false,
+          "comentario": "Escalabilidade e custo de infraestrutura são fatores econômicos, não o trade-off formalizado pelo Teorema PACELC."
+        },
+        {
+          "key": "C",
+          "text": "Segurança e Auditabilidade.",
+          "correct": false,
+          "comentario": "Segurança e trilhas de auditoria são requisitos não funcionais fora do escopo de teoremas de consistência de dados."
+        },
+        {
+          "key": "D",
+          "text": "Compressão e Vazão.",
+          "correct": false,
+          "comentario": "Compressão e throughput medem eficiência de armazenamento/IO, e não a dinâmica formal de replicação do PACELC."
+        },
+        {
+          "key": "E",
+          "text": "Latência e Consistência.",
+          "correct": true,
+          "comentario": "O PACELC estabelece: se há Partição (P), escolhe-se Availability (A) ou Consistency (C); Else (E), escolhe-se Latency (L) ou Consistency (C)."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O teorema PACELC afirma que, na presença de Partição (P), deve-se escolher entre Disponibilidade (A) e Consistência (C); caso contrário / Else (E), deve-se escolher entre Latência (L) e Consistência (C). O erro comum é restringir a análise apenas ao CAP, ignorando o impacto da latência em operação normal.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "topico": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+      "estilo": "Copese/UFT",
+      "statement": "Dois datacenters operam em conjunto sustentando um cluster de banco de dados distribuído de alta criticidade. Subitamente, ocorre um rompimento completo nos cabos submarinos e enlaces de fibra óptica que interligam os dois sites, impedindo qualquer troca de mensagens entre os servidores das duas localidades, embora os servidores em cada site continuem funcionando e recebendo requisições dos clientes locais. Sem um mecanismo adequado de consenso e desempate (quorum), ambos os lados podem presumir que o outro falhou e eleger um nó líder simultaneamente.\n\nA anomalia crítica de particionamento descrita e o mecanismo clássico para impedi-la são, respectivamente,",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cascading Abort, mitigado pela aplicação de bloqueios em nível de tupla via algoritmo Two-Phase Locking.",
+          "correct": false,
+          "comentario": "Cascading abort refere-se à cascata de reversão de transações locais concorrentes dependentes, e não à partição de rede."
+        },
+        {
+          "key": "B",
+          "text": "Starvation de leitura, solucionado por meio de balanceamento round-robin em nível de transporte DNS.",
+          "correct": false,
+          "comentario": "Starvation é a inanição de processos na fila de agendamento por prioridade, não guardando relação com eleição de líderes duplos."
+        },
+        {
+          "key": "C",
+          "text": "Split-Brain, prevenido pela exigência de quórum com voto da maioria absoluta (mais de 50%) dos nós.",
+          "correct": true,
+          "comentario": "Split-Brain ocorre quando dois líderes aceitam escritas divergentes; a exigência de quórum da maioria (>50%) impede a divisão."
+        },
+        {
+          "key": "D",
+          "text": "Byzantine Fault, controlado pelo descarte aleatório de pacotes de dados nas portas dos nós secundários.",
+          "correct": false,
+          "comentario": "Falhas bizantinas envolvem comportamento malicioso ou arbitrário de nós, não sendo resolvidas por descarte aleatório de pacotes."
+        },
+        {
+          "key": "E",
+          "text": "Deadlock distribuído, tratado pela conversão forçada de nós primários em réplicas de leitura assíncrona.",
+          "correct": false,
+          "comentario": "O impasse cíclico de locks em transações distribuídas difere da fratura de liderança em partição de rede (split-brain)."
+        }
+      ],
+      "difficulty": "DIFICIL",
+      "explanation": "O fenômeno do Split-Brain ocorre quando a perda de comunicação entre nós faz com que partições distintas assumam o papel de nó primário ao mesmo tempo, gerando corrupção. A solução exige quórum de maioria (> 50%) para eleição. O erro típico é confundi-lo com deadlocks ou falhas bizantinas.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null,
+      "board": null,
+      "agency": null,
+      "year": null
+    }
+  ]
+}
