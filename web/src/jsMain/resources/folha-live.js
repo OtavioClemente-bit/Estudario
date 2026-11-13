@@ -3108,18 +3108,29 @@
   function drawHeld(g, kind, h, ang, t, small, mood, tm, prevMood) {
     const [x, y] = h, tiltA = clamp(ang, -0.6, 0.6) * 0.5, party = /^(happy|ecstatic|proud|present|wave)$/.test(mood || "");
     g.save(); g.translate(x, y); g.rotate(tiltA); g.scale(small ? 1.45 : 1.8, small ? 1.45 : 1.8);
-    if (kind === "lapis") drawPencilAt(g, 2.5, 8, -3, -9, small ? 1.4 : 1.15);
+    // o centro do punho fica um pouco para fora e para cima do pulso: leva a pegada até lá
+    g.translate(-1.8, -1.2);
+    // ponto da pegada: o punho fechado cobre um círculo de raio ~2 em volta de GX, GY; o que se segura
+    // termina aqui e o corpo do objeto sai para cima e para fora
+    const GX = 0.9, GY = 1.5;
+    if (kind === "lapis") drawPencilAt(g, -3.6, -13, GX + 0.3, GY + 0.6, small ? 1.4 : 1.15);
     else if (kind === "marcatexto") {
-      // marca-texto gordinho: corpo amarelo neon com janela de tinta, tampa verde com clipe e ponta chanfrada
-      g.save(); g.rotate(-0.35);
-      const body = new Path2D(); body.roundRect(-2.2, -9.6, 4.4, 14.6, 1.6); g.fillStyle = hGrad(g, ["#FFF59A", "#F7E436", "#D9C21F"], -2.2, 2.2); g.fill(body);
-      const win = new Path2D(); win.roundRect(-1.2, -6, 2.4, 7.4, 1); g.fillStyle = "rgba(255,255,255,0.45)"; g.fill(win);
-      const cap = new Path2D(); cap.roundRect(-2.5, -13.2, 5, 4.6, 1.6); g.fillStyle = vGrad(g, ["#5FD3A8", "#2E9E72"], -13.2, -8.6); g.fill(cap);
-      const clip = new Path2D(); clip.roundRect(1.6, -12.6, 1.2, 5.6, 0.5); g.fillStyle = "#1F7A5A"; g.fill(clip);
-      const tip = new Path2D(); tip.moveTo(-1.5, 5); tip.lineTo(1.5, 5); tip.lineTo(0.9, 7.6); tip.lineTo(-1.5, 6.8); tip.closePath(); g.fillStyle = "#E3CF1A"; g.fill(tip);
-      line(g, "rgba(255,255,255,0.6)", -1.5, -8.8, -1.5, 3.8, 0.4);
+      // marca-texto gordinho segurado pelo pé: tampinha de trás escondida no punho, corpo amarelo neon com
+      // janela de tinta e a tampa verde com clipe em cima; na festa ele risca uma faixa no ar
+      g.save(); g.translate(GX, GY); g.rotate(-0.38);
+      const OUTL = "rgba(70,60,10,0.85)";
+      const end = new Path2D(); end.roundRect(-2, -2.2, 4, 3, 1); g.fillStyle = "#2E9E72"; g.fill(end); stroke(g, end, OUTL, 0.4);
+      const body = new Path2D(); body.moveTo(-2.3, -1.6); body.lineTo(-2.3, -11.6); body.quadraticCurveTo(-2.3, -12.4, -1.5, -12.4); body.lineTo(1.5, -12.4); body.quadraticCurveTo(2.3, -12.4, 2.3, -11.6); body.lineTo(2.3, -1.6); body.closePath();
+      g.fillStyle = hGrad(g, ["#D9C21F", "#FFF59A", "#F7E436", "#C9B010"], -2.3, 2.3); g.fill(body); stroke(g, body, OUTL, 0.45);
+      const win = new Path2D(); win.roundRect(-1, -9.6, 2, 6.4, 1); g.fillStyle = "rgba(255,255,255,0.5)"; g.fill(win);
+      if (!small) { g.fillStyle = "rgba(200,170,10,0.55)"; g.fillRect(-0.7, -6.4, 1.4, 2.8); }
+      const cap = new Path2D(); cap.moveTo(-2.6, -11.4); cap.lineTo(-2.6, -15.6); cap.quadraticCurveTo(-2.6, -17.6, 0, -17.6); cap.quadraticCurveTo(2.6, -17.6, 2.6, -15.6); cap.lineTo(2.6, -11.4); cap.closePath();
+      g.fillStyle = hGrad(g, ["#1F7A5A", "#7EE0B8", "#2E9E72", "#1F7A5A"], -2.6, 2.6); g.fill(cap); stroke(g, cap, "rgba(15,70,50,0.9)", 0.45);
+      const clip = new Path2D(); clip.roundRect(2, -16.4, 1.2, 5.4, 0.6); g.fillStyle = "#1F7A5A"; g.fill(clip); stroke(g, clip, "rgba(15,70,50,0.9)", 0.3);
+      line(g, "rgba(15,70,50,0.6)", -2.4, -12.2, 2.4, -12.2, 0.3);
+      line(g, "rgba(255,255,255,0.75)", -1.3, -16.4, -1.3, -13, 0.45); line(g, "rgba(255,255,255,0.7)", -1.6, -11, -1.6, -2.4, 0.45);
       g.restore();
-      if (party) { const k = (t * 0.8) % 1; g.save(); g.globalAlpha = 0.5 * (1 - k); line(g, "#FFE94D", 4, 6, 4 + k * 8, 6 - k * 2, 2.2); g.restore(); }
+      if (party) { const k = (t * 0.8) % 1; g.save(); g.globalAlpha = 0.5 * (1 - k); line(g, "#FFE94D", -8, -17, -8 - k * 6, -15 + k * 4, 2.2); g.restore(); }
     } else if (kind === "livro") {
       // livrinho de capa dura: capa, lombada, bloco de páginas, letreiro dourado e a fitinha
       g.save(); g.rotate(-0.14);
@@ -3154,6 +3165,7 @@
       }
     } else if (kind === "varinha") {
       // varinha: haste preta com cabo de anéis dourados, estrela com halo e rastro de faíscas
+      g.translate(-1.3, -4.8);
       line(g, "#1E1B2E", 2.2, 6.4, -4.4, -10.8, 1.4); line(g, "#FFFFFF", -3.6, -8.8, -4.4, -10.8, 1.4);
       for (const u of [0.05, 0.16]) line(g, GOLD, 2.2 - 6.6 * u - 0.8, 6.4 - 17.2 * u + 0.3, 2.2 - 6.6 * u + 0.8, 6.4 - 17.2 * u - 0.3, 0.6);
       const sx = -4.8, sy = -12.8, r = 3.2 + 0.4 * sin(t * 6);
@@ -3164,6 +3176,7 @@
       for (let i = 0; i < n; i++) { const ph = (t * (party ? 1.6 : 0.9) + i / n) % 1, a = i * 1.7 + t; star4(g, sx + cos(a) * (3 + ph * (party ? 14 : 7)), sy + sin(a) * (3 + ph * (party ? 14 : 7)) - ph * 3, (party ? 1.8 : 1.3) * (1 - ph), i % 3 === 0 ? `rgba(126,224,184,${1 - ph})` : `rgba(255,240,180,${1 - ph})`); }
     } else if (kind === "trofeu") {
       // troféu: taça com alças curvas, nó no pé, base de madeira com plaquinha e estrela; brilha na comemoração
+      g.translate(-1.6, 1.4);
       for (const s of [-1, 1]) { const hd = new Path2D(); hd.moveTo(s * 4.4, -12.6); hd.bezierCurveTo(s * 8, -12.6, s * 7.4, -7.6, s * 3.2, -7.4); stroke(g, hd, "#B57A0C", 1.2); stroke(g, hd, "#F5C451", 0.5); }
       const cup = new Path2D(); cup.moveTo(-4.8, -14); cup.lineTo(4.8, -14); cup.bezierCurveTo(4.8, -8, 2.6, -6, 0.9, -5.8); cup.lineTo(0.9, -4.2); cup.lineTo(-0.9, -4.2); cup.lineTo(-0.9, -5.8); cup.bezierCurveTo(-2.6, -6, -4.8, -8, -4.8, -14); cup.closePath();
       g.fillStyle = hGrad(g, ["#C98A12", "#FFF1BF", "#F5C451", "#B57A0C"], -4.8, 4.8); g.fill(cup);
@@ -3185,7 +3198,7 @@
     } else if (kind === "radio") {
       // rádio da viatura: corpo preto emborrachado, antena, alto-falante, visor verde com sinal e a luz vermelha
       // de transmitindo (pisca mais rápido na festa, com as ondinhas saindo da antena)
-      g.save(); g.rotate(-0.12 + (party ? sin(t * 6) * 0.08 : 0));
+      g.save(); g.translate(GX - 0.6, GY - 4); g.rotate(-0.12 + (party ? sin(t * 6) * 0.08 : 0));
       line(g, "#2A2C38", 1.6, -9, 1.8, -17, 0.9); circle(g, "#2A2C38", 0.75, 1.8, -17.2);
       const kn = new Path2D(); kn.roundRect(-2.4, -12, 1.8, 2.2, 0.5); g.fillStyle = "#3C4054"; g.fill(kn);
       const body = new Path2D(); body.roundRect(-3.2, -10, 6.4, 14, 1.4); g.fillStyle = hGrad(g, ["#1C1E28", "#3C4054", "#1C1E28"], -3.2, 3.2); g.fill(body); stroke(g, body, "rgba(0,0,0,0.6)", 0.3);
@@ -3209,7 +3222,7 @@
       g.restore();
     } else if (kind === "calculadora") {
       // calculadora de mesa: visor verde com os dígitos mudando e as teclas (na festa ele aperta sem parar)
-      g.save(); g.rotate(-0.1);
+      g.save(); g.translate(-2.8, 0); g.rotate(-0.1);
       const body = new Path2D(); body.roundRect(-4.4, -12, 8.8, 13.6, 1.4); g.fillStyle = vGrad(g, ["#4A5068", "#2C3042"], -12, 1.6); g.fill(body); stroke(g, body, "rgba(0,0,0,0.5)", 0.3);
       const sc = new Path2D(); sc.roundRect(-3.4, -10.8, 6.8, 3, 0.5); g.fillStyle = "#C8E6C0"; g.fill(sc);
       const n = Math.floor(t * (party ? 6 : 1.5));
@@ -3225,7 +3238,7 @@
       // bandeira do Brasil num mastro com ponta dourada: tremula para fora (longe do rosto); na festa,
       // ele agita e o pano tremula mais rápido
       const wav = party ? 1 : 0.55, sp = party ? 7.5 : 4.2;
-      g.save(); g.rotate(party ? sin(t * 5) * 0.16 : sin(t * 1.4) * 0.04);
+      g.translate(-0.5, -3.4); g.save(); g.rotate(party ? sin(t * 5) * 0.16 : sin(t * 1.4) * 0.04);
       line(g, "#6B4320", 1.4, 5, -1.2, -21.6, 1.1); line(g, "rgba(255,255,255,0.35)", 1.1, 3.6, -1.3, -20.4, 0.3);
       circle(g, "#B57A0C", 1.15, -1.3, -22.6); circle(g, "#FFE08A", 0.7, -1.5, -22.9);
       const X0 = -1.4, Y0 = -21.4, W = 12.4, H = 8.6, N = 14;
@@ -3264,7 +3277,7 @@
       // martelo de juiz: cabo torneado de madeira e a cabeça em barril com anéis dourados; na
       // comemoração ele bate ("ordem!") num ritmo animado
       const knock = party ? -abs(sin(t * 6)) * 0.55 : 0;
-      g.save(); g.rotate(knock);
+      g.translate(-0.8, -3.8); g.save(); g.rotate(knock);
       line(g, "#5A3D20", 1.6, 5.2, -2.4, -8, 1.5); line(g, "#9C6A35", 1.4, 4.6, -2.2, -7.4, 0.7);
       circle(g, "#7A4E26", 0.95, 1.8, 5.6);
       g.save(); g.translate(-3, -9.8); g.rotate(-1.27 + PI / 2);
@@ -3276,6 +3289,7 @@
       if (party && abs(sin(t * 6)) > 0.96) star4(g, -6, -12, 2.4, "rgba(255,240,180,0.95)");
     } else if (kind === "lupa") {
       // lupa de detetive: aro de latão chanfrado, vidro azulado com reflexos e cabo de madeira
+      g.translate(-0.6, -3.8);
       line(g, "#5A3D20", 1.4, 5.4, -2.2, -4.2, 2.2); line(g, "#8A5A2B", 1.2, 5, -2, -4, 1.2);
       line(g, "#C98A12", -1.6, -3.4, -2.6, -5.4, 2.4);
       const lx = -4.8, ly = -10.2;
@@ -3286,7 +3300,7 @@
     } else if (kind === "termometro") {
       // termômetro digital: ponta de metal, corpo branco, visor verde com a leitura e o botão azul;
       // na festa o visor pisca e ele apita (estrelinha na ponta)
-      g.save(); g.rotate(-0.12);
+      g.save(); g.translate(GX, GY - 2.4); g.rotate(-0.12);
       const tip = new Path2D(); tip.roundRect(-1.3, -20, 2.6, 6.4, 1.3); g.fillStyle = hGrad(g, ["#7E8698", "#F3F6FA", "#7E8698"], -1.3, 1.3); g.fill(tip); stroke(g, tip, "rgba(38,33,92,0.7)", 0.4);
       const body = new Path2D(); body.roundRect(-3.4, -15.4, 6.8, 18.4, 3.4); g.fillStyle = hGrad(g, ["#C9D1E0", "#FFFFFF", "#B5BED0"], -3.4, 3.4); g.fill(body);
       g.save(); g.clip(body); g.fillStyle = hGrad(g, ["#2E6FC0", "#6FB0FF", "#2E6FC0"], -3.4, 3.4); g.fillRect(-3.4, -1.4, 6.8, 5); g.restore();
@@ -3300,7 +3314,7 @@
       }
       line(g, "rgba(255,255,255,0.85)", -2.4, -13.6, -2.4, -2, 0.55);
       g.restore();
-      if (party) { const k = abs(sin(t * 5)); star4(g, -4.2, -20.4, 2.4 * k, `rgba(255,240,180,${k})`); }
+      if (party) { const k = abs(sin(t * 5)); star4(g, -3.6, -22.6, 2.4 * k, `rgba(255,240,180,${k})`); }
     } else if (kind === "cantil") {
       // cantil militar: corpo de lona verde-oliva com costura, faixa da alça, gargalo e tampa de metal
       // presa na correntinha; balança de leve (na festa espirra uma gotinha da tampa)
@@ -3319,7 +3333,7 @@
     } else if (kind === "binoculo") {
       // binóculo militar: dois canhões verde-escuros com estrias de borracha, ponte com a roda de foco,
       // lentes azuis com o reflexo passeando; na festa ele "procura" balançando de um lado para o outro
-      g.save(); g.rotate(-0.15 + (party ? sin(t * 3) * 0.15 : 0));
+      g.save(); g.translate(3.4, 4.4); g.rotate(-0.15 + (party ? sin(t * 3) * 0.15 : 0));
       for (const cx of [-5.6, -0.6]) {
         const bar = new Path2D(); bar.roundRect(cx - 2.2, -13, 4.4, 11, 1.4); g.fillStyle = hGrad(g, ["#26301C", "#5C6B42", "#26301C"], cx - 2.2, cx + 2.2); g.fill(bar); stroke(g, bar, "rgba(10,15,5,0.6)", 0.3);
         for (const y of [-10.4, -9.4, -8.4, -7.4]) line(g, "rgba(0,0,0,0.35)", cx - 2, y, cx + 2, y, 0.25);
@@ -3336,23 +3350,37 @@
       // apito de polícia: câmara redonda e bocal de metal cromado, furinho, argola e o cordão trançado
       // vermelho e azul caindo da mão; na festa ele apita (ondinhas saindo do bocal)
       // (grande: câmara de 5 de raio, bocal grosso, bolinha laranja aparecendo pela janela)
-      const cord = new Path2D(); cord.moveTo(-8.4, -4.6); cord.bezierCurveTo(-6, 2, 1, -1, 1.4, 5);
-      stroke(g, cord, "#C42F4B", 1.4); g.save(); g.setLineDash([1, 1]); stroke(g, cord, "#FFD84A", 1.4); g.restore();
-      g.save(); g.translate(-3, -10); g.rotate(-0.25 + (party ? sin(t * 14) * 0.06 : 0));
-      const mouth = new Path2D(); mouth.roundRect(1, -4.6, 8.6, 4.4, 1); g.fillStyle = vGrad(g, ["#FFFFFF", "#AEB6C4", "#6E7588"], -4.6, -0.2); g.fill(mouth); stroke(g, mouth, "rgba(38,33,92,0.7)", 0.45);
-      g.beginPath(); g.arc(0, 0, 5, 0, 2 * PI); const rg = g.createRadialGradient(-1.6, -1.6, 0.4, 0, 0, 5.4); rg.addColorStop(0, "#FFFFFF"); rg.addColorStop(0.5, "#C2CADB"); rg.addColorStop(1, "#6E7588"); g.fillStyle = rg; g.fill(); g.strokeStyle = "rgba(38,33,92,0.7)"; g.lineWidth = 0.45; g.stroke();
-      circle(g, "#2A2C38", 2, 0.4, 0.6); circle(g, party ? "#FFB347" : "#FF8A3D", 1.4, 0.4 + (party ? sin(t * 20) * 0.4 : 0), 0.9); circle(g, "rgba(255,255,255,0.6)", 0.4, 0, 0.4);
-      const hole = new Path2D(); hole.roundRect(2, -4.2, 3, 1.4, 0.4); g.fillStyle = "#2A2C38"; g.fill(hole);
-      g.beginPath(); g.arc(-5.4, 0.8, 1.4, 0, 2 * PI); g.strokeStyle = "#8E96A8"; g.lineWidth = 0.7; g.stroke();
-      line(g, "rgba(255,255,255,0.8)", 5.4, -3.8, 8.8, -3.8, 0.5); circle(g, "rgba(255,255,255,0.75)", 0.9, -2.2, -2.4);
-      if (party && !small) for (let i = 0; i < 3; i++) { const ph = (t * 2 + i / 3) % 1; line(g, `rgba(126,224,184,${1 - ph})`, 10.4 + ph * 3, -2.4 + (i - 1) * 1.6 * (1 + ph), 11.8 + ph * 3, -2.4 + (i - 1) * 2.2 * (1 + ph), 0.5); }
+      // (apito de árbitro visto de lado: a câmara fica na mão e o bocal aponta para fora e para cima; a
+      // bolinha só aparece pela fenda de cima; o cordão sai da argola e pende embaixo do punho)
+      const OUTL = "rgba(38,33,92,0.85)";
+      const cord = new Path2D(); cord.moveTo(1.8, 0.6); cord.bezierCurveTo(3.4, 7, 0.6, 11, -1.2, 10.6); cord.bezierCurveTo(-3, 10.2, -1.6, 4, 0.2, 1.2);
+      stroke(g, cord, "rgba(90,10,20,0.85)", small ? 1.5 : 1.25); stroke(g, cord, "#E0303F", small ? 1 : 0.8);
+      if (!small) { g.save(); g.setLineDash([0.6, 0.7]); stroke(g, cord, "#FFFFFF", 0.4); g.restore(); }
+      g.save(); g.translate(GX - 0.4, -0.8); g.rotate(0.62 + (party ? sin(t * 14) * 0.05 : 0));
+      const metal = (y0, y1) => vGrad(g, ["#FFFFFF", "#DDE2EC", "#9AA2B4", "#6E7588"], y0, y1);
+      // câmara: barril grande, tampo reto em cima e o fundo bem redondo
+      const ch = new Path2D(); ch.moveTo(-6, -3.4); ch.lineTo(0.6, -3.4); ch.bezierCurveTo(3.6, -3.4, 4.2, 1, 2.6, 3); ch.bezierCurveTo(1, 5, -4.4, 5.2, -6, 2.4); ch.closePath();
+      g.fillStyle = metal(-3.4, 4.8); g.fill(ch); stroke(g, ch, OUTL, 0.45);
+      // bocal: lâmina achatada e curta que afina até a ponta, com a borda de morder
+      const mp = new Path2D(); mp.moveTo(-5.4, -3.4); mp.lineTo(-11, -3.2); mp.quadraticCurveTo(-11.6, -3.2, -11.6, -2.6); mp.lineTo(-11.6, -1.8); mp.quadraticCurveTo(-11.6, -1.2, -11, -1.2); mp.lineTo(-5.8, -0.6); mp.closePath();
+      g.fillStyle = metal(-3.4, -0.6); g.fill(mp); stroke(g, mp, OUTL, 0.45);
+      line(g, "rgba(38,33,92,0.6)", -10.2, -3.2, -10.2, -1.3, 0.3);
+      // fenda de cima com a bolinha de cortiça aparecendo
+      const sl = new Path2D(); sl.moveTo(-4.8, -3.4); sl.lineTo(-1.4, -3.4); sl.lineTo(-2.2, -2); sl.lineTo(-4.8, -2); sl.closePath(); g.fillStyle = "#2A2C38"; g.fill(sl);
+      g.save(); g.clip(sl); circle(g, party ? "#FFB347" : "#F08A3D", 1.2, -3.1 + (party ? sin(t * 22) * 0.6 : 0), -1.3); g.restore();
+      // argola onde o cordão prende (fica dentro do punho)
+      g.beginPath(); g.arc(3.4, 2.6, 1, 0, 2 * PI); g.strokeStyle = "#8E96A8"; g.lineWidth = 0.55; g.stroke();
+      // brilhos
+      line(g, "rgba(255,255,255,0.9)", -10.6, -2.7, -6, -2.8, 0.45); line(g, "rgba(255,255,255,0.8)", -0.6, -2.6, 1.6, -2.4, 0.5);
+      if (!small) { g.beginPath(); g.ellipse(-2.6, 1.6, 2.6, 1.4, 0.1, 0.2, PI - 0.2); g.strokeStyle = "rgba(80,85,110,0.35)"; g.lineWidth = 0.35; g.stroke(); }
+      if (party && !small) for (let i = 0; i < 3; i++) { const ph = (t * 2 + i / 3) % 1; line(g, `rgba(126,224,184,${1 - ph})`, -12.8 - ph * 3, -2.2 + (i - 1) * 1.6 * (1 + ph), -14.2 - ph * 3, -2.2 + (i - 1) * 2.2 * (1 + ph), 0.5); }
       g.restore();
     } else if (kind === "lanterna") {
       // lanterna tática: corpo preto recartilhado, botão vermelho, cabeça mais larga com a lente acesa e o
       // facho de luz suave que varre devagar; na festa ela pisca
       const lit = !(party && (t * 4) % 1 < 0.25);
-      g.save(); g.rotate(-0.22 + sin(t * 0.9) * 0.08);
-      if (lit) { const beam = new Path2D(); beam.moveTo(-4, -15.4); beam.lineTo(-10, -32); beam.quadraticCurveTo(0, -35, 10, -32); beam.lineTo(4, -15.4); beam.closePath(); g.fillStyle = vGrad(g, ["rgba(255,236,150,0.75)", "rgba(255,236,150,0)"], -15.4, -33); g.fill(beam); }
+      g.save(); g.translate(GX - 0.4, GY - 3.2); g.rotate(-0.22 + sin(t * 0.9) * 0.08);
+      if (lit) { const beam = new Path2D(); beam.moveTo(-4, -15.4); beam.lineTo(-8.6, -28); beam.quadraticCurveTo(0, -30.4, 8.6, -28); beam.lineTo(4, -15.4); beam.closePath(); g.fillStyle = vGrad(g, ["rgba(255,236,150,0.75)", "rgba(255,236,150,0)"], -15.4, -29); g.fill(beam); }
       const body = new Path2D(); body.roundRect(-2.6, -9.4, 5.2, 14, 1.4); g.fillStyle = hGrad(g, ["#14161E", "#5C6280", "#14161E"], -2.6, 2.6); g.fill(body); stroke(g, body, "rgba(0,0,0,0.75)", 0.45);
       for (let i = 0; i < 5; i++) line(g, "rgba(150,155,180,0.55)", -2.2, -2.4 + i * 1.3, 2.2, -2.4 + i * 1.3, 0.35);
       const head = new Path2D(); head.moveTo(-2.6, -9); head.lineTo(-4.4, -12.6); head.lineTo(-4.4, -15.6); head.lineTo(4.4, -15.6); head.lineTo(4.4, -12.6); head.lineTo(2.6, -9); head.closePath(); g.fillStyle = hGrad(g, ["#1C1E28", "#6E7588", "#1C1E28"], -4.4, 4.4); g.fill(head); stroke(g, head, "rgba(0,0,0,0.75)", 0.45);
@@ -3378,7 +3406,7 @@
     } else if (kind === "leitor") {
       // leitor de código de barras (pistola): cabo emborrachado na mão, gatilho, cabeça amarela com a
       // janela; o laser vermelho pisca e varre (na festa ele "bipa" sem parar)
-      g.save(); g.rotate(-0.12);
+      g.save(); g.translate(-0.6, -3); g.rotate(-0.12);
       const on = (t * (party ? 5 : 1.4)) % 1 < 0.6;
       if (on) {
         const fan = new Path2D(); fan.moveTo(-11.4, -12); fan.lineTo(-20, -17); fan.lineTo(-20, -5); fan.closePath(); g.fillStyle = hGrad(g, ["rgba(255,60,60,0.55)", "rgba(255,60,60,0.08)"], -11.4, -20); g.fill(fan);
@@ -3432,7 +3460,7 @@
     } else if (kind === "cofrinho") {
       // cofrinho de porquinho: rosa com brilho, focinho com narinas, orelha, olhinho, bochecha,
       // perninhas e o rabo em caracol; uma moeda dourada cai na fenda (na festa caem mais rápido)
-      g.save(); g.translate(-3.4, -7); g.rotate(sin(t * 1.6) * 0.04);
+      g.save(); g.translate(-0.2, -3.4); g.rotate(sin(t * 1.6) * 0.04);
       const ph = (t / (party ? 0.8 : 2.6)) % 1;
       if (ph < 0.5) { const cy = -12 + ph / 0.5 * 7.6; circle(g, "#C98A12", 1.4, 0.7, cy); circle(g, "#F5C451", 1.05, 0.7, cy); line(g, "#C98A12", 0.7, cy - 0.5, 0.7, cy + 0.5, 0.25); }
       for (const x of [-3.2, -1, 1.6, 3.6]) { const lg = new Path2D(); lg.roundRect(x - 0.8, 3, 1.6, 2.4, 0.6); g.fillStyle = "#E0708C"; g.fill(lg); }
@@ -3450,7 +3478,7 @@
       // microfone da tribuna: base redonda preta, haste "pescoço de ganso" com anéis, cápsula com grade
       // e o anel vermelho de "no ar" (na festa as ondas de som saem da cápsula)
       // (clássico: cabeça grande e redonda com malha, anel brilhante e cabo grosso com a luz "no ar")
-      g.save(); g.rotate(-0.15);
+      g.save(); g.translate(GX - 0.2, GY - 4.4); g.rotate(-0.15);
       const live = (t * 0.7) % 1 < 0.85;
       const hdl = new Path2D(); hdl.moveTo(-2.2, -6.4); hdl.lineTo(2.2, -6.4); hdl.lineTo(1.5, 5); hdl.quadraticCurveTo(0, 6, -1.5, 5); hdl.closePath(); g.fillStyle = hGrad(g, ["#14161E", "#5C6280", "#14161E"], -2.2, 2.2); g.fill(hdl); stroke(g, hdl, "rgba(0,0,0,0.75)", 0.45);
       if (live && !small) circle(g, "rgba(255,92,77,0.35)", 1.5, 0, -3);
@@ -3483,7 +3511,7 @@
     } else if (kind === "regua") {
       // régua escolar amarela: marcações de milímetro e centímetro, os números e o furinho; balança de
       // leve (na festa vira batuta)
-      g.save(); g.rotate(-0.42 + (party ? sin(t * 5) * 0.2 : sin(t * 1.2) * 0.03));
+      g.save(); g.translate(GX - 0.2, GY - 1.4); g.rotate(-0.42 + (party ? sin(t * 5) * 0.2 : sin(t * 1.2) * 0.03));
       const rl = new Path2D(); rl.roundRect(-1.9, -20.4, 3.8, 23, 0.6); g.fillStyle = hGrad(g, ["#FFE45C", "#FFD23F", "#E0B020"], -1.9, 1.9); g.fill(rl); stroke(g, rl, "rgba(140,100,10,0.6)", 0.3);
       for (let i = 0; i <= 40; i++) {
         const y = 1.6 - i * 0.5, cm = i % 10 === 0, half = i % 5 === 0;
@@ -3497,6 +3525,7 @@
     } else if (kind === "globo") {
       // globo terrestre: pé de madeira na mão, meridiano dourado em meia-lua, esfera azul com os
       // continentes verdes girando devagar e o brilho
+      g.translate(0.6, -3);
       const cx = -3.6, cy = -11.4, R = 5.4;
       g.beginPath(); g.ellipse(0.4, 3.6, 3.4, 1.1, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#C08453", "#6D3D1F"], 2.5, 4.7); g.fill();
       line(g, "#7A4E26", 0.4, 3, -1.07, -5.4, 0.9);
@@ -3515,66 +3544,95 @@
     } else if (kind === "notebook") {
       // notebookzinho aberto: tampa prateada, tela escura com linhas de código coloridas e o cursor
       // piscando, teclado em perspectiva com touchpad; na festa o código rola sozinho
-      g.save(); g.rotate(-0.1);
-      const lid = new Path2D(); lid.roundRect(-9.6, -13, 12.6, 12.2, 1); g.fillStyle = vGrad(g, ["#D5DCE8", "#8E96A8"], -13, -0.8); g.fill(lid); stroke(g, lid, "rgba(38,33,92,0.5)", 0.3);
-      const scr = new Path2D(); scr.rect(-8.8, -12.2, 11, 10.6); g.fillStyle = "#1E2140"; g.fill(scr);
+      // (segurado pela ponta da base: o punho cobre o canto direito do teclado e a tela abre para cima)
+      g.save(); g.translate(-0.6, 0.2); g.rotate(-0.06);
+      const OUTL = "rgba(38,33,92,0.85)", hy = -1.8, fy = 1.4;
+      // tampa: moldura prateada, borda escura e a tela acesa
+      const lid = new Path2D(); lid.moveTo(-11.2, hy); lid.lineTo(-10.4, -13.6); lid.quadraticCurveTo(-10.3, -14.3, -9.6, -14.3); lid.lineTo(-0.6, -14.3); lid.quadraticCurveTo(0.1, -14.3, 0.2, -13.6); lid.lineTo(1, hy); lid.closePath();
+      g.fillStyle = vGrad(g, ["#EEF2F8", "#C2CADB", "#8E96A8"], -14.3, hy); g.fill(lid); stroke(g, lid, OUTL, 0.45);
+      const bz = new Path2D(); bz.moveTo(-10.4, hy - 0.7); bz.lineTo(-9.8, -13.6); bz.lineTo(-0.4, -13.6); bz.lineTo(0.2, hy - 0.7); bz.closePath(); g.fillStyle = "#23263A"; g.fill(bz);
+      const scr = new Path2D(); scr.moveTo(-9.8, hy - 1.3); scr.lineTo(-9.3, -12.9); scr.lineTo(-0.9, -12.9); scr.lineTo(-0.4, hy - 1.3); scr.closePath();
+      g.fillStyle = vGrad(g, ["#2B3170", "#1E2150", "#161A3A"], -12.9, hy - 1.3); g.fill(scr);
       g.save(); g.clip(scr);
-      const sc = party ? (t * 3) % 1 : 0, code = [[0, 4, "#FF8FA3"], [1.2, 5.4, "#7EE0B8"], [1.2, 3.4, "#F5B83D"], [2.4, 4.6, "#6FB0FF"], [1.2, 4, "#7EE0B8"], [0, 2.6, "#B995F5"], [0, 3.6, "#FF8FA3"]];
-      for (let i = 0; i < code.length; i++) { const [ind, len, c] = code[i], y = -10.9 + i * 1.4 - sc * 1.4; line(g, c, -7.8 + ind, y, -7.8 + ind + len, y, 0.5); }
-      if ((t * 2) % 1 < 0.5) { g.fillStyle = "#FFFFFF"; g.fillRect(-4.8, -3.6 - sc * 1.4, 0.5, 1); }
+      if (!small) { g.fillStyle = "#3A417E"; g.fillRect(-10, -12.9, 10, 1.1); for (const [x, c] of [[-8.6, "#FF6B6B"], [-7.8, "#FFD84A"], [-7, "#7EE0B8"]]) circle(g, c, 0.28, x, -12.35); }
+      const sc = party ? (t * 3) % 1 : 0, code = [[0, 3.4, "#FF8FA3"], [1, 4.6, "#7EE0B8"], [2, 2.6, "#F5B83D"], [2, 3.8, "#6FB0FF"], [1, 3, "#7EE0B8"], [0, 2.2, "#B995F5"], [0, 4, "#FF8FA3"], [1, 2.8, "#6FB0FF"]];
+      const step = small ? 1.6 : 1.15, y0 = small ? -11.2 : -10.9;
+      for (let i = 0; i < code.length; i++) { const [ind, len, c] = code[i], y = y0 + i * step - sc * step; line(g, c, -8.6 + ind, y, -8.6 + ind + len, y, small ? 0.6 : 0.45); }
+      if ((t * 2) % 1 < 0.5) { g.fillStyle = "#FFFFFF"; g.fillRect(-5.2, -3.6 - sc * step, 0.45, 0.9); }
+      // brilho da tela: luz suave e um reflexo na diagonal
+      const glow = g.createRadialGradient(-5, -8, 0.5, -5, -8, 7); glow.addColorStop(0, "rgba(140,160,255,0.25)"); glow.addColorStop(1, "rgba(140,160,255,0)"); g.fillStyle = glow; g.fillRect(-10, -13, 10, 12);
+      g.save(); g.globalAlpha = 0.14; const gl = new Path2D(); gl.moveTo(-9.6, -6); gl.lineTo(-5, -12.9); gl.lineTo(-3.4, -12.9); gl.lineTo(-9.8, -3.6); gl.closePath(); g.fillStyle = "#FFFFFF"; g.fill(gl); g.restore();
       g.restore();
-      circle(g, "#3C4054", 0.25, -3.3, -12.6);
-      const base = new Path2D(); base.moveTo(-10, -0.9); base.lineTo(3.4, -0.9); base.lineTo(4.8, 1.6); base.lineTo(-11.4, 1.6); base.closePath(); g.fillStyle = vGrad(g, ["#E4E8F0", "#AEB6C4"], -0.9, 1.6); g.fill(base); stroke(g, base, "rgba(38,33,92,0.5)", 0.25);
-      for (let i = 0; i < 9; i++) { g.fillStyle = "rgba(60,64,84,0.55)"; g.fillRect(-9.4 + i * 1.4, -0.5, 1, 0.45); }
-      const tp = new Path2D(); tp.roundRect(-5, 0.35, 3, 0.9, 0.2); g.fillStyle = "rgba(110,117,136,0.5)"; g.fill(tp);
+      circle(g, "#4A5068", 0.25, -5.1, -13.95);
+      // base: tampo do teclado em perspectiva, borda da frente e a dobradiça
+      const deck = new Path2D(); deck.moveTo(-11.2, hy); deck.lineTo(1, hy); deck.lineTo(2.6, fy); deck.lineTo(-12.8, fy); deck.closePath();
+      g.fillStyle = vGrad(g, ["#C9D1E0", "#EEF2F8"], hy, fy); g.fill(deck);
+      const edge = new Path2D(); edge.moveTo(-12.8, fy); edge.lineTo(2.6, fy); edge.lineTo(2.4, fy + 1); edge.quadraticCurveTo(2.3, fy + 1.3, 1.9, fy + 1.3); edge.lineTo(-12.2, fy + 1.3); edge.quadraticCurveTo(-12.6, fy + 1.3, -12.7, fy + 1); edge.closePath();
+      g.fillStyle = vGrad(g, ["#AEB6C4", "#7E8698"], fy, fy + 1.3); g.fill(edge);
+      g.fillStyle = "rgba(140,160,255,0.18)"; g.fill(deck);
+      const keyRow = (u, n, h) => { const y = lerp(hy + 0.35, fy - 1.1, u), xl = lerp(-10.6, -11.8, u), xr = lerp(0.2, 1.4, u), w = (xr - xl) / n; for (let i = 0; i < n; i++) { const k = new Path2D(); k.roundRect(xl + i * w + 0.08, y, w - 0.16, h, 0.12); g.fillStyle = "#3C4054"; g.fill(k); } };
+      if (small) { keyRow(0, 6, 0.5); keyRow(0.55, 6, 0.55); }
+      else { keyRow(0, 12, 0.42); keyRow(0.33, 12, 0.45); keyRow(0.66, 11, 0.48); }
+      const tp = new Path2D(); tp.moveTo(-7.4, fy - 0.6); tp.lineTo(-3.2, fy - 0.6); tp.lineTo(-3, fy - 0.1); tp.lineTo(-7.7, fy - 0.1); tp.closePath(); g.fillStyle = "rgba(110,117,136,0.55)"; g.fill(tp);
+      const outer = new Path2D(); outer.moveTo(-11.2, hy); outer.lineTo(1, hy); outer.lineTo(2.6, fy); outer.lineTo(2.4, fy + 1.3); outer.lineTo(-12.6, fy + 1.3); outer.lineTo(-12.8, fy); outer.closePath(); stroke(g, outer, OUTL, 0.45);
+      line(g, "#2C3042", -10.8, hy, 0.6, hy, 0.5);
+      line(g, "rgba(255,255,255,0.7)", -9.8, -13.9, -1, -13.9, 0.3);
       g.restore();
     } else if (kind === "caneca") {
       // caneca de café: cerâmica roxa com coraçãozinho, alça na mão, café escuro por cima e a fumacinha
       // subindo em ondas (na festa sai mais fumaça)
-      g.save(); g.rotate(-0.06);
-      g.beginPath(); g.ellipse(-0.6, -6, 2.4, 2.8, 0, 0, 2 * PI); g.strokeStyle = "#3F35B5"; g.lineWidth = 1.2; g.stroke();
-      const mug = new Path2D(); mug.moveTo(-9, -11); mug.lineTo(-1.2, -11); mug.lineTo(-1.6, -1.2); mug.quadraticCurveTo(-1.7, 0.2, -3, 0.2); mug.lineTo(-7.2, 0.2); mug.quadraticCurveTo(-8.5, 0.2, -8.6, -1.2); mug.closePath();
-      g.fillStyle = hGrad(g, ["#3F35B5", "#8A80F5", "#5247E0", "#3F35B5"], -9, -1.2); g.fill(mug); stroke(g, mug, "rgba(30,20,90,0.55)", 0.3);
-      g.beginPath(); g.ellipse(-5.1, -11, 3.9, 0.9, 0, 0, 2 * PI); g.fillStyle = "#ECEAF8"; g.fill();
-      g.beginPath(); g.ellipse(-5.1, -10.9, 3.3, 0.6, 0, 0, 2 * PI); g.fillStyle = "#6B3E1F"; g.fill();
-      g.fillStyle = "#FF8FA3"; g.fill(heart(-5.1, -5.6, 1.6));
-      line(g, "rgba(255,255,255,0.4)", -7.6, -9.6, -7.4, -2, 0.45);
+      // (a alça fica dentro do punho e o corpo da caneca sai para o lado de fora, em pé)
+      g.save(); g.translate(0.8, 0.3); g.rotate(-0.04);
+      const OUTL = "rgba(30,20,90,0.85)";
+      const hd = new Path2D(); hd.moveTo(-2.4, -3.4); hd.bezierCurveTo(3.2, -4.6, 4, 3, -2.4, 2.6);
+      stroke(g, hd, OUTL, 2.2); stroke(g, hd, "#5247E0", 1.3);
+      const mug = new Path2D(); mug.moveTo(-11.6, -5); mug.lineTo(-2.2, -5); mug.lineTo(-2.5, 3.6); mug.quadraticCurveTo(-2.6, 5, -4, 5); mug.lineTo(-9.8, 5); mug.quadraticCurveTo(-11.2, 5, -11.3, 3.6); mug.closePath();
+      g.fillStyle = hGrad(g, ["#3F35B5", "#8A80F5", "#5247E0", "#3F35B5"], -11.6, -2.2); g.fill(mug); stroke(g, mug, OUTL, 0.45);
+      g.beginPath(); g.ellipse(-6.9, -5, 4.7, 1.1, 0, 0, 2 * PI); g.fillStyle = "#ECEAF8"; g.fill(); g.strokeStyle = OUTL; g.lineWidth = 0.4; g.stroke();
+      g.beginPath(); g.ellipse(-6.9, -4.85, 3.9, 0.7, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#4A2A12", "#8A5A2B"], -5.5, -4.2); g.fill();
+      if (!small) { g.beginPath(); g.ellipse(-7.8, -4.95, 1.4, 0.25, 0, 0, 2 * PI); g.fillStyle = "rgba(255,230,190,0.5)"; g.fill(); }
+      g.fillStyle = "#FF8FA3"; g.fill(heart(-6.9, 0.2, 1.9)); if (!small) circle(g, "rgba(255,255,255,0.6)", 0.35, -7.6, -0.4);
+      line(g, "rgba(255,255,255,0.5)", -10.3, -3.4, -10.1, 3.2, 0.55);
       const n = party ? 3 : 2;
       for (let i = 0; i < n; i++) {
-        const ph = (t * 0.5 + i / n) % 1, bx = -6.6 + i * (3 / Math.max(1, n - 1)), y0 = -12 - ph * 5, sm = new Path2D();
+        const ph = (t * 0.5 + i / n) % 1, bx = -8.6 + i * (3.4 / Math.max(1, n - 1)), y0 = -6.4 - ph * 4, sm = new Path2D();
         for (let j = 0; j <= 6; j++) { const x = bx + sin(j * 0.9 + t * 3 + i) * 0.8, y = y0 - j * 0.9; if (j) sm.lineTo(x, y); else sm.moveTo(x, y); }
-        stroke(g, sm, `rgba(160,150,200,${0.7 * sin(PI * ph)})`, 0.6);
+        stroke(g, sm, `rgba(170,160,210,${0.8 * sin(PI * ph)})`, small ? 0.9 : 0.65);
       }
       g.restore();
     } else if (kind === "carimbo") {
       // carimbo: pegador de madeira torneado (a mão segura no pescoço), base de madeira com etiqueta e
       // a borracha vermelha de tinta; na festa ele carimba no ar
       // (grande: a folhinha já carimbada com "OK" em vermelho fica ao lado, bem visível)
-      const pr = party ? Math.max(0, sin(t * 6)) * 1.6 : 0;
-      g.save(); g.translate(-11, -9); g.rotate(-0.12);
-      const pp = new Path2D(); pp.rect(-4.6, -3.6, 9.2, 7.2); g.fillStyle = "#FFFDF8"; g.fill(pp); stroke(g, pp, "rgba(38,33,92,0.5)", 0.3);
-      const mk = new Path2D(); mk.roundRect(-3.6, -2.6, 7.2, 5.2, 1); stroke(g, mk, "#E0303F", 0.6);
-      g.beginPath(); g.ellipse(-1.4, 0, 1.3, 1.6, 0, 0, 2 * PI); g.strokeStyle = "#E0303F"; g.lineWidth = 0.6; g.stroke();
-      line(g, "#E0303F", 1, -1.6, 1, 1.6, 0.6); line(g, "#E0303F", 2.6, -1.6, 1.1, 0.1, 0.6); line(g, "#E0303F", 1.5, -0.3, 2.7, 1.6, 0.6);
+      // (segurado por cima: o punho fecha na bola do pegador, o cabo torneado desce e a base com a
+      // borracha fica embaixo, pronta para carimbar; na festa ele bate e deixa o selo "OK" no ar)
+      const ph = party ? (t * 1.2) % 1 : 0, pr = party ? Math.max(0, sin(ph * PI * 2)) * 1.4 : 0;
+      const OUTL = "rgba(60,25,8,0.85)";
+      g.save(); g.translate(GX - 0.2, 0.2 + pr); g.rotate(0.12);
+      g.beginPath(); g.arc(0, -0.6, 2.9, 0, 2 * PI); const rg = g.createRadialGradient(-1, -1.8, 0.3, 0, -0.6, 3.1); rg.addColorStop(0, "#F0A070"); rg.addColorStop(0.6, "#B5582A"); rg.addColorStop(1, "#7A3410"); g.fillStyle = rg; g.fill(); g.strokeStyle = OUTL; g.lineWidth = 0.45; g.stroke();
+      // cabo torneado: pescoço fino, anel e a saia que alarga até a base
+      const nk = new Path2D(); nk.moveTo(-1.1, 1.8); nk.quadraticCurveTo(-0.7, 3.4, -1.3, 4.2); nk.quadraticCurveTo(-2.1, 4.8, -1.5, 5.4); nk.quadraticCurveTo(-2.6, 6.6, -2.8, 7.6); nk.lineTo(2.8, 7.6); nk.quadraticCurveTo(2.6, 6.6, 1.5, 5.4); nk.quadraticCurveTo(2.1, 4.8, 1.3, 4.2); nk.quadraticCurveTo(0.7, 3.4, 1.1, 1.8); nk.closePath();
+      g.fillStyle = hGrad(g, ["#7A3410", "#D98A5A", "#B5582A", "#7A3410"], -2.8, 2.8); g.fill(nk); stroke(g, nk, OUTL, 0.4);
+      if (!small) line(g, "rgba(255,220,190,0.6)", -0.9, 5.8, -1.6, 7.2, 0.35);
+      const col = new Path2D(); col.roundRect(-3.6, 7.4, 7.2, 1.3, 0.5); g.fillStyle = vGrad(g, GOLD3, 7.4, 8.7); g.fill(col); stroke(g, col, "rgba(110,70,10,0.85)", 0.35);
+      const blk = new Path2D(); blk.roundRect(-5.6, 8.6, 11.2, 3.6, 0.9); g.fillStyle = vGrad(g, ["#D9A070", "#A06A3A", "#7A4E26"], 8.6, 12.2); g.fill(blk); stroke(g, blk, OUTL, 0.45);
+      const lb = new Path2D(); lb.roundRect(-3, 9.2, 6, 2.4, 0.4); g.fillStyle = "#FFFDF8"; g.fill(lb); stroke(g, lb, "rgba(60,25,8,0.4)", 0.2);
+      g.save(); g.font = "bold 2.1px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#E0303F"; g.fillText("OK", 0, 10.5); g.restore();
+      const rb = new Path2D(); rb.roundRect(-5.2, 12, 10.4, 1.7, 0.5); g.fillStyle = vGrad(g, ["#FF5C4D", "#B81F3E"], 12, 13.7); g.fill(rb); stroke(g, rb, "rgba(90,10,20,0.85)", 0.35);
+      line(g, "rgba(255,255,255,0.45)", -4.8, 9.3, -4.8, 11.4, 0.4);
       g.restore();
-      g.save(); g.translate(-1, -4 + pr);
-      g.beginPath(); g.arc(0, -8.6, 3.6, 0, 2 * PI); const rg = g.createRadialGradient(-1.2, -9.8, 0.4, 0, -8.6, 3.8); rg.addColorStop(0, "#F0A070"); rg.addColorStop(0.6, "#B5582A"); rg.addColorStop(1, "#7A3410"); g.fillStyle = rg; g.fill(); g.strokeStyle = "rgba(60,20,5,0.75)"; g.lineWidth = 0.45; g.stroke();
-      const nk = new Path2D(); nk.moveTo(-1.5, -5.6); nk.lineTo(1.5, -5.6); nk.lineTo(2.2, -0.4); nk.lineTo(-2.2, -0.4); nk.closePath(); g.fillStyle = hGrad(g, ["#7A3410", "#C9774A", "#7A3410"], -2.2, 2.2); g.fill(nk); stroke(g, nk, "rgba(60,20,5,0.75)", 0.4);
-      const col = new Path2D(); col.roundRect(-3, -1, 6, 1.6, 0.6); g.fillStyle = vGrad(g, GOLD3, -1, 0.6); g.fill(col); stroke(g, col, "rgba(110,70,10,0.8)", 0.35);
-      const blk = new Path2D(); blk.roundRect(-6.4, 0.4, 12.8, 4.4, 1); g.fillStyle = vGrad(g, ["#C08453", "#8A5A2B"], 0.4, 4.8); g.fill(blk); stroke(g, blk, "rgba(60,30,10,0.8)", 0.45);
-      const lb = new Path2D(); lb.roundRect(-3.4, 1.4, 6.8, 2.4, 0.4); g.fillStyle = "#FFFDF8"; g.fill(lb);
-      // "OK" na etiqueta
-      g.beginPath(); g.ellipse(-1.2, 2.7, 0.7, 0.8, 0, 0, 2 * PI); g.strokeStyle = "#E0303F"; g.lineWidth = 0.4; g.stroke();
-      line(g, "#E0303F", 0.5, 1.9, 0.5, 3.5, 0.4); line(g, "#E0303F", 1.7, 1.9, 0.6, 2.8, 0.4); line(g, "#E0303F", 0.9, 2.6, 1.8, 3.5, 0.4);
-      const rb = new Path2D(); rb.roundRect(-6, 4.6, 12, 2, 0.5); g.fillStyle = vGrad(g, ["#FF5C4D", "#B81F3E"], 4.6, 6.6); g.fill(rb); stroke(g, rb, "rgba(90,10,20,0.75)", 0.35);
-      circle(g, "rgba(255,255,255,0.55)", 1, -1.3, -9.8);
-      g.restore();
+      // selo "OK" que fica no ar depois da batida
+      if (party && ph > 0.5 && !small) {
+        const a = 1 - (ph - 0.5) / 0.5; g.save(); g.globalAlpha = a; g.translate(GX - 2.2, 17); g.rotate(-0.15);
+        g.beginPath(); g.ellipse(0, 0, 4.8, 1.6, 0, 0, 2 * PI); g.strokeStyle = "#E0303F"; g.lineWidth = 0.45; g.stroke();
+        g.font = "bold 2px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#E0303F"; g.fillText("OK", 0, 0.1); g.restore();
+      }
     } else if (kind === "grampeador") {
       // grampeador: base preta comprida, braço vermelho com a ponta cromada e a dobradiça atrás; na festa
       // ele grampeia sem parar (o braço abre e fecha)
       // (grande e quase em pé: base e braço grossos, dobradiça atrás, boca aberta mostrando o grampo)
       const open = party ? 0.06 + abs(sin(t * 5)) * 0.3 : 0.26 + sin(t * 1.3) * 0.03;
-      g.save(); g.translate(1.6, 2); g.rotate(0.85);
+      g.save(); g.translate(1.2, 0.8); g.rotate(0.85);
       const base = new Path2D(); base.roundRect(-15, 0, 17, 3.4, 1.4); g.fillStyle = vGrad(g, ["#4A5068", "#1C1E28"], 0, 3.4); g.fill(base); stroke(g, base, "rgba(0,0,0,0.8)", 0.45);
       const plate = new Path2D(); plate.roundRect(-14.4, -0.5, 4, 1, 0.3); g.fillStyle = vGrad(g, ["#FFFFFF", "#8E96A8"], -0.5, 0.5); g.fill(plate);
       g.save(); g.translate(0.4, -0.6); g.rotate(open);
@@ -3590,7 +3648,7 @@
     } else if (kind === "guarda-chuva") {
       // guarda-chuva colorido aberto: gomos de arco-íris com a borda ondulada, pontinha em cima, haste e
       // o cabo em gancho na mão; balança de leve (na festa gira de um lado para o outro)
-      g.save(); g.rotate(-0.22 + (party ? sin(t * 4) * 0.25 : sin(t * 1.3) * 0.06));
+      g.save(); g.translate(GX - 0.2, -0.6); g.rotate(-0.22 + (party ? sin(t * 4) * 0.25 : sin(t * 1.3) * 0.06));
       const hk = new Path2D(); hk.moveTo(0, -4); hk.lineTo(0, 2); hk.bezierCurveTo(0, 4.4, 2.8, 4.4, 2.8, 2.2); stroke(g, hk, "#6B4320", 1.2);
       line(g, "#4A5068", 0, -4, 0, -24, 0.6);
       const A = [0, -24.5], cols = ["#FF6B6B", "#FFD84A", "#7EE0B8", "#6FB0FF", "#B995F5", "#FF8FA3"];
@@ -3606,7 +3664,7 @@
     } else if (kind === "sorvete") {
       // sorvete de casquinha: casquinha de biscoito quadriculada, bola de morango embaixo e de menta em
       // cima, granulado colorido e uma gotinha escorrendo
-      g.save(); g.rotate(-0.12 + sin(t * 1.4) * 0.04);
+      g.save(); g.translate(GX - 0.2, GY - 2); g.rotate(-0.12 + sin(t * 1.4) * 0.04);
       const cone = new Path2D(); cone.moveTo(-4.2, -7.4); cone.lineTo(4.2, -7.4); cone.lineTo(0.3, 3.4); cone.lineTo(-0.3, 3.4); cone.closePath(); g.fillStyle = vGrad(g, ["#F2C27A", "#D9984A", "#B5752E"], -7.4, 3.4); g.fill(cone);
       g.save(); g.clip(cone); for (let i = -6; i <= 6; i++) { line(g, "rgba(150,90,30,0.55)", i * 1.6 - 6, -8, i * 1.6 + 6, 4, 0.25); line(g, "rgba(150,90,30,0.55)", i * 1.6 + 6, -8, i * 1.6 - 6, 4, 0.25); } g.restore();
       stroke(g, cone, "rgba(120,70,20,0.6)", 0.3);
@@ -3638,7 +3696,8 @@
       // violãozinho: corpo de madeira em oito com boca escura e roseta, cavalete, braço com trastes,
       // cabeça com tarraxas e as cordas (na festa ele toca: as cordas vibram e saem notinhas)
       // (grande: corpo em oito largo com contorno escuro, boca com roseta, braço grosso e cordas)
-      g.save(); g.translate(-3, 1); g.rotate(-0.32);
+      // (segurado pela cabeça do braço, de ponta-cabeça: o corpo fica em cima, para fora)
+      g.save(); g.translate(GX - 0.2, 0.4); g.rotate(PI - 0.42); g.translate(0, 23.2);
       const hd = new Path2D(); hd.moveTo(-1.8, -26); hd.lineTo(1.8, -26); hd.lineTo(1.3, -21.4); hd.lineTo(-1.3, -21.4); hd.closePath(); g.fillStyle = "#3A2410"; g.fill(hd); stroke(g, hd, "rgba(30,15,5,0.85)", 0.4);
       for (const [x, y] of [[-2.2, -25], [2.2, -25], [-2, -22.8], [2, -22.8]]) circle(g, GOLD, 0.6, x, y);
       for (const [cy, rx, ry] of [[-3.4, 6.2, 5.6], [-11, 4.8, 4.4]]) { g.beginPath(); g.ellipse(0, cy, rx, ry, 0, 0, 2 * PI); g.strokeStyle = "rgba(70,30,5,0.9)"; g.lineWidth = 1; g.stroke(); }
@@ -3659,7 +3718,7 @@
       // tinta (a cor muda devagar) com a gota brilhando; na festa ele pinta no ar e respinga
       const paint = ["#5247E0", "#FF5C8A", "#2E9E72", "#F5B83D"][Math.floor(t * 0.25) % 4];
       // (grosso: cabo largo, virola larga e cerdas grandes com bastante tinta)
-      g.save(); g.rotate(-0.25 + (party ? sin(t * 5) * 0.25 : 0));
+      g.save(); g.translate(GX, GY - 4.4); g.rotate(-0.25 + (party ? sin(t * 5) * 0.25 : 0));
       const hd = new Path2D(); hd.moveTo(-1.8, -9); hd.lineTo(1.8, -9); hd.lineTo(1.1, 5); hd.quadraticCurveTo(0, 6.8, -1.1, 5); hd.closePath(); g.fillStyle = hGrad(g, ["#9C1424", "#F05A5A", "#9C1424"], -1.8, 1.8); g.fill(hd); stroke(g, hd, "rgba(90,10,20,0.85)", 0.45);
       const fr = new Path2D(); fr.roundRect(-2.6, -13.6, 5.2, 5, 0.6); g.fillStyle = hGrad(g, ["#7E8698", "#FFFFFF", "#7E8698"], -2.6, 2.6); g.fill(fr); stroke(g, fr, "rgba(38,33,92,0.7)", 0.4);
       for (const y of [-12, -10.6]) line(g, "rgba(80,85,110,0.7)", -2.6, y, 2.6, y, 0.3);
@@ -7135,8 +7194,11 @@
     const P = { ...T, hL0: T.hL[0], hL1: T.hL[1], hR0: T.hR[0], hR1: T.hR[1] };
     const c = cpuCanvas(); c.width = c.height = Math.round(size * dpr);
     const pet = look.pet && look.pet !== "nenhum" && size >= SMALL, wide = (look.back && look.back !== "nada") || look.aura === "holofote" || look.aura === "fogos" || look.aura === "supernova";
-    const g = c.getContext("2d"), k = c.width / 100, fit = pet || wide ? 0.76 : mood === "present" ? 0.78 : 0.9;      // cabe a mão para o alto (e o companheiro) dentro da caixa
-    g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2 + (pet ? k * 7 : 0), c.width * (1 - fit) / 2 + k * (pet ? 1 : mood === "present" ? 5 : 2));
+    // cabe a mão para o alto (e o companheiro) dentro da caixa; com item na mão, mais longe e puxado para a
+    // direita, porque o item sai para a esquerda e para cima da mão e era cortado pela borda
+    const held = look.hand && look.hand !== "nenhum";
+    const g = c.getContext("2d"), k = c.width / 100, fit = held ? (pet || wide ? 0.64 : 0.68) : pet || wide ? 0.76 : mood === "present" ? 0.78 : 0.9;
+    g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2 + (pet ? k * 7 : 0) + (held ? k * 9 : 0), c.width * (1 - fit) / 2 + k * (pet ? 1 : mood === "present" ? 5 : 2) + (held ? k * 4 : 0));
     if (zoom) { g.setTransform(k * zoom, 0, 0, k * zoom, -k * zoom * zx + c.width / 2, -k * zoom * zy + c.width / 2); }
     drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: !zoom && size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
     const url = c.toDataURL("image/png"); STATIC.set(key, url); return url;

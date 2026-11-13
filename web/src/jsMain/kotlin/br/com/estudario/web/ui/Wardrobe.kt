@@ -145,7 +145,7 @@ private fun focus(slot: FolhaSlot): Triple<Double, Int, Int>? = when (slot) {
     FolhaSlot.PAGINAS -> Triple(1.25, 50, 63)
     FolhaSlot.TINTA, FolhaSlot.BOCHECHAS -> Triple(1.75, 50, 63)
     FolhaSlot.PESCOCO -> Triple(1.45, 50, 76)
-    FolhaSlot.MAO -> Triple(1.6, 7, 30)
+    FolhaSlot.MAO -> Triple(1.25, 6, 34) // de longe o bastante para o item inteiro caber
     FolhaSlot.FITA -> Triple(2.4, 53, 91)
     FolhaSlot.COMPANHEIRO -> Triple(1.45, -4, 80)
     else -> null
