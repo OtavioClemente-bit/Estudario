@@ -1,3 +1,4 @@
+import { readLibraryJson } from "./arquivos.ts";
 // Confere que as ligações tópico do edital → matéria continuam entregando a mesma coisa.
 //   ... conferir-ligacoes.ts --foto <arquivo>      guarda o resultado de N apelidos (antes)
 //   ... conferir-ligacoes.ts --comparar <arquivo>  refaz as mesmas buscas e compara (depois)
@@ -22,7 +23,7 @@ async function file(p: string | null | undefined): Promise<unknown> {
   if (!p) return null;
   const r = await fetch(`${url}/storage/v1/object/library/${p.split("/").map(encodeURIComponent).join("/")}`, { headers });
   if (!r.ok) throw new Error(`arquivo ${p}: ${r.status}`);
-  return await r.json();
+  return await readLibraryJson(r);
 }
 async function probe(alias: string, board: string): Promise<Probe> {
   const r = await fetch(`${url}/rest/v1/rpc/library_lookup`, { method: "POST", headers, body: JSON.stringify({ p_aliases: [alias], p_board: board, p_role: "" }) });

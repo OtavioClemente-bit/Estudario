@@ -40,3 +40,12 @@ export async function uploadLibraryFile(url: string, key: string, path: string, 
   if (!response.ok) throw new Error(`arquivo ${path}: ${response.status} ${await response.text()}`);
   await response.body?.cancel().catch(() => {});
 }
+
+/** Lê o JSON de um arquivo baixado da biblioteca, compactado com gzip ou não (decide pelos dois primeiros bytes). */
+export async function readLibraryJson(response: Response): Promise<unknown> {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const raw = bytes[0] === 0x1f && bytes[1] === 0x8b
+    ? new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer())
+    : bytes;
+  return JSON.parse(new TextDecoder().decode(raw));
+}
