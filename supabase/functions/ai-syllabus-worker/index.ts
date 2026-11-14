@@ -1233,6 +1233,15 @@ export const TEXT_QUEUE: WorkerQueue = {
   requireSource: false,
 };
 
+/** Lê um arquivo da biblioteca, compactado com gzip ou não (decide pelos dois primeiros bytes). */
+async function readLibraryJson(response: Response): Promise<unknown> {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const raw = bytes[0] === 0x1f && bytes[1] === 0x8b
+    ? new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer())
+    : bytes;
+  return JSON.parse(new TextDecoder().decode(raw));
+}
+
 export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   private readonly fetcher: typeof fetch;
   private readonly workerOwner: string;
@@ -1402,9 +1411,8 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       return null;
     }
     // Arquivos ".gz" estão compactados com gzip (14/11: o bucket passou do limite do plano grátis).
-    const value = (path.endsWith(".gz")
-      ? JSON.parse(await new Response(response.body!.pipeThrough(new DecompressionStream("gzip"))).text())
-      : await response.json()) as Record<string, unknown>;
+    // Pelos bytes, não pelo nome: o servidor pode já entregar descompactado.
+    const value = await readLibraryJson(response) as Record<string, unknown>;
     if (SupabaseSyllabusWorkerStore.libraryFiles.size > 200) SupabaseSyllabusWorkerStore.libraryFiles.clear();
     SupabaseSyllabusWorkerStore.libraryFiles.set(path, value);
     return value;
