@@ -1401,7 +1401,10 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       await response.body?.cancel().catch(() => {});
       return null;
     }
-    const value = await response.json() as Record<string, unknown>;
+    // Arquivos ".gz" estão compactados com gzip (14/11: o bucket passou do limite do plano grátis).
+    const value = (path.endsWith(".gz")
+      ? JSON.parse(await new Response(response.body!.pipeThrough(new DecompressionStream("gzip"))).text())
+      : await response.json()) as Record<string, unknown>;
     if (SupabaseSyllabusWorkerStore.libraryFiles.size > 200) SupabaseSyllabusWorkerStore.libraryFiles.clear();
     SupabaseSyllabusWorkerStore.libraryFiles.set(path, value);
     return value;

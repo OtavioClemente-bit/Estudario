@@ -26,3 +26,8 @@ SUPABASE_URL="https://$REF.supabase.co" SUPABASE_SERVICE_ROLE_KEY="$KEY" \
 SUPABASE_URL="https://$REF.supabase.co" SUPABASE_SERVICE_ROLE_KEY="$KEY" \
   deno run --allow-read --allow-env --allow-net --allow-write=work scripts/biblioteca/recortes-magros.ts --gravar \
   || echo "Aviso: não deu para atualizar a lista de recortes magros." >&2
+
+# Cada publicação grava arquivos novos no bucket "library"; os antigos (sem uso há mais de 6 horas) saem aqui,
+# para o armazenamento não passar de 1,1 GB do plano grátis (14/11/2026). Falhar aqui não desfaz nada.
+deno run -A scripts/biblioteca/limpar-arquivos.ts --apagar \
+  || echo "Aviso: não deu para limpar os arquivos antigos da biblioteca." >&2

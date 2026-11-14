@@ -216,7 +216,10 @@ export function serviceDeps(url: string, key: string): RefreshDeps {
       if (!path) return null;
       if (files.has(path)) return files.get(path)!;
       const response = await fetch(`${url}/storage/v1/object/library/${path.split("/").map(encodeURIComponent).join("/")}`, { headers: { apikey: key, authorization: `Bearer ${key}` } });
-      const value = response.ok ? await response.json() as Json : null;
+      // Arquivos ".gz" estão compactados com gzip (14/11: o bucket passou do limite do plano grátis).
+      const value = !response.ok ? null : path.endsWith(".gz")
+        ? JSON.parse(await new Response(response.body!.pipeThrough(new DecompressionStream("gzip"))).text()) as Json
+        : await response.json() as Json;
       if (!response.ok) await response.body?.cancel().catch(() => {});
       files.set(path, value);
       return value;

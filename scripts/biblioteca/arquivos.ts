@@ -16,23 +16,26 @@ export function contentHash(value: unknown): string {
 
 /** Caminho do arquivo da matéria. */
 export function topicPath(id: string, version: number, material: unknown): string {
-  return `topics/${id}/v${version}-${contentHash(material)}.json`;
+  return `topics/${id}/v${version}-${contentHash(material)}.json.gz`;
 }
 
 /** Caminho do arquivo do recorte (banca e cargo viram partes seguras do nome). */
 export function notePath(topic: string, boardNorm: string, roleNorm: string, note: unknown): string {
   const safe = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "geral";
-  return `notes/${topic}/${safe(boardNorm)}/${safe(roleNorm)}-${contentHash(note)}.json`;
+  return `notes/${topic}/${safe(boardNorm)}/${safe(roleNorm)}-${contentHash(note)}.json.gz`;
 }
 
 /** Envia (ou substitui) um arquivo da biblioteca. */
 export async function uploadLibraryFile(url: string, key: string, path: string, value: unknown): Promise<void> {
+  // Caminho ".gz": o arquivo vai compactado com gzip (14/11: o bucket passou de 1,1 GB do plano grátis). Compactado,
+  // o firewall não enxerga mais os exemplos de ataque, mas o escape continua por segurança (JSON idêntico ao ler).
+  const text = JSON.stringify(value).replace(/[<>'();=|&`/]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
+  const gz = path.endsWith(".gz");
+  const body = gz ? new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer()) : text;
   const response = await fetch(`${url}/storage/v1/object/library/${path.split("/").map(encodeURIComponent).join("/")}`, {
     method: "POST",
     headers: { apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json", "x-upsert": "true", "cache-control": "max-age=31536000" },
-    // O firewall da Cloudflare na frente do Supabase recusava (403) matérias com exemplos de ataque (OWASP, SQL
-    // injection, XSS). Esses sinais só aparecem dentro de strings no JSON e viram \uXXXX: o JSON lido é idêntico.
-    body: JSON.stringify(value).replace(/[<>'();=|&`/]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")),
+    body,
   });
   if (!response.ok) throw new Error(`arquivo ${path}: ${response.status} ${await response.text()}`);
   await response.body?.cancel().catch(() => {});
