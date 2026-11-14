@@ -1,0 +1,633 @@
+{
+  "id": "aprendizado-maquina.selecao-caracteristicas-reducao-dimensionalidade",
+  "subject": "Informática",
+  "title": "Aprendizado de máquina: seleção de características e redução de dimensionalidade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Seleção de características e análise de componentes principais (PCA)",
+    "Seleção de características em aprendizado de máquina",
+    "Redução de dimensionalidade em aprendizado de máquina",
+    "Análise de componentes principais PCA",
+    "PCA e seleção de variáveis preditoras",
+    "Métodos filtro wrapper e embutidos",
+    "Seleção univariada de características",
+    "Eliminação recursiva de características RFE",
+    "Variância explicada por componentes principais",
+    "Pré-processamento com PCA e validação cruzada"
+  ],
+  "scope": {
+    "covers": "Seleção de características e redução de dimensionalidade em aprendizado de máquina: motivação e distinção entre selecionar variáveis originais e construir representações; métodos filtro, wrapper e embutidos; variância, testes univariados, informação mútua, seleção recursiva e importância de modelos; PCA, centralização, padronização, covariância, autovetores, componentes ortogonais, variância explicada, escolha do número de componentes, projeção e limitações; prevenção de vazamento de dados com pipelines e validação cruzada.",
+    "excludes": "Demonstrações matemáticas completas de álgebra linear, análise fatorial, LDA, t-SNE, UMAP, seleção de modelos e implementação detalhada em bibliotecas específicas."
+  },
+  "theoryTitle": "Escolher variáveis ou construir componentes",
+  "chapters": [
+    {
+      "title": "1. Por que reduzir características",
+      "markdown": "### O problema que este assunto resolve\n\nUma base pode ter centenas de colunas, embora muitas sejam repetidas, pouco informativas ou irrelevantes para prever o alvo. Isso aumenta custo de coleta e treinamento, dificulta interpretação e pode favorecer ajuste excessivo. Reduzir a representação pode ajudar, mas não garante melhor desempenho: a decisão precisa ser avaliada no problema e em dados que não participaram do ajuste.\n\n> **Siglas e termos deste capítulo**\n> - **Característica (feature)**: coluna preditora que descreve cada observação.\n> - **Alvo (target)**: resultado que se quer prever; costuma ser representado por `y`.\n> - **Dimensionalidade**: número de características usadas para representar cada amostra.\n> - **Vazamento de dados**: uso, durante o treinamento, de informação que deveria estar isolada para avaliação.\n\n### Seleção e extração são operações diferentes\n\nNa **seleção**, escolhem-se algumas colunas existentes. Se a base tem idade, renda e tempo de emprego e se mantêm idade e renda, essas variáveis continuam com significado original. Na **extração**, combina-se a informação de várias colunas para criar novas coordenadas. O PCA, por exemplo, produz componentes que são combinações lineares das colunas originais.\n\n| Operação | Resultado | Exemplo |\n| --- | --- | --- |\n| Seleção de características | Subconjunto das colunas originais | Manter idade e renda, remover código de cadastro |\n| Extração ou redução por projeção | Novas colunas calculadas | Substituir medidas correlacionadas por componentes principais |\n\nA seleção tende a preservar a leitura direta dos atributos. A projeção pode comprimir informação redundante, mas torna a interpretação menos imediata.\n\n### O que medir\n\nNão se escolhe um método só porque reduz colunas. Compare desempenho preditivo, custo, estabilidade da seleção e facilidade de explicar decisões. Uma coluna de baixa variância pode ainda separar classes raras; uma variável individualmente fraca pode ser útil em interação com outra. Portanto, regras simples são filtros úteis, não verdades universais.\n\n### Como cai na prova\n\n- Se as colunas mantidas são atributos originais, trata-se de seleção.\n- Se os novos atributos são combinações calculadas, trata-se de extração, como no PCA.\n- Reduzir dimensionalidade não significa necessariamente descartar observações, nem implica melhora automática da acurácia."
+    },
+    {
+      "title": "2. Famílias de seleção de características",
+      "markdown": "### O problema que este assunto resolve\n\nO método de seleção precisa dizer como pontuar as colunas e quando considerar a relação entre elas. Uma classificação comum separa filtros, wrappers e métodos embutidos no modelo.\n\n> **Siglas e termos deste capítulo**\n> - **Filtro (filter)**: pontua características antes do treinamento do estimador final.\n> - **Wrapper**: avalia subconjuntos treinando repetidamente um estimador.\n> - **Embutido (embedded)**: seleciona ou penaliza características durante o ajuste do modelo.\n> - **RFE**: eliminação recursiva de características, guiada por importância estimada por um modelo.\n\n### Filtros: pontuar antes do modelo final\n\nFiltros usam propriedades estatísticas dos dados. Um limiar de variância remove colunas constantes ou quase constantes, sem consultar o alvo. Em seleção univariada supervisionada, cada característica é pontuada em relação a `y` separadamente; `SelectKBest` retém as k maiores pontuações e `SelectPercentile` retém uma porcentagem. Testes F podem medir dependência linear sob suas hipóteses; informação mútua pode capturar dependências não lineares, mas sua estimação exige amostra adequada. Qui-quadrado é apropriado para características não negativas, como contagens, e não deve ser aplicado indistintamente a valores negativos.\n\nA análise univariada ignora interações entre colunas. Duas características redundantes podem ambas receber pontuação alta, enquanto uma característica que só é útil em combinação pode parecer fraca sozinha.\n\n### Wrappers: testar conjuntos\n\nUm wrapper treina o modelo para comparar conjuntos candidatos. Na seleção sequencial para frente, começa-se com poucas colunas e acrescenta-se a que melhora a avaliação; na seleção para trás, parte-se do conjunto e remove-se uma de cada vez. RFE ajusta um estimador, elimina as características menos importantes e repete até atingir a quantidade desejada. RFECV usa validação cruzada para ajudar a escolher essa quantidade. Wrappers podem refletir melhor o estimador escolhido, mas custam mais e podem sobreajustar se a avaliação não for corretamente separada.\n\n### Métodos embutidos\n\nModelos com regularização L1 podem levar coeficientes a zero; árvores e florestas fornecem importâncias que podem servir de critério. Essas importâncias dependem da família de modelo e dos dados: não são uma medida causal nem uma garantia de relevância universal. Em atributos correlacionados, a importância pode se dividir ou se concentrar em uma variável arbitrariamente.\n\n### Como cai na prova\n\n- Variância é filtro não supervisionado: não precisa do alvo.\n- `SelectKBest` seleciona um número fixo segundo uma função de pontuação; não cria combinações.\n- RFE depende de estimador com informação de importância e elimina repetidamente as menos relevantes."
+    },
+    {
+      "title": "3. PCA: componentes principais e variância",
+      "markdown": "### O problema que este assunto resolve\n\nQuando muitas medidas variam juntas, é possível representar sua variação com menos eixos. A análise de componentes principais (PCA) constrói direções ortogonais que capturam, em sequência, a maior variância possível restante. É uma transformação não supervisionada: o ajuste do PCA usa a matriz de características `X`, sem otimizar diretamente a previsão de `y`.\n\n> **Siglas e termos deste capítulo**\n> - **PCA**: *Principal Component Analysis*, análise de componentes principais.\n> - **Componente principal**: combinação linear das características originais, definida por uma direção no espaço dos dados.\n> - **Autovetor**: direção associada a um autovalor de uma matriz quadrada, como a covariância.\n> - **Variância explicada**: parcela da variação dos dados atribuída a um componente.\n\n### Intuição geométrica e cálculo\n\nPrimeiro, centralizam-se os dados: de cada valor subtrai-se a média da respectiva coluna. A matriz de covariância resume variâncias e covariâncias. Seus autovetores indicam direções principais; os autovalores associados quantificam a variância nessas direções. Ordenam-se as direções do maior para o menor autovalor. A primeira componente maximiza a variância projetada; as seguintes maximizam a variância restante sob a condição de serem ortogonais às anteriores.\n\nCada componente é uma combinação ponderada das características originais. O sinal de um autovetor pode ser invertido sem mudar a direção nem a variância explicada. Componentes diferentes são ortogonais na representação calculada, mas isso não significa que cada componente corresponda a uma variável original ou tenha interpretação causal.\n\n### Escala e padronização\n\nO PCA clássico aplicado diretamente aos dados centraliza as colunas, mas não as padroniza automaticamente. Se renda varia em milhares e idade em dezenas, a escala maior pode dominar a covariância. Quando as unidades e amplitudes não devem determinar o peso, é comum padronizar as colunas antes do PCA; essa decisão depende do significado dos dados. Padronizar também altera o que “variância” significa, então não é uma etapa neutra.\n\n### Variância explicada e escolha de componentes\n\nA razão de variância explicada de uma componente é sua variância dividida pela soma das variâncias representadas por todas as componentes. A soma acumulada das primeiras componentes mostra quanta variação da base foi preservada pela projeção. Pode-se definir um limiar acumulado ou escolher a quantidade por validação de desempenho e custo. Preservar muita variância não garante preservar justamente o sinal preditivo: uma direção de baixa variância pode separar bem o alvo.\n\n### Como cai na prova\n\n- Componentes são combinações lineares e ordenadas pela variância explicada, não por associação com o alvo.\n- PCA reduz dimensionalidade ao projetar nas primeiras componentes.\n- A centralização faz parte do PCA descrito; a padronização precisa ser decidida e aplicada explicitamente quando necessária."
+    },
+    {
+      "title": "4. Usar PCA sem perder o controle do experimento",
+      "markdown": "### O problema que este assunto resolve\n\nO PCA aprende médias, direções e escalas a partir dos dados de ajuste. Se essas estatísticas forem calculadas também com dados reservados para teste, a avaliação deixa de simular uma aplicação futura. O mesmo princípio vale para qualquer seletor que olha para as características ou para o alvo.\n\n> **Siglas e termos deste capítulo**\n> - **Treino**: partição usada para ajustar transformações e estimador.\n> - **Teste**: partição mantida para estimar desempenho final.\n> - **Validação cruzada**: repetição de ajuste e avaliação em partições distintas.\n> - **Pipeline**: sequência de transformadores e estimador ajustada como um fluxo único.\n\n### Ajuste, transformação e projeção\n\nO PCA ajustado no treino guarda as médias e componentes aprendidas. Para novas amostras, usa-se a mesma centralização e projeta-se nos mesmos eixos; não se recalculam componentes para cada lote de teste ou produção. Em bibliotecas como scikit-learn, `fit` aprende a transformação, `transform` a aplica e `fit_transform` combina as etapas no conjunto de ajuste. A saída passa a ter uma coluna por componente retida.\n\nPara estimar a qualidade, divida os dados antes de ajustar pré-processamentos. Ajuste imputação, padronização, seleção e PCA apenas dentro de cada partição de treino; avalie a transformação já aprendida na partição de validação. Um pipeline permite que a validação cruzada refaça essas etapas em cada dobra. Se a seleção supervisionada consultar o alvo de todo o conjunto antes da divisão, há vazamento ainda que o estimador final veja apenas o treino.\n\n### Limites e escolhas práticas\n\nPCA é linear e privilegia variância, não necessariamente separação entre classes. Ao descartar componentes, perde-se informação; a transformação completa pode ser invertida no caso ideal, mas uma projeção truncada só reconstrói uma aproximação. A ortogonalidade das componentes não elimina toda dependência relevante nem torna os dados automaticamente adequados a qualquer estimador.\n\nPCA tradicional em lote exige que os dados usados no ajuste caibam na memória. Para fluxos grandes, variantes incrementais processam lotes. Também há variantes esparsas, mas elas mudam a formulação e não devem ser confundidas com o PCA padrão.\n\n### Como cai na prova\n\n- Ajustar PCA no conjunto completo antes da divisão contamina a avaliação.\n- O conjunto de teste recebe `transform` a partir dos parâmetros aprendidos no treino.\n- Escolher componentes por variância explicada é critério de compressão, não prova de melhor classificação."
+    },
+    {
+      "title": "5. Seleção ou PCA: decidir pelo objetivo",
+      "markdown": "### O problema que este assunto resolve\n\nA escolha entre seleção de atributos e PCA depende do tipo de resultado necessário. Quando a equipe precisa apontar colunas concretas para auditoria, custo de coleta ou intervenção, a seleção mantém nomes e unidades. Quando há redundância e o objetivo é obter uma representação compacta, PCA pode condensar variação em eixos novos.\n\n> **Siglas e termos deste capítulo**\n> - **Interpretabilidade**: facilidade de explicar como as entradas se relacionam com a decisão do modelo.\n> - **Colinearidade**: relação linear entre características, que pode tornar estimativas instáveis.\n> - **Reconstrução**: aproximação das observações originais a partir da representação reduzida.\n\n### Comparação de uso\n\n| Critério | Seleção | PCA |\n| --- | --- | --- |\n| Colunas de saída | Algumas colunas originais | Componentes calculadas |\n| Uso direto do alvo | Pode usar, conforme o método | Não no PCA padrão |\n| Interpretação | Mantém nomes e unidades | Pesos combinam atributos |\n| Redundância correlacionada | Pode manter colunas parecidas | Pode resumir covariação |\n| Perda | Descarta colunas não escolhidas | Descarta direções ao truncar |\n\nPara seleção supervisionada, o alvo precisa estar disponível no treinamento; em produção, não se usa o alvo futuro para escolher atributos. Para PCA, os dados precisam estar representados numericamente e o tratamento de ausências e categorias deve preceder a decomposição. Codificação de categorias pode gerar muitas colunas, mas componentes resultantes não ganham automaticamente uma interpretação simples.\n\n### Roteiro de trabalho\n\nDefina primeiro a métrica e a necessidade de explicação. Separe treino e teste; construa dentro do pipeline o tratamento de dados, a seleção ou o PCA e o modelo. Escolha limiares ou hiperparâmetros por validação no treino, compare com uma linha de base sem redução e só então avalie uma vez no teste reservado. Registre quais atributos foram selecionados ou quais componentes foram retidas e a variância acumulada.\n\n### Como cai na prova\n\n- Alta correlação entre atributos pode motivar PCA; exigência de manter variáveis reconhecíveis favorece seleção.\n- Um seletor e um PCA são transformadores de dados, mas fazem operações conceitualmente distintas.\n- Nem filtro, nem RFE, nem PCA elimina a necessidade de validação correta e conhecimento do domínio."
+    }
+  ],
+  "summary": "Seleção de características mantém um subconjunto de colunas originais; redução por PCA constrói componentes como combinações lineares e projeta os dados em menos eixos. Seletores podem ser filtros (variância, testes univariados e informação mútua), wrappers (busca sequencial, RFE/RFECV) ou embutidos (regularização e importâncias de modelos). Filtros univariados ignoram interações; wrappers custam mais; importâncias dependem do modelo. PCA centraliza os dados, encontra direções ortogonais ordenadas pela variância explicada e não consulta o alvo. PCA padrão não padroniza as escalas automaticamente. A variância acumulada ajuda a escolher componentes, mas não garante preservar sinal preditivo. Ajuste transformações apenas no treino e dentro da validação cruzada; aplique depois os parâmetros aprendidos ao teste e a novos dados para evitar vazamento.",
+  "flashcards": [
+    {"front":"Qual é a diferença central entre seleção e extração de características?","back":"Seleção conserva colunas originais escolhidas; extração cria novas representações calculadas, como componentes do PCA."},
+    {"front":"O que faz um filtro de variância?","back":"Remove colunas com variância abaixo de um limiar, sem consultar o alvo; o padrão simples remove colunas constantes."},
+    {"front":"O que o SelectKBest retém?","back":"As k características com maiores pontuações segundo a função univariada escolhida."},
+    {"front":"Qual é a limitação de um teste univariado?","back":"Avalia cada atributo isoladamente e pode não detectar interações ou redundâncias entre colunas."},
+    {"front":"Quando o qui-quadrado é adequado na seleção?","back":"Em características não negativas, como frequências ou contagens, conforme o teste de associação empregado."},
+    {"front":"O que diferencia métodos wrapper?","back":"Eles avaliam subconjuntos treinando repetidamente um estimador, o que tende a elevar o custo computacional."},
+    {"front":"Como funciona RFE?","back":"Ajusta um estimador com importância de atributos, elimina os menos importantes e repete até o tamanho desejado."},
+    {"front":"O que acrescenta RFECV ao RFE?","back":"Usa validação cruzada para ajudar a determinar quantas características manter."},
+    {"front":"Dê um exemplo de seleção embutida.","back":"Regularização L1 pode zerar coeficientes; importâncias de árvores também podem orientar uma seleção."},
+    {"front":"PCA padrão usa o alvo para encontrar componentes?","back":"Não. PCA é não supervisionado e ajusta seus eixos usando a matriz de características X."},
+    {"front":"O que maximiza a primeira componente principal?","back":"A variância das projeções dos dados na direção escolhida."},
+    {"front":"O que representam autovetores e autovalores da covariância no PCA?","back":"Autovetores são direções principais; autovalores associados quantificam a variância nessas direções."},
+    {"front":"Como são as componentes principais entre si?","back":"São ortogonais na representação obtida pelo PCA padrão."},
+    {"front":"PCA centraliza e padroniza automaticamente?","back":"Centraliza as características, mas não padroniza suas escalas automaticamente."},
+    {"front":"O que indica a variância explicada acumulada?","back":"A fração da variância total representada pelo conjunto das primeiras componentes retidas."},
+    {"front":"Muita variância explicada garante melhor classificação?","back":"Não. Uma direção de baixa variância pode conter sinal importante para distinguir o alvo."},
+    {"front":"Como usar PCA em amostras novas?","back":"Aplicar a centralização e os componentes aprendidos no treino, sem reajustá-los nas novas amostras."},
+    {"front":"O que é vazamento ao ajustar PCA antes da divisão treino/teste?","back":"As estatísticas do teste influenciam os componentes, tornando a estimativa de desempenho contaminada."},
+    {"front":"Qual papel do pipeline na validação cruzada?","back":"Refazer pré-processamento e seleção dentro de cada dobra de treino e aplicar a transformação na dobra validada."},
+    {"front":"A projeção truncada por PCA pode ser invertida exatamente?","back":"Em geral não: componentes descartadas representam informação perdida, então a reconstrução é aproximada."}
+  ],
+  "tips": [
+    "Pergunte se as saídas continuam sendo colunas originais: se sim, é seleção; se são combinações novas, pense em PCA.",
+    "Memorize a sequência conceitual do PCA: centralizar, obter direções principais, ordenar pela variância e projetar.",
+    "Ao comparar escala de unidades muito distintas, lembre que PCA padrão não faz padronização automática.",
+    "Associe RFE à poda repetida orientada pela importância de um estimador; RFECV acrescenta validação cruzada.",
+    "Coloque imputação, escala, seleção e PCA dentro do pipeline avaliado, nunca ajustados previamente sobre todos os dados.",
+    "Use variância acumulada como critério de compressão e confirme separadamente o desempenho preditivo."
+  ],
+  "traps": [
+    "PCA não seleciona algumas colunas pelo nome: suas componentes são combinações lineares das entradas.",
+    "Baixa variância não prova irrelevância para o alvo; o filtro de variância não o consulta.",
+    "PCA ordena direções pela variância, não pela capacidade individual de prever classes.",
+    "A centralização do PCA não equivale a colocar todas as colunas na mesma escala.",
+    "RFE não é um filtro independente de modelo: precisa de estimador que forneça importâncias ou coeficientes.",
+    "Calcular seleção ou componentes antes da divisão dos dados pode vazar informação para a avaliação."
+  ],
+  "activeRecall": [
+    {"question":"Explique com um exemplo a diferença entre selecionar colunas e aplicar PCA.","answer":"Selecionar pode manter renda e idade entre as colunas originais; PCA cria eixos como combinações ponderadas dessas medidas e projeta os registros neles."},
+    {"question":"Compare filtro, wrapper e método embutido.","answer":"Filtro pontua atributos antes do modelo final; wrapper testa subconjuntos com ajustes repetidos; método embutido seleciona ou penaliza atributos durante o ajuste do estimador."},
+    {"question":"Por que um atributo quase constante pode ser removido e por que isso exige cuidado?","answer":"Ele oferece pouca variação observada e pode ser pouco informativo, mas pode sinalizar eventos raros ou uma classe minoritária; variância baixa não basta para concluir irrelevância."},
+    {"question":"Descreva como o RFE reduz o conjunto de atributos.","answer":"Ajusta um estimador que revela pesos ou importâncias, elimina os menos importantes e repete o procedimento até alcançar o número configurado."},
+    {"question":"O que significa dizer que as componentes do PCA são ortogonais?","answer":"As direções da projeção são perpendiculares entre si no espaço transformado; isso não as torna variáveis originais nem relações causais."},
+    {"question":"Por que padronizar pode mudar o PCA?","answer":"A covariância depende das unidades; padronização equaliza escalas e muda o peso relativo das variáveis, portanto altera as direções encontradas."},
+    {"question":"Como evitar vazamento ao testar um seletor supervisionado?","answer":"Separar os dados, ajustar pontuações usando apenas o treino de cada dobra e aplicar a seleção aprendida na validação por meio de um pipeline."},
+    {"question":"Por que alta variância explicada pode coexistir com baixa qualidade preditiva?","answer":"PCA preserva variação de X, não maximiza associação com y; a informação discriminante pode estar numa direção de variância pequena."}
+  ],
+  "errorConcepts": [
+    {"key":"e1","title":"Confundir seleção com projeção","summary":"Seleção conserva características originais; PCA constrói componentes lineares e substitui as coordenadas originais pela projeção."},
+    {"key":"e2","title":"Tratar variância como relevância para o alvo","summary":"Filtros de variância são não supervisionados; baixa variância não prova ausência de utilidade preditiva."},
+    {"key":"e3","title":"Supor que PCA sempre escala as colunas","summary":"PCA padrão centraliza, mas não padroniza automaticamente; unidades distintas podem dominar a covariância."},
+    {"key":"e4","title":"Ajustar pré-processamento antes da avaliação","summary":"Ajustar seletor, escala ou PCA em dados de teste causa vazamento; ajuste as transformações no treino de cada dobra."},
+    {"key":"e5","title":"Interpretar variância explicada como acurácia","summary":"PCA ordena componentes pela variação de X, não pela capacidade de prever y; compare o modelo com validação apropriada."}
+  ],
+  "questions": [
+    {
+      "statement":"Uma equipe precisa reduzir as colunas de um conjunto sem perder os nomes e as unidades dos atributos mantidos. Qual abordagem atende diretamente a esse requisito?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Aplicar PCA e renomear os componentes com os nomes das colunas de maior peso.","correct":false},
+        {"key":"B","text":"Selecionar um subconjunto das características originais e descartar as demais.","correct":true},
+        {"key":"C","text":"Projetar os dados em autovetores e interpretar cada eixo como uma coluna preservada.","correct":false},
+        {"key":"D","text":"Padronizar todas as colunas e manter o mesmo conjunto completo no treinamento.","correct":false},
+        {"key":"E","text":"Aumentar a regularização do estimador sem alterar a matriz de entrada.","correct":false}
+      ],
+      "explanation":"A seleção conserva algumas colunas originais, mantendo seus significados e unidades. PCA e outras projeções criam coordenadas novas; renomear componentes não as transforma em atributos originais. Padronização e regularização, por si, não reduzem necessariamente a matriz de entrada.",
+      "section":"1. Por que reduzir características","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um conjunto tem duas medidas altamente correlacionadas e a equipe aceita substituir as colunas por eixos combinados para comprimir a representação. Qual técnica é mais diretamente adequada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Seleção por variância, que combina as colunas correlacionadas em uma nova medida.","correct":false},
+        {"key":"B","text":"RFE, que transforma cada par de atributos em uma componente ortogonal.","correct":false},
+        {"key":"C","text":"PCA, que projeta os dados em combinações lineares ordenadas pela variância.","correct":true},
+        {"key":"D","text":"Qui-quadrado, que calcula eixos contínuos sem considerar o alvo ou a escala.","correct":false},
+        {"key":"E","text":"SelectKBest, que substitui as colunas melhor pontuadas por médias ponderadas.","correct":false}
+      ],
+      "explanation":"PCA constrói combinações lineares e pode resumir covariação em menos eixos. RFE e SelectKBest escolhem atributos existentes; um filtro de variância remove colunas por dispersão, não cria componentes. Qui-quadrado é um teste de pontuação, não uma projeção.",
+      "section":"1. Por que reduzir características","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma coluna tem exatamente o mesmo valor em todas as observações. O que faz o filtro de variância padrão descrito na documentação do scikit-learn?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Remove a coluna por variância zero, sem precisar consultar o alvo.","correct":true},
+        {"key":"B","text":"Mantém a coluna porque a média constante indica efeito estável sobre o alvo.","correct":false},
+        {"key":"C","text":"Converte a coluna em uma componente principal antes de avaliar sua dispersão.","correct":false},
+        {"key":"D","text":"Remove todas as observações em que essa coluna aparece repetida.","correct":false},
+        {"key":"E","text":"Calcula a importância da coluna com uma floresta e a mantém se houver empate.","correct":false}
+      ],
+      "explanation":"Uma coluna constante tem variância igual a zero e é removida pelo limiar padrão do filtro, que opera sem usar o alvo. O filtro não calcula importância por floresta, não transforma valores em componentes e não elimina observações.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma analista quer reter exatamente as dez colunas com maiores pontuações calculadas por uma função univariada. Qual ferramenta corresponde a essa regra?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"VarianceThreshold, configurado para produzir sempre dez colunas.","correct":false},
+        {"key":"B","text":"PCA, com dez componentes construídas a partir de todas as entradas.","correct":false},
+        {"key":"C","text":"RFECV, que usa apenas pontuações univariadas e não ajusta estimador.","correct":false},
+        {"key":"D","text":"SelectKBest, que conserva as k maiores pontuações da função escolhida.","correct":true},
+        {"key":"E","text":"SelectFromModel, que ordena colunas por variância explicada acumulada.","correct":false}
+      ],
+      "explanation":"SelectKBest retém a quantidade k definida pelo usuário, de acordo com os escores fornecidos. VarianceThreshold usa um limiar de variância; PCA constrói combinações; RFECV e SelectFromModel dependem de estimadores ou critérios diferentes.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma base de textos representa termos por contagens não negativas, e a equipe pretende aplicar teste qui-quadrado para pontuar atributos em relação às classes. Qual avaliação é correta?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"É inadequado porque o qui-quadrado exige que toda característica tenha média zero.","correct":false},
+        {"key":"B","text":"É apropriado ao requisito de não negatividade, observadas as condições do teste.","correct":true},
+        {"key":"C","text":"É inadequado porque testes univariados só podem ser usados em regressão contínua.","correct":false},
+        {"key":"D","text":"É apropriado apenas depois que PCA converte as contagens em eixos negativos.","correct":false},
+        {"key":"E","text":"É obrigatório substituir as contagens por importâncias calculadas por RFE.","correct":false}
+      ],
+      "explanation":"A documentação aponta o qui-quadrado para características não negativas, como frequências. Isso não dispensa as condições estatísticas do teste. Média zero, conversão por PCA e RFE não são requisitos desse filtro; há também funções univariadas próprias para classificação e regressão.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma equipe quer eliminar repetidamente os atributos menos importantes segundo os coeficientes de um estimador até alcançar uma quantidade definida. Que procedimento descreve esse plano?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"PCA, que apaga recursivamente colunas com autovalores pequenos e reajusta a importância do estimador após cada exclusão.","correct":false},
+        {"key":"B","text":"SelectPercentile, que refaz o modelo após cada remoção individual.","correct":false},
+        {"key":"C","text":"RFE, que ajusta o estimador e remove atributos menos importantes em ciclos.","correct":true},
+        {"key":"D","text":"VarianceThreshold, que usa coeficientes supervisionados para ordenar as colunas.","correct":false},
+        {"key":"E","text":"Whitening, que zera os coeficientes menos importantes no espaço original.","correct":false}
+      ],
+      "explanation":"RFE ajusta um estimador que fornece coeficientes ou importâncias, poda os atributos menos importantes e repete até atingir o tamanho solicitado. SelectPercentile pontua percentualmente; filtro de variância não usa coeficientes; PCA e whitening transformam coordenadas de outra maneira.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Ao aplicar PCA padrão a colunas numéricas, qual pré-processamento o algoritmo realiza, conforme a documentação de referência?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Centraliza as colunas, mas não as padroniza automaticamente por escala.","correct":true},
+        {"key":"B","text":"Padroniza cada coluna e também converte toda distribuição em normal.","correct":false},
+        {"key":"C","text":"Ordena as colunas por nome antes de calcular a variância explicada.","correct":false},
+        {"key":"D","text":"Subtrai a média de cada linha, preservando médias originais por coluna.","correct":false},
+        {"key":"E","text":"Normaliza a variância de todos os componentes para zero antes da projeção.","correct":false}
+      ],
+      "explanation":"PCA centraliza os dados por característica antes da decomposição, mas não escala cada característica automaticamente. Padronização é uma transformação adicional que pode ser pertinente quando as unidades diferem; PCA não força normalidade das distribuições.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em PCA, que propriedade caracteriza a primeira componente principal em relação às projeções dos dados centralizados?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"É a direção que maximiza a variância projetada entre as direções possíveis.","correct":true},
+        {"key":"B","text":"É a coluna original com maior correlação absoluta com o rótulo de classe.","correct":false},
+        {"key":"C","text":"É a direção que minimiza a variância e maximiza diretamente a acurácia.","correct":false},
+        {"key":"D","text":"É sempre a característica medida na unidade numérica de maior amplitude.","correct":false},
+        {"key":"E","text":"É a variável que apresenta menor autovalor na matriz de covariância.","correct":false}
+      ],
+      "explanation":"A primeira componente é a direção de máxima variância das projeções. O PCA padrão não consulta o rótulo de classe, e sua ordenação não é por acurácia ou menor autovalor. A escala pode influenciar o resultado, mas não define por si só a componente como uma coluna original.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma componente explica 60% da variância total e a seguinte explica 25%. Quanto explicam juntas as duas primeiras componentes?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"35%, pois a parcela menor deve ser subtraída da maior.","correct":false},
+        {"key":"B","text":"60%, pois somente a primeira componente entra no acumulado.","correct":false},
+        {"key":"C","text":"85%, pela soma das parcelas explicadas individualmente.","correct":true},
+        {"key":"D","text":"100%, pois componentes ortogonais cobrem sempre toda a variância.","correct":false},
+        {"key":"E","text":"25%, pois a componente posterior substitui a primeira no cálculo.","correct":false}
+      ],
+      "explanation":"A variância explicada acumulada das primeiras componentes é a soma das respectivas razões: 60% mais 25% resulta em 85%. Ortogonalidade não significa que um subconjunto retenha toda a variância; a parte restante fica nas componentes descartadas.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"A equipe quer calcular a transformação uma vez no treino e aplicá-la de forma consistente a registros futuros. Qual uso do PCA é correto?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Recalcular médias e componentes separadamente para cada registro que chegar.","correct":false},
+        {"key":"B","text":"Ajustar no treino e aplicar aos novos dados as médias e direções aprendidas.","correct":true},
+        {"key":"C","text":"Ajustar o PCA com os rótulos futuros de produção e congelar apenas a média.","correct":false},
+        {"key":"D","text":"Transformar o treino e deixar as amostras novas nas colunas originais.","correct":false},
+        {"key":"E","text":"Refazer os eixos em cada lote para que a ordem das componentes acompanhe o alvo.","correct":false}
+      ],
+      "explanation":"O ajuste no treino aprende centralização e componentes; `transform` aplica esses mesmos parâmetros a novas amostras. Reajustar eixos em cada registro ou lote torna as coordenadas inconsistentes, e o PCA padrão não aprende usando rótulos futuros.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Durante uma validação, o PCA foi ajustado antes da separação entre treino e teste. Qual é o principal problema metodológico?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"O teste deixa de ter exatamente a mesma quantidade de linhas que o treino.","correct":false},
+        {"key":"B","text":"A decomposição vira supervisionada porque o PCA recebe uma matriz numérica.","correct":false},
+        {"key":"C","text":"Os parâmetros aprendidos usam informação da partição reservada para avaliação.","correct":true},
+        {"key":"D","text":"As componentes deixam de ser ortogonais sempre que há uma partição de teste.","correct":false},
+        {"key":"E","text":"A validação se torna impossível porque PCA não aceita dados de teste.","correct":false}
+      ],
+      "explanation":"Ajustar o PCA antes da divisão permite que médias e direções sejam influenciadas pelos dados que deveriam simular observações futuras. Isso é vazamento de dados e pode tornar a avaliação otimista. PCA pode ser aplicado ao teste, desde que ajustado somente no treino.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma analista executa SelectKBest usando rótulos de toda a base e só depois separa treino e teste. Por que essa ordem é inadequada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Porque SelectKBest transforma as colunas em componentes e perde seus nomes.","correct":false},
+        {"key":"B","text":"Porque a pontuação supervisionada já usou os rótulos que deveriam ficar isolados.","correct":true},
+        {"key":"C","text":"Porque todo método filtro precisa receber apenas dados não rotulados.","correct":false},
+        {"key":"D","text":"Porque a separação treino/teste só pode ocorrer depois de ajustar o estimador final.","correct":false},
+        {"key":"E","text":"Porque SelectKBest não pode ser usado em conjunto com validação cruzada.","correct":false}
+      ],
+      "explanation":"Uma função supervisionada de pontuação consulta X e y. Se recebe rótulos de toda a base, a escolha de atributos já incorpora informação dos casos de teste antes da avaliação. O seletor deve ser ajustado apenas nos dados de treino de cada dobra, por exemplo dentro de um pipeline.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um analista argumenta que a componente que explica mais variância necessariamente é a que melhor prevê o alvo. Qual conclusão é tecnicamente correta?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"A conclusão é correta, pois PCA ordena os eixos usando a acurácia supervisionada.","correct":false},
+        {"key":"B","text":"A conclusão é correta somente quando as características foram padronizadas.","correct":false},
+        {"key":"C","text":"A conclusão não decorre do PCA, que ordena variação de X sem consultar y.","correct":true},
+        {"key":"D","text":"A conclusão é incorreta porque PCA sempre descarta a primeira componente.","correct":false},
+        {"key":"E","text":"A conclusão é incorreta porque componentes não podem entrar em classificadores.","correct":false}
+      ],
+      "explanation":"O PCA padrão é não supervisionado e escolhe direções pela variância de X. Uma característica de pequena variância pode discriminar classes ou prever o alvo. A relevância preditiva deve ser comparada por avaliação do modelo, e não deduzida da variância explicada.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Duas colunas têm unidades muito diferentes, como reais e anos, e a equipe não quer que a amplitude numérica por si só determine a análise. Qual providência é razoável antes do PCA?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Padronizar as colunas no fluxo de treino e avaliar o efeito dessa escolha.","correct":true},
+        {"key":"B","text":"Excluir a coluna de menor amplitude, pois ela não pode explicar variância relevante.","correct":false},
+        {"key":"C","text":"Somar as unidades de todas as colunas antes de construir a covariância.","correct":false},
+        {"key":"D","text":"Aplicar qui-quadrado, que corrige escalas contínuas antes da decomposição.","correct":false},
+        {"key":"E","text":"Ajustar o PCA em treino e teste juntos para neutralizar diferenças de escala.","correct":false}
+      ],
+      "explanation":"Como PCA padrão não padroniza, escalas amplas podem dominar a covariância. Padronizar pode tornar as colunas comparáveis quando essa é a intenção analítica, sempre ajustando os parâmetros apenas no treino. A escolha muda a geometria e deve ser justificada.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um serviço aceita receber um classificador mais rápido, mesmo que alguns detalhes de cada atributo fiquem menos fáceis de explicar, e dispõe de muitas medidas correlacionadas. Qual escolha pode ser avaliada para essa finalidade?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Excluir aleatoriamente metade das linhas, mantendo a mesma quantidade de colunas.","correct":false},
+        {"key":"B","text":"Aplicar PCA e comparar a projeção reduzida com a linha de base.","correct":true},
+        {"key":"C","text":"Usar apenas variância zero para criar combinações entre as colunas restantes.","correct":false},
+        {"key":"D","text":"Escolher PCA porque ele garante menor erro e explicação causal dos eixos.","correct":false},
+        {"key":"E","text":"Trocar o classificador por um banco maior sem alterar as entradas.","correct":false}
+      ],
+      "explanation":"PCA pode reduzir o número de coordenadas ao resumir variáveis correlacionadas, o que pode reduzir custo. Deve ser comparado com a linha de base: não garante melhor erro nem interpretação causal, e perde-se leitura direta das colunas originais.",
+      "section":"5. Seleção ou PCA: decidir pelo objetivo","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma característica tem pouca variância, mas representa a presença de uma condição rara associada fortemente a um resultado. O que se pode concluir sobre removê-la por limiar de variância?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"A remoção é sempre segura, porque baixa variância prova ausência de relação com o alvo, inclusive em eventos raros.","correct":false},
+        {"key":"B","text":"A remoção é obrigatória, pois filtros de variância consultam a importância clínica.","correct":false},
+        {"key":"C","text":"A baixa variância não basta para provar irrelevância; é preciso avaliar o contexto.","correct":true},
+        {"key":"D","text":"A característica deve ser convertida em componente principal antes da seleção.","correct":false},
+        {"key":"E","text":"A variância reduzida demonstra que o rótulo foi vazado para a coluna.","correct":false}
+      ],
+      "explanation":"Um filtro por variância não observa o alvo nem o custo de perder eventos raros. A coluna pode variar pouco e ainda carregar sinal útil. O limiar é uma heurística de pré-processamento e a decisão deve ser avaliada no problema, com validação sem vazamento.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma base apresenta forte dependência não linear entre cada atributo contínuo e o alvo, e a equipe considera um filtro univariado. Qual observação sobre informação mútua é adequada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Ela pode captar dependências mais gerais, mas sua estimação requer amostra suficiente.","correct":true},
+        {"key":"B","text":"Ela mede somente dependência linear e exige média zero em cada variável, mesmo quando a associação observada é não linear.","correct":false},
+        {"key":"C","text":"Ela constrói componentes ortogonais e substitui qualquer validação do modelo.","correct":false},
+        {"key":"D","text":"Ela só pode ser usada quando os rótulos são desconhecidos e não existem classes.","correct":false},
+        {"key":"E","text":"Ela elimina a necessidade de escolher uma função de pontuação antes do filtro.","correct":false}
+      ],
+      "explanation":"Métodos de informação mútua conseguem identificar dependências não restritas à forma linear, ao contrário da interpretação do F-teste como dependência linear. Por serem estimados de modo não paramétrico, podem precisar de mais amostras para estimativas confiáveis.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um conjunto contém muitas colunas, e a equipe deseja avaliar subconjuntos ajustando o mesmo estimador em várias combinações candidatas. Como essa estratégia é classificada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Filtro, porque pontua todas as colunas sem treinar qualquer modelo.","correct":false},
+        {"key":"B","text":"Wrapper, porque compara subconjuntos por meio de ajustes do estimador.","correct":true},
+        {"key":"C","text":"PCA, porque ordena conjuntos de colunas pelo alvo supervisionado.","correct":false},
+        {"key":"D","text":"Padronização, porque remove uma combinação por iteração.","correct":false},
+        {"key":"E","text":"Redução por variância, porque a busca usa validação do modelo final.","correct":false}
+      ],
+      "explanation":"Wrappers empregam o desempenho de um estimador para avaliar subconjuntos, normalmente com vários ajustes. Isso pode adaptar a seleção ao modelo, mas tende a ser mais caro e precisa de avaliação corretamente separada para não sobreajustar a busca.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma floresta aponta alta importância para uma coluna. Qual cautela é correta ao usar esse número em seleção embutida ou baseada em modelo?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"A importância comprova que a coluna causa o resultado observado.","correct":false},
+        {"key":"B","text":"A importância independe do estimador e vale para qualquer conjunto futuro.","correct":false},
+        {"key":"C","text":"A importância é dependente do modelo e não deve ser lida como causalidade universal.","correct":true},
+        {"key":"D","text":"A importância prova que atributos correlacionados terão sempre peso zero.","correct":false},
+        {"key":"E","text":"A importância só pode ser calculada depois que o teste foi usado no ajuste.","correct":false}
+      ],
+      "explanation":"Importâncias refletem critérios e ajustes de um modelo específico e podem se comportar de modo instável quando atributos são correlacionados. Não são efeitos causais universais. A avaliação continua exigindo separação dos dados e interpretação conforme a tarefa.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um modelo linear deve escolher automaticamente quantos atributos manter em cada dobra, com base em validação cruzada sobre o estimador de RFE. Qual método corresponde a esse desenho?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"VarianceThreshold, que testa modelos candidatos em cada dobra para escolher k.","correct":false},
+        {"key":"B","text":"SelectKBest, que determina a quantidade ótima sem receber esse parâmetro.","correct":false},
+        {"key":"C","text":"RFECV, que combina eliminação recursiva e validação cruzada para a quantidade.","correct":true},
+        {"key":"D","text":"PCA, que decide a quantidade de colunas pelo coeficiente do estimador.","correct":false},
+        {"key":"E","text":"Whitening, que seleciona variáveis com coeficientes iguais a zero.","correct":false}
+      ],
+      "explanation":"RFECV executa eliminação recursiva em uma estratégia de validação cruzada para escolher o número de características. RFE simples recebe a quantidade desejada; SelectKBest também exige k; PCA e whitening não são seletores guiados por coeficientes do estimador.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em uma decomposição da matriz de covariância, qual interpretação usual cabe aos autovalores associados às direções principais?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Quantificam a variância associada às direções representadas pelos autovetores.","correct":true},
+        {"key":"B","text":"Indicam quantas classes distintas existem no alvo supervisionado.","correct":false},
+        {"key":"C","text":"Medem a quantidade de observações que cada coluna eliminou do conjunto.","correct":false},
+        {"key":"D","text":"São os nomes originais das características em ordem alfabética.","correct":false},
+        {"key":"E","text":"Representam diretamente a acurácia de cada componente em um classificador.","correct":false}
+      ],
+      "explanation":"Na matriz de covariância, os autovetores dão direções e os autovalores correspondentes representam as variâncias nessas direções. Não codificam número de classes, nomes de colunas ou acurácia de classificador; o PCA padrão não usa o alvo.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Por que atributos com magnitudes e unidades muito diferentes podem afetar fortemente o PCA calculado diretamente sobre a covariância?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Porque a covariância elimina toda variação da coluna de menor escala.","correct":false},
+        {"key":"B","text":"Porque a coluna de maior amplitude pode contribuir mais para a variância total.","correct":true},
+        {"key":"C","text":"Porque os autovetores são obrigados a copiar as unidades da primeira coluna.","correct":false},
+        {"key":"D","text":"Porque o PCA converte as unidades em rótulos e torna o ajuste supervisionado.","correct":false},
+        {"key":"E","text":"Porque centralizar já garante variância unitária para todas as características.","correct":false}
+      ],
+      "explanation":"A centralização remove médias, mas não equaliza unidades. Colunas com maior amplitude podem dominar a covariância e orientar os componentes. Padronização pode ser indicada se a comparação por escala for desejada, mas deve ser ajustada no treino e justificada.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Depois de reter somente as primeiras componentes, uma equipe tenta reconstruir as colunas originais. Qual expectativa é apropriada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"A reconstrução será necessariamente exata porque as componentes são ortogonais.","correct":false},
+        {"key":"B","text":"A reconstrução será aproximada porque componentes descartadas carregam informação perdida.","correct":true},
+        {"key":"C","text":"A reconstrução revelará automaticamente as causas de cada característica original.","correct":false},
+        {"key":"D","text":"A reconstrução é impossível até mesmo quando todas as componentes são conservadas.","correct":false},
+        {"key":"E","text":"A reconstrução restaura os rótulos que o PCA descartou durante o ajuste.","correct":false}
+      ],
+      "explanation":"Ao truncar a projeção, descartam-se direções e parte da informação dos dados; a transformação inversa produz uma aproximação. Ortogonalidade não recupera componentes removidas e PCA não infere causalidade nem utiliza os rótulos para reconstruir o alvo.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma base é muito grande para caber integralmente na memória e a equipe ainda deseja uma variante de PCA por lotes. Qual alternativa descreve a opção incremental?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Ajustar o PCA convencional em toda a base e só depois separar as observações em lotes.","correct":false},
+        {"key":"B","text":"Usar processamento incremental com atualizações parciais em blocos de observações.","correct":true},
+        {"key":"C","text":"Substituir componentes principais por colunas aleatórias e assumir variância preservada.","correct":false},
+        {"key":"D","text":"Usar seleção univariada como se ela calculasse a mesma projeção em lotes.","correct":false},
+        {"key":"E","text":"Ajustar PCA em cada lote independentemente e combinar eixos sem alinhamento.","correct":false}
+      ],
+      "explanation":"A documentação descreve IncrementalPCA para processamento em minibatches e cálculos parciais, inclusive fora da memória. Ajustar PCA padrão exige o conjunto de ajuste disponível em lote; componentes de lotes independentes não podem ser simplesmente concatenadas como se fossem uma única base de eixos alinhados.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Há uma coluna de variância baixa e outra mais variável, mas a primeira distingue uma classe rara. A equipe escolhe exclusivamente as maiores variâncias sem testar o classificador. Qual risco é mais relevante?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"O filtro pode descartar justamente um atributo de baixa variação e alto valor discriminante.","correct":true},
+        {"key":"B","text":"A seleção garante melhor generalização, pois o alvo é ignorado pelo filtro.","correct":false},
+        {"key":"C","text":"A maior variância sempre corresponde à classe rara e será preservada.","correct":false},
+        {"key":"D","text":"O procedimento transforma a seleção em PCA supervisionado automaticamente.","correct":false},
+        {"key":"E","text":"O risco se limita à troca de unidades, sem qualquer relação com previsão.","correct":false}
+      ],
+      "explanation":"Como o filtro considera apenas a variância de X, uma variável rara mas discriminante pode ser removida. Ausência de supervisão não assegura generalização; é preciso avaliar a decisão na tarefa e considerar o desbalanceamento e o custo dos erros.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um pesquisador deseja escolher entre 5, 10 ou 20 componentes e reportar desempenho sem contaminar o teste final. Qual protocolo é mais defensável?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Ajustar cada PCA no conjunto completo e escolher a quantidade com melhor teste.","correct":false},
+        {"key":"B","text":"Selecionar componentes pelo teste e reportar a mesma métrica como estimativa imparcial.","correct":false},
+        {"key":"C","text":"Fazer escolha no treino por validação cruzada, dentro do pipeline, e avaliar no teste reservado.","correct":true},
+        {"key":"D","text":"Calcular a variância no teste e usar suas componentes como referência do treino.","correct":false},
+        {"key":"E","text":"Escolher sempre a configuração que retém 100% da variância, sem comparar modelos.","correct":false}
+      ],
+      "explanation":"A quantidade de componentes é uma escolha de hiperparâmetro. Faça essa escolha usando validação dentro dos dados de treino e ajuste PCA separadamente em cada dobra; mantenha o teste reservado para a avaliação final. Usar o teste na escolha produz viés de seleção.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma seleção por L1 zera coeficientes em um modelo linear. Como essa técnica se enquadra na classificação de métodos de seleção?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Filtro não supervisionado, pois não depende de ajuste do estimador.","correct":false},
+        {"key":"B","text":"Método embutido, pois a seleção ocorre durante o ajuste regularizado do modelo.","correct":true},
+        {"key":"C","text":"Wrapper exclusivamente, porque calcula PCA a cada coeficiente zerado.","correct":false},
+        {"key":"D","text":"Redução por extração, pois os coeficientes formam eixos ortogonais novos.","correct":false},
+        {"key":"E","text":"Filtro de variância, pois L1 remove colunas constantes sem observar o alvo.","correct":false}
+      ],
+      "explanation":"Na seleção embutida, o mecanismo de escolha participa do ajuste do modelo. A penalização L1 pode levar coeficientes a zero, efetivamente excluindo variáveis desse modelo. Isso não é um filtro independente nem uma projeção PCA.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um relatório atribui significado causal a uma componente porque seus maiores pesos pertencem a variáveis de saúde. Qual ressalva deve constar?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Os pesos são combinações úteis para interpretar padrões, mas não demonstram causalidade.","correct":true},
+        {"key":"B","text":"A componente é causal sempre que explica mais da metade da variância total.","correct":false},
+        {"key":"C","text":"O sinal positivo do autovetor comprova que cada variável causa o resultado.","correct":false},
+        {"key":"D","text":"PCA usa intervenções experimentais por padrão para identificar causas.","correct":false},
+        {"key":"E","text":"A ortogonalidade elimina confundimento e valida interpretações causais.","correct":false}
+      ],
+      "explanation":"Os pesos mostram como as coordenadas originais participam de uma direção de variação, não o efeito causal de cada variável. PCA é uma técnica descritiva não supervisionada; causalidade requer desenho e hipóteses próprios, não decorre da variância explicada ou da ortogonalidade.",
+      "section":"5. Seleção ou PCA: decidir pelo objetivo","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em validação cruzada, a equipe ajusta imputação, escala, SelectKBest e estimador como etapas de um pipeline. Qual vantagem metodológica é principal?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Cada transformação pode ser ajustada no treino de cada dobra e aplicada à validação.","correct":true},
+        {"key":"B","text":"O pipeline permite consultar os rótulos de validação para refazer o seletor.","correct":false},
+        {"key":"C","text":"O pipeline torna desnecessário separar uma avaliação final quando houver teste.","correct":false},
+        {"key":"D","text":"Cada dobra passa a usar componentes calculadas em toda a base previamente.","correct":false},
+        {"key":"E","text":"A sequência garante que qualquer seletor aumente a acurácia do estimador.","correct":false}
+      ],
+      "explanation":"No pipeline validado, cada dobra ajusta transformadores apenas na sua parte de treino e aplica-os à validação. Isso ajuda a evitar vazamento de imputação, escala e seleção. Não autoriza usar rótulos de validação para selecionar, elimina teste final por si só ou garante aumento de desempenho.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma base possui milhares de variáveis e sinais redundantes; a explicação atributo por atributo não é requisito, mas o custo de treinamento é alto. Qual afirmação sobre PCA é mais precisa?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Pode reduzir dimensões por projeção, mas o ganho e a perda preditiva precisam ser medidos.","correct":true},
+        {"key":"B","text":"Reduz sempre o tempo total e preserva integralmente todos os detalhes originais.","correct":false},
+        {"key":"C","text":"Mantém exatamente os atributos mais importantes para o alvo, sem recalcular coordenadas.","correct":false},
+        {"key":"D","text":"Garante componentes esparsas, cada uma associada a uma única variável original.","correct":false},
+        {"key":"E","text":"Elimina a necessidade de pré-processar dados ausentes e categorias não numéricas.","correct":false}
+      ],
+      "explanation":"PCA pode comprimir variáveis correlacionadas em menos componentes e reduzir o custo de um modelo posterior, mas gera eixos menos interpretáveis e descartar componentes perde informação. O desempenho precisa ser testado; PCA padrão não seleciona atributos pelo alvo nem substitui o tratamento de dados ausentes e categorias.",
+      "section":"5. Seleção ou PCA: decidir pelo objetivo","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"PCA padrão usa os rótulos da variável alvo para escolher as direções com maior poder de classificação.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. O PCA padrão é não supervisionado e encontra direções de maior variância na matriz de características. A escolha não maximiza diretamente separação entre classes nem consulta os rótulos.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"O filtro de variância pode remover uma característica constante sem consultar o alvo da tarefa.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A variância é calculada na própria coluna de entrada. Uma coluna constante tem variância zero e o filtro padrão a remove, independentemente de qualquer rótulo; por isso esse método não mede relevância supervisionada.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"A seleção de características conserva necessariamente as colunas que tiveram maior variância no conjunto de dados.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. Há diversos critérios: filtros supervisionados podem usar relação com o alvo, wrappers avaliam estimadores e métodos embutidos usam coeficientes ou importâncias. Variância é apenas um filtro possível, não regra necessária para toda seleção.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"SelectKBest retém as k características mais bem pontuadas pela função de escore que foi configurada.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. O seletor univariado ordena as pontuações devolvidas pela função e mantém k atributos. Ele seleciona colunas existentes, sem construir componentes principais ou testar todas as combinações possíveis de atributos.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Testes univariados examinam cada característica isoladamente e podem deixar de perceber que duas colunas só são úteis em conjunto.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A pontuação univariada compara cada atributo de maneira separada com o alvo ou com seu critério. Interações e redundâncias entre variáveis não são consideradas por essa avaliação individual, embora possam ser importantes ao modelo.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"RFE pode operar sem qualquer estimador, pois calcula a importância de cada coluna usando somente sua variância.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. RFE precisa de um estimador ajustável que forneça informação de importância, como coeficientes ou importâncias de atributos. Variância é outro critério, independente do ciclo recursivo de eliminação do RFE.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"O PCA padrão centraliza as características, mas não as padroniza automaticamente para variância unitária.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. O PCA subtrai a média de cada característica para centralizar os dados antes da decomposição. Se a intenção for comparar variáveis em escalas diferentes, a padronização deve ser adicionada explicitamente e ajustada no treino.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"As componentes principais são, por definição, algumas das colunas originais copiadas para uma nova ordem.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. Componentes principais são combinações lineares das colunas originais, em geral com pesos distribuídos por vários atributos. Selecionar colunas originais é uma operação distinta da projeção produzida pelo PCA.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"No PCA, direções principais sucessivas são ortogonais e são ordenadas pela variância explicada decrescente.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A primeira direção maximiza a variância projetada, e as seguintes capturam a maior variação restante sob a restrição de ortogonalidade. Seus autovalores associados permitem ordená-las por variância explicada.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"A maior variância explicada de uma componente demonstra, por si só, que ela é a melhor variável para prever o alvo.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. PCA prioriza variação em X sem consultar y. Uma direção de pouca variação pode conter informação discriminante relevante, enquanto uma direção dominante pode refletir variação irrelevante para a previsão.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Ao aplicar a um novo lote o PCA já ajustado no treino, devem ser usadas as médias e direções aprendidas no ajuste original.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A transformação aprendida inclui centralização e eixos principais. Reutilizar esses parâmetros mantém as coordenadas comparáveis; recalcular componentes para cada lote muda o referencial apresentado ao modelo.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Se o PCA for ajustado em todo o conjunto antes da validação, a avaliação pode incorporar informação da partição reservada.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Mesmo sem rótulos, o PCA calcula médias e direções a partir das características. Usar exemplos reservados na aprendizagem dessa transformação é vazamento e torna a avaliação menos representativa de dados realmente futuros.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um pipeline de validação pode ajustar o seletor e o PCA somente em cada dobra de treino e aplicar a transformação à dobra de validação.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. O pipeline faz o ajuste das etapas dentro de cada partição de treino e depois transforma a partição de validação com os parâmetros já aprendidos. Assim evita que a dobra validada influencie a seleção ou as componentes.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"A variância explicada acumulada das primeiras componentes soma as parcelas atribuídas individualmente a elas.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A razão acumulada após reter várias componentes é a soma de suas razões de variância explicada. Ela indica quanto da variação total de X está representada, não a acurácia de um classificador.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Quando componentes são descartadas, a transformação inversa do PCA recupera necessariamente cada observação original sem erro.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. A projeção truncada remove as direções descartadas e a informação que elas carregavam. A transformação inversa oferece uma reconstrução aproximada; ortogonalidade dos eixos retidos não recupera o conteúdo eliminado.",
+      "section":"4. Usar PCA sem perder o controle do experimento","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma característica de variância pequena pode ser preditivamente útil se suas ocorrências raras estiverem associadas ao alvo.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Variância descreve dispersão da característica, não sua capacidade de distinguir o alvo. Um evento raro pode ter baixa variância e ainda ser informativo, de modo que removê-lo automaticamente pode piorar o modelo.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"A importância fornecida por um estimador é uma medida causal universal que independe do algoritmo e das características correlacionadas.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. Importâncias dependem do estimador, do critério de cálculo e dos dados. Colunas correlacionadas podem dividir ou concentrar importância de maneiras diferentes, e esses números não demonstram causalidade.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Filtros univariados, wrappers e métodos embutidos diferem no modo como avaliam ou selecionam as características.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Filtros pontuam características antes do estimador, wrappers comparam subconjuntos por ajustes repetidos e métodos embutidos fazem a seleção como parte do treinamento. A família indica a estratégia, não uma garantia de qualidade.",
+      "section":"2. Famílias de seleção de características","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Reter 95% da variância explicada pelo PCA garante que o modelo final conservará 95% de sua capacidade preditiva.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. A porcentagem se refere à variação das características, não à fração de desempenho preditivo. O alvo pode depender de uma direção de pouca variância; por isso o resultado precisa ser medido com validação apropriada.",
+      "section":"3. PCA: componentes principais e variância","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    }
+  ],
+  "sources": [
+    {"kind":"OFICIAL","title":"Feature selection — scikit-learn User Guide","publisher":"scikit-learn","reference":"Filtros de variância e univariados, RFE, seletores e cuidados de uso","url":"https://scikit-learn.org/stable/modules/feature_selection.html","accessedAt":"2026-11-14"},
+    {"kind":"OFICIAL","title":"Decomposing signals in components — scikit-learn User Guide","publisher":"scikit-learn","reference":"PCA, centralização sem padronização automática, variância explicada e processamento incremental","url":"https://scikit-learn.org/stable/modules/decomposition.html","accessedAt":"2026-11-14"},
+    {"kind":"OFICIAL","title":"PCA — scikit-learn API Reference","publisher":"scikit-learn","reference":"Ajuste e projeção em componentes principais, parâmetros e transformações","url":"https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html","accessedAt":"2026-11-14"},
+    {"kind":"OFICIAL","title":"RFE — scikit-learn API Reference","publisher":"scikit-learn","reference":"Eliminação recursiva, estimador com importâncias e número de atributos","url":"https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.RFE.html","accessedAt":"2026-11-14"}
+  ]
+}

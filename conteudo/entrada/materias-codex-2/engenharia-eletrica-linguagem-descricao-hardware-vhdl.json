@@ -1,0 +1,1098 @@
+{
+  "id": "engenharia-eletrica.linguagem-descricao-hardware-vhdl",
+  "subject": "Engenharia Elétrica",
+  "title": "Linguagem de descrição de hardware VHDL",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "VHDL: linguagem de descrição de hardware",
+    "Linguagem VHDL para circuitos digitais",
+    "VHDL e projeto de hardware digital",
+    "VHDL: entidades e arquiteturas",
+    "VHDL: sinais, processos e atribuições",
+    "Descrição de hardware com VHDL",
+    "Modelagem de circuitos digitais em VHDL",
+    "VHDL para FPGA e lógica programável",
+    "VHDL concorrente e sequencial",
+    "Simulação e síntese de projetos VHDL",
+    "Tipos e bibliotecas IEEE do VHDL",
+    "Testbench e temporização em VHDL"
+  ],
+  "scope": {
+    "covers": "Fundamentos da linguagem VHDL para descrição e verificação de hardware digital: design units, entity e architecture, portas e modos, tipos std_logic e vetores, atribuições concorrentes e sequenciais, process, signal e variable, sensibilidade, lógica combinacional e sequencial, clock e reset, if/case/when, generate, component/instantiation, bibliotecas e pacotes IEEE, simulação por eventos e ciclos delta, testbench, análise/elaboração/execução e distinção entre construções simuláveis e sintetizáveis.",
+    "excludes": "Detalhes dependentes de fabricante de FPGA, fluxo de implementação física, pinagem de placas específicas, sintaxe avançada de PSL e conteúdo integral de versões específicas do padrão IEEE 1076."
+  },
+  "theoryTitle": "Descrever, simular e sintetizar circuitos com VHDL",
+  "chapters": [
+    {
+      "title": "1. O modelo mental: VHDL descreve circuitos",
+      "markdown": "### O problema que este assunto resolve\n\nVHDL é uma linguagem usada para descrever sistemas eletrônicos digitais. O texto pode especificar a interface de um bloco, o comportamento que será simulado e, quando escrito dentro do subconjunto aceito pela ferramenta, a estrutura lógica que será sintetizada em portas e registradores. VHDL não é, por si só, um desenho de circuito nem uma sequência de instruções executada uma por vez como num programa convencional: muitas partes do hardware operam ao mesmo tempo.\n\nA norma IEEE 1076 define a linguagem. Um projeto é formado por unidades de projeto analisadas em bibliotecas. A unidade mais visível é a entidade, que declara a interface; uma arquitetura associada descreve uma implementação. A mesma entidade pode ter diferentes arquiteturas, por exemplo uma descrição comportamental e outra estrutural.\n\n> **Siglas e termos deste capítulo**\n> - **HDL**: linguagem de descrição de hardware.\n> - **Entity**: interface externa do bloco, com portas e genéricos.\n> - **Architecture**: descrição interna associada a uma entidade.\n> - **Porta**: conexão de entrada, saída ou bidirecional.\n> - **Generic**: parâmetro constante usado para configurar uma instância.\n> - **Biblioteca**: espaço lógico onde unidades analisadas ficam disponíveis.\n\n### Interface e implementação\n\nUma entidade descreve o que o bloco oferece ao restante do projeto. A arquitetura descreve como ele se comporta ou como é composto. Em `port`, `in` recebe valores; `out` conduz valores para fora; `inout` permite condução nos dois sentidos e precisa ser usado com cuidado em lógica interna. `buffer` também é um modo de saída com leitura interna permitida, mas projetos modernos geralmente preferem uma saída `out` e um sinal interno separado. Um generic permite, por exemplo, parametrizar a largura de um barramento sem duplicar o bloco.\n\nUma arquitetura comportamental pode conter atribuições e processos. Uma arquitetura estrutural instancia subcomponentes e conecta suas portas. As duas abordagens podem coexistir. A escolha não muda a interface declarada pela entidade.\n\n| Construção | Papel |\n| --- | --- |\n| `entity` | Declara nome, genéricos e portas do bloco |\n| `architecture` | Descreve comportamento ou composição interna |\n| `port map` | Liga portas de uma instância a sinais do contexto |\n| `generic map` | Fornece valores de configuração a uma instância |\n\n### Como cai na prova\n\nA banca costuma trocar os papéis de entity e architecture, ou tratar VHDL como código sequencial de software. Lembre: a entidade é a fronteira do componente; arquitetura é uma implementação possível. Descrição em VHDL pode ser simulada sem ser sintetizável, e síntese depende das construções usadas e das capacidades da ferramenta-alvo.",
+      "section": "1. O modelo mental: VHDL descreve circuitos"
+    },
+    {
+      "title": "2. Tipos, sinais e atribuições",
+      "markdown": "### O problema que este assunto resolve\n\nCircuitos trocam valores lógicos em fios e armazenam estados. VHDL precisa representar esses valores com tipos explícitos e regras de atualização claras. O pacote `ieee.std_logic_1164` fornece `std_logic` e `std_logic_vector`, muito usados em interfaces digitais. `std_logic` é um tipo resolvido de nove valores: além de `'0'` e `'1'`, representa estados como desconhecido (`'X'`), alta impedância (`'Z'`), não inicializado (`'U'`) e forças fracas. Isso permite que simulação mostre conflitos e estados não definidos.\n\n> **Siglas e termos deste capítulo**\n> - **Signal**: objeto de sinal que modela comunicação entre partes concorrentes do circuito.\n> - **Variable**: objeto atualizado imediatamente dentro de um processo ou subprograma.\n> - **`std_logic`**: tipo lógico de nove valores definido em `std_logic_1164`.\n> - **`std_logic_vector`**: vetor de elementos `std_logic`, sem interpretação aritmética intrínseca.\n> - **`numeric_std`**: pacote IEEE com tipos e operações aritméticas padronizadas.\n> - **Delta cycle**: passo de simulação sem avanço do tempo físico, usado para propagar atualizações.\n\n### Tipos e atribuição concorrente\n\nUm sinal declarado como `std_logic_vector(7 downto 0)` tem oito posições, numeradas de 7 até 0. A direção faz parte do intervalo; `downto` e `to` permitem declarar faixas em sentidos distintos. O vetor é uma coleção de bits lógicos, não um número automaticamente. Para aritmética, use tipos como `unsigned` ou `signed` de `ieee.numeric_std` e conversões explícitas.\n\nA atribuição concorrente a sinal, escrita fora de um processo, representa uma relação ativa em paralelo com as demais. Por exemplo, `y <= a and b;` descreve uma função combinacional. O símbolo `<=` é usado para atribuição de sinal; `:=` é usado para atribuição de variável. Em VHDL, `=` testa igualdade e não atribui.\n\nUma atribuição a sinal agenda a atualização para a próxima rodada de atualização do simulador, normalmente no mesmo tempo físico após um ciclo delta. Dentro de um processo, várias atribuições ao mesmo sinal não se comportam como atualizações imediatas sequenciais de variável. Uma variável recebe seu novo valor imediatamente no fluxo sequencial do processo.\n\n| Objeto | Operador típico | Momento de atualização |\n| --- | --- | --- |\n| `signal` | `<=` | Agendado pelo mecanismo de eventos |\n| `variable` | `:=` | Imediato dentro do processo |\n\n### Como cai na prova\n\nNão confunda `std_logic_vector` com inteiro, nem `<=` com comparação. Em processo, uma variável pode ser lida logo após atribuição e conter o valor novo; um sinal normalmente ainda apresenta o valor anterior até a atualização agendada. Essa diferença explica resultados comuns de simulação.",
+      "section": "2. Tipos, sinais e atribuições"
+    },
+    {
+      "title": "3. Processos, lógica combinacional e registradores",
+      "markdown": "### O problema que este assunto resolve\n\nO processo (`process`) agrupa instruções sequenciais que são ativadas por eventos nos sinais sensíveis. Apesar de o texto dentro dele ser sequencial, processos diferentes e atribuições concorrentes executam em paralelo no modelo de simulação. A lista de sensibilidade tradicional determina quais mudanças reavaliam o processo; em VHDL-2008, `process(all)` pode expressar sensibilidade a todos os sinais lidos, se a ferramenta e o padrão selecionado o suportarem.\n\n> **Siglas e termos deste capítulo**\n> - **Processo**: região sequencial reativa a eventos, executada como parte do modelo concorrente.\n> - **Lista de sensibilidade**: sinais cujos eventos retomam o processo suspenso.\n> - **Lógica combinacional**: saída determinada pelos valores atuais das entradas, sem memória.\n> - **Registrador**: elemento de estado que armazena valor, normalmente atualizado por borda de clock.\n> - **Reset síncrono**: reset testado apenas na borda ativa do clock.\n> - **Reset assíncrono**: reset cuja ativação afeta o estado sem esperar a borda do clock.\n\n### Atribuições condicionais, seleção e memória acidental\n\nPara lógica combinacional, todas as saídas atribuídas pelo processo precisam receber valor em todos os caminhos possíveis. Se uma saída não receber novo valor em algum ramo, o comportamento descrito precisa conservar o valor anterior; isso implica memória, tipicamente um latch, e pode ser inesperado. `if` e `case` são instruções sequenciais dentro do processo; `when ... else` e `with ... select` são formas concorrentes de seleção. Em `case`, as alternativas devem cobrir os valores possíveis ou fornecer uma alternativa abrangente compatível com o tipo.\n\nUm processo sensível a `clk` pode descrever registrador usando `if rising_edge(clk) then`. O teste de reset antes ou dentro da condição de borda determina a semântica síncrona ou assíncrona. Reset assíncrono costuma aparecer na lista de sensibilidade, por exemplo `(clk, reset_n)`, e a condição de reset é testada fora da condição de borda. A polaridade é definida pela expressão, não pelo nome do sinal.\n\n### Exemplo conceitual: registrador com habilitação\n\nEm processo acionado pela borda de subida, se `enable` estiver ativo atribui-se a entrada ao registrador; sem habilitação, não atribuir mantém o estado registrado. Isso é apropriado para um elemento de memória. A mesma omissão em um processo que deveria ser combinacional pode inferir latch.\n\n### Como cai na prova\n\nO enunciado frequentemente pergunta se uma atribuição incompleta produz zero ou mantém valor. Em processo combinacional incompleto, o valor é conservado e pode haver latch. Para registrador, manter o estado quando enable está inativo é intencional. Avalie a sensibilidade e todas as ramificações antes de concluir.",
+      "section": "3. Processos, lógica combinacional e registradores"
+    },
+    {
+      "title": "4. Estrutura, simulação, testbench e síntese",
+      "markdown": "### O problema que este assunto resolve\n\nProjetos maiores são compostos por unidades conectadas. Instanciação estrutural cria cópias de entidades ou componentes; `port map` associa cada porta a um sinal do módulo que instancia. Uma instrução `generate` cria estruturas repetidas ou condicionais durante a elaboração, com limites definidos por constantes e genéricos. Pacotes agrupam declarações reutilizáveis; `library` e `use` tornam visíveis bibliotecas e declarações selecionadas.\n\n> **Siglas e termos deste capítulo**\n> - **Component**: declaração de interface de um bloco que será instanciado.\n> - **Instância**: ocorrência de um bloco dentro de outro.\n> - **Testbench**: ambiente de simulação que aplica estímulos e verifica respostas.\n> - **Análise**: leitura e verificação sintática/semântica de unidades fonte.\n> - **Elaboração**: resolução da hierarquia e configuração da unidade de topo.\n> - **Síntese**: transformação de uma descrição compatível em rede lógica implementável.\n\n### Do código ao circuito e à simulação\n\nO fluxo de ferramenta tem etapas distintas. Na análise, fontes são verificadas e unidades registradas em biblioteca. Na elaboração, a hierarquia e os parâmetros da unidade de topo são resolvidos. Na execução, o simulador processa eventos e o testbench pode produzir estímulos, checar respostas por `assert` e registrar formas de onda. Na síntese, a ferramenta converte construções reconhecidas em portas, multiplexadores, registradores e outros elementos de hardware. Uma simulação bem-sucedida não prova que toda construção será sintetizada.\n\nO simulador avança o tempo por eventos. Alterações podem propagar-se por ciclos delta sem avanço do tempo físico; isso evita impor atrasos físicos a cada atribuição ideal. Atrasos explícitos e recursos de testbench podem servir à simulação, mas construções de espera temporal ou geração de estímulos não costumam representar hardware sintetizável. O subconjunto sintetizável depende das ferramentas, e o padrão da linguagem é mais amplo que esse subconjunto.\n\nO testbench normalmente não tem portas externas: contém a unidade sob teste, sinais de conexão, geração de estímulos e verificações. Ele não precisa ser sintetizado para FPGA; seu papel é validar comportamento. `assert` pode emitir mensagens e severidades quando uma condição falha.\n\n### Como cai na prova\n\nDistingua análise, elaboração, execução e síntese. GHDL documenta análise, elaboração e execução como fluxo de simulação; síntese é uma tarefa separada. Uma construção válida em VHDL pode ser apenas de simulação. Também não atribua um atraso físico automático a cada atribuição de sinal: atualizações delta são eventos lógicos no mesmo tempo simulado.",
+      "section": "4. Estrutura, simulação, testbench e síntese"
+    }
+  ],
+  "summary": "VHDL, padronizada pela família IEEE 1076, descreve interfaces e comportamentos de sistemas digitais. Entity define a interface e architecture implementa o bloco. Sinais representam conexões concorrentes e atualizam por eventos; variáveis atualizam imediatamente dentro do processo. Processos combinacionais devem cobrir todos os caminhos; processos acionados por borda descrevem registradores. Simulação usa análise, elaboração e execução com eventos e ciclos delta. Síntese converte apenas construções suportadas em hardware, enquanto testbench e estímulos servem à verificação.",
+  "flashcards": [
+    { "front": "Qual é o papel da entity?", "back": "Declarar a interface externa: nome, genéricos e portas." },
+    { "front": "Qual é o papel da architecture?", "back": "Descrever o comportamento ou a composição interna associada à entidade." },
+    { "front": "O que faz uma porta `in`?", "back": "Recebe um valor de fora do bloco." },
+    { "front": "O que faz uma porta `out`?", "back": "Conduz um valor do bloco para fora." },
+    { "front": "Para que serve um generic?", "back": "Configura uma unidade com parâmetros constantes, como largura ou limite de contador." },
+    { "front": "Que pacote define std_logic?", "back": "`ieee.std_logic_1164`." },
+    { "front": "Quantos valores há em std_logic?", "back": "Nove, incluindo 0, 1, X, Z, U, W, L, H e '-'." },
+    { "front": "std_logic_vector já representa um inteiro?", "back": "Não. É um vetor lógico; use signed/unsigned de numeric_std para aritmética tipada." },
+    { "front": "Que pacote é usado para aritmética signed e unsigned?", "back": "`ieee.numeric_std`." },
+    { "front": "Que operador atribui a um signal?", "back": "`<=`, com atualização agendada pelo mecanismo de eventos." },
+    { "front": "Que operador atribui a uma variable?", "back": "`:=`, com atualização imediata no processo." },
+    { "front": "O que significa `downto` num vetor?", "back": "Declara uma faixa cujos índices decrescem, por exemplo 7 até 0." },
+    { "front": "O que dispara um processo com lista de sensibilidade?", "back": "Evento em um dos sinais listados, retomando a execução suspensa." },
+    { "front": "O que deve valer para saídas de lógica combinacional?", "back": "Receber atribuição em todos os caminhos para evitar retenção e inferência acidental de latch." },
+    { "front": "Como se reconhece a borda de subida do clock?", "back": "Com `rising_edge(clk)` nas descrições usuais." },
+    { "front": "Qual é o traço central de reset assíncrono?", "back": "A ativação pode alterar o estado sem esperar a borda ativa do clock." },
+    { "front": "Qual é o traço central de reset síncrono?", "back": "O reset só é amostrado na borda ativa do clock." },
+    { "front": "Para que serve port map?", "back": "Conectar as portas formais de uma instância aos sinais do contexto." },
+    { "front": "Para que serve generate?", "back": "Criar estruturas repetidas ou condicionais na elaboração, com parâmetros estáticos." },
+    { "front": "O que é testbench?", "back": "Uma estrutura de simulação que aplica estímulos e verifica a unidade sob teste." },
+    { "front": "O que faz análise no fluxo de ferramenta?", "back": "Verifica unidades fonte e as registra em bibliotecas de trabalho." },
+    { "front": "O que faz elaboração?", "back": "Resolve a hierarquia de instâncias e configura a unidade de topo." },
+    { "front": "O que são ciclos delta?", "back": "Passos de atualização e propagação de eventos sem avanço do tempo físico." },
+    { "front": "Simular com sucesso garante síntese?", "back": "Não. Algumas construções VHDL servem à simulação e não são aceitas na síntese." }
+  ],
+  "tips": [
+    "Leia entity como contrato de portas e architecture como implementação daquele contrato.",
+    "Quando vir std_logic_vector, determine índices e conversões antes de fazer conta mental.",
+    "Dentro de process, acompanhe a variável imediatamente e o sinal após a atualização agendada.",
+    "Para inferência de latch, procure atribuições ausentes em algum ramo da lógica combinacional.",
+    "Identifique reset síncrono ou assíncrono pela posição do teste em relação à borda do clock.",
+    "Separe o que o simulador aceita do subconjunto que a ferramenta consegue sintetizar."
+  ],
+  "traps": [
+    "Confundir o nome do módulo e sua interface com o código da arquitetura interna.",
+    "Tratar `<=` como menor ou igual em todo contexto: em atribuição de sinal ele é operador de atribuição.",
+    "Supor que atribuir uma variável e atribuir um sinal atualizam no mesmo instante dentro de um process.",
+    "Achar que std_logic contém somente 0 e 1 e que Z significa zero lógico.",
+    "Deixar de perceber latch quando falta atribuição em algum caminho combinacional.",
+    "Tomar uma descrição válida para simulação como garantia de que será sintetizada em hardware."
+  ],
+  "activeRecall": [
+    { "question": "Como entity e architecture se relacionam?", "answer": "A architecture implementa uma entidade cuja interface é declarada pela entity." },
+    { "question": "Quais modos de porta aparecem com maior frequência?", "answer": "in, out e inout; buffer também existe, embora seja menos comum em projetos atuais." },
+    { "question": "Qual diferença de atualização há entre signal e variable?", "answer": "Signal agenda atualização; variable recebe o valor imediatamente dentro do processo." },
+    { "question": "Por que um std_logic_vector não deve ser somado sem pensar no tipo?", "answer": "O vetor não traz, sozinho, interpretação aritmética signed ou unsigned; use tipos e conversões apropriados." },
+    { "question": "Como evitar latch involuntário numa descrição combinacional?", "answer": "Atribua valor a todas as saídas em todos os caminhos de controle." },
+    { "question": "Como reconhecer um registrador de borda?", "answer": "Um process sensível ao clock testa uma borda com rising_edge ou falling_edge." },
+    { "question": "Como a posição da verificação de reset indica a semântica?", "answer": "Teste fora da condição de borda para reset assíncrono; dentro dela para síncrono." },
+    { "question": "Quais são as etapas do fluxo de simulação descrito pelo GHDL?", "answer": "Análise, elaboração e execução." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Interface e implementação trocadas", "summary": "Entity declara a fronteira do bloco; architecture descreve comportamento ou composição interna." },
+    { "key": "e2", "title": "Tipo lógico confundido com número", "summary": "std_logic_vector é uma coleção de valores lógicos; numeric_std oferece signed e unsigned para aritmética." },
+    { "key": "e3", "title": "Signal e variable tratados como equivalentes", "summary": "A variável muda imediatamente no processo; o sinal recebe atualização agendada pelo simulador." },
+    { "key": "e4", "title": "Latch e registrador confundidos", "summary": "Omissão em processo combinacional pode reter estado; borda de clock explícita descreve atualização registrada." },
+    { "key": "e5", "title": "Simulação confundida com síntese", "summary": "A linguagem inclui recursos de simulação que podem não corresponder a hardware sintetizável." }
+  ],
+  "questions": [
+    {
+      "statement": "Em um projeto VHDL, que unidade declara as portas externas e que unidade descreve uma implementação associada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A entity declara portas e a architecture descreve uma implementação associada.", "correct": true },
+        { "key": "B", "text": "A architecture declara portas e a entity descreve a lógica interna associada.", "correct": false },
+        { "key": "C", "text": "O package declara portas e o testbench fixa a arquitetura definitiva do bloco.", "correct": false },
+        { "key": "D", "text": "A configuration declara portas e o process define o nome da entidade externa.", "correct": false },
+        { "key": "E", "text": "O generic declara portas e o port map define sozinho a arquitetura reutilizável.", "correct": false }
+      ],
+      "explanation": "A entity estabelece a interface externa, incluindo portas e possíveis genéricos. Uma architecture ligada a essa entidade fornece uma descrição comportamental ou estrutural; outras arquiteturas também podem implementar a mesma interface.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta declarada como `in` numa entidade normalmente representa que tipo de conexão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um valor que entra no bloco a partir do contexto externo.", "correct": true },
+        { "key": "B", "text": "Um valor de saída que só pode ser lido dentro do bloco.", "correct": false },
+        { "key": "C", "text": "Um parâmetro constante que configura a largura do bloco.", "correct": false },
+        { "key": "D", "text": "Um sinal bidirecional que dirige o barramento nos dois sentidos.", "correct": false },
+        { "key": "E", "text": "Uma constante local sem conexão com a interface do componente.", "correct": false }
+      ],
+      "explanation": "O modo `in` indica uma porta de entrada: o bloco recebe por ela um valor dirigido externamente. `out` é a saída, `inout` permite condução bidirecional e generic é um parâmetro, não uma porta de dados.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o uso típico de um generic declarado para uma entidade VHDL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Fornecer parâmetro constante, como largura de barramento ou limite de contador.", "correct": true },
+        { "key": "B", "text": "Transportar dados variáveis entre a entidade e suas instâncias durante execução.", "correct": false },
+        { "key": "C", "text": "Substituir a lista de sensibilidade de todos os processos da arquitetura.", "correct": false },
+        { "key": "D", "text": "Declarar uma saída física que dispensa associação de porta na instância.", "correct": false },
+        { "key": "E", "text": "Escolher automaticamente o fabricante e o encapsulamento do dispositivo.", "correct": false }
+      ],
+      "explanation": "Generic configura uma entidade com valores constantes, permitindo reutilizar a mesma descrição com parâmetros distintos, como largura de dados. Valores de sinais durante operação são conectados por portas, e parâmetros de generic não selecionam encapsulamento físico automaticamente.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer representar alto nível, baixa impedância e estado desconhecido em fios digitais simulados. Qual tipo atende diretamente a essa necessidade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`std_logic`, que inclui nove valores lógicos resolvidos além de zero e um.", "correct": true },
+        { "key": "B", "text": "`bit`, que contém estados de alta impedância e força fraca por definição.", "correct": false },
+        { "key": "C", "text": "`integer`, que representa todos os estados elétricos como valores ordinais distintos.", "correct": false },
+        { "key": "D", "text": "`boolean`, que diferencia desconhecido, alta impedância e conflito entre drivers.", "correct": false },
+        { "key": "E", "text": "`natural`, que registra nível lógico e resolução de vários condutores em fio.", "correct": false }
+      ],
+      "explanation": "`std_logic`, definido em `ieee.std_logic_1164`, contempla nove valores, incluindo `'0'`, `'1'`, `'X'`, `'Z'`, `'U'` e níveis fracos. `bit` é binário e os tipos numéricos e booleanos não substituem essa modelagem multivalorada.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um vetor é declarado como `std_logic_vector(7 downto 0)`. Quantas posições lógicas ele contém?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Oito posições, com índices de 7 até 0, inclusive.", "correct": true },
+        { "key": "B", "text": "Sete posições, pois o índice zero não integra a faixa declarada.", "correct": false },
+        { "key": "C", "text": "Nove posições, pois o zero acrescenta uma posição inicial à faixa.", "correct": false },
+        { "key": "D", "text": "Uma posição de oito bits, pois downto declara um escalar agrupado.", "correct": false },
+        { "key": "E", "text": "Oito posições, numeradas de 0 até 7 obrigatoriamente em ordem crescente.", "correct": false }
+      ],
+      "explanation": "Os dois extremos da faixa são incluídos: 7, 6, 5, 4, 3, 2, 1 e 0, totalizando oito elementos. A palavra `downto` expressa a direção decrescente dos índices.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para fazer soma aritmética com vetores lógicos usando os pacotes IEEE padronizados, qual abordagem é apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar tipos `unsigned` ou `signed` e operações de `ieee.numeric_std`.", "correct": true },
+        { "key": "B", "text": "Somar qualquer `std_logic_vector`, pois sua largura define sinal e magnitude.", "correct": false },
+        { "key": "C", "text": "Converter todos os vetores para `boolean`, que oferece soma binária nativa.", "correct": false },
+        { "key": "D", "text": "Importar `std_logic_1164`, que declara a aritmética padrão de vetores.", "correct": false },
+        { "key": "E", "text": "Usar somente concatenação, já que o VHDL não define tipos numéricos vetoriais.", "correct": false }
+      ],
+      "explanation": "`std_logic_vector` é um vetor lógico e não indica por si só interpretação numérica. `ieee.numeric_std` fornece `unsigned` e `signed` e suas operações; conversões explícitas evitam ambiguidade de significado e de largura.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Fora de um process, uma atribuição concorrente `y <= a and b;` representa melhor qual ideia?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma relação lógica que permanece ativa em paralelo com outras descrições.", "correct": true },
+        { "key": "B", "text": "Uma instrução que aguarda a conclusão da linha anterior do arquivo.", "correct": false },
+        { "key": "C", "text": "Uma chamada de subprograma que executa apenas na inicialização da simulação.", "correct": false },
+        { "key": "D", "text": "Uma declaração que cria automaticamente uma variável local chamada y.", "correct": false },
+        { "key": "E", "text": "Uma condição de igualdade que compara a saída às duas entradas.", "correct": false }
+      ],
+      "explanation": "Uma atribuição concorrente descreve comportamento ativo e paralelo às demais atribuições concorrentes e processos. Não é uma linha de fluxo de software executada uma vez; no exemplo, y acompanha a função lógica de a e b.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dentro de um mesmo process, uma variável recebe `:=` e seu novo valor é lido logo na instrução seguinte. O que se espera?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A leitura encontra o valor recém-atribuído, pois variável atualiza imediatamente.", "correct": true },
+        { "key": "B", "text": "A leitura encontra o valor antigo até terminar um ciclo delta de sinais.", "correct": false },
+        { "key": "C", "text": "A leitura é inválida, pois variável só pode ser usada em declaração de pacote.", "correct": false },
+        { "key": "D", "text": "A atualização espera uma borda de clock, mesmo sem evento de clock no processo.", "correct": false },
+        { "key": "E", "text": "O valor é enviado ao exterior do bloco, pois `:=` atribui a uma porta de saída.", "correct": false }
+      ],
+      "explanation": "Variáveis são atualizadas de forma imediata no fluxo sequencial do processo. A espera típica por uma atualização agendada após o processo caracteriza signal e não variable.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em VHDL, qual operador é usado para atribuir um novo valor a um signal?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`<=`, com atualização agendada pelo mecanismo de eventos da simulação.", "correct": true },
+        { "key": "B", "text": "`:=`, com atualização agendada sempre para a próxima borda de clock.", "correct": false },
+        { "key": "C", "text": "`=`, que altera o valor do sinal e também retorna uma condição lógica.", "correct": false },
+        { "key": "D", "text": "`=>`, que associa um valor novo a qualquer sinal dentro do circuito.", "correct": false },
+        { "key": "E", "text": "`<>`, que atribui ao sinal o estado de alta impedância do barramento.", "correct": false }
+      ],
+      "explanation": "`<=` atribui a signal e agenda a atualização conforme as regras de eventos. `:=` atribui a variable, `=` compara igualdade e `=>` é usado, entre outros contextos, em associações e alternativas de escolha.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante simulação, uma atribuição a signal sem atraso explícito agenda a mudança. Qual descrição explica o ciclo delta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma etapa de propagação de atualizações que ocorre sem avançar o tempo físico.", "correct": true },
+        { "key": "B", "text": "Um atraso físico fixo aplicado pelo padrão a cada porta lógica descrita.", "correct": false },
+        { "key": "C", "text": "Um ciclo completo de clock cuja duração depende da frequência do sinal de entrada.", "correct": false },
+        { "key": "D", "text": "Um intervalo de tempo real gasto pela CPU para compilar a arquitetura simulada.", "correct": false },
+        { "key": "E", "text": "Uma operação que descarta todos os eventos pendentes no mesmo instante simulado.", "correct": false }
+      ],
+      "explanation": "Ciclos delta organizam a atualização de sinais e a propagação de eventos no mesmo tempo físico simulado. Eles não representam atraso físico padrão nem um período de clock; servem à ordem de execução do simulador.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um processo pretende descrever lógica combinacional, mas uma saída só recebe valor quando `enable` é verdadeiro. Que consequência deve ser examinada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A saída pode reter o valor anterior, levando à inferência de um latch.", "correct": true },
+        { "key": "B", "text": "A saída será automaticamente forçada a zero no ramo sem atribuição.", "correct": false },
+        { "key": "C", "text": "A descrição vira necessariamente um registrador acionado pela borda de subida.", "correct": false },
+        { "key": "D", "text": "O compilador elimina a saída por não haver uma atribuição em todo caminho.", "correct": false },
+        { "key": "E", "text": "A lista de sensibilidade converte a saída em porta bidirecional durante a espera.", "correct": false }
+      ],
+      "explanation": "Se o comportamento exige conservar o valor anterior quando não há atribuição, a saída necessita memória. Em uma descrição combinacional, atribuir todos os caminhos evita esse latch involuntário; a omissão não significa zero automático.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma é comumente usada para reconhecer uma borda de subida de clock num processo VHDL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Testar `rising_edge(clk)` e executar a atualização nessa transição.", "correct": true },
+        { "key": "B", "text": "Testar `clk = '1'` num processo sem sensibilidade a qualquer sinal.", "correct": false },
+        { "key": "C", "text": "Usar `falling_edge(clk)` para representar a transição de nível baixo a alto.", "correct": false },
+        { "key": "D", "text": "Aguardar um atraso fixo igual ao período e dispensar evento de clock.", "correct": false },
+        { "key": "E", "text": "Declarar `clk` como generic constante e mudar seu valor em cada ciclo.", "correct": false }
+      ],
+      "explanation": "`rising_edge(clk)` detecta a borda ascendente e é a forma comum para processo de registrador acionado por essa borda. `falling_edge` detecta a transição oposta, e testar apenas o nível alto não equivale a detectar sua borda.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num processo de registrador, como se descreve tipicamente um reset síncrono?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Testa-se o reset dentro do ramo executado na borda ativa do clock.", "correct": true },
+        { "key": "B", "text": "Inclui-se o reset na sensibilidade e testa-se antes de qualquer evento de clock.", "correct": false },
+        { "key": "C", "text": "Declara-se o reset como `inout` para que altere o estado sem sincronização.", "correct": false },
+        { "key": "D", "text": "Atribui-se atraso físico ao reset e deixa-se de testar sua condição lógica.", "correct": false },
+        { "key": "E", "text": "Usa-se apenas uma atribuição concorrente que substitui o clock da entidade.", "correct": false }
+      ],
+      "explanation": "Reset síncrono é amostrado na borda ativa do clock: a condição de reset fica dentro do ramo que verifica essa borda. No reset assíncrono, sua ativação pode afetar o estado sem aguardar essa borda.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída deve ser zerada assim que o reset for ativado, mesmo entre bordas do clock. Qual estilo de reset corresponde a esse requisito?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Reset assíncrono, testado fora da condição de borda e sensível à sua ativação.", "correct": true },
+        { "key": "B", "text": "Reset síncrono, amostrado somente na borda ativa do relógio do sistema.", "correct": false },
+        { "key": "C", "text": "Reset combinacional, omitido da lista de sensibilidade para evitar eventos extras.", "correct": false },
+        { "key": "D", "text": "Reset de elaboração, aplicado uma única vez ao resolver a hierarquia de instâncias.", "correct": false },
+        { "key": "E", "text": "Reset de saída, ligado ao modo `out` para limpar internamente qualquer registrador.", "correct": false }
+      ],
+      "explanation": "O requisito pede efeito sem esperar o clock, característica do reset assíncrono. Sua descrição usual torna o reset sensível no processo e testa sua condição antes do ramo de borda; polaridade e nome do sinal não alteram esse critério conceitual.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dentro de um process, qual construção oferece seleção por alternativas mutuamente exclusivas baseadas no valor de uma expressão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`case`, com alternativas que descrevem os valores possíveis da expressão selecionada.", "correct": true },
+        { "key": "B", "text": "`port map`, que escolhe ramos de execução com base nas portas conectadas.", "correct": false },
+        { "key": "C", "text": "`library`, que seleciona uma condição lógica entre unidades de projeto.", "correct": false },
+        { "key": "D", "text": "`generic map`, que executa sucessivamente todos os valores de um sinal.", "correct": false },
+        { "key": "E", "text": "`assert`, que seleciona uma alternativa e atribui seu valor à saída.", "correct": false }
+      ],
+      "explanation": "A instrução sequencial `case` seleciona uma alternativa pelo valor da expressão. `port map` associa conexões, `generic map` fornece parâmetros, e `assert` verifica uma condição em vez de escolher uma saída.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma descrição concorrente de seleção, para que serve `with ... select`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Escolher um valor atribuído ao sinal conforme o valor de uma expressão selecionada.", "correct": true },
+        { "key": "B", "text": "Executar um bloco de instruções sequenciais apenas na borda do sinal selecionado.", "correct": false },
+        { "key": "C", "text": "Criar uma instância física de cada alternativa no encapsulamento da FPGA.", "correct": false },
+        { "key": "D", "text": "Comparar dois vetores aritméticos e retornar sempre o maior deles.", "correct": false },
+        { "key": "E", "text": "Declarar a lista de sensibilidade implícita de todos os processos da arquitetura.", "correct": false }
+      ],
+      "explanation": "`with ... select` é uma atribuição selecionada concorrente: o valor de uma expressão escolhe qual valor é dirigido ao sinal. Não é um process sequencial nem instancia diretamente componentes físicos.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre quando um process tradicional suspenso possui uma lista de sensibilidade e um dos sinais listados sofre evento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O processo é retomado e executa seu corpo até suspender-se novamente.", "correct": true },
+        { "key": "B", "text": "O processo cria uma cópia de hardware nova em cada mudança do sinal.", "correct": false },
+        { "key": "C", "text": "A execução de todos os outros processos da arquitetura é cancelada.", "correct": false },
+        { "key": "D", "text": "A mudança do sinal é descartada até que uma borda de clock apareça.", "correct": false },
+        { "key": "E", "text": "A entidade inteira é reanalisada e recompilada durante a simulação.", "correct": false }
+      ],
+      "explanation": "Evento em sinal listado desperta o processo na simulação. O corpo executa até seu fim, quando a sensibilidade implícita o suspende novamente; isso não recompila o projeto nem cria uma cópia a cada evento.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual problema `process(all)` do VHDL-2008 busca reduzir em processos combinacionais?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A omissão manual de sinais lidos na lista de sensibilidade do processo.", "correct": true },
+        { "key": "B", "text": "A necessidade de atribuir saídas em todos os caminhos condicionais do processo.", "correct": false },
+        { "key": "C", "text": "A inferência de registradores em processos que não testam borda de clock.", "correct": false },
+        { "key": "D", "text": "A incompatibilidade de todos os tipos `std_logic` com pacotes IEEE padronizados.", "correct": false },
+        { "key": "E", "text": "A necessidade de mapear portas formais para os sinais de uma instância estrutural.", "correct": false }
+      ],
+      "explanation": "`process(all)` permite ao compilador determinar os sinais lidos e evita esquecer um sinal na lista de sensibilidade. Não corrige atribuições incompletas, não transforma comportamento em registrador e não substitui associações de portas.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura instancia submódulos e conecta as portas de cada ocorrência aos sinais locais. Qual construção realiza a associação das portas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`port map`, que associa portas formais a sinais do contexto de instanciação.", "correct": true },
+        { "key": "B", "text": "`generic map`, que associa cada porta aos atrasos físicos da biblioteca celular.", "correct": false },
+        { "key": "C", "text": "`case`, que associa automaticamente portas de mesmo nome entre entidades.", "correct": false },
+        { "key": "D", "text": "`use`, que conecta fios entre bibliotecas diferentes durante a execução.", "correct": false },
+        { "key": "E", "text": "`assert`, que mapeia valores esperados às saídas da instância sob teste.", "correct": false }
+      ],
+      "explanation": "`port map` liga as portas da unidade instanciada a sinais ou expressões compatíveis no contexto. `generic map` fornece valores genéricos; não substitui as conexões de dados.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para criar várias instâncias repetidas conforme um limite genérico conhecido na elaboração, qual recurso estrutural é adequado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Uma construção `generate` controlada por parâmetro estático de elaboração.", "correct": true },
+        { "key": "B", "text": "Um process que repete instruções depois de cada mudança de sinal em execução.", "correct": false },
+        { "key": "C", "text": "Uma lista de sensibilidade que replica as portas da entidade em paralelo.", "correct": false },
+        { "key": "D", "text": "Uma atribuição a variável que converte iterações de software em instâncias físicas.", "correct": false },
+        { "key": "E", "text": "Um testbench sem relógio que duplica a hierarquia ao aplicar estímulos.", "correct": false }
+      ],
+      "explanation": "`generate` descreve repetição ou seleção estrutural resolvida durante elaboração, com limites estáticos derivados de constantes ou genéricos. Um laço dentro de processo é comportamento sequencial e não é o mesmo mecanismo de replicação estrutural.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação está correta para bibliotecas e pacotes usados em projetos VHDL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Biblioteca organiza unidades analisadas; pacote reúne declarações reutilizáveis.", "correct": true },
+        { "key": "B", "text": "Pacote contém apenas portas físicas; biblioteca gera clock para toda arquitetura.", "correct": false },
+        { "key": "C", "text": "Biblioteca executa processos; pacote seleciona o dispositivo que receberá a síntese.", "correct": false },
+        { "key": "D", "text": "Pacote substitui a entidade e suas portas; biblioteca define valores de entrada em tempo real.", "correct": false },
+        { "key": "E", "text": "Biblioteca é uma seção do testbench; pacote registra apenas resultados de forma de onda.", "correct": false }
+      ],
+      "explanation": "Bibliotecas fornecem espaços lógicos para unidades de projeto analisadas. Pacotes agrupam tipos, constantes, funções e outras declarações reutilizáveis; `library` e `use` tornam referências visíveis conforme o contexto.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente a função de um testbench VHDL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Aplicar estímulos à unidade sob teste e verificar suas respostas na simulação.", "correct": true },
+        { "key": "B", "text": "Definir obrigatoriamente os pinos físicos da FPGA para cada porta da entidade.", "correct": false },
+        { "key": "C", "text": "Substituir a arquitetura sintetizada e armazenar a configuração permanente do chip.", "correct": false },
+        { "key": "D", "text": "Converter todos os sinais internos em atrasos físicos sem ferramenta de implementação.", "correct": false },
+        { "key": "E", "text": "Garantir por construção que qualquer circuito descrito atende à temporização real.", "correct": false }
+      ],
+      "explanation": "Testbench cria um ambiente de verificação: dirige estímulos, observa sinais e pode usar `assert` para comparar resultados esperados. Ele é voltado à simulação, não à atribuição automática de pinos nem à garantia de temporização física.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na sequência comum de trabalho do GHDL para simular um projeto, quais são as três etapas principais documentadas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Análise das fontes, elaboração da unidade de topo e execução da simulação.", "correct": true },
+        { "key": "B", "text": "Síntese física, roteamento das trilhas e gravação permanente da FPGA.", "correct": false },
+        { "key": "C", "text": "Elaboração do testbench, posicionamento de pinos e análise de potência.", "correct": false },
+        { "key": "D", "text": "Execução das fontes, análise das formas de onda e elaboração das bibliotecas IEEE.", "correct": false },
+        { "key": "E", "text": "Mapeamento tecnológico, roteamento estático e execução do circuito em silício.", "correct": false }
+      ],
+      "explanation": "A documentação oficial do GHDL descreve o fluxo de simulação como análise (`-a`), elaboração (`-e`) e execução (`-r`). Síntese e implementação física são tarefas distintas, não etapas desse fluxo básico de simulação.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma descrição VHDL compila e simula, mas contém espera temporal usada para gerar estímulos. Que conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A simulação pode ser válida mesmo que essa construção não seja sintetizável em hardware.", "correct": true },
+        { "key": "B", "text": "A simulação prova que a espera será implementada como temporizador físico idêntico.", "correct": false },
+        { "key": "C", "text": "A compilação converte automaticamente cada espera em uma porta de clock dedicada.", "correct": false },
+        { "key": "D", "text": "VHDL proíbe esperas em qualquer unidade, inclusive em ambiente de teste.", "correct": false },
+        { "key": "E", "text": "A ferramenta deve reinterpretar a espera como generic e remover a simulação temporal.", "correct": false }
+      ],
+      "explanation": "VHDL inclui recursos úteis para simulação que não necessariamente descrevem estruturas aceitas por síntese. Esperas temporais são comuns em testbenches, mas não equivalem automaticamente a hardware físico com o mesmo comportamento.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A simulação apresenta dois sinais condutores em conflito num fio resolvido. Que valor de `std_logic` pode indicar desconhecimento causado por conflito?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "`'X'`, usado para representar um valor lógico desconhecido ou conflitante.", "correct": true },
+        { "key": "B", "text": "`'Z'`, que significa sempre conflito entre dois drivers ativos.", "correct": false },
+        { "key": "C", "text": "`'U'`, que representa especificamente uma borda ascendente válida de clock.", "correct": false },
+        { "key": "D", "text": "`'H'`, que representa necessariamente um curto-circuito entre fontes fortes.", "correct": false },
+        { "key": "E", "text": "`'-'`, que representa exclusivamente uma entrada de reset síncrono ativa.", "correct": false }
+      ],
+      "explanation": "`'X'` representa desconhecido e pode resultar da resolução de valores conflitantes. `'Z'` indica alta impedância; `'U'` é não inicializado, enquanto os demais estados têm usos distintos dentro do tipo multivalorado.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O IEEE 1076 é conhecido principalmente como qual referência relacionada a VHDL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O padrão IEEE para o manual de referência da linguagem VHDL.", "correct": true },
+        { "key": "B", "text": "O pacote IEEE que define apenas níveis lógicos de nove estados.", "correct": false },
+        { "key": "C", "text": "A norma que fixa a pinagem física de todas as famílias de FPGA.", "correct": false },
+        { "key": "D", "text": "O nome do compilador padrão usado em qualquer fluxo de síntese VHDL.", "correct": false },
+        { "key": "E", "text": "Uma biblioteca de testbench que substitui as unidades entity e architecture.", "correct": false }
+      ],
+      "explanation": "IEEE 1076 é o padrão cujo título inclui VHDL Language Reference Manual. `std_logic_1164` é pacote relacionado a tipos multivalorados; padrão da linguagem não determina pinagem de FPGA nem impõe um compilador único.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num projeto com saída lógica combinacional, cada ramificação de um `if` atribui um valor à saída. Qual resultado essa cobertura favorece?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Uma função combinacional completa, sem necessidade de conservar valor anterior.", "correct": true },
+        { "key": "B", "text": "Um latch obrigatório, pois qualquer instrução if armazena estado por definição.", "correct": false },
+        { "key": "C", "text": "Um registrador de borda, mesmo que o processo não teste clock algum.", "correct": false },
+        { "key": "D", "text": "Uma porta tristate, porque a saída recebe valores em mais de um ramo.", "correct": false },
+        { "key": "E", "text": "Uma entidade nova para cada alternativa condicional descrita no processo.", "correct": false }
+      ],
+      "explanation": "Com atribuição em todo caminho, a saída pode ser calculada apenas dos valores atuais das entradas, sem retenção. `if` não implica memória automaticamente; o latch surge quando o comportamento precisa preservar um valor em algum caminho.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura estrutural, o bloco filho pode ter uma interface única e várias implementações possíveis. Onde fica essa interface?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Na entity do bloco, que suas arquiteturas implementam sem mudar as portas.", "correct": true },
+        { "key": "B", "text": "No testbench, que reescreve as portas da entidade após cada estímulo.", "correct": false },
+        { "key": "C", "text": "No port map, que declara permanentemente a interface de toda arquitetura.", "correct": false },
+        { "key": "D", "text": "Na lista de sensibilidade, que substitui a declaração da entidade instanciada.", "correct": false },
+        { "key": "E", "text": "No pacote IEEE, que gera portas de acordo com os sinais usados internamente.", "correct": false }
+      ],
+      "explanation": "A entity é a interface estável que pode ser implementada por diferentes architectures. Na estrutura hierárquica, a instância referencia essa interface e o `port map` conecta as portas aos sinais do contexto.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um contador parametrizável usa um limite que deve permanecer fixo para cada instância do circuito. Qual mecanismo corresponde melhor ao parâmetro?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um generic, fornecido na configuração da entidade ou da instância.", "correct": true },
+        { "key": "B", "text": "Um signal `inout`, alterado continuamente pelo contador em execução.", "correct": false },
+        { "key": "C", "text": "Uma variable global, que define a interface externa da entidade.", "correct": false },
+        { "key": "D", "text": "Uma entrada de testbench, que fixa o limite sem conexão de porta.", "correct": false },
+        { "key": "E", "text": "Um ciclo delta, que representa o número constante de contagens permitido.", "correct": false }
+      ],
+      "explanation": "Generic é um parâmetro constante de configuração, adequado a limites de contador definidos por instância. Uma porta transporta valores de operação, enquanto variável e ciclo delta têm outras funções.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto VHDL descreve dois processos independentes que observam eventos diferentes. Como eles são entendidos no modelo concorrente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Como comportamentos concorrentes coordenados pelo mecanismo de eventos da simulação.", "correct": true },
+        { "key": "B", "text": "Como duas rotinas de software executadas em ordem fixa conforme aparecem no arquivo.", "correct": false },
+        { "key": "C", "text": "Como descrições mutuamente exclusivas das quais apenas a primeira é sintetizada.", "correct": false },
+        { "key": "D", "text": "Como dois clocks implícitos que o simulador cria para cada process declarado.", "correct": false },
+        { "key": "E", "text": "Como alternativas de compilação que não podem coexistir na mesma architecture.", "correct": false }
+      ],
+      "explanation": "Processos são concorrentes no nível da arquitetura: cada um reage aos eventos de sua sensibilidade e as atribuições de sinal propagam atualizações pelo escalonador. A posição textual não transforma os processos em sequência global de software.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deseja testar uma unidade com estímulos e verificar valores esperados sem sintetizar o ambiente de teste. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O testbench pode ser voltado à simulação e permanecer fora do hardware sintetizado.", "correct": true },
+        { "key": "B", "text": "O testbench deve sempre ser uma arquitetura sintetizada junto à unidade testada.", "correct": false },
+        { "key": "C", "text": "O testbench precisa atribuir pinos reais antes de produzir qualquer estímulo lógico.", "correct": false },
+        { "key": "D", "text": "A síntese converte todas as verificações assert em portas de saída da unidade.", "correct": false },
+        { "key": "E", "text": "A unidade não pode ser simulada sem que o testbench seja uma porta da entity.", "correct": false }
+      ],
+      "explanation": "Testbench é um ambiente de verificação usado na simulação e pode incluir geração de estímulos ou esperas que não se destinam à síntese. A unidade sob teste pode ser instanciada e conectada internamente sem tornar o testbench uma porta externa.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O padrão da linguagem VHDL cobre construções mais amplas do que as aceitas por determinado sintetizador. Que consequência decorre disso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma construção pode ser válida e simulável, mas ficar fora do subconjunto sintetizável.", "correct": true },
+        { "key": "B", "text": "Toda construção válida no padrão é convertida em portas por qualquer ferramenta.", "correct": false },
+        { "key": "C", "text": "A ferramenta deve ignorar o padrão e tratar a descrição como código C sequencial.", "correct": false },
+        { "key": "D", "text": "Uma simulação válida assegura implementação física sem análise de temporização.", "correct": false },
+        { "key": "E", "text": "Apenas entidades são padronizadas; tipos e processos são extensões proprietárias.", "correct": false }
+      ],
+      "explanation": "O padrão da linguagem define recursos para descrever e simular sistemas, enquanto sintetizadores suportam subconjuntos voltados a estruturas de hardware. Por isso, sucesso de análise e simulação não assegura que a síntese aceite cada construção.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No modo `inout`, uma porta pode tanto receber quanto conduzir valores. Que cuidado decorre dessa característica?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "É preciso coordenar condução e alta impedância para evitar conflito no barramento.", "correct": true },
+        { "key": "B", "text": "A porta passa a ser generic e só pode ser configurada antes da elaboração.", "correct": false },
+        { "key": "C", "text": "O modo inout impede que a entidade receba qualquer sinal externo durante operação.", "correct": false },
+        { "key": "D", "text": "O compilador transforma a porta automaticamente em dois clocks separados.", "correct": false },
+        { "key": "E", "text": "A porta só pode ser conectada a variável local e não pode usar signal.", "correct": false }
+      ],
+      "explanation": "Por ser bidirecional, `inout` pode ter múltiplos condutores e precisa controlar quando o bloco dirige o barramento e quando libera a linha, frequentemente com alta impedância. Sem essa coordenação, a resolução pode indicar conflito.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um circuito mantém o estado anterior quando uma habilitação está inativa e atualiza em cada borda ativa de clock. Qual modelagem combina com esse comportamento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Processo de borda que atribui o registrador quando enable está ativo.", "correct": true },
+        { "key": "B", "text": "Processo combinacional completo que usa atraso para imitar a borda de clock.", "correct": false },
+        { "key": "C", "text": "Atribuição concorrente que deixa a saída sem valor em todos os ciclos.", "correct": false },
+        { "key": "D", "text": "Processo assíncrono sem sensibilidade, acionado por mudança de generic.", "correct": false },
+        { "key": "E", "text": "Instrução generate que seleciona um valor diferente a cada evento de entrada.", "correct": false }
+      ],
+      "explanation": "A retenção é intencional no registrador: um process sensível ao clock verifica sua borda e atribui o estado somente quando enable está ativo. A falta de atribuição nesse ramo preserva o estado do elemento sequencial, ao contrário de processo combinacional incompleto.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A unidade de topo possui genérico para largura e é elaborada com determinado valor. Em qual etapa essa configuração participa do fluxo de simulação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Na elaboração, quando a hierarquia e a configuração da unidade de topo são resolvidas.", "correct": true },
+        { "key": "B", "text": "Na execução, quando a entidade recompila sua declaração após cada clock.", "correct": false },
+        { "key": "C", "text": "Na análise, quando o simulador aplica estímulos e calcula cada saída.", "correct": false },
+        { "key": "D", "text": "Na síntese física, que sempre precede a verificação sintática da fonte.", "correct": false },
+        { "key": "E", "text": "Na geração de ondas, que altera o valor do generic em cada delta cycle.", "correct": false }
+      ],
+      "explanation": "Elaboração resolve a unidade de topo, suas instâncias e parâmetros de configuração. Análise verifica unidades fonte; execução processa a simulação após a hierarquia estar elaborada.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Atribuições concorrentes em uma architecture ocorrem em paralelo no modelo de hardware, embora o simulador processe eventos em alguma ordem. Como interpretar essa distinção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A ordem do arquivo não define uma sequência global de execução do circuito.", "correct": true },
+        { "key": "B", "text": "O simulador converte todas as atribuições concorrentes em instruções sequenciais de software.", "correct": false },
+        { "key": "C", "text": "A última atribuição no arquivo sempre vence, independentemente de sinais e eventos.", "correct": false },
+        { "key": "D", "text": "A arquitetura só executa uma atribuição por período de clock implícito.", "correct": false },
+        { "key": "E", "text": "A concorrência existe apenas quando todas as atribuições estão dentro de um mesmo process.", "correct": false }
+      ],
+      "explanation": "A linguagem modela processos e atribuições concorrentes como comportamentos paralelos. O escalonador organiza atualizações por eventos para simular essa concorrência, mas a ordem textual entre atribuições fora de processo não é uma sequência imperativa global.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um vetor tem índices declarados como `0 to 3` em vez de `3 downto 0`. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A faixa contém quatro elementos e seus índices crescem de zero a três.", "correct": true },
+        { "key": "B", "text": "A faixa contém três elementos, pois o índice final é sempre excluído.", "correct": false },
+        { "key": "C", "text": "O vetor deixa de ser legal em VHDL por precisar sempre decrescer.", "correct": false },
+        { "key": "D", "text": "A declaração representa um escalar cujo índice informa o valor lógico atual.", "correct": false },
+        { "key": "E", "text": "O tipo troca automaticamente de `std_logic_vector` para `unsigned` em ordem crescente.", "correct": false }
+      ],
+      "explanation": "`to` define uma faixa crescente, incluindo os dois extremos: 0, 1, 2 e 3. A direção pode ser crescente ou decrescente; ela não muda automaticamente a natureza lógica do vetor nem o converte em número.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um processo de testbench usa `assert` para conferir se uma saída coincide com o valor esperado. Qual é o papel dessa instrução nesse uso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Verificar uma condição e reportar quando a expectativa não é satisfeita.", "correct": true },
+        { "key": "B", "text": "Atribuir a saída esperada ao circuito e corrigir automaticamente seu valor.", "correct": false },
+        { "key": "C", "text": "Instanciar o componente sob teste e associar todas as suas portas.", "correct": false },
+        { "key": "D", "text": "Sintetizar uma porta lógica cuja função é interromper o clock de entrada.", "correct": false },
+        { "key": "E", "text": "Declarar uma biblioteca de sinais observados pelo simulador externo.", "correct": false }
+      ],
+      "explanation": "`assert` avalia uma condição e pode emitir mensagem com nível de severidade quando ela falha. Em testbench, é útil para detectar diferenças entre resposta observada e esperada; não dirige nem corrige automaticamente o circuito.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração num signal ocorre e ativa outros processos no mesmo tempo físico simulado. Qual característica do mecanismo de VHDL permite ordenar essas propagações?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A execução em ciclos delta, com avanço de eventos sem incremento do tempo físico.", "correct": true },
+        { "key": "B", "text": "A imposição de um período de clock global criado implicitamente pelo compilador.", "correct": false },
+        { "key": "C", "text": "A síntese combinacional que altera os sinais antes de iniciar qualquer simulação.", "correct": false },
+        { "key": "D", "text": "A conversão de cada signal em variável local após o primeiro evento recebido.", "correct": false },
+        { "key": "E", "text": "A criação de um atraso físico igual para todos os fios da arquitetura elaborada.", "correct": false }
+      ],
+      "explanation": "Ciclos delta permitem que o simulador processe atualizações agendadas e eventos em etapas sucessivas sem avançar o tempo simulado. Isso oferece uma ordem estável à propagação lógica sem presumir atraso físico uniforme.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual frase diferencia melhor `std_logic_1164` de `numeric_std` no uso cotidiano de VHDL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O primeiro define tipos lógicos multivalorados; o segundo oferece tipos e operações numéricas vetoriais.", "correct": true },
+        { "key": "B", "text": "O primeiro define portas de entidade; o segundo implementa arquiteturas estruturais automaticamente.", "correct": false },
+        { "key": "C", "text": "O primeiro é exclusivo de testbenches; o segundo só pode ser usado em hardware analógico.", "correct": false },
+        { "key": "D", "text": "O primeiro sintetiza FPGA; o segundo controla a compilação de pacotes e bibliotecas.", "correct": false },
+        { "key": "E", "text": "Os dois são sinônimos, mas diferem no número de portas que podem ser declaradas.", "correct": false }
+      ],
+      "explanation": "`std_logic_1164` fornece tipos como `std_logic` e `std_logic_vector`; `numeric_std` define `signed`, `unsigned` e operações aritméticas associadas. Tipos lógicos podem ser usados em designs sintetizáveis e testbenches conforme o contexto.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na instanciação de um bloco parametrizado, qual construção fornece o valor de um generic?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`generic map`, que associa valores constantes aos genéricos da instância.", "correct": true },
+        { "key": "B", "text": "`port map`, que associa diretamente constantes a todos os processos internos.", "correct": false },
+        { "key": "C", "text": "`signal map`, que converte cada entrada de dados em parâmetro estático.", "correct": false },
+        { "key": "D", "text": "`use map`, que substitui o valor de generic por um pacote IEEE.", "correct": false },
+        { "key": "E", "text": "`assert map`, que escolhe um limite apenas quando a simulação falha.", "correct": false }
+      ],
+      "explanation": "`generic map` fornece valores aos parâmetros genéricos da instância. `port map` conecta portas a sinais e expressões; os nomes distintos refletem as duas funções de configuração e conexão.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um sinal de `std_logic`, o valor `'Z'` representa normalmente qual condição de condução?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Alta impedância, indicando que o driver libera a linha.", "correct": true },
+        { "key": "B", "text": "Nível lógico zero conduzido com força máxima pelo driver.", "correct": false },
+        { "key": "C", "text": "Conflito de dois valores ativos resolvido como desconhecido pelo simulador.", "correct": false },
+        { "key": "D", "text": "Valor ainda não inicializado desde o início da simulação.", "correct": false },
+        { "key": "E", "text": "Uma borda ascendente de clock que ocorreu no ciclo delta anterior.", "correct": false }
+      ],
+      "explanation": "`'Z'` denota alta impedância, útil para modelar um driver que libera um barramento. Conflitos podem resolver para `'X'`, e `'U'` representa estado não inicializado.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade e sua arquitetura foram analisadas, mas ainda não há unidade de topo executada. Qual é o objetivo da etapa de elaboração?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Resolver instâncias e parâmetros para formar a hierarquia simulável da unidade de topo.", "correct": true },
+        { "key": "B", "text": "Aplicar estímulos, aguardar eventos e registrar formas de onda do circuito.", "correct": false },
+        { "key": "C", "text": "Converter automaticamente a arquitetura em layout físico e trilhas de circuito.", "correct": false },
+        { "key": "D", "text": "Validar as respostas da unidade por assertions geradas pelo testbench.", "correct": false },
+        { "key": "E", "text": "Traduzir cada linha fonte em código de máquina antes de analisar sua sintaxe.", "correct": false }
+      ],
+      "explanation": "Elaboração seleciona a unidade de topo e resolve sua hierarquia, instâncias e configurações para a execução. Aplicar estímulos e observar respostas é a etapa de execução; implementação física exige outro fluxo.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável local recebe novo conteúdo antes de um signal que também foi agendado para atualização ser relido no mesmo processo. Qual diferença é relevante?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A variável já contém o valor novo; o signal mantém o valor atual até sua atualização agendada.", "correct": true },
+        { "key": "B", "text": "O signal atualiza imediatamente e a variável só muda ao fim do ciclo delta.", "correct": false },
+        { "key": "C", "text": "Ambos atualizam somente na próxima borda de clock, independentemente do processo.", "correct": false },
+        { "key": "D", "text": "Ambos são aliases de portas de saída e recebem valor fora da arquitetura.", "correct": false },
+        { "key": "E", "text": "A variável agenda atualização e o signal não pode ser lido em processo sequencial.", "correct": false }
+      ],
+      "explanation": "A atualização de variable é imediata no processo, enquanto a atribuição de signal agenda uma mudança que ocorre depois da execução corrente, segundo a fila de eventos. Esse comportamento explica por que leituras sucessivas podem observar valores diferentes.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um processo combinacional, todos os sinais lidos devem causar reavaliação quando mudam. Que aspecto precisa ser assegurado num estilo tradicional?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Incluir os sinais relevantes na lista de sensibilidade, ou usar `process(all)` quando aplicável.", "correct": true },
+        { "key": "B", "text": "Incluir apenas o sinal de clock, mesmo que o processo não descreva memória.", "correct": false },
+        { "key": "C", "text": "Remover a lista de sensibilidade, porque todo processo roda continuamente em simulação.", "correct": false },
+        { "key": "D", "text": "Declarar cada sinal lido como generic para que gere um evento durante execução.", "correct": false },
+        { "key": "E", "text": "Converter a saída em variável externa, dispensando os eventos dos sinais de entrada.", "correct": false }
+      ],
+      "explanation": "No estilo tradicional, a lista deve refletir os sinais lidos para que mudanças reavaliem o processo e a simulação corresponda à lógica combinacional. `process(all)` é recurso do VHDL-2008 que evita omissão manual quando suportado.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída está ausente de um ramo de `case` usado para descrever lógica combinacional. Qual consequência é mais provável se esse ramo puder ocorrer?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O comportamento conserva o valor anterior nesse ramo e pode inferir latch.", "correct": true },
+        { "key": "B", "text": "A saída recebe automaticamente o primeiro valor enumerado em seu tipo.", "correct": false },
+        { "key": "C", "text": "O sintetizador deduz necessariamente uma borda de clock para completar o ramo.", "correct": false },
+        { "key": "D", "text": "O ramo incompleto é descartado da simulação e nunca poderá ser executado.", "correct": false },
+        { "key": "E", "text": "A entidade é duplicada para separar os casos que atribuem e os que omitem a saída.", "correct": false }
+      ],
+      "explanation": "Sem novo valor, a saída precisa reter seu estado anterior quando aquele ramo ocorre, o que demanda armazenamento e pode resultar em latch. Para uma função combinacional, cubra todas as alternativas e atribua todas as saídas.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A mesma interface entity admite arquitetura comportamental e arquitetura estrutural escolhidas em configurações distintas. O que permanece comum?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A interface externa definida pela entidade, incluindo suas portas declaradas.", "correct": true },
+        { "key": "B", "text": "A implementação interna, que deve ter as mesmas atribuições em ambas as arquiteturas.", "correct": false },
+        { "key": "C", "text": "A lista de sensibilidade, que pertence à entidade e é compartilhada por todo projeto.", "correct": false },
+        { "key": "D", "text": "O mapeamento físico de pinos, que é criado pelo padrão IEEE 1076.", "correct": false },
+        { "key": "E", "text": "O testbench, que é automaticamente incorporado ao código da interface.", "correct": false }
+      ],
+      "explanation": "Arquiteturas distintas podem descrever implementações diferentes da mesma entity. O contrato externo da entidade continua comum, possibilitando substituir uma implementação por outra sem alterar a interface de conexão.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação descreve síntese de uma arquitetura VHDL em termos gerais?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Converter construções suportadas em uma representação de lógica e elementos de hardware.", "correct": true },
+        { "key": "B", "text": "Executar o testbench em tempo real e comparar o circuito com resultados anteriores.", "correct": false },
+        { "key": "C", "text": "Analisar a gramática da fonte e registrar seus pacotes sem elaborar a hierarquia.", "correct": false },
+        { "key": "D", "text": "Gerar valores de estímulo para todas as portas de entrada da entidade de topo.", "correct": false },
+        { "key": "E", "text": "Salvar as formas de onda do simulador em um arquivo sem criar rede lógica.", "correct": false }
+      ],
+      "explanation": "Síntese transforma uma descrição suportada em lógica, registradores e outras estruturas mapeáveis para implementação. Análise e simulação verificam e executam o comportamento; geração de estímulo pertence ao testbench.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída combinacional é atribuída por `y <= a and b;` fora de qualquer process. Como classificar essa construção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Atribuição concorrente que descreve uma função combinacional ativa.", "correct": true },
+        { "key": "B", "text": "Atribuição sequencial que só ocorre quando o testbench chama a entidade.", "correct": false },
+        { "key": "C", "text": "Declaração de variável que mantém o resultado após cada borda de clock.", "correct": false },
+        { "key": "D", "text": "Instrução de seleção que compara `a` com `b` e retorna igualdade.", "correct": false },
+        { "key": "E", "text": "Instanciação de uma porta AND de biblioteca com pinos já definidos.", "correct": false }
+      ],
+      "explanation": "Fora de processo, a atribuição é concorrente e representa uma relação combinacional que acompanha os sinais de entrada. A expressão `and` calcula a função lógica; a linha não declara variável nem escolhe pinos físicos.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A biblioteca IEEE `std_logic_1164` é importada em um projeto. Qual conteúdo é associado diretamente a esse pacote?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Tipos lógicos multivalorados e operações relacionadas, como std_logic.", "correct": true },
+        { "key": "B", "text": "Uma implementação completa e universal de posicionamento e roteamento de FPGA.", "correct": false },
+        { "key": "C", "text": "A hierarquia de todas as entidades que serão unidade de topo do simulador.", "correct": false },
+        { "key": "D", "text": "Um banco de estímulos obrigatórios que substitui os processos de testbench.", "correct": false },
+        { "key": "E", "text": "A descrição sintetizada de qualquer porta lógica sem dependência do código-fonte.", "correct": false }
+      ],
+      "explanation": "`std_logic_1164` é um pacote IEEE conhecido por definir tipos lógicos multivalorados como `std_logic` e `std_logic_vector`, além de operações relacionadas. Não é uma ferramenta de implementação física nem uma hierarquia automática de projeto.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na ferramenta de simulação, por que a análise da fonte precede a elaboração da unidade de topo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A análise verifica e registra unidades que a elaboração poderá resolver na hierarquia.", "correct": true },
+        { "key": "B", "text": "A análise executa o circuito completo para que a elaboração capture as ondas finais.", "correct": false },
+        { "key": "C", "text": "A elaboração precisa criar arquivos fonte e corrigir erros sintáticos antes da análise.", "correct": false },
+        { "key": "D", "text": "A síntese física deve gerar uma entidade antes que a fonte seja lida pelo analisador.", "correct": false },
+        { "key": "E", "text": "O testbench fornece a gramática da linguagem e substitui bibliotecas de trabalho.", "correct": false }
+      ],
+      "explanation": "Análise transforma as unidades fonte em representações disponíveis nas bibliotecas de trabalho após verificar sua validade. Elaboração usa essas unidades para resolver referências e compor a hierarquia de topo que será executada.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O projeto é compilado com suporte ao padrão VHDL-2008 e o autor usa `process(all)`. Qual leitura está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "É um recurso de 2008 para sensibilidade automática aos sinais lidos, conforme suporte da ferramenta.", "correct": true },
+        { "key": "B", "text": "É uma diretiva que faz o processo sintetizar mesmo se ele contiver espera temporal.", "correct": false },
+        { "key": "C", "text": "É uma declaração de clock universal que torna síncronos todos os sinais internos.", "correct": false },
+        { "key": "D", "text": "É uma forma de atribuição variável que atualiza sinais sem ciclos delta.", "correct": false },
+        { "key": "E", "text": "É uma instrução concorrente equivalente a criar uma entidade para cada entrada lida.", "correct": false }
+      ],
+      "explanation": "VHDL-2008 acrescenta `process(all)`, em que a ferramenta considera os sinais lidos para a sensibilidade do processo. O uso requer suporte apropriado de analisador e não amplia por si só o subconjunto sintetizável.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta de saída de um componente filho deve ser observada e conectada a um signal no módulo pai. Que mecanismo liga os dois níveis?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A associação correspondente no `port map` da instância filha.", "correct": true },
+        { "key": "B", "text": "A cláusula `use`, que liga portas automaticamente pelo nome do pacote.", "correct": false },
+        { "key": "C", "text": "A lista de sensibilidade do pai, que redireciona portas da hierarquia.", "correct": false },
+        { "key": "D", "text": "O comando `assert`, que propaga valores esperados à saída observada.", "correct": false },
+        { "key": "E", "text": "O generic do filho, que transforma a saída em sinal compartilhado sem associação.", "correct": false }
+      ],
+      "explanation": "A porta filha é conectada ao signal pai pela associação no `port map`. A lista de sensibilidade regula despertar de processo, e generic configura parâmetros constantes em vez de conexões de sinal.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No início da simulação, um signal escalar `std_logic` sem valor inicial explícito costuma aparecer como qual estado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`'U'`, indicando que o sinal ainda não foi inicializado.", "correct": true },
+        { "key": "B", "text": "`'Z'`, indicando que todos os sinais começam em alta impedância.", "correct": false },
+        { "key": "C", "text": "`'X'`, indicando que qualquer valor não inicializado é sempre conflito entre drivers.", "correct": false },
+        { "key": "D", "text": "`'1'`, porque todo sinal lógico é inicializado em nível alto pelo padrão.", "correct": false },
+        { "key": "E", "text": "`'-'`, valor inicial que significa clock ainda sem primeira borda.", "correct": false }
+      ],
+      "explanation": "O valor inicial padrão de um objeto escalar `std_logic` é normalmente `'U'`, usado para indicar não inicializado. `'X'` pode refletir desconhecimento ou conflito, mas não é sinônimo necessário de estado inicial.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe observa que um testbench termina ao ultrapassar um limite de tempo configurado no simulador. Que limite está sendo aplicado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um limite de tempo de simulação, que não é o tempo de relógio real da máquina.", "correct": true },
+        { "key": "B", "text": "Um limite de tempo de compilação medido em segundos reais desde a análise.", "correct": false },
+        { "key": "C", "text": "Um período de clock que o simulador converte para velocidade do processador.", "correct": false },
+        { "key": "D", "text": "Uma duração de síntese física que apaga estados após certo tempo de parede.", "correct": false },
+        { "key": "E", "text": "Um atraso global aplicado às portas da entidade antes da elaboração hierárquica.", "correct": false }
+      ],
+      "explanation": "O limite de simulação refere-se ao tempo lógico modelado no projeto, por exemplo em unidades ns, e não ao tempo real que a CPU leva para executar o simulador. A documentação do GHDL esclarece essa distinção em sua opção de parada por tempo.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No contexto de VHDL, qual descrição diferencia corretamente comportamento de arquitetura e algoritmo executado por software tradicional?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A arquitetura pode expressar partes concorrentes que representam circuitos operando em paralelo.", "correct": true },
+        { "key": "B", "text": "Toda linha da arquitetura é uma instrução de CPU executada uma vez em ordem textual.", "correct": false },
+        { "key": "C", "text": "A concorrência é apenas uma otimização do compilador sem significado no hardware descrito.", "correct": false },
+        { "key": "D", "text": "Os processos descrevem arquivos separados que nunca interagem por sinais.", "correct": false },
+        { "key": "E", "text": "Uma architecture contém apenas comentários e depende do testbench para definir a lógica.", "correct": false }
+      ],
+      "explanation": "VHDL é uma linguagem de descrição de hardware, e sua semântica concorrente expressa componentes que podem operar em paralelo. Dentro de cada process há fluxo sequencial, mas processos distintos não formam uma única sequência textual global.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável criada dentro de processo é consultada por outra arquitetura concorrente como se fosse um fio público do circuito. Qual correção conceitual é adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Use um signal ou uma porta para comunicação concorrente entre partes do projeto.", "correct": true },
+        { "key": "B", "text": "Mantenha a variável, pois toda variável de processo é automaticamente visível a entidades externas.", "correct": false },
+        { "key": "C", "text": "Troque a variável por generic, que transporta dados atualizados entre processos.", "correct": false },
+        { "key": "D", "text": "Declare a variável como constante e atualize seu valor ao fim de cada delta cycle.", "correct": false },
+        { "key": "E", "text": "Conecte-a pelo `generic map`, que publica todas as variáveis locais da arquitetura.", "correct": false }
+      ],
+      "explanation": "Variable local tem escopo e atualização sequencial dentro do processo, não constitui fio público automaticamente acessível a outra arquitetura. Comunicação entre processos e instâncias ocorre por signals e portas adequadamente conectados.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma implementação estrutural escolhe o filho correto, mas os sinais estão ligados às portas erradas. Qual etapa de escrita deve ser revista primeiro?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A associação formal e posicional ou nominal das conexões no `port map`.", "correct": true },
+        { "key": "B", "text": "A lista de sensibilidade da entidade, que define a ordem das portas externas.", "correct": false },
+        { "key": "C", "text": "O generic da arquitetura, que troca automaticamente cada sinal ligado.", "correct": false },
+        { "key": "D", "text": "A instrução `case` do testbench, que altera a interface do componente instanciado.", "correct": false },
+        { "key": "E", "text": "O pacote `numeric_std`, que corrige associações de portas incompatíveis.", "correct": false }
+      ],
+      "explanation": "As ligações de portas são feitas na associação do `port map`; verificar nomes, posições e compatibilidade dos sinais é a correção direta. Sensibilidade rege processos e pacotes fornecem declarações e operações, não corrigem uma conexão equivocada.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do GHDL descreve síntese como recurso experimental e em desenvolvimento. Qual inferência é razoável ao usar essa ferramenta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O suporte e a maturidade da síntese dependem da ferramenta e não definem todo o padrão VHDL.", "correct": true },
+        { "key": "B", "text": "A norma IEEE 1076 limita todo projeto VHDL ao sintetizador experimental do GHDL.", "correct": false },
+        { "key": "C", "text": "Como experimental, a análise e a simulação também deixam de seguir qualquer regra da linguagem.", "correct": false },
+        { "key": "D", "text": "A síntese experimental prova que qualquer descrição será otimizada para qualquer FPGA.", "correct": false },
+        { "key": "E", "text": "O GHDL não pode analisar nem simular VHDL porque seu módulo de síntese está em desenvolvimento.", "correct": false }
+      ],
+      "explanation": "A documentação do GHDL distingue seu analisador/simulador de um kernel de síntese ainda experimental e com suporte limitado. Isso ilustra que capacidade de uma ferramenta não redefine o padrão de linguagem nem garante suporte universal de síntese.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em VHDL, a igualdade entre dois valores é testada dentro de uma expressão. Qual operador deve ser distinguido da atribuição de signal?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`=`, que compara igualdade; `<=` atribui a signal em seu contexto de atribuição.", "correct": true },
+        { "key": "B", "text": "`:=`, que compara igualdade; `=` atribui a signal em qualquer contexto.", "correct": false },
+        { "key": "C", "text": "`=>`, que compara igualdade; `<>` atribui signal ao valor seguinte.", "correct": false },
+        { "key": "D", "text": "`and`, que compara igualdade; `or` atribui valor a uma porta de saída.", "correct": false },
+        { "key": "E", "text": "`rising_edge`, que compara vetores; `falling_edge` atribui valores escalares.", "correct": false }
+      ],
+      "explanation": "O operador `=` compara igualdade em uma expressão. O token `<=` é atribuição de signal quando aparece nessa construção; em outros contextos, como expressão relacional, sua interpretação é determinada pela gramática, portanto o contexto importa.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa reutilizar um módulo com larguras distintas sem manter cópias textuais separadas. Qual combinação favorece essa reutilização?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Declarar largura como generic e dimensionar portas ou estruturas em função dele.", "correct": true },
+        { "key": "B", "text": "Duplicar cada architecture e editar manualmente todos os vetores de cada cópia.", "correct": false },
+        { "key": "C", "text": "Usar um testbench para mudar a largura física das portas depois de elaboradas.", "correct": false },
+        { "key": "D", "text": "Usar lista de sensibilidade para acrescentar bits ao vetor a cada evento.", "correct": false },
+        { "key": "E", "text": "Usar `std_logic` escalar para transportar qualquer largura sem declarar limites.", "correct": false }
+      ],
+      "explanation": "Generics permitem parametrizar a entidade e dimensionar faixas e estruturas conforme o valor configurado na elaboração. Assim, um módulo pode ser reutilizado com larguras diferentes sem duplicação textual de toda a implementação.",
+      "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual das alternativas explica corretamente por que uma saída não atribuída em todos os ramos costuma ser erro em lógica combinacional?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O ramo sem atribuição exige conservar um valor, introduzindo comportamento de armazenamento.", "correct": true },
+        { "key": "B", "text": "O ramo sem atribuição é interpretado como uma constante zero pelo padrão da linguagem.", "correct": false },
+        { "key": "C", "text": "A omissão transforma automaticamente a saída em entrada de alta impedância.", "correct": false },
+        { "key": "D", "text": "A omissão altera a entity para modo `inout` sem mudar sua declaração original.", "correct": false },
+        { "key": "E", "text": "A omissão força o simulador a recomeçar a análise do arquivo fonte.", "correct": false }
+      ],
+      "explanation": "Quando nenhuma atribuição nova ocorre em determinado ramo, a semântica requer manter o valor anterior. Essa retenção caracteriza armazenamento, frequentemente um latch. Em lógica combinacional, uma atribuição padrão no início e cobertura completa dos ramos ajudam a eliminar a retenção acidental.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que melhor descreve a relação entre a linguagem VHDL e o circuito resultante após síntese?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A síntese interpreta construções suportadas para formar uma rede de hardware equivalente.", "correct": true },
+        { "key": "B", "text": "O circuito executa o texto fonte armazenado como programa durante sua operação normal.", "correct": false },
+        { "key": "C", "text": "O padrão converte comentários e nomes de sinais em portas físicas do dispositivo.", "correct": false },
+        { "key": "D", "text": "A compilação substitui sempre a necessidade de definir lógica e temporização.", "correct": false },
+        { "key": "E", "text": "A simulação gera por si só um chip físico sem ferramentas de implementação adicionais.", "correct": false }
+      ],
+      "explanation": "Na síntese, ferramentas traduzem construções suportadas em uma representação de hardware, como lógica combinacional e elementos de estado. O dispositivo não executa o arquivo VHDL como programa; implementação e temporização física dependem de etapas posteriores.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um processo de clock testa a borda e depois verifica se enable está ativo. Quando enable fica inativo, qual é o comportamento descrito para um registrador sem ramo else?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O registrador mantém seu estado anterior naquela borda, como habilitação de retenção.", "correct": true },
+        { "key": "B", "text": "O registrador recebe zero automaticamente por ausência de atribuição no ramo.", "correct": false },
+        { "key": "C", "text": "O processo deixa de ser sensível ao clock e vira exclusivamente combinacional.", "correct": false },
+        { "key": "D", "text": "A entidade troca seu modo de porta de saída para entrada até o próximo ciclo.", "correct": false },
+        { "key": "E", "text": "O simulador apaga o histórico do sinal para impedir estado persistente.", "correct": false }
+      ],
+      "explanation": "Em processo de borda, a atribuição condicional descreve um registrador com habilitação: sem atribuição na borda, o elemento conserva o estado. Diferentemente de processo combinacional incompleto, aqui o armazenamento é a intenção funcional.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa observar as mudanças de sinais em uma execução de simulação. Qual artefato é normalmente útil para essa análise?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma forma de onda gravada pelo simulador e aberta em visualizador compatível.", "correct": true },
+        { "key": "B", "text": "Um generic de largura, que contém a sequência completa dos eventos de execução.", "correct": false },
+        { "key": "C", "text": "Um port map, que armazena valores de sinal ao longo do tempo físico.", "correct": false },
+        { "key": "D", "text": "Uma entity sem architecture, que registra automaticamente os valores simulados.", "correct": false },
+        { "key": "E", "text": "Um pacote numeric_std, que substitui o arquivo de trace de qualquer simulador.", "correct": false }
+      ],
+      "explanation": "Simuladores podem registrar transições em arquivos de forma de onda para inspeção temporal, recurso citado também pela documentação do GHDL. O arquivo registra eventos da simulação; portas e genéricos não são repositórios de waveform.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estudante vê tanto `<=` em atribuições quanto em expressões relacionais. Que princípio ajuda a interpretar corretamente esse token?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O contexto gramatical determina se é atribuição de signal ou relação de ordenação.", "correct": true },
+        { "key": "B", "text": "O token sempre significa atribuição e nunca pode ocorrer numa expressão lógica.", "correct": false },
+        { "key": "C", "text": "O token sempre significa comparação e não pode atribuir um signal declarado.", "correct": false },
+        { "key": "D", "text": "O token serve exclusivamente para declarar portas bidirecionais de uma entity.", "correct": false },
+        { "key": "E", "text": "O token substitui os operadores aritméticos quando o tipo é std_logic_vector.", "correct": false }
+      ],
+      "explanation": "A grafia `<=` é usada em atribuição de sinal e também como operador relacional menor ou igual em expressões. O contexto sintático distingue os usos; não se deve interpretar toda ocorrência como uma única operação.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num process, uma atribuição a signal é seguida por uma leitura do mesmo signal antes do fim do processo. Qual regra geral deve ser considerada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A leitura normalmente vê o valor atual, pois a nova atribuição está agendada.", "correct": true },
+        { "key": "B", "text": "A leitura sempre vê o valor novo, pois signal atualiza imediatamente como variable.", "correct": false },
+        { "key": "C", "text": "O signal deixa de existir até que outro processo conclua sua execução.", "correct": false },
+        { "key": "D", "text": "A leitura força a síntese de um latch e invalida a simulação do processo.", "correct": false },
+        { "key": "E", "text": "O simulador espera uma borda de clock que não foi declarada no processo.", "correct": false }
+      ],
+      "explanation": "A atribuição de signal agenda a mudança; ela ocorre após o processo corrente suspender-se e o simulador processar a atualização. Assim, ler imediatamente o signal não equivale ao valor recém-agendado, ao contrário da atribuição imediata de uma variável.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe declara process sensível a um reset e clock e testa primeiro reset antes de verificar `rising_edge(clk)`. Que intenção isso sugere?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Reset assíncrono, capaz de agir quando o reset muda sem esperar a borda.", "correct": true },
+        { "key": "B", "text": "Reset síncrono, que só pode ser testado fora do evento de clock.", "correct": false },
+        { "key": "C", "text": "Reset de elaboração, que escolhe a arquitetura com maior prioridade.", "correct": false },
+        { "key": "D", "text": "Reset combinado, que converte qualquer entrada em clock secundário.", "correct": false },
+        { "key": "E", "text": "Reset de testbench, que não afeta o comportamento do processo simulado.", "correct": false }
+      ],
+      "explanation": "A verificação prioritária do reset fora da condição de borda descreve o reset assíncrono, que pode afetar o estado quando o reset é ativado. Para reset síncrono, a condição é avaliada no ramo da borda ativa.",
+      "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma descrição VHDL usa geração condicional para incluir uma implementação apenas quando um parâmetro estático é verdadeiro. Em que momento essa seleção ocorre?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Na elaboração estrutural, ao resolver as construções generate e seus parâmetros.", "correct": true },
+        { "key": "B", "text": "A cada evento de clock, como uma instrução if dentro de processo sequencial.", "correct": false },
+        { "key": "C", "text": "Na execução do testbench, quando uma assertion verifica o nome da arquitetura.", "correct": false },
+        { "key": "D", "text": "Durante análise lexical, antes de conhecer genéricos e hierarquia de topo.", "correct": false },
+        { "key": "E", "text": "Na gravação da forma de onda, que decide quais instâncias aparecerão no circuito.", "correct": false }
+      ],
+      "explanation": "Construções `generate` criam estrutura condicional ou repetida resolvida em elaboração, usando parâmetros estáticos. Isso difere de uma condição em processo, que descreve comportamento avaliado durante operação/simulação.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação de `std_logic` evita tratar incorretamente `'H'` e `'L'` em relação a `'1'` e `'0'`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "H e L representam níveis fracos alto e baixo, distintos dos valores fortes correspondentes.", "correct": true },
+        { "key": "B", "text": "H e L representam alta impedância e desconhecido, respectivamente.", "correct": false },
+        { "key": "C", "text": "H e L são aliases obrigatórios de saída e entrada em qualquer entidade.", "correct": false },
+        { "key": "D", "text": "H e L indicam que o circuito foi sintetizado em lógica ativa alta e ativa baixa.", "correct": false },
+        { "key": "E", "text": "H e L são valores de numeric_std usados para soma com estouro de vetor.", "correct": false }
+      ],
+      "explanation": "No tipo `std_logic`, `'H'` e `'L'` indicam níveis fracos alto e baixo, ao passo que `'1'` e `'0'` são os níveis lógicos fortes. `'Z'` é alta impedância e `'X'` é desconhecido, distinções úteis para resolução de drivers.",
+      "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma descrição é aceita pelo analisador, elaborada e executada no simulador, mas o sintetizador rejeita um comando. Qual diagnóstico é mais adequado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O comando pode pertencer à linguagem simulável, mas estar fora do subconjunto sintetizável.", "correct": true },
+        { "key": "B", "text": "A execução prova que o sintetizador está incorreto, pois todo VHDL precisa gerar hardware.", "correct": false },
+        { "key": "C", "text": "A análise ignorou a entity porque apenas arquiteturas são processadas pelo padrão.", "correct": false },
+        { "key": "D", "text": "A rejeição mostra que o testbench alterou a sintaxe da linguagem durante a execução.", "correct": false },
+        { "key": "E", "text": "O comando deve ser convertido em atraso físico, mesmo que sintetizador não o reconheça.", "correct": false }
+      ],
+      "explanation": "Simuladores suportam recursos comportamentais e temporais que não representam estruturas de hardware sintetizáveis. A aceitação numa etapa não implica aceitação pela síntese; verifique o subconjunto e as limitações documentadas da ferramenta.",
+      "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+
+    { "statement": "VHDL descreve sistemas digitais e seu modelo concorrente permite representar blocos que operam em paralelo.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. A concorrência é central à descrição de hardware: atribuições concorrentes e processos distintos modelam partes ativas simultaneamente, ainda que o simulador organize suas atualizações por eventos.", "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "A entity de um bloco descreve seu comportamento interno, enquanto a architecture declara apenas a lista de portas externas.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. A entity declara a interface, com portas e possíveis genéricos; a architecture associada descreve implementação comportamental ou estrutural. A afirmação inverte os papéis dessas unidades.", "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Um generic é um parâmetro de configuração constante da entidade, útil para definir, por exemplo, a largura de um vetor.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. Genéricos permitem parametrizar uma unidade e dimensionar sua estrutura na configuração/elaboração. Dados que variam durante operação são conduzidos por sinais e portas.", "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "O tipo `std_logic` representa somente zero e um, de modo que não pode indicar alta impedância ou desconhecimento.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. `std_logic` é multivalorado e inclui estados como `'Z'` para alta impedância, `'X'` para desconhecido ou conflito e `'U'` para não inicializado, além dos níveis lógicos binários.", "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "`std_logic_vector` expressa, por si só, se os bits devem ser interpretados como número assinado ou não assinado.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. `std_logic_vector` é um vetor de valores lógicos sem interpretação numérica intrínseca. Tipos `signed` e `unsigned` de `numeric_std` expressam a interpretação e oferecem operações aritméticas associadas.", "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "A atribuição `:=` a uma variável dentro de processo atualiza o valor imediatamente no fluxo sequencial desse processo.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. Variáveis recebem a atribuição imediatamente, portanto instruções subsequentes no mesmo processo podem ler o valor novo. Sinais usam `<=` e seguem agendamento por eventos.", "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "A atribuição a signal dentro de processo sempre atualiza o signal imediatamente, como se fosse uma variable atribuída com `:=`.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. Uma atribuição a signal agenda a atualização no mecanismo de eventos; a mudança ocorre depois da execução corrente do processo. Variável, por contraste, é atualizada imediatamente.", "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "O estado `'Z'` em `std_logic` indica alta impedância, enquanto `'X'` representa um valor desconhecido.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. São estados distintos: `'Z'` libera a linha, enquanto `'X'` marca desconhecimento e pode decorrer de conflito de drivers. `'U'` indica estado ainda não inicializado.", "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Um process incompleto para lógica combinacional atribui todas as saídas em todos os caminhos, sem conservar valor anterior.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. A afirmação descreve cobertura completa, mas processo incompleto omite ao menos uma saída em algum caminho. Essa omissão pode exigir retenção do valor e inferir latch.", "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Um registrador descrito em processo acionado por borda pode manter o valor quando sua habilitação está inativa.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. Em processo de borda, deixar de atribuir o registrador quando enable está inativo descreve retenção intencional do estado. Isso é comportamento de elemento sequencial, não latch acidental de lógica combinacional.", "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Um reset síncrono é amostrado na borda ativa do clock, enquanto um reset assíncrono pode atuar sem aguardar essa borda.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. A posição do teste no processo corresponde à diferença: reset síncrono dentro do ramo de borda; reset assíncrono testado fora dele e sensível à mudança do reset.", "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "A construção `port map` fornece os valores de parâmetros genéricos de uma instância; `generic map` conecta as portas aos sinais.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. As funções foram trocadas: `port map` conecta portas formais, enquanto `generic map` fornece valores de parâmetros constantes da instância.", "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Uma construção `generate` pode criar estruturas repetidas ou condicionais durante a elaboração do projeto.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. `generate` descreve estrutura repetida ou selecionada condicionalmente, normalmente determinada por genéricos e constantes resolvidos na elaboração.", "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Uma simulação que termina sem erro comprova que todo comando VHDL usado será aceito por qualquer ferramenta de síntese.", "format": "TRUE_FALSE", "difficulty": "DIFICIL", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. A linguagem inclui construções de simulação que podem não representar hardware sintetizável, e ferramentas suportam subconjuntos diferentes. Sucesso na simulação não é garantia de aceitação na síntese.", "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Análise, elaboração e execução são etapas descritas no fluxo comum de simulação do GHDL.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. A documentação oficial do GHDL descreve análise das fontes, elaboração da unidade de topo e execução do projeto como o fluxo regular de simulação.", "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Ciclos delta representam necessariamente atraso físico de portas e avançam o tempo simulado em cada propagação.", "format": "TRUE_FALSE", "difficulty": "DIFICIL", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. Ciclos delta organizam eventos e atualizações sem avançar o tempo físico simulado. Atrasos físicos são conceitos distintos e podem ser modelados explicitamente quando apropriado.", "section": "2. Tipos, sinais e atribuições", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Um testbench costuma aplicar estímulos e verificar respostas; ele não precisa compor a lógica sintetizada do dispositivo.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. O testbench é um ambiente de verificação de simulação, com estímulos, observação e verificações. Sua finalidade não é integrar o hardware final da unidade sob teste.", "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "O processo de síntese interpreta construções suportadas para gerar uma rede lógica, em vez de executar o arquivo VHDL como programa no chip.", "format": "TRUE_FALSE", "difficulty": "DIFICIL", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. Síntese traduz construções suportadas em estruturas de hardware. Após implementação, o dispositivo opera a rede resultante, não interpreta linha a linha o arquivo fonte VHDL.", "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Uma lista de sensibilidade tradicional determina quais sinais podem despertar um processo suspenso na simulação.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. Evento em um sinal listado faz com que o processo suspenso seja retomado. Para lógica combinacional, omitir sinais lidos pode deixar a simulação desatualizada em relação ao comportamento pretendido.", "section": "3. Processos, lógica combinacional e registradores", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "A ferramenta de simulação mede o tempo do projeto em tempo real de CPU e não em unidades de tempo VHDL.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ], "explanation": "Errado. O tempo de simulação é o tempo lógico definido pelo modelo, em unidades como ns ou ps. O tempo de parede usado pela CPU para calcular a simulação é uma medida diferente.", "section": "4. Estrutura, simulação, testbench e síntese", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "Os modos `in`, `out` e `inout` indicam direção de conexão em portas de uma entidade.", "format": "TRUE_FALSE", "difficulty": "FACIL", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. `in` recebe, `out` conduz para fora e `inout` permite comunicação bidirecional, com atenção à coordenação dos drivers. O modo faz parte da interface declarada pela entidade.", "section": "1. O modelo mental: VHDL descreve circuitos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null },
+    { "statement": "`numeric_std` oferece tipos como `signed` e `unsigned`, enquanto `std_logic_1164` define tipos lógicos multivalorados como `std_logic`.", "format": "TRUE_FALSE", "difficulty": "MEDIA", "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ], "explanation": "Certo. Os pacotes têm papéis complementares: um fornece tipos e operações numéricas vetoriais padronizadas e o outro os tipos lógicos multivalorados amplamente usados em interfaces digitais.", "section": "2. Tipos, sinais e atribuições", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "1076-2008 - IEEE Standard VHDL Language Reference Manual",
+      "publisher": "IEEE",
+      "reference": "Registro oficial do padrão de referência da linguagem VHDL e escopo da revisão IEEE 1076-2008.",
+      "url": "https://ieeexplore.ieee.org/document/4772740",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Requesting Permission for Use Material from Approved IEEE Standards (FAQs)",
+      "publisher": "IEEE Standards Association",
+      "reference": "Título e designação corretos do padrão IEEE 1076 e referência pública ao VHDL Language Reference Manual.",
+      "url": "https://standards.ieee.org/faqs/copyrights/requesting-permission-for-use-material/",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Simulation - GHDL documentation",
+      "publisher": "GHDL project",
+      "reference": "Fluxo análise, elaboração e execução; sensibilidade de versão VHDL; limites temporais e ciclos delta da simulação.",
+      "url": "https://ghdl.github.io/ghdl/quick_start/simulation/index.html",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Synthesis - GHDL documentation",
+      "publisher": "GHDL project",
+      "reference": "Distinção entre análise/simulação e síntese, estado experimental do kernel de síntese e subconjunto sintetizado.",
+      "url": "https://ghdl.github.io/ghdl/using/Synthesis.html",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Simulation (runtime) - GHDL documentation",
+      "publisher": "GHDL project",
+      "reference": "Ciclos delta, tempo de simulação, assertions e exportação de formas de onda.",
+      "url": "https://ghdl.github.io/ghdl/using/Simulation.html",
+      "accessedAt": "2026-11-13"
+    }
+  ]
+}

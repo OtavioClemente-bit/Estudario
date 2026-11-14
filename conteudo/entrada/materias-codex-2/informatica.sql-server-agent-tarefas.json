@@ -1,0 +1,2537 @@
+{
+  "id": "informatica.sql-server-agent-tarefas",
+  "subject": "Informática",
+  "title": "Gerenciamento de tarefas do SQL Server Agent",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gerenciamento de tarefas do SQL Server Agent",
+    "Tarefas automatizadas no SQL Server Agent",
+    "Jobs do SQL Server Agent",
+    "Trabalhos do SQL Server Agent",
+    "Agendamento de jobs SQL Server",
+    "Etapas de tarefas do SQL Server Agent",
+    "Administração do SQL Server Agent",
+    "Configuração de tarefas SQL Server Agent",
+    "SQL Server Agent jobs e schedules",
+    "Execução de tarefas do SQL Server Agent"
+  ],
+  "scope": {
+    "covers": "Gerenciamento de tarefas pelo SQL Server Agent: serviço, jobs, etapas e subsistemas, fluxo de sucesso e falha, tentativas, agendas, execução sob demanda, alertas e operadores, histórico e saída, propriedade e permissões, credenciais e proxies, administração por SSMS, T-SQL e SMO, multisservidor e boas práticas de menor privilégio.",
+    "excludes": "Administração geral do mecanismo de banco, sintaxe detalhada de backup, SSIS e PowerShell, alta disponibilidade e diferenças específicas entre versões ou plataformas não citadas."
+  },
+  "theoryTitle": "Automação administrativa com SQL Server Agent",
+  "chapters": [
+    {
+      "title": "1. Serviço, trabalho e etapas",
+      "markdown": "### O problema que este assunto resolve\n\nRotinas administrativas previsíveis — como executar uma manutenção ou processar dados depois do expediente — não precisam depender de alguém abrir uma sessão e iniciar cada comando. O **SQL Server Agent** é um serviço do Windows que executa tarefas administrativas programadas no SQL Server. A instalação não implica que o serviço esteja iniciado: por padrão, ele fica desabilitado, salvo opção explícita de inicialização automática.\n\n> **Siglas e termos deste capítulo**\n> - **Job (trabalho)**: conjunto nomeado de ações que o Agent executa e cujo resultado pode ser acompanhado.\n> - **Etapa (step)**: uma ação individual dentro do job, como executar T-SQL ou pacote SSIS.\n> - **Subsystem**: tipo de funcionalidade aceito por uma etapa, como T-SQL, SSIS ou comando do Analysis Services.\n> - **SSMS**: SQL Server Management Studio, interface gráfica de administração.\n> - **SMO**: SQL Server Management Objects, biblioteca de objetos para administrar o SQL Server por código.\n\nUm job pode ter uma ou várias etapas. Cada etapa tem comando, subsistema e contexto de segurança próprios. O encadeamento não precisa ser simplesmente linear: o administrador define o que fazer quando cada etapa termina com sucesso e quando falha. Pode avançar para a próxima etapa, ir para uma etapa indicada, encerrar o job como sucesso ou encerrá-lo como falha. Uma etapa também pode receber quantidade de tentativas e intervalo entre elas.\n\n| Componente | Pergunta que responde | Exemplo de configuração |\n| --- | --- | --- |\n| Job | Qual rotina será executada? | Atualizar dados de relatórios |\n| Etapa | Qual ação concreta compõe a rotina? | Executar uma instrução T-SQL |\n| Fluxo | Para onde seguir após o resultado? | Em falha, repetir; depois encerrar como falha |\n| Execução | Quem ou o que inicia o job? | Agenda, alerta ou início manual |\n\nO Agent pode iniciar jobs por agenda, em resposta a alertas ou sob demanda, por exemplo com `sp_start_job`. Os jobs e seus metadados são armazenados no SQL Server, incluindo informações mantidas em `msdb`. O serviço do Agent deve estar em funcionamento para processar o trabalho agendado. O Configuration Manager é usado para gerenciar o serviço; SSMS permite administrar jobs e demais objetos do Agent.\n\n### Saída e acompanhamento\n\nO histórico registra execuções do job e de suas etapas. Para etapas T-SQL, é possível configurar arquivo de saída, gravação em tabela e inclusão da saída no histórico. Arquivo e tabela normalmente são sobrescritos a cada execução, a menos que a opção de anexar seja ativada. A gravação de saída em tabela utiliza `sysjobstepslogs`; não confunda essa saída detalhada com o histórico de execução.\n\n### Como cai na prova\n\n- Job é a rotina composta; etapa é uma ação dessa rotina.\n- O Agent executa o que foi configurado; ele não substitui a definição do comando ou da lógica de negócio.\n- Tentativa se configura na etapa com falha, não é o mesmo que agendar uma nova execução recorrente do job.\n- Serviço parado impede a execução automática pelo Agent; iniciar o serviço não equivale a iniciar um job específico."
+    },
+    {
+      "title": "2. Etapas, fluxo e agendas",
+      "markdown": "### O problema que este assunto resolve\n\nUma rotina pode depender de passos anteriores e não deve continuar como se tudo tivesse dado certo quando um comando falhou. O fluxo de controle por etapa permite representar essas dependências e decidir explicitamente o destino após sucesso ou falha.\n\n> **Siglas e termos deste capítulo**\n> - **Retry attempts**: número de novas tentativas de uma etapa que falhou.\n> - **Retry interval**: espera, em minutos, entre tentativas da etapa.\n> - **Schedule (agenda)**: regra temporal associada a um ou mais jobs.\n> - **On success / on failure**: ações configuradas para cada resultado da etapa.\n> - **Sob demanda**: início acionado por usuário ou chamada, sem aguardar a próxima ocorrência da agenda.\n\nNa configuração de etapa, sucesso e falha têm ações próprias. A ação pode avançar para a próxima etapa, saltar para uma etapa determinada ou terminar o job com indicação de sucesso ou falha. O número de tentativas permitido na interface documentada varia de zero a 9999; zero significa que não há repetição configurada. Quando há repetição, o intervalo deve ser informado, entre 1 e 9999 minutos. Repetir uma etapa não significa repetir automaticamente todo o job desde a primeira etapa.\n\nUma agenda descreve quando executar: uma vez em data e hora específicas, de forma recorrente, quando o Agent iniciar, ou quando a utilização de CPU estiver no nível definido como ocioso. Mais de um job pode compartilhar uma agenda, e um job pode estar associado a mais de uma agenda. Assim, editar ou desabilitar uma agenda compartilhada pode afetar vários trabalhos. Uma agenda define tempo; alertas respondem a eventos.\n\n| Necessidade | Recurso apropriado | Efeito\n| --- | --- | --- |\n| Executar toda noite em dias úteis | Agenda recorrente | Dispara em horários definidos |\n| Rodar agora para validar uma correção | Início sob demanda | Inicia sem aguardar a agenda |\n| Continuar para limpeza se a carga funcionar | Ação de sucesso da etapa | Encadeia a etapa seguinte |\n| Tentar novamente após falha transitória | Tentativas e intervalo da etapa | Repete essa etapa antes de considerar falha |\n\nUma etapa pode executar T-SQL, pacote SSIS, comando ou consulta do Analysis Services e outros subsistemas disponíveis. Cada tipo exige configuração e contexto adequados. Etapas T-SQL não usam proxy; para definir o contexto SQL, pode-se usar `EXECUTE AS`. Outros tipos podem executar com proxy associado ao subsistema.\n\n### Como cai na prova\n\n- Uma agenda pode ser compartilhada por jobs, e um job pode ter várias agendas.\n- Agenda recorrente não é sinônimo de retry: uma é disparo temporal do job, a outra é repetição de etapa que falhou.\n- O resultado da etapa define se o job avança, salta ou termina; não presuma que falha sempre encerra o job imediatamente.\n- Para etapa não T-SQL, confira o subsistema e o proxy; uma credencial sozinha não é uma etapa nem uma agenda."
+    },
+    {
+      "title": "3. Alertas, operadores e histórico",
+      "markdown": "### O problema que este assunto resolve\n\nAutomatizar sem observar o resultado apenas troca uma tarefa manual por uma falha silenciosa. Alertas detectam eventos configurados; operadores representam pessoas ou grupos responsáveis por receber notificações. O histórico permite investigar o que de fato ocorreu.\n\n> **Siglas e termos deste capítulo**\n> - **Alerta (alert)**: resposta automática a um evento ou condição configurada.\n> - **Operador (operator)**: contato de uma pessoa responsável por manutenção ou acompanhamento.\n> - **Histórico do job**: registros de início, resultado e mensagens de execuções e etapas.\n> - **Notificação**: comunicação enviada ao operador segundo as opções configuradas.\n> - **Evento**: ocorrência observável, como erro ou condição de recurso monitorada.\n\nUm alerta pode reagir a um evento específico, incluindo certos erros reportados pelo SQL Server, ou a uma condição monitorada, como recursos do sistema. A resposta pode executar um job e/ou notificar operadores conforme a configuração. Um operador não é uma conta de execução do job: guarda informações de contato para comunicação. Configurar alerta não define uma recorrência de horário; essa função é da agenda.\n\nNotificações de conclusão também podem ser associadas ao job, por exemplo para informar sucesso, falha ou conclusão. Elas dependem da infraestrutura de comunicação configurada no ambiente. O Agent registra histórico do job e das etapas; a saída completa da etapa é uma configuração separada e pode ser enviada a arquivo ou tabela. O histórico pode ser limitado por configuração e deve ser consultado junto às mensagens da etapa ao diagnosticar uma execução.\n\n| Objeto | Gatilho ou função | Resultado típico |\n| --- | --- | --- |\n| Agenda | Horário ou padrão temporal | Iniciar job no momento definido |\n| Alerta | Evento ou condição monitorada | Executar resposta e/ou avisar |\n| Operador | Destinatário configurado | Receber notificação |\n| Histórico | Execução já ocorrida | Investigar resultado e mensagem |\n\n### Investigar uma falha\n\nConfira qual etapa falhou, a mensagem registrada, o resultado final do job e se houve tentativas. Verifique também se o caminho de saída foi configurado e se o job estava habilitado, se o Agent estava iniciado e se a identidade de execução tinha permissões. Se o job deveria iniciar por alerta, examine a configuração e o evento; se deveria iniciar por agenda, confira a associação e a próxima ocorrência. Uma execução marcada como iniciada sem conclusão pode exigir análise de eventos externos, como failover: jobs em execução durante failover de instância de cluster não retomam automaticamente no outro nó.\n\n### Como cai na prova\n\n- Alerta responde a evento/condição; agenda responde a tempo; operador recebe comunicação.\n- Histórico ajuda a explicar a execução passada, mas não é o mesmo que arquivo de saída da etapa.\n- Alerta pode disparar job; isso não transforma o alerta em agenda recorrente.\n- Uma notificação só chega se destinatário e meio de comunicação estiverem configurados."
+    },
+    {
+      "title": "4. Segurança, permissões e administração",
+      "markdown": "### O problema que este assunto resolve\n\nJobs automatizados podem acessar bancos, arquivos e outros serviços sem uma pessoa acompanhando cada execução. Por isso, cada etapa deve ter somente as permissões necessárias. A propriedade do job, os papéis de `msdb`, as credenciais e os proxies determinam quem administra e sob qual identidade cada ação roda.\n\n> **Siglas e termos deste capítulo**\n> - **`msdb`**: banco do sistema que armazena dados de jobs, agendas e histórico do Agent.\n> - **`sysadmin`**: função fixa de servidor com acesso amplo à instância e ao Agent.\n> - **Credential (credencial)**: guarda a identidade usada para criar um contexto de proxy.\n> - **Proxy**: contexto de segurança vinculado a credencial e autorizado para subsistemas específicos.\n> - **Privilégio mínimo**: conceder apenas as permissões exigidas pela tarefa.\n\nUsuários não sysadmin precisam pertencer a uma ou mais funções fixas de banco em `msdb`: `SQLAgentUserRole`, `SQLAgentReaderRole` ou `SQLAgentOperatorRole`. Em termos gerais, User é a mais restrita e se limita aos jobs locais e agendas que o membro possui; Reader permite visualizar jobs e atividades de outros usuários; Operator tem poderes mais amplos para operar jobs, incluindo iniciá-los ou interrompê-los. As permissões são cumulativas/concentradas: funções mais privilegiadas incorporam permissões das menos privilegiadas. Membros de `sysadmin` têm acesso completo.\n\nO proprietário e sysadmin podem modificar jobs; somente sysadmin pode alterar o proprietário. Trocar o proprietário não garante que o novo dono tenha acesso às proxies exigidas pelas etapas. Etapa T-SQL usa contexto SQL, podendo empregar `EXECUTE AS`; etapas de outros subsistemas podem usar proxy. Uma credencial é necessária para criar o proxy, mas a criação do proxy não concede automaticamente permissões ao usuário representado. O proxy precisa ter acesso ao subsistema da etapa, e o dono/usuário precisa ter autorização para usá-lo.\n\n| Controle | O que delimita | Confusão a evitar |\n| --- | --- | --- |\n| Função `msdb` | Quem pode usar e administrar jobs no Agent | Não substitui a permissão no banco acessado pela etapa |\n| Proprietário do job | Responsabilidade e direitos de modificação | Não concede automaticamente acesso a toda proxy |\n| Credencial | Identidade para o proxy | Não é a própria autorização do subsistema |\n| Proxy | Identidade e subsistemas autorizados | Não eleva permissões do usuário além das concedidas |\n\nJobs podem ser criados e administrados no SSMS, por T-SQL (procedimentos armazenados de `msdb`, como `sp_add_job` e `sp_add_jobstep`) ou por SMO. Defina a tarefa e valide manualmente a etapa antes de programar a recorrência; mantenha nomes e finalidade claros; monitore falhas; evite execução como administrador do Windows. Em administração multisservidor, um servidor mestre pode coordenar servidores-alvo, mas o vínculo concede controle administrativo relevante e requer planejamento.\n\n### Como cai na prova\n\n- `SQLAgentUserRole`, `SQLAgentReaderRole` e `SQLAgentOperatorRole` ficam em `msdb`; `sysadmin` tem acesso amplo.\n- Proxy é para contexto de segurança de etapas não T-SQL; não é agenda, operador ou papel de banco.\n- Criar proxy não concede ao usuário credenciado direitos que ele não possuía nos recursos.\n- Use contas dedicadas e permissões mínimas; não execute o serviço sob conta de Administrador do Windows."
+    }
+  ],
+  "summary": "O SQL Server Agent automatiza tarefas administrativas em jobs, iniciados por agendas, alertas ou sob demanda. Cada job contém etapas com subsistema, contexto de segurança, tentativas e ações de sucesso/falha. Alertas reagem a eventos e podem notificar operadores ou iniciar jobs; histórico e saída ajudam no diagnóstico. A administração usa objetos armazenados em msdb, funções SQLAgentUserRole/ReaderRole/OperatorRole, propriedade, credenciais e proxies. Configure menor privilégio, valide o fluxo e acompanhe execuções.",
+  "flashcards": [
+    {
+      "front": "O que é o SQL Server Agent?",
+      "back": "É um serviço do Windows que executa tarefas administrativas configuradas como jobs no SQL Server."
+    },
+    {
+      "front": "O que é um job?",
+      "back": "É uma série nomeada de ações executadas e monitoradas pelo Agent quanto a sucesso ou falha."
+    },
+    {
+      "front": "O que é uma etapa?",
+      "back": "É uma ação individual de um job, como executar T-SQL, um pacote SSIS ou comando compatível."
+    },
+    {
+      "front": "Quais são três formas de iniciar um job?",
+      "back": "Por agenda, em resposta a alerta ou sob demanda, por exemplo com sp_start_job."
+    },
+    {
+      "front": "Onde ficam dados de jobs do Agent?",
+      "back": "No SQL Server, com metadados e histórico associados ao banco de sistema msdb."
+    },
+    {
+      "front": "Qual ferramenta gerencia o serviço Agent?",
+      "back": "O SQL Server Configuration Manager administra o serviço e sua configuração de inicialização."
+    },
+    {
+      "front": "O que define a ação após sucesso de uma etapa?",
+      "back": "A configuração On success, que pode avançar, saltar para outra etapa ou encerrar o job."
+    },
+    {
+      "front": "O que define a ação após falha?",
+      "back": "A configuração On failure indica o fluxo; também podem ser definidas tentativas e intervalo."
+    },
+    {
+      "front": "Retry substitui uma agenda?",
+      "back": "Não. Retry repete uma etapa que falhou; agenda inicia o job em horários definidos."
+    },
+    {
+      "front": "Uma agenda pode servir a mais de um job?",
+      "back": "Sim. Vários jobs podem compartilhar uma agenda e ser afetados por sua alteração."
+    },
+    {
+      "front": "Um job pode ter mais de uma agenda?",
+      "back": "Sim. Mais de uma agenda pode ser associada ao mesmo job."
+    },
+    {
+      "front": "O que é uma agenda ociosa?",
+      "back": "É uma agenda que dispara quando a utilização de CPU alcança a condição ociosa definida."
+    },
+    {
+      "front": "O que é um alerta?",
+      "back": "É uma resposta automática configurada para determinado evento ou condição monitorada."
+    },
+    {
+      "front": "Qual o papel de um operador?",
+      "back": "Representa destinatário de notificações; não é a identidade de execução da etapa."
+    },
+    {
+      "front": "O histórico é igual à saída da etapa?",
+      "back": "Não. Histórico registra execuções; saída detalhada pode ser configurada separadamente."
+    },
+    {
+      "front": "Qual tabela recebe saída de etapa registrada em tabela?",
+      "back": "sysjobstepslogs, tabela de msdb usada para registrar a saída configurada da etapa."
+    },
+    {
+      "front": "Quais papéis de msdb dão acesso ao Agent?",
+      "back": "SQLAgentUserRole, SQLAgentReaderRole e SQLAgentOperatorRole são as funções fixas do Agent."
+    },
+    {
+      "front": "Quem tem acesso amplo ao Agent?",
+      "back": "Membros da função fixa de servidor sysadmin têm acesso amplo ao Agent."
+    },
+    {
+      "front": "Para que serve um proxy?",
+      "back": "Define contexto de segurança de etapa por credencial e subsistemas autorizados."
+    },
+    {
+      "front": "Etapas T-SQL usam proxy?",
+      "back": "Não. Para T-SQL, o contexto pode ser controlado com EXECUTE AS."
+    },
+    {
+      "front": "Criar proxy concede permissões no recurso?",
+      "back": "Não. A identidade precisa ter as permissões necessárias no recurso por conta própria."
+    },
+    {
+      "front": "Quem pode alterar o proprietário de um job?",
+      "back": "Somente membros de sysadmin podem alterar o proprietário do job."
+    },
+    {
+      "front": "Quais ferramentas permitem criar jobs?",
+      "back": "SSMS, scripts T-SQL e SQL Server Management Objects (SMO) permitem administrar jobs."
+    },
+    {
+      "front": "O que acontece a job em execução durante failover de instância de cluster?",
+      "back": "Ele não retoma automaticamente no outro nó depois do failover da instância."
+    }
+  ],
+  "tips": [
+    "Separe o gatilho temporal (agenda) do gatilho por evento (alerta).",
+    "Revise as ações de sucesso e falha de cada etapa, não só a primeira etapa.",
+    "Use retry para falhas transitórias e monitore a falha final do job.",
+    "Agendas podem ser compartilhadas; identifique os jobs afetados antes de alterar uma agenda.",
+    "Ao investigar, confira Agent iniciado, job habilitado, agenda associada, etapa e identidade de execução.",
+    "Conceda permissões mínimas às credenciais de proxy e limite os subsistemas permitidos."
+  ],
+  "traps": [
+    "Confundir job com etapa: job agrupa ações; etapa executa uma ação.",
+    "Confundir recorrência com retry: agenda inicia o job; retry repete uma etapa falha.",
+    "Tratar operador como usuário que executa o comando: operador recebe avisos.",
+    "Supor que criar proxy também concede acesso a banco, arquivo ou serviço.",
+    "Supor que trocar o dono do job transfere automaticamente acesso a todas as proxies.",
+    "Confundir saída detalhada de etapa com histórico de execução do job."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como o Agent pode ser acionado e qual condição operacional é indispensável?",
+      "answer": "Por agenda, alerta ou sob demanda; para execução automática pelo Agent, o serviço deve estar iniciado."
+    },
+    {
+      "question": "Que decisões de fluxo se configuram para cada etapa?",
+      "answer": "Ação após sucesso, ação após falha, número de tentativas e intervalo entre elas."
+    },
+    {
+      "question": "Quais modalidades temporais de agenda existem?",
+      "answer": "Uma vez, recorrente, ao iniciar o Agent e em condição de CPU ociosa."
+    },
+    {
+      "question": "Como distinguir alerta, operador e agenda?",
+      "answer": "Alerta detecta evento/condição; operador recebe comunicação; agenda marca tempo."
+    },
+    {
+      "question": "Como uma equipe pode inspecionar falha de etapa?",
+      "answer": "Ver histórico, mensagem, tentativas e saída configurada, além de revisar subsistema e permissões."
+    },
+    {
+      "question": "O que delimitam proxy e subsistema em conjunto?",
+      "answer": "O proxy fornece identidade/contexto e só pode ser usado por etapas de subsistemas autorizados."
+    },
+    {
+      "question": "Quais são os papéis fixos do Agent em msdb?",
+      "answer": "SQLAgentUserRole, SQLAgentReaderRole e SQLAgentOperatorRole; sysadmin possui acesso amplo."
+    },
+    {
+      "question": "Como criar e administrar um job sem interface gráfica?",
+      "answer": "Usar procedimentos T-SQL de msdb ou objetos SMO, respeitando as permissões do Agent."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Job, etapa e fluxo confundidos",
+      "summary": "Job agrupa etapas; cada etapa tem subsistema, contexto e ações distintas para sucesso e falha."
+    },
+    {
+      "key": "e2",
+      "title": "Agendamento confundido com evento e retry",
+      "summary": "Agenda é temporal, alerta reage a evento/condição, e retry repete etapa que falhou."
+    },
+    {
+      "key": "e3",
+      "title": "Monitoramento insuficiente",
+      "summary": "Histórico, saída de etapa, operador e alerta têm funções diferentes e complementares."
+    },
+    {
+      "key": "e4",
+      "title": "Permissões e contexto de execução",
+      "summary": "Papéis em msdb controlam acesso ao Agent; proxy, credencial e permissões do recurso controlam a etapa."
+    },
+    {
+      "key": "e5",
+      "title": "Serviço e ferramenta de administração",
+      "summary": "O Agent precisa estar iniciado para executar; Configuration Manager gerencia serviço, enquanto SSMS/T-SQL/SMO administram jobs."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O SQL Server Agent organiza rotinas administrativas como jobs, que podem conter uma ou mais etapas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O job é a série de ações; cada etapa representa uma ação individual, como executar T-SQL ou um pacote SSIS. O Agent acompanha o resultado de cada execução para que o administrador monitore sucesso ou falha.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de instalado o SQL Server, o serviço SQL Server Agent necessariamente inicia automaticamente em toda instância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Por padrão, o Agent fica desabilitado após a instalação, salvo se foi escolhida explicitamente a inicialização automática. Sem o serviço ativo, tarefas agendadas não são processadas.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job pode ser iniciado por uma agenda, por uma resposta a alerta ou sob demanda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essas são formas de disparo do job. O início sob demanda pode ser feito por usuário ou por procedimento como sp_start_job.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ação configurada para falha de uma etapa não pode direcionar a execução para outra etapa do mesmo job.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O fluxo permite configurar ações após sucesso e após falha, inclusive avançar, saltar para uma etapa específica ou encerrar o job com resultado definido.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma etapa T-SQL, a saída pode ser direcionada para arquivo ou tabela, além do histórico de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. São configurações de saída da etapa T-SQL; gravar saída não é a mesma coisa que registrar o resultado da execução no histórico.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SQL Server Configuration Manager é a interface indicada para editar as etapas e agendas de cada job.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O Configuration Manager gerencia o serviço do Agent. Jobs e objetos relacionados são administrados principalmente pelo SSMS, por T-SQL ou por SMO.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma agenda recorrente e as tentativas de uma etapa são configurações diferentes, pois uma dispara o job por tempo e a outra repete etapa após falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A agenda determina quando iniciar o job; retry determina quantas vezes e em que intervalo repetir uma etapa que falhou.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job pode ser associado a várias agendas e uma mesma agenda pode ser compartilhada por vários jobs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A relação admite várias agendas por job e compartilhamento de uma agenda. Alterar uma agenda compartilhada pode afetar mais de um trabalho.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma etapa tem duas tentativas configuradas, o Agent reinicia necessariamente o job desde sua primeira etapa após qualquer falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. As tentativas são da etapa configurada e não implicam reiniciar o job inteiro desde o começo. O fluxo final depende das ações de falha definidas para a etapa.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma agenda pode executar um job uma vez em data e hora determinadas ou de forma recorrente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Além dessas modalidades, há agendas ao iniciar o Agent e sob condição de utilização ociosa da CPU. A agenda pode ser compartilhada entre jobs e não configura tentativas de uma etapa que falhou.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para repetir uma etapa que falhou, o intervalo pode ser omitido mesmo quando o número de tentativas é maior que zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Quando há tentativas configuradas, deve-se definir o intervalo de repetição em minutos. A documentação da interface indica intervalo de 1 a 9999 minutos.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta pode reagir a evento e, conforme configurado, executar um job ou notificar um operador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Alertas respondem a eventos ou condições monitoradas; a resposta pode incluir a execução de job e/ou comunicação a operadores.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador representa o contexto de segurança que executa comandos de um job, enquanto o proxy é o destinatário de mensagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Operador identifica destinatário de notificações. Proxy define um contexto de segurança para uma etapa compatível.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O histórico do job e o arquivo de saída de uma etapa T-SQL são registros distintos e podem ser configurados separadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O histórico registra execuções e mensagens; a saída detalhada pode ser escrita em arquivo, em tabela ou incluída no histórico quando a opção estiver disponível.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Membros de SQLAgentUserRole podem, por pertencerem à função, alterar o proprietário de qualquer job do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A alteração do proprietário do job é permitida somente a membros de sysadmin. SQLAgentUserRole é a função de menor privilégio e se restringe a objetos que o membro possui.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy só pode ser usado em etapas de subsistemas aos quais tenha sido associado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O Agent verifica o acesso do proxy ao subsistema quando a etapa executa; sem essa associação, a etapa falha mesmo que a identidade tenha outras permissões.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criação de uma credencial e de um proxy concede automaticamente ao usuário acesso a qualquer banco e arquivo necessário pelo job.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A credencial fornece a identidade do proxy, mas não altera as permissões dessa identidade nos recursos. Devem ser concedidos separadamente os direitos necessários, com privilégio mínimo.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Etapas T-SQL não usam proxy do SQL Server Agent; o contexto SQL pode ser controlado com EXECUTE AS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Proxies são usados por outros subsistemas; para T-SQL, o contexto de segurança pode ser definido pela instrução EXECUTE AS.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto do SQL Server Agent agrupa etapas, tem resultado monitorável e pode ser executado mais de uma vez?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um operador que guarda os contatos dos responsáveis pelo monitoramento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um job, que reúne etapas e tem seu resultado monitorado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma credencial que guarda a identidade de um contexto de segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma agenda que especifica somente horários e padrão de recorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um subsistema que representa um tipo de funcionalidade disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "O job é a série de ações do Agent, composta por etapas e acompanhada quanto a sucesso ou falha. Operador, credencial, agenda e subsistema têm outras funções.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta deve ser usada para configurar a inicialização do serviço SQL Server Agent?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SQL Server Configuration Manager, usado para administrar o serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SQL Server Profiler, usado para capturar eventos da instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SQL Server Agent Operator, usado para cadastrar contatos de aviso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SQL Server Management Objects, usado como painel de serviços do Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Database Mail, usado para definir o início automático do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Configuration Manager gerencia o serviço do Agent, inclusive sua configuração de inicialização. SSMS, T-SQL e SMO administram jobs e objetos, mas não substituem essa função do gerenciador de configuração.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina deve carregar dados e, somente se a carga funcionar, atualizar estatísticas. Como expressar essa dependência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar dois operadores, um para a carga e outro para as estatísticas, e notificá-los ao fim de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma agenda diferente para cada etapa da mesma execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar a ação de sucesso da etapa de carga para avançar à próxima etapa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Configurar um alerta para disparar antes de cada execução da carga sempre que o job iniciar e aguardar confirmação do operador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar a etapa de estatísticas a uma credencial sem definir o fluxo condicionado ao resultado da carga e confiar na ordem das agendas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo de etapas permite que o sucesso da carga leve à etapa seguinte de atualização. Agendas disparam jobs, operadores recebem avisos e credenciais não definem dependências entre ações.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento pode iniciar um job sob demanda por T-SQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "sp_start_job, chamado no contexto apropriado para solicitar a execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "sp_add_schedule, usado para criar uma regra de recorrência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "sp_add_operator, usado para cadastrar o destinatário da notificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "sp_add_proxy, usado para autorizar um contexto de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "sp_help_jobhistory, usado para consultar execuções anteriores.",
+          "correct": false
+        }
+      ],
+      "explanation": "sp_start_job solicita o início de um job, sem esperar a próxima ocorrência de agenda. Os demais nomes representam criação de configuração ou consulta, não o início sob demanda.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração registra saída de etapa em uma tabela do banco msdb?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Associar uma agenda recorrente e marcar cada execução como ociosa para que o resultado fique registrado em msdb.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar Log to table para registrar a saída em sysjobstepslogs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cadastrar um operador e indicar a tabela como endereço de e-mail para arquivar as mensagens da execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar um alerta de erro para gravar comandos em sysjobschedules junto com o padrão de recorrência da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir um proxy que transfira a saída para sysjobhistory automaticamente após executar o comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção Log to table registra a saída da etapa na sysjobstepslogs, em msdb. Agenda, operador, alerta e proxy não são mecanismos de armazenamento dessa saída.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um job com várias etapas, qual afirmação descreve corretamente o tratamento de sucesso e falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A falha sempre encerra o job imediatamente; não há ações configuráveis para seguir a outra etapa ou definir o resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mesma ação é aplicada aos dois resultados de toda etapa, sem considerar se o comando terminou corretamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O fluxo pode avançar, saltar para outra etapa ou encerrar com resultado definido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O Agent ignora o resultado e sempre executa as etapas pela ordem numérica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente a primeira etapa permite configurar ação após sucesso ou falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada etapa pode especificar ações próprias para sucesso e falha, inclusive avançar, ir a uma etapa ou encerrar como sucesso ou falha. Portanto, não existe encerramento obrigatório ou fluxo fixo para todas.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa de execução todo dia útil à noite, sem depender de eventos de erro. Qual recurso representa o disparo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma agenda recorrente com os dias e horários de execução definidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um alerta de evento sem condição temporal configurada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um operador com telefone e endereço de correio eletrônico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma credencial vinculada ao subsistema T-SQL do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma ação de falha que repete a etapa no dia seguinte e mantém a tarefa diária sem uma agenda do Agent.",
+          "correct": false
+        }
+      ],
+      "explanation": "A agenda recorrente especifica dias e horários. Alerta responde a evento ou condição, operador recebe comunicação, credencial provê identidade e retry trata repetição de etapa que falhou.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a consequência possível de alterar uma agenda que está associada a vários jobs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o job que foi aberto por último deixa de registrar histórico ou mantém apenas sua última execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os jobs associados podem ter seu padrão de disparo afetado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Os operadores vinculados passam a ser proprietários dos jobs e recebem as permissões da agenda compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As tentativas das etapas são removidas de todo job da instância quando a agenda compartilhada é alterada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serviço do Agent converte a agenda em alerta automaticamente para preservar os horários configurados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma agenda pode ser compartilhada. Por isso, alterar seu horário ou habilitação pode afetar todos os jobs associados, e não apenas o que está sendo inspecionado.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SQL Server Agent deve aguardar a agenda recorrente para executar um job que o administrador quer testar agora. Qual ação atende ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o job sob demanda, sem aguardar a próxima ocorrência da agenda.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar um operador temporário e enviar uma notificação de sucesso depois que o teste terminar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o intervalo de retry da primeira etapa para que o teste comece antes da agenda seguinte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma credencial nova para substituir a agenda existente e solicitar ao Agent que execute imediatamente o job de teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar um alerta de CPU ociosa para iniciar o teste manual quando o processador entrar na condição definida.",
+          "correct": false
+        }
+      ],
+      "explanation": "O início sob demanda permite testar o job imediatamente. Retry só se aplica à etapa que falha; operador e credencial não iniciam jobs, e alerta não é o meio indicado para um teste manual.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina não deve seguir para a etapa seguinte quando uma validação falha. Como representar esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir na falha da validação o encerramento do job com resultado de falha.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Associar a validação a uma agenda compartilhada com outros jobs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cadastrar um operador como etapa seguinte e aguardar resposta para determinar se a validação deve ser considerada aprovada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir uma agenda ociosa para corrigir a validação automaticamente antes de permitir o avanço do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar saída em tabela para transformar o erro em sucesso registrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ação de falha da etapa pode encerrar o job como falha, impedindo que a execução prossiga como se a validação tivesse sido aprovada. Saída e agenda não alteram esse fluxo.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde a uma agenda ociosa do Agent?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra que inicia a execução quando a CPU está na condição de inatividade definida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma tentativa que aguarda a CPU liberar antes de repetir uma etapa que falhou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um alerta disparado quando um operador não responde a uma mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma execução manual suspensa até chegar o horário recorrente seguinte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um proxy que executa comandos apenas quando o banco está sem consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A agenda ociosa usa uma condição de utilização da CPU definida como inativa para decidir quando executar o job. Não é retry, alerta de operador nem propriedade de proxy.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa permite até quatro tentativas configuradas, com intervalo de cinco minutos. O que o Agent repetirá após falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A etapa configurada, aguardando o intervalo entre as tentativas antes do resultado final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo o job desde o início, sempre que qualquer uma de suas etapas falhar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A agenda de todos os jobs que usam o mesmo subsistema da etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O último job concluído com sucesso, para recuperar a saída armazenada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O alerta que originou a execução, até que um operador confirme recebimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "As tentativas e o intervalo pertencem à etapa configurada. Não reiniciam necessariamente o job inteiro nem repetem agendas, jobs anteriores ou alertas.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time quer iniciar uma rotina quando ocorrer um erro monitorado e avisar a pessoa de plantão. Quais objetos são adequados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alerta para reconhecer o evento e operador como destinatário da notificação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Agenda para reconhecer o evento e proxy como destinatário da notificação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Operador para reconhecer o evento e agenda como caixa de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Credencial para reconhecer o evento e job como contato de plantão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Subsystem para reconhecer o evento e histórico como endereço de e-mail.",
+          "correct": false
+        }
+      ],
+      "explanation": "O alerta reage ao evento; o operador contém os dados do destinatário. O alerta pode ainda ser configurado para executar um job como resposta.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao diagnosticar uma execução, qual recurso contém registros do resultado do job e de suas etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O histórico do SQL Server Agent, consultado para revisar execuções anteriores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A agenda recorrente, que armazena todas as mensagens de erro da execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O operador, que mantém o texto completo de cada comando executado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A credencial, que guarda os resultados de sucesso e de falha do job.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O proxy, que substitui o registro histórico pelo contexto de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "O histórico registra o início e o resultado de jobs e etapas, além de mensagens. A saída detalhada pode exigir configuração adicional em arquivo ou tabela.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa falha, mas o histórico mostra apenas uma mensagem resumida. Qual medida pode guardar a saída detalhada de T-SQL para consulta posterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar saída em arquivo ou Log to table para a etapa T-SQL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar uma agenda adicional que retenha o texto de saída em msdb.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir um operador que funcione como arquivo de comandos executados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar a propriedade do job para converter o histórico em saída completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar uma proxy para que ela grave automaticamente a saída no histórico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Saída detalhada de etapa T-SQL pode ser enviada a arquivo ou à tabela sysjobstepslogs. Histórico resumido, agenda, operador, propriedade e proxy não substituem essa configuração.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente agenda e alerta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agenda define quando; alerta responde a evento ou condição monitorada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Agenda recebe notificações; alerta define somente o proprietário do job.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agenda define a identidade Windows; alerta escolhe o subsistema da etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agenda armazena o histórico; alerta contém as etapas do job.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agenda repete etapa com falha; alerta define o intervalo entre tentativas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agenda é um disparo temporal. Alerta é uma resposta a evento ou condição. Repetição de etapa é configurada nas opções de retry, e não nesses objetos.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job começou durante failover de uma instância de cluster e não há registro de conclusão. Qual interpretação é compatível com o comportamento documentado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Jobs em execução durante esse failover não retomam automaticamente no nó que assume.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Agent transfere a etapa em execução e retoma o comando do ponto exato da falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O operador precisa confirmar o alerta para permitir a retomada automática da etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A agenda reinicia o job imediatamente e apaga o histórico do nó anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A troca de nó converte etapas de T-SQL em execuções de proxy no servidor mestre.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação informa que jobs em execução no momento do failover da instância de cluster não retomam no outro nó; podem constar como iniciados sem registro final de conclusão ou falha.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Onde ficam as funções fixas SQLAgentUserRole, SQLAgentReaderRole e SQLAgentOperatorRole?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No banco msdb, para controlar o acesso não sysadmin ao SQL Server Agent.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No banco master, para controlar somente consultas de metadados do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No banco de cada usuário, para controlar o acesso ao Database Mail.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No serviço do Windows, para definir os horários das agendas recorrentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No SSIS Catalog, para escolher os pacotes que o Agent pode executar.",
+          "correct": false
+        }
+      ],
+      "explanation": "As três funções fixas de banco do Agent são armazenadas em msdb. Usuários não sysadmin precisam pertencer a pelo menos uma delas para usar o Agent.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual grupo tem acesso completo ao SQL Server Agent sem precisar integrar uma função fixa de banco do Agent?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Membros da função fixa de servidor sysadmin, que têm acesso amplo ao Agent.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qualquer usuário com uma agenda recorrente em sua base de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Operadores cadastrados para receber mensagens de falha dos jobs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Logins que possuam credencial, mesmo sem usuário correspondente em msdb.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Membros de public, pois essa função inclui todas as permissões do Agent.",
+          "correct": false
+        }
+      ],
+      "explanation": "Membros de sysadmin têm acesso completo ao Agent e não precisam integrar os papéis de msdb. Operador, agenda e credencial não concedem esse acesso administrativo.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa não sysadmin precisa criar uma etapa SSIS usando um proxy já existente. O que precisa ser verificado além de sua função de msdb?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o usuário tem acesso à proxy e a proxy está associada ao subsistema SSIS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se o operador tem acesso ao SSIS Catalog e é dono da agenda do job.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se a credencial está cadastrada como SQLAgentOperatorRole no banco master.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o job tem uma agenda recorrente e o alerta está habilitado para falhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o job foi criado por sysadmin, o que elimina autorização específica de proxy.",
+          "correct": false
+        }
+      ],
+      "explanation": "Usuários de funções de Agent não sysadmin precisam receber acesso à proxy específica; além disso, a proxy precisa estar autorizada para o subsistema usado pela etapa. Uma não substitui a outra.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quem pode alterar o proprietário de um job do SQL Server Agent?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente um membro de sysadmin pode mudar o proprietário do job.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qualquer operador pode mudar o proprietário após receber uma notificação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo membro de SQLAgentUserRole pode transferir jobs da instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Qualquer login com acesso a uma proxy pode mudar o proprietário do job.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O proprietário atual pode transferir o job sem permissão administrativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Somente membros de sysadmin podem alterar o proprietário. A propriedade permite gerir o job conforme as permissões aplicáveis, mas não autoriza o proprietário a transferir o job.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador trocou o dono de um job e a etapa com proxy falhou. Qual verificação é especialmente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar que o novo proprietário também tem acesso à proxy requerida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar que o operador foi convertido em login de SQL Server.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar que a agenda foi recriada como alerta de início do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar que a proxy atribuiu sysadmin ao novo proprietário automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confirmar que o histórico foi movido do msdb para o banco do job.",
+          "correct": false
+        }
+      ],
+      "explanation": "A troca de proprietário não garante acesso às proxies usadas pelas etapas. Se o novo proprietário não estiver autorizado a usar a proxy, o job pode falhar.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que se recomenda uma conta dedicada e com permissões mínimas para uma proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para restringir o impacto de uma etapa aos recursos e operações necessários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para permitir que qualquer etapa use qualquer subsistema sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para evitar que o Agent registre o histórico de execução em msdb.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para conceder acesso total à instância sem tornar a conta sysadmin.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para converter o proxy em operador e reutilizar seus dados de contato.",
+          "correct": false
+        }
+      ],
+      "explanation": "A recomendação de segurança é usar contas dedicadas e conceder somente as permissões necessárias às etapas da proxy. Proxy não deve contornar as autorizações do recurso nem conceder acesso indiscriminado.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente a relação entre credencial e proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proxy corresponde a uma credencial e pode ser associado a logins e subsistemas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Credencial corresponde a uma agenda e determina a recorrência do job.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Proxy corresponde a um operador e guarda somente endereços de contato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Credencial substitui a necessidade de conceder permissões nos recursos externos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proxy é obrigatório para todas as etapas, inclusive scripts T-SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada proxy corresponde a uma credencial e pode ser associado a subsistemas e logins. O Agent verifica as permissões do proxy; a credencial não concede direitos nos recursos por si só. Etapas T-SQL não usam proxy.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que alternativas de administração de jobs estão previstas além da interface gráfica do SSMS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Procedimentos Transact-SQL e SQL Server Management Objects (SMO).",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente comandos do sistema operacional, sem conexão com o SQL Server.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o Database Mail, por meio de mensagens enviadas a operadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente políticas de auditoria, que criam jobs ao detectar eventos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exclusivamente consultas ao histórico, que alteram jobs existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Jobs podem ser definidos por SSMS, scripts T-SQL ou SMO. Procedimentos como sp_add_job e sp_add_jobstep são exemplos de administração por T-SQL.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação usa etapas não T-SQL e deseja reduzir privilégios. Qual desenho segue as recomendações de segurança do Agent?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar conta dedicada para proxy, conceder permissões necessárias e liberar só os subsistemas usados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar o serviço sob Administrador do Windows e reutilizar a conta em todo job.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a conta de operador como identidade de execução e conceder-lhe sysadmin.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dar acesso a todos os subsistemas a cada usuário de SQLAgentUserRole.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar credenciais porque a propriedade do job concede direitos no Windows.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação recomenda contas dedicadas, permissões mínimas e associação de cada proxy somente aos subsistemas necessários. Também desaconselha executar o serviço com uma conta do grupo Administradores do Windows.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa aplicar a mesma manutenção a vários servidores SQL Server. Qual recurso geral do Agent atende ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Administração multisservidor, com um servidor mestre coordenando servidores-alvo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma agenda compartilhada, que replica a definição do job a outras instâncias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um operador comum, que encaminha comandos para todos os servidores cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um proxy local, que transforma automaticamente jobs em tarefas remotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O histórico do job, que sincroniza etapas executáveis entre instâncias.",
+          "correct": false
+        }
+      ],
+      "explanation": "A administração multisservidor permite automatizar tarefas comuns em várias instâncias por meio da relação entre servidor mestre e servidores-alvo. A associação exige planejamento, pois concede controle administrativo relevante.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os dados de jobs do Agent ficam armazenados no SQL Server, e o banco msdb participa do armazenamento de metadados e histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O Agent utiliza o próprio SQL Server para guardar informações dos jobs; msdb contém objetos e dados de administração, inclusive histórico de execução.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Agent pode executar uma etapa de T-SQL com proxy se o proxy estiver autorizado para o subsistema T-SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Etapas Transact-SQL não usam proxy do Agent e não há subsistema Agent para T-SQL. O contexto pode ser definido por EXECUTE AS.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a saída para arquivo estiver configurada sem a opção de anexar, a execução substitui o arquivo anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Por padrão, o arquivo de saída é sobrescrito em cada execução; a opção de anexar preserva a saída anterior e acrescenta a nova.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao adicionar um login a uma função fixa do Agent em msdb, o usuário passa automaticamente a ser sysadmin no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. As funções SQLAgent* são funções de banco que concedem permissões específicas de uso do Agent em msdb; não conferem a função fixa de servidor sysadmin.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa precisa executar um pacote SSIS e a pessoa não é sysadmin. Qual preparação de segurança faz sentido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar agenda e associar o operador ao histórico da etapa antes da execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autorizar uma proxy com credencial e acesso ao subsistema SSIS.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar EXECUTE AS dentro de T-SQL para eliminar o subsistema SSIS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir a pessoa como proprietária e presumir acesso irrestrito a proxy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder papel de operador de notificação para executar o pacote.",
+          "correct": false
+        }
+      ],
+      "explanation": "Etapas SSIS são não T-SQL e podem usar proxy; o proxy deve estar associado ao subsistema SSIS, e a pessoa precisa ter acesso à proxy. Agenda e operador não fornecem esse contexto de execução.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência separa corretamente a criação de identidade e a autorização de uma etapa por proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar credencial, criar proxy associado e conceder acesso ao subsistema e aos usuários autorizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar operador, anexar agenda e conceder sysadmin à conta Windows da etapa para garantir o acesso ao SSIS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar job, atribuir um alerta e usar o histórico como identidade externa para autenticar a execução do comando remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar usuário em msdb, eliminar credencial e liberar todos os subsistemas antes de cadastrar o login que usará a proxy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar agenda, ativar EXECUTE AS e configurar proxy somente para T-SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo envolve uma credencial e um proxy que a utiliza; o proxy é associado aos subsistemas necessários e os logins/roles apropriados recebem acesso. A credencial isolada não autoriza a etapa.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel do Agent em msdb é descrito pela documentação como o de menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SQLAgentOperatorRole, com poderes amplos sobre os objetos do Agent e acesso limitado aos próprios jobs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SQLAgentReaderRole, que pode consultar jobs de outros proprietários e alterar a propriedade para executar qualquer um.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SQLAgentUserRole, limitado a jobs locais e agendas que o membro possui.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "sysadmin, que administra a instância e possui acesso completo ao Agent.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "db_owner, que é requisito padrão para todo usuário do SQL Server Agent e controla agendas compartilhadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "SQLAgentUserRole é a função fixa de menor privilégio; seus membros têm permissões sobre jobs locais e agendas que possuem. Reader e Operator incorporam permissões mais amplas.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job falha apesar de a pessoa pertencer a uma função do Agent. Qual explicação de autorização é válida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função de msdb permite usar o Agent, mas não garante acesso aos recursos do comando.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda função SQLAgent* concede automaticamente permissões no banco acessado e nos arquivos externos referenciados pelo job.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O operador precisa ser promovido a sysadmin para receber mensagens de falha e conceder à etapa acesso aos recursos externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A agenda deve ser proprietária dos arquivos antes que uma etapa possa executá-los e autorizar a identidade usada pelo Agent.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O histórico substitui a autorização da identidade para ler e gravar recursos, inclusive fora da instância do SQL Server.",
+          "correct": false
+        }
+      ],
+      "explanation": "Papéis do Agent controlam operações sobre jobs e objetos do Agent. A identidade usada pela etapa ainda precisa das permissões necessárias no banco, arquivo ou serviço que o comando acessa.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração de um job, qual objeto identifica o tipo de funcionalidade que uma etapa executa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um operador, que mantém o contato da pessoa responsável pela rotina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um subsistema, que representa a funcionalidade disponível para a etapa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma agenda, que armazena o comando e a identidade de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um alerta, que define a linguagem de cada etapa do job.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma credencial, que identifica se o comando é T-SQL ou SSIS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O subsistema representa a funcionalidade de execução da etapa, como T-SQL, SSIS ou comando do Analysis Services. Proxy controla contexto de segurança e precisa ser autorizado para o subsistema.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa T-SQL está configurada para incluir sua saída no histórico. Qual limitação deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A saída é mostrada somente se não houver erros e pode ser truncada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A saída sempre substitui a mensagem de resultado final do job.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A saída é enviada apenas ao operador, nunca ficando no histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A saída exige proxy SSIS e não pode ser registrada para T-SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A saída fica disponível integralmente mesmo após a limpeza do histórico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção de incluir saída no histórico tem limitações: ela só é mostrada quando não há erros e o conteúdo pode ser truncado. Para preservar detalhes, pode ser necessário arquivo ou tabela.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida é mais adequada antes de ativar uma rotina recorrente de manutenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar as etapas e o fluxo, confirmar permissões e acompanhar uma execução de teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover o histórico para evitar que mensagens de erro atrasem a agenda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder sysadmin a todos os proprietários para prevenir falhas de autorização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar alertas apenas depois de remover as ações de falha das etapas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhar uma agenda e presumir que cada job terá fluxo idêntico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Antes de automatizar uma rotina recorrente, confira comandos, sequência, ações de falha, identidade e permissões; uma execução de teste permite confirmar comportamento e monitoramento sem esperar o ciclo regular.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença entre execução T-SQL e execução por outro subsistema afeta a escolha do contexto de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "T-SQL pode usar EXECUTE AS; outros tipos de etapa podem usar proxy.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "T-SQL exige proxy; os demais subsistemas herdam sempre o login do dono.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "T-SQL usa o operador; os demais subsistemas usam a agenda como identidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "T-SQL ignora permissões; os demais subsistemas executam sempre como sysadmin.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "T-SQL exige uma credencial do Windows; SSIS e Analysis Services dispensam contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A orientação distingue as etapas T-SQL, cujo contexto pode ser controlado com EXECUTE AS, das etapas de outros tipos, que podem usar proxy. A identidade continua sujeita às permissões necessárias.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No assistente do SSMS, em que área do job se configura a recorrência de execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na página Schedules, onde se configuram as agendas associadas ao job.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Na página Operators, onde se configuram os endereços de contato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na página Proxies, onde se configuram as identidades de subsistemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na página Steps, onde se definem somente os horários semanais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na página History, onde se determina a próxima ocorrência da agenda.",
+          "correct": false
+        }
+      ],
+      "explanation": "A página Schedules reúne as agendas do job. Steps define as ações; Operators guarda contatos; Proxies define contextos; History é para acompanhar execuções passadas.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário SQLAgentReaderRole pode mudar a propriedade de jobs de outros usuários para obter acesso a eles.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A função Reader não permite alterar a propriedade para obter acesso a jobs alheios; mudar proprietário é prerrogativa de sysadmin.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração de notificação de um job pode avisar um operador sobre a conclusão, conforme o resultado escolhido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Notificações do job podem ser configuradas para informar condições de conclusão, como sucesso ou falha, a operadores definidos.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O simples cadastro de um operador garante que o Agent enviará avisos por e-mail, sem configurar o serviço de comunicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O operador informa o destinatário, mas a infraestrutura de comunicação do ambiente também precisa estar configurada para que as notificações sejam enviadas.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job em servidor-alvo pode ser coordenado por ambiente multisservidor associado a servidor mestre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A administração multisservidor usa a relação mestre-alvo para automatizar tarefas em instâncias. O mestre recebe controle administrativo relevante sobre os alvos.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As funções SQLAgentUserRole, SQLAgentReaderRole e SQLAgentOperatorRole têm permissões concêntricas, com funções mais privilegiadas herdando as menos privilegiadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As permissões são concêntricas: papéis mais privilegiados herdam as permissões dos menos privilegiados, o que também pode ampliar acesso a objetos como proxies.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar um job, o administrador deseja saber quando ele executará novamente. Qual informação deve consultar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A agenda associada ao job e sua próxima ocorrência calculada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O operador cadastrado e a última mensagem enviada a ele.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A credencial do proxy e a data de expiração da identidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O texto de saída da etapa e a duração da execução anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O subsistema da primeira etapa e o resultado do último comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "A agenda determina os disparos temporais e permite examinar a próxima ocorrência. Operador, credencial, saída e subsistema não programam o próximo horário.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa de diagnóstico precisa iniciar quando o Agent for iniciado. Qual configuração temporal pode atender a esse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma agenda definida para executar o job quando o serviço Agent iniciar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um retry configurado para aguardar a inicialização do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um operador que reinicie o job após receber uma notificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um proxy configurado para monitorar o estado do serviço do Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um alerta de falha que substitua a recorrência por início do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Há modalidade de agenda que inicia o job quando o Agent é iniciado. Retry, operador e proxy não definem esse gatilho temporal.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job possui três agendas associadas e uma delas é desabilitada. O que deve ser avaliado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se as agendas restantes continuam habilitadas e cobrem os horários desejados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se o operador será promovido para assumir os horários desativados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se as etapas terão suas tentativas zeradas pela mudança de agenda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o proxy da primeira etapa será convertido em alerta ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o histórico será apagado antes da próxima recorrência do job.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como um job pode ter diversas agendas, a desativação de uma não elimina necessariamente as outras. É preciso revisar as agendas ainda associadas e confirmar que mantêm os disparos necessários.",
+      "section": "2. Etapas, fluxo e agendas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre as opções de saída de uma etapa T-SQL está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A gravação em tabela pode anexar a nova saída à entrada anterior quando configurada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A saída sempre é enviada ao operador mesmo que nenhuma notificação exista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A saída em arquivo é obrigatória para executar um job sob demanda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A opção Log to table altera o resultado de falha para resultado de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A inclusão no histórico impede truncamento e preserva qualquer volume de texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção de anexar saída à entrada existente em tabela evita a substituição padrão. Gravar saída não muda o resultado da etapa e não depende de notificação ou execução sob demanda.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que o SQL Server Agent verifica quando uma etapa executa sob proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o proxy tem acesso ao subsistema antes de impersonar sua identidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se o operador aprovou a execução e alterou o histórico para autorizado antes de iniciar o comando da etapa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se a agenda compartilha a mesma credencial com todas as etapas do job e com cada servidor-alvo associado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o proprietário do job pertence a sysadmin em qualquer configuração e recebeu permissões nos recursos externos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o alerta foi disparado na mesma instância em que a etapa será executada e se houve confirmação do operador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Agent verifica se a proxy pode usar o subsistema da etapa e, se autorizado, impersona o usuário definido pela credencial. A permissão no subsistema não substitui os direitos desse usuário no recurso.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer consultar definições e estado de jobs por T-SQL sem mudar sua configuração. Qual abordagem é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar objetos de sistema de msdb ou usar procedimento de ajuda como sp_help_job.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar sp_start_job, que retorna definições e lista os comandos sem iniciar a rotina sob demanda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um operador com papel de leitor para substituir consultas de metadados e visualizar todas as definições por T-SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar uma agenda recorrente para listar os jobs sem iniciar execução e salvar a configuração de cada etapa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar proxy de leitura, pois todo acesso a metadados exige proxy e uma credencial separada no banco msdb.",
+          "correct": false
+        }
+      ],
+      "explanation": "O procedimento sp_help_job fornece informações de um job; também é possível consultar objetos de sistema de msdb, como dbo.sysjobs. sp_start_job inicia a execução e, portanto, não é uma consulta somente de leitura.",
+      "section": "4. Segurança, permissões e administração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa deve executar um comando do Analysis Services. Que aspecto do job precisa ser definido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O subsistema de Analysis Services apropriado e o contexto de execução necessário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A agenda ociosa, que converte comandos T-SQL em consultas analíticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O operador como identidade do servidor e o histórico como mecanismo de conexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O proxy T-SQL, já que toda etapa precisa executar por EXECUTE AS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O alerta de conclusão, pois ele seleciona o mecanismo de comando da etapa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Etapas do Analysis Services usam subsistema correspondente e precisam do contexto de segurança adequado, geralmente por proxy quando aplicável. Agenda, operador e alerta não selecionam mecanismo de comando.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job de longa duração está habilitado, mas não é executado no horário esperado. Qual verificação inicial combina causa operacional e de configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar serviço iniciado, job habilitado, agenda associada e horário previsto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar o operador para sysadmin e apagar todas as agendas compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recriar o histórico em outra base e remover o proprietário do job.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o subsistema por T-SQL sem revisar o comando original da etapa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar tentativas de etapas concluídas para iniciar o job mais cedo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Agent precisa estar iniciado e o job e a agenda devem estar habilitados e corretamente associados para disparo temporal. Em seguida, revise o histórico e as mensagens para determinar se houve início seguido de falha.",
+      "section": "3. Alertas, operadores e histórico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar um job por SSMS, qual página concentra a definição das ações que compõem a rotina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A página Steps, onde são adicionadas e configuradas as etapas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A página Operators, onde se descrevem os comandos a executar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A página Schedules, onde se mantém o histórico detalhado de cada etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A página Targets, onde se definem as mensagens de saída de T-SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A página Notifications, onde se escolhem os subsistemas dos comandos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A página Steps reúne as ações do job e permite ajustar subsistema, comando e fluxo. As demais páginas atendem a horários, destinatários, alvos ou notificações.",
+      "section": "1. Serviço, trabalho e etapas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server Agent",
+      "publisher": "Microsoft Learn",
+      "reference": "Visão geral do serviço, jobs, etapas, agendas, alertas, operadores, subsistemas, proxies e administração",
+      "url": "https://learn.microsoft.com/en-us/ssms/agent/sql-server-agent?view=sql-server-ver16",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Implement SQL Server Agent Security",
+      "publisher": "Microsoft Learn",
+      "reference": "Papéis do Agent em msdb, proxies, credenciais e diretrizes de segurança",
+      "url": "https://learn.microsoft.com/en-us/sql/ssms/agent/implement-sql-server-agent-security?view=sql-server-ver16",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Set Job Step Success or Failure Flow with SQL Server Agent Jobs",
+      "publisher": "Microsoft Learn",
+      "reference": "Ações de sucesso e falha, tentativas e intervalo de retry",
+      "url": "https://learn.microsoft.com/en-us/ssms/agent/set-job-step-success-or-failure-flow",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Handle Multiple Job Steps",
+      "publisher": "Microsoft Learn",
+      "reference": "Fluxo de execução de jobs compostos por várias etapas e histórico",
+      "url": "https://learn.microsoft.com/en-us/ssms/agent/handle-multiple-job-steps",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Create a SQL Server Agent Job",
+      "publisher": "Microsoft Learn",
+      "reference": "Criação de jobs por SSMS, T-SQL e SMO, permissões e propriedade",
+      "url": "https://learn.microsoft.com/en-us/ssms/agent/create-a-job?view=sql-server-ver16",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server Agent Fixed Database Roles",
+      "publisher": "Microsoft Learn",
+      "reference": "Permissões de SQLAgentUserRole, SQLAgentReaderRole e SQLAgentOperatorRole",
+      "url": "https://learn.microsoft.com/en-ca/sql/ssms/agent/sql-server-agent-fixed-database-roles?view=sql-server-ver16",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Create a SQL Server Agent Proxy",
+      "publisher": "Microsoft Learn",
+      "reference": "Credenciais, acesso a subsistemas e permissões para usar proxies",
+      "url": "https://learn.microsoft.com/en-us/ssms/agent/create-a-sql-server-agent-proxy?view=sql-server-ver15",
+      "accessedAt": "2026-11-14"
+    }
+  ]
+}

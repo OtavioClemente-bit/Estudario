@@ -1,0 +1,1722 @@
+{
+  "id": "informatica.controles-conformidade-dados-confidenciais",
+  "subject": "Informática",
+  "title": "Controles de conformidade para dados confidenciais",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Controles de conformidade para dados confidenciais (classificação de dados, máscara dinâmica de dados, controle de alteração)",
+    "Classificação de dados confidenciais em SQL Server",
+    "Descoberta e classificação de dados no SQL Server",
+    "Rótulos de sensibilidade e tipos de informação",
+    "Metadados de classificação de colunas SQL",
+    "Máscara dinâmica de dados no SQL Server",
+    "Dynamic Data Masking e permissão UNMASK",
+    "Proteção de dados confidenciais em consultas SQL",
+    "Auditoria de alterações no banco de dados",
+    "SQL Server Audit para controle de mudanças",
+    "Auditoria de DDL e alterações de objetos",
+    "Conformidade e rastreabilidade de dados sensíveis"
+  ],
+  "scope": {
+    "covers": "Controles de conformidade para dados confidenciais no SQL Server: descoberta e classificação de colunas, tipos de informação, rótulos e níveis de sensibilidade, revisão de recomendações, metadados, permissões e relatórios; máscara dinâmica de dados, funções de máscara, escopo e permissões SELECT, UNMASK, ALTER ANY MASK e ALTER, limitações e relação com controle de acesso; SQL Server Audit em nível de servidor e banco, especificações de auditoria, destino, grupos e ações, registro de alterações, habilitação, leitura, permissões e proteção dos registros.",
+    "excludes": "Interpretação jurídica de leis de proteção de dados, criptografia em repouso ou em trânsito, Always Encrypted em profundidade, ferramentas de outros fabricantes e sintaxe exaustiva de todas as versões do SQL Server."
+  },
+  "theoryTitle": "Classificar, mascarar e auditar dados confidenciais",
+  "chapters": [
+    {
+      "title": "1. Descoberta e classificação: saber o que proteger",
+      "markdown": "### O problema que este assunto resolve\n\nUma tabela pode misturar nome, endereço, identificador, salário e dado clínico. Sem inventário, a equipe não sabe quais colunas merecem controles reforçados nem consegue responder com rapidez onde está a informação sensível. No SQL Server, Data Discovery & Classification ajuda a localizar, classificar, rotular e produzir relatórios sobre colunas sensíveis. É metadado que descreve os dados: classificar não criptografa a coluna, não mascara seu conteúdo e não concede nem retira acesso.\n\n> **Siglas e termos deste capítulo**\n> - **Rótulo (label)**: indicação do nível de sensibilidade atribuído ao dado.\n> - **Tipo de informação (information type)**: categoria mais específica do conteúdo, como dado de identificação.\n> - **SSMS**: SQL Server Management Studio, ferramenta de administração do SQL Server.\n> - **Metadado**: informação descritiva sobre um objeto ou dado, em vez do próprio conteúdo.\n\n### Recomendações precisam de revisão humana\n\nNo SSMS, o fluxo de classificação começa ao conectar ao servidor, selecionar o banco e abrir Tasks > Data Discovery and Classification > Classify Data. O mecanismo sugere colunas com base nos nomes: uma coluna chamada `email` pode ser recomendada como dado de contato. A sugestão não examina o conteúdo para provar que cada valor é um e-mail, e nomes incomuns ou colunas mal nomeadas podem passar despercebidos. A pessoa responsável revisa a lista, pode ajustar tipo e rótulo e salva as recomendações aceitas. Também é possível adicionar classificação manualmente, inclusive selecionar todas as colunas ainda sem classificação de uma tabela.\n\nNo modelo SQL Information Protection, os dois atributos se complementam: o tipo informa que espécie de informação está presente; o rótulo indica quão sensível ela é. A documentação descreve níveis como público, geral, confidencial e altamente confidencial conforme a política configurada. O rótulo não deve ser confundido com um tipo, nem o tipo com uma permissão. A classificação pode fundamentar decisões de auditoria e proteção, mas outros controles precisam efetivamente limitar o uso.\n\n### Onde ficam e como consultar as classificações\n\nA classificação é aplicada a colunas. No SQL Server 2019 e posteriores, `sys.sensitivity_classifications` expõe os itens classificados, com identificador do objeto/tabela (`major_id`), identificador da coluna (`minor_id`), `information_type`, `label` e posição de sensibilidade (`rank`). Os valores numéricos documentados para rank são 0 (NONE), 10 (LOW), 20 (MEDIUM), 30 (HIGH) e 40 (CRITICAL). Para versões anteriores, a documentação aponta metadados em `sys.extended_properties`, com nomes como `sys_information_type_name` e `sys_sensitivity_label_name`.\n\nA visualização da classificação no SQL Server 2019 requer `VIEW ANY SENSITIVITY CLASSIFICATION`; o gerenciamento requer `ALTER ANY SENSITIVITY CLASSIFICATION`, implícita pela permissão `ALTER` no banco ou `CONTROL SERVER` no servidor. SSMS também permite gerar um relatório detalhado, que pode ser impresso ou exportado para apoiar conformidade e auditoria. Um relatório retrata o estado classificado; não atesta sozinho que todas as colunas foram descobertas corretamente.\n\n### Como cai na prova\n\n- Classificação é inventário e rotulagem de metadados, não mascaramento nem criptografia.\n- O mecanismo de recomendações considera nomes de colunas; aceite as sugestões somente após revisão.\n- O catálogo de classificações descreve colunas, tipo informacional, rótulo e rank; para SQL Server 2019+, consulte `sys.sensitivity_classifications`.\n- O relatório pode ser usado como evidência de estado da classificação, mas não substitui revisão nem controles de acesso."
+    },
+    {
+      "title": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "markdown": "### O problema que este assunto resolve\n\nUm atendente pode precisar confirmar a conta de um cliente sem visualizar seu documento completo. A Dynamic Data Masking (DDM) faz o SQL Server apresentar uma forma mascarada do valor a usuários que consultam uma coluna marcada e não têm permissão para ver o dado sem máscara. O dado armazenado não é substituído pelo texto mascarado: trata-se de uma transformação de apresentação no resultado da consulta.\n\n> **Siglas e termos deste capítulo**\n> - **DDM**: Dynamic Data Masking, máscara dinâmica de dados.\n> - **UNMASK**: permissão que, junto com `SELECT`, permite ver valores sem máscara.\n> - **SELECT**: permissão de leitura de linhas e colunas de uma tabela ou visão.\n> - **Inferência**: deduzir informação protegida a partir de consultas e resultados indiretos.\n\n### Funções e resultado apresentado\n\nAs funções de máscara são configuradas por coluna, por exemplo como padrão (substituição genérica), e-mail (preserva parte do endereço), parcial (preserva trechos definidos) ou aleatória para certos tipos numéricos. Uma máscara de e-mail pode exibir apenas parte do endereço e um sufixo fixo; máscara parcial pode preservar os caracteres iniciais e finais definidos. A regra é escolhida conforme o uso da aplicação e o formato do campo. A máscara não altera a autorização de linha nem esconde automaticamente outras colunas.\n\nQuem possui `SELECT` na tabela pode consultar a coluna mascarada, mas recebe o resultado mascarado se não tiver `UNMASK`. Conceder `UNMASK` sem `SELECT` não concede leitura: ambas as condições importam. Usuários com `CONTROL` apropriado, como funções administrativas com controle do banco, podem ver os dados originais. A modificação, substituição ou remoção de uma máscara requer `ALTER ANY MASK` e `ALTER` na tabela; não é a mesma permissão que `UNMASK`.\n\n| Necessidade | Permissão/controle relevante | Efeito |\n| --- | --- | --- |\n| Consultar uma tabela | `SELECT` | Lê dados; coluna mascarada aparece mascarada sem `UNMASK` |\n| Ver o valor real mascarado | `SELECT` e `UNMASK` | Retorna o valor original da coluna |\n| Administrar a regra de máscara | `ALTER ANY MASK` e `ALTER` na tabela | Adiciona, troca ou remove a máscara |\n\n### Limites e uso combinado\n\nA documentação recomenda não tratar DDM como defesa completa contra usuário malicioso. Quem pode enviar consultas ad hoc pode tentar deduzir um valor por filtros, comparações ou tentativa e erro. A máscara é útil para reduzir exposição acidental em consultas conhecidas; controle de permissões, privilégio mínimo e auditoria continuam necessários. Além disso, mascarar uma coluna não impede sua atualização: se o usuário também tiver permissão de escrita, poderá modificar o valor. A política de acesso deve restringir `UPDATE` separadamente.\n\nNo SQL Server 2022 em diante, `UNMASK` pode ser concedida ou revogada em escopo de banco, esquema, tabela ou coluna. A granularidade permite liberar uma coluna necessária sem revelar todas as demais. O catálogo `sys.masked_columns` mostra colunas que têm função de máscara e informa `is_masked` e `masking_function`.\n\n### Como cai na prova\n\n- DDM muda o valor exibido na consulta, sem substituir o dado armazenado.\n- `SELECT` permite consultar; `UNMASK` libera o valor sem máscara, mas só tem efeito com `SELECT`.\n- `ALTER ANY MASK` mais `ALTER` na tabela administra a regra; não é permissão de leitura do valor real.\n- DDM não bloqueia escrita, não impede inferência em consultas ad hoc e não substitui auditoria ou controle de acesso."
+    },
+    {
+      "title": "3. Controle de alterações com SQL Server Audit",
+      "markdown": "### O problema que este assunto resolve\n\nSaber que uma coluna é confidencial e mascará-la não responde quem alterou a estrutura do banco, consultou uma tabela ou mudou uma especificação de auditoria. SQL Server Audit rastreia eventos do mecanismo e grava registros em um destino configurado. A trilha ajuda a investigar operações e demonstrar o que foi registrado; não impede por si só a operação auditada nem garante que o registro esteja protegido contra administradores privilegiados.\n\n> **Siglas e termos deste capítulo**\n> - **Audit**: objeto de auditoria que define o destino dos eventos.\n> - **Especificação de auditoria**: seleção de grupos ou ações que serão enviados ao audit.\n> - **DDL**: comandos de definição de estrutura, como `CREATE`, `ALTER` e `DROP`.\n> - **DML**: comandos de manipulação de dados, como `SELECT`, `INSERT`, `UPDATE` e `DELETE`.\n> - **Extended Events**: infraestrutura de eventos usada pelo SQL Server Audit para capturar ações.\n\n### Camadas e fluxo de configuração\n\nUm objeto Server Audit pertence à instância e define onde os registros serão gravados, por exemplo em arquivo ou log de eventos. Uma Server Audit Specification associa grupos de eventos de servidor ao audit. Uma Database Audit Specification associa eventos ou grupos de banco a esse audit; ela é criada no escopo de um banco. A especificação seleciona o que observar; o audit define o destino.\n\nO fluxo documentado é: criar o audit e definir destino; criar a especificação de servidor ou de banco vinculada; habilitar a especificação; habilitar o audit; depois consultar os eventos pelo Visualizador de Eventos, Log File Viewer do SSMS ou `fn_get_audit_file` quando o destino é arquivo. Tanto audits como especificações começam desabilitados. Criar os objetos, sem habilitá-los, não significa que eventos estejam sendo coletados.\n\nA especificação pode incluir grupos predefinidos ou ações individuais. No nível de servidor, `SERVER_OBJECT_CHANGE_GROUP` abrange `CREATE`, `ALTER` e `DROP` de objetos de servidor, como bancos de dados e endpoints. `AUDIT_CHANGE_GROUP` registra criação, alteração e remoção de audits e especificações. No nível de banco, grupos de ação cobrem classes de eventos; ações específicas como `SELECT`, `UPDATE`, `INSERT`, `DELETE` e `EXECUTE` podem ser aplicadas a objetos de esquema. As ações de banco podem ser configuradas para objetos, esquemas ou banco conforme o recurso aplicável.\n\n### Integridade, permissões e limites\n\nA escrita em arquivo exige que a conta de serviço do SQL Server tenha leitura e gravação no destino. Leitores autorizados precisam de leitura; administradores que copiam ou mantêm arquivos precisam das permissões operacionais correspondentes. Restrinja ACLs, proteja cópias arquivadas e considere criptografar a pasta de logs. Se o audit ficar desabilitado ou o destino for acessível a quem não deveria, a trilha perde valor probatório.\n\nNo SQL Server 2019 e anteriores, ler o arquivo por `fn_get_audit_file` requer `CONTROL SERVER`; no SQL Server 2022 e posteriores, `VIEW SERVER SECURITY AUDIT` é suficiente. Administrar audit de servidor exige `ALTER ANY SERVER AUDIT` ou `CONTROL SERVER`; administrar especificação de banco requer `ALTER ANY DATABASE AUDIT` ou permissões equivalentes no banco. `sysadmin` pode adulterar componentes de auditoria e `db_owner` pode adulterar especificações de banco, portanto a confiança na trilha depende também de separar funções e proteger o destino.\n\n### Como cai na prova\n\n- Audit é o coletor/destino; especificação escolhe grupos ou ações; ambos precisam estar habilitados.\n- Para mudanças de objetos, selecione grupos/ações compatíveis com o escopo; `SERVER_OBJECT_CHANGE_GROUP` abrange criação, alteração e remoção de objetos de servidor.\n- `AUDIT_CHANGE_GROUP` acompanha mudanças na própria auditoria.\n- Auditoria registra eventos, não bloqueia comandos; proteja os arquivos e limite quem pode alterar as especificações."
+    },
+    {
+      "title": "4. Compor os controles e interpretar a evidência",
+      "markdown": "### Um ciclo prático de conformidade\n\nConsidere uma tabela de clientes com e-mail e identificador fiscal. Primeiro, inventarie e classifique as colunas; corrija recomendações incorretas e registre o nível de sensibilidade. Depois, aplique DDM onde a aplicação precisa exibir apenas uma parte do valor e conceda `SELECT` sem `UNMASK` aos perfis de atendimento que não precisam do dado completo. Restrinja alterações com permissões específicas e audite leituras, escritas e mudanças de estrutura conforme o risco e a capacidade do ambiente.\n\n> **Siglas e termos deste capítulo**\n> - **Privilégio mínimo**: conceder a cada conta apenas permissões necessárias às suas tarefas.\n> - **Trilha de auditoria**: registros de eventos selecionados, com informação de contexto para investigação.\n> - **Falso positivo**: recomendação ou classificação que não corresponde ao conteúdo real.\n> - **Evidência**: registro ou relatório que sustenta uma verificação, sem provar sozinho todo o processo.\n\n### Cada controle responde a uma pergunta diferente\n\n| Controle | Pergunta respondida | O que não faz sozinho |\n| --- | --- | --- |\n| Classificação | Que tipo de dado há nesta coluna e qual a sensibilidade atribuída? | Não oculta, criptografa nem autoriza acesso |\n| Máscara dinâmica | O que o perfil sem `UNMASK` verá ao consultar? | Não impede inferência, atualização autorizada ou leitura por administrador |\n| SQL Server Audit | Que eventos selecionados foram registrados e para onde foram enviados? | Não bloqueia a ação nem protege automaticamente o arquivo contra adulteração |\n\nUm relatório de classificação é evidência do inventário salvo. A consulta a `sys.sensitivity_classifications` permite conferir rótulos e tipos; `sys.masked_columns` permite conferir a presença da máscara; registros de audit permitem examinar eventos coletados. A revisão deve comparar essas evidências com o desenho de acesso esperado: rótulo alto sem máscara pode ser decisão intencional ou lacuna; coluna mascarada com `UNMASK` amplo pode expor o valor; audit configurado mas desabilitado não produz a coleta pretendida.\n\n### Mudanças controladas e validação\n\nMudanças em regras de classificação, máscaras, permissões e especificações devem ser atribuíveis a responsáveis e acompanhadas por revisão. SQL Server Audit pode registrar grupos e ações de mudança, enquanto controle de acesso restringe quem pode executá-las. Como alterações nas próprias especificações também podem afetar a cobertura, inclua a atividade de auditoria na análise e proteja o destino fora do alcance rotineiro de quem administra os objetos auditados.\n\nNão conclua conformidade apenas porque existe uma etiqueta ou uma máscara. Verifique se o inventário cobre as colunas certas, teste a consulta com identidades de permissões diferentes, confira que a especificação e o audit estão ligados e ativos, e leia eventos no destino configurado. As escolhas concretas dependem da versão e do serviço SQL utilizado; a documentação de cada plataforma delimita os recursos disponíveis.\n\n### Como cai na prova\n\n- Classificação, máscara e auditoria são complementares: inventário, redução de exposição e rastreabilidade.\n- Teste DDM com conta sem `UNMASK` e com conta autorizada; não use a conta administrativa como único teste.\n- Audit desabilitado ou arquivo desprotegido compromete a evidência, mesmo que a configuração pareça correta.\n- Conformidade exige revisar permissões, cobertura dos objetos, estado do audit e registros efetivamente recebidos."
+    }
+  ],
+  "summary": "No SQL Server, Data Discovery & Classification identifica e registra metadados de sensibilidade para colunas; DDM altera a apresentação consultada para quem não tem UNMASK; SQL Server Audit registra ações selecionadas em destino configurado. Classificação não concede acesso, máscara não substitui autorização nem bloqueia escrita ou inferência, e auditoria não impede mudanças. O desenho efetivo combina inventário revisado, privilégio mínimo, regras de máscara testadas, especificações habilitadas e proteção dos registros.",
+  "flashcards": [
+    {
+      "front": "O que a classificação de dados do SQL Server registra?",
+      "back": "Metadados de tipo de informação e rótulo de sensibilidade associados a colunas; não criptografa nem controla acesso."
+    },
+    {
+      "front": "Em que baseia recomendações o mecanismo do SSMS?",
+      "back": "Na documentação consultada, a descoberta automática analisa nomes de colunas; recomendações precisam ser revisadas."
+    },
+    {
+      "front": "Qual a diferença entre information type e label?",
+      "back": "O tipo dá granularidade sobre a espécie de informação; o rótulo indica o nível de sensibilidade."
+    },
+    {
+      "front": "Qual catálogo mostra classificações no SQL Server 2019+?",
+      "back": "`sys.sensitivity_classifications`, com informação de coluna, tipo, rótulo e rank."
+    },
+    {
+      "front": "Que ranks numéricos são documentados para classificação?",
+      "back": "NONE 0, LOW 10, MEDIUM 20, HIGH 30 e CRITICAL 40."
+    },
+    {
+      "front": "Qual permissão permite visualizar classificação no SQL Server 2019?",
+      "back": "`VIEW ANY SENSITIVITY CLASSIFICATION`."
+    },
+    {
+      "front": "O que `ALTER ANY SENSITIVITY CLASSIFICATION` permite?",
+      "back": "Gerenciar metadados de classificação; ALTER no banco ou CONTROL SERVER implica essa permissão."
+    },
+    {
+      "front": "A classificação de dados é aplicada a tabelas inteiras?",
+      "back": "O recurso documentado classifica colunas do banco."
+    },
+    {
+      "front": "O que faz a máscara dinâmica?",
+      "back": "Apresenta resultado mascarado para usuário sem UNMASK, sem alterar o valor armazenado."
+    },
+    {
+      "front": "Quais permissões são necessárias para ver valor original mascarado?",
+      "back": "SELECT na tabela e UNMASK com escopo aplicável."
+    },
+    {
+      "front": "UNMASK sozinha concede leitura?",
+      "back": "Não. UNMASK precisa acompanhar SELECT para ter efeito na consulta."
+    },
+    {
+      "front": "Quais permissões administram uma regra de máscara?",
+      "back": "ALTER ANY MASK e ALTER na tabela."
+    },
+    {
+      "front": "A máscara dinâmica bloqueia UPDATE?",
+      "back": "Não; escrita continua possível se o usuário tiver permissão de atualização."
+    },
+    {
+      "front": "A DDM impede inferência de dados?",
+      "back": "Não necessariamente; consultas ad hoc podem permitir inferência, então use controle de acesso e auditoria."
+    },
+    {
+      "front": "Onde consultar colunas mascaradas?",
+      "back": "Na visão `sys.masked_columns`, que apresenta `is_masked` e `masking_function`."
+    },
+    {
+      "front": "Quais escopos de UNMASK granular existem no SQL Server 2022+?",
+      "back": "Banco, esquema, tabela e coluna."
+    },
+    {
+      "front": "O que define um Server Audit?",
+      "back": "Objeto no escopo da instância que especifica destino para os eventos coletados."
+    },
+    {
+      "front": "O que define uma Database Audit Specification?",
+      "back": "Ações ou grupos de eventos de banco que serão enviados a um audit."
+    },
+    {
+      "front": "Os audits são habilitados quando criados?",
+      "back": "Não; audits e especificações iniciam desabilitados e precisam ser habilitados."
+    },
+    {
+      "front": "Que grupo abrange CREATE, ALTER e DROP de objetos de servidor?",
+      "back": "`SERVER_OBJECT_CHANGE_GROUP`."
+    },
+    {
+      "front": "Que grupo registra alterações nos próprios audits?",
+      "back": "`AUDIT_CHANGE_GROUP`."
+    },
+    {
+      "front": "Como ler arquivo de audit?",
+      "back": "Pelo Log File Viewer do SSMS ou `fn_get_audit_file`; eventos no log do Windows podem ser lidos pelo Event Viewer."
+    },
+    {
+      "front": "Que acesso a conta de serviço precisa no destino em arquivo?",
+      "back": "Leitura e gravação; leitores autorizados precisam de leitura."
+    },
+    {
+      "front": "Quem pode adulterar especificações de auditoria?",
+      "back": "`sysadmin` pode adulterar componentes; `db_owner` pode adulterar especificações de banco."
+    },
+    {
+      "front": "Classificação substitui máscara ou auditoria?",
+      "back": "Não; classificação inventaria, máscara reduz exposição na apresentação e audit registra eventos selecionados."
+    }
+  ],
+  "tips": [
+    "Associe rótulo a sensibilidade e tipo informacional à categoria do conteúdo.",
+    "Lembre que recomendações do SSMS consideram nomes de colunas e exigem revisão.",
+    "Para ver dado sem máscara, pense em SELECT mais UNMASK.",
+    "Para alterar regra de máscara, pense em ALTER ANY MASK mais ALTER na tabela.",
+    "Separe audit (destino) de specification (eventos escolhidos) e habilite ambos.",
+    "Para mudanças de objetos no servidor, associe SERVER_OBJECT_CHANGE_GROUP a CREATE, ALTER e DROP."
+  ],
+  "traps": [
+    "Classificar uma coluna não oculta seus valores nem impede consulta.",
+    "A máscara não modifica o dado persistido e não bloqueia automaticamente UPDATE.",
+    "UNMASK não substitui SELECT; concedê-la isoladamente não abre a tabela.",
+    "Uma máscara pode ser contornada por inferência em acesso ad hoc; ela não é fronteira completa de segurança.",
+    "Criar audit e especificação não basta: ambos começam desabilitados.",
+    "Auditar registra ações, mas não as impede; sysadmin e db_owner continuam relevantes para a confiança nos logs."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre label e information type.",
+      "answer": "Label indica sensibilidade; information type descreve mais especificamente que informação a coluna contém."
+    },
+    {
+      "question": "Descreva o fluxo de revisão de recomendações no SSMS.",
+      "answer": "Abrir Classify Data, revisar sugestões baseadas em nomes, ajustar tipo ou rótulo se necessário e salvar as escolhidas; também se pode classificar manualmente."
+    },
+    {
+      "question": "Como confirmar classificações salvas no SQL Server 2019+?",
+      "answer": "Consultar `sys.sensitivity_classifications`, que retorna metadados das colunas classificadas."
+    },
+    {
+      "question": "Por que DDM não substitui autorização?",
+      "answer": "Ela mascara o resultado apresentado, mas não controla por si só acesso à tabela, escrita, privilégios administrativos ou inferência."
+    },
+    {
+      "question": "Compare SELECT, UNMASK e ALTER ANY MASK.",
+      "answer": "SELECT lê; UNMASK com SELECT mostra valor original; ALTER ANY MASK junto de ALTER na tabela gerencia a regra."
+    },
+    {
+      "question": "Quais objetos compõem uma configuração de SQL Server Audit?",
+      "answer": "Audit com destino e especificação de servidor ou banco que seleciona grupos/ações e se vincula ao audit; os objetos devem ser habilitados."
+    },
+    {
+      "question": "Como auditar mudanças em objetos de servidor?",
+      "answer": "Selecionar grupo de ações de servidor adequado, como SERVER_OBJECT_CHANGE_GROUP para CREATE, ALTER e DROP de objetos de servidor, e habilitar a configuração."
+    },
+    {
+      "question": "Que fatores afetam a confiabilidade de arquivos de auditoria?",
+      "answer": "Permissões restritas, proteção do destino, configuração ativa, cópias protegidas e separação de quem administra os objetos e quem lê ou controla o audit."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir classificação com proteção",
+      "summary": "Classificação registra tipo e sensibilidade como metadados; ela não mascara, criptografa ou autoriza acesso."
+    },
+    {
+      "key": "e2",
+      "title": "Atribuir poderes excessivos à máscara",
+      "summary": "DDM mascara consulta sem UNMASK; não altera armazenamento, não bloqueia escrita e não elimina inferência."
+    },
+    {
+      "key": "e3",
+      "title": "Trocar permissões de consulta e administração",
+      "summary": "SELECT lê; UNMASK revela valor real com SELECT; ALTER ANY MASK e ALTER na tabela alteram a regra."
+    },
+    {
+      "key": "e4",
+      "title": "Supor que a auditoria já coleta ao ser criada",
+      "summary": "Audit e especificações começam desabilitados. É necessário vincular, habilitar as especificações e habilitar o audit, além de proteger o destino."
+    },
+    {
+      "key": "e5",
+      "title": "Tomar registro como bloqueio",
+      "summary": "SQL Server Audit registra eventos selecionados, mas não impede a ação; privilégios administrativos podem afetar componentes e especificações."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No SQL Server, qual é a finalidade principal de Data Discovery & Classification?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Localizar, classificar e rotular colunas sensíveis, com possibilidade de gerar relatórios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criptografar automaticamente os valores de todas as colunas marcadas como confidenciais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impedir toda consulta a uma coluna assim que recebe um rótulo de sensibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mascarar valores nas consultas e bloquear sua atualização por qualquer usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar cada alteração de tabela sem configurar auditoria ou especificação de eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O recurso descobre e recomenda classificações, permite rotular colunas e exibe relatórios. Rótulo é metadado; criptografia, autorização, máscara e auditoria são controles distintos.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo de classificação pelo SSMS, qual cuidado é correto ao receber recomendações para colunas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitá-las todas, pois o mecanismo confirma o conteúdo real de cada registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisá-las, pois a descoberta automática se baseia nos nomes das colunas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ignorá-las, pois o mecanismo analisa apenas os valores e não os nomes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usá-las como substituto das permissões SELECT e UPDATE existentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicá-las somente depois de criar um audit de servidor para cada tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descoberta automática documentada examina nomes das colunas e produz recomendações, que devem ser avaliadas e podem ser editadas antes de salvar. Isso não valida cada valor nem substitui permissões.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente label de information type na classificação SQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Label é o nome físico da coluna; information type é o nome do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Label registra quem consultou; information type registra quando consultou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Label indica sensibilidade; information type detalha a categoria da informação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Label aplica máscara; information type concede a permissão UNMASK.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Label é um privilégio de servidor; information type é uma regra de auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação define labels como atributo principal de sensibilidade e information types como granularidade sobre o tipo de conteúdo. Ambos são metadados de classificação.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instância SQL Server 2019 ou posterior, qual recurso permite consultar metadados das colunas classificadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A visão `sys.sensitivity_classifications`, com informações de tipo, rótulo e coluna.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A visão `sys.masked_columns`, que contém os relatórios de sensibilidade completos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função `fn_get_audit_file`, que retorna as classificações vigentes do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela `flyway_schema_history`, que registra rótulos e recomendações aceitas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A visão `sys.database_permissions`, que armazena todos os tipos de informação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desde SQL Server 2019, `sys.sensitivity_classifications` retorna rótulos, tipos informacionais, rank e identificadores da tabela e da coluna. `sys.masked_columns` trata de máscaras e `fn_get_audit_file` lê eventos de auditoria.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual permissão é necessária para visualizar informações de classificação no SQL Server 2019, conforme a documentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "VIEW ANY SENSITIVITY CLASSIFICATION.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ALTER ANY MASK, concedida sem SELECT no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "UNMASK, que revela os rótulos sem consultar o catálogo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ALTER ANY DATABASE AUDIT, em qualquer escopo de servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VIEW SERVER SECURITY AUDIT, usado para ler arquivos de audit.",
+          "correct": false
+        }
+      ],
+      "explanation": "A visão de catálogo requer VIEW ANY SENSITIVITY CLASSIFICATION. As demais permissões tratam de máscara ou auditoria, não de visualização das classificações.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classificação foi salva para a coluna `documento_cliente`. Qual consequência decorre diretamente desse ato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A coluna passa a ter metadados de classificação consultáveis e reportáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os valores existentes são substituídos por uma versão criptografada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o proprietário do banco consegue executar SELECT na tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SQL Server inicia automaticamente auditoria de cada leitura da coluna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A coluna recebe uma máscara parcial sem alteração de configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Salvar a classificação persiste metadados de rótulo e tipo para a coluna. Criptografia, permissões, máscaras e auditoria precisam de configurações próprias.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa revisar e exportar o estado de classificação do banco para apoiar conformidade. Qual recurso do fluxo do SSMS atende a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar o relatório de classificação com o resumo do estado salvo no banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar UNMASK para exportar os valores originais de todas as colunas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Habilitar SERVER_OBJECT_CHANGE_GROUP para criar um relatório de rótulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover as extended properties para o SSMS reconstruir o inventário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar a especificação de servidor para consultar recomendações pendentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SSMS permite visualizar e gerar relatório detalhado do estado de classificação, que pode ser impresso ou exportado. Isso documenta metadados, não exporta valores nem substitui auditoria.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna foi classificada por engano como contendo informação financeira, embora armazene somente uma data de cadastro. Qual ação se ajusta ao fluxo de classificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar a classificação, corrigir o tipo ou rótulo e salvar o metadado adequado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter o rótulo e conceder UNMASK para que a data fique visível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma regra de auditoria, pois ela altera automaticamente o tipo informacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a permissão SELECT por ALTER ANY MASK para corrigir o relatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear o banco, já que a classificação não pode ser modificada após salva.",
+          "correct": false
+        }
+      ],
+      "explanation": "A classificação pode ser revisada e ajustada no SSMS ou por T-SQL. Rótulo e tipo são metadados; permissões de máscara e auditoria não os corrigem.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna de e-mail possui DDM e o atendente tem SELECT na tabela, mas não UNMASK. O que se espera na consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O atendente recebe a forma mascarada definida para a coluna.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A consulta falha porque SELECT não pode coexistir com uma máscara.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor original é exibido, pois SELECT sempre inclui UNMASK.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A linha inteira desaparece, pois DDM funciona como segurança em nível de linha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O valor armazenado é alterado para a forma mascarada durante a leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com SELECT e sem UNMASK, a coluna mascarada aparece conforme a função definida. DDM não é controle de segurança em nível de linha e não muda o valor armazenado.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta já possui UNMASK, mas não recebeu SELECT sobre a tabela que contém a coluna mascarada. Qual resultado é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "UNMASK isoladamente não concede leitura nem permite consultar a coluna.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A conta pode ler apenas a coluna mascarada, pois UNMASK inclui SELECT.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conta pode consultar a tabela, mas todos os resultados serão mascarados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conta passa a administrar todas as máscaras do banco automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conta recebe acesso de leitura porque UNMASK substitui a propriedade da tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação esclarece que UNMASK precisa estar acompanhada de SELECT para produzir efeito. UNMASK não concede por si só leitura nem administração de máscaras.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa adicionar ou remover uma máscara de uma coluna existente. Qual conjunto de permissões é requerido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ALTER ANY MASK e ALTER na tabela correspondente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SELECT e UNMASK, sem qualquer privilégio de alteração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VIEW ANY SENSITIVITY CLASSIFICATION e SELECT na tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ALTER ANY DATABASE AUDIT e CONTROL SERVER no destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "UPDATE e INSERT, que alteram dados e suas regras de exibição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Adicionar, substituir ou remover a máscara requer ALTER ANY MASK e ALTER na tabela. SELECT e UNMASK tratam de consulta, não de gestão da regra.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna com máscara dinâmica impede que usuários com permissão de escrita atualizem seu valor?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A máscara controla a apresentação do valor em consultas, não remove permissões de escrita. UPDATE deve ser limitado separadamente conforme a política de acesso.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server 2022 ou posterior, a permissão UNMASK pode ser concedida em escopo de coluna, além de escopos mais amplos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do SQL Server 2022 em diante descreve UNMASK em escopo de banco, esquema, tabela ou coluna, permitindo limitar a liberação ao dado necessário.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer evitar exposição acidental de números de remuneração em telas de consulta, mas os atendentes podem executar filtros ad hoc. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DDM pode reduzir exposição direta, mas filtros ad hoc ainda podem permitir inferência; combine-a com privilégio mínimo e auditoria.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DDM impede qualquer inferência, então filtros e permissões não precisam ser limitados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classificação da coluna impede que usuários executem consultas com comparações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder UNMASK aos atendentes evita inferência mantendo o valor oculto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O audit transforma automaticamente toda consulta ad hoc em consulta sem acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação alerta que usuários com consulta ad hoc podem deduzir valores por filtros e tentativas. DDM reduz exposição acidental, mas deve ser combinada a permissões mínimas e auditoria, sem conceder UNMASK a quem não precisa do original.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual visão do sistema permite inspecionar colunas com máscara e a função aplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sys.masked_columns`, com indicadores como `is_masked` e `masking_function`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`sys.sensitivity_classifications`, com a expressão de máscara e valor original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`sys.server_audits`, que lista todas as colunas e seus rótulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`sys.database_permissions`, que informa a função dinâmica configurada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`fn_get_audit_file`, que retorna a definição atual de cada máscara.",
+          "correct": false
+        }
+      ],
+      "explanation": "`sys.masked_columns` amplia os dados de colunas com os indicadores `is_masked` e `masking_function`. A visão de classificações e as funções de audit têm finalidades distintas.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna recebe máscara dinâmica. O que ocorre com o valor armazenado no banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permanece original; a máscara afeta a apresentação do resultado da consulta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É substituído permanentemente pelo texto mascarado na primeira leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É removido após a consulta para impedir reutilização do dado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É copiado para o log de auditoria e apagado da tabela original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É convertido em hash irreversível quando o usuário não possui UNMASK.",
+          "correct": false
+        }
+      ],
+      "explanation": "DDM é uma transformação de apresentação na consulta. O dado subjacente permanece no banco e pode ser visto sem máscara por identidades autorizadas.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server Audit, que objeto define a localização ou destino em que os eventos coletados serão gravados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O objeto Audit, criado no escopo da instância com o destino configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Database Audit Specification, que armazena diretamente os valores mascarados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classificação da coluna, que envia cada rótulo ao Event Viewer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A permissão UNMASK, que escolhe o arquivo de eventos do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A visão sys.masked_columns, que define o caminho de saída do log.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Audit coleta ações e especifica o destino dos resultados. A especificação seleciona eventos e se vincula a ele; classificações e máscaras não configuram destinos de audit.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel de uma Database Audit Specification?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar ações ou grupos de eventos no escopo do banco e vinculá-los a um audit.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir a senha de cada login que pode ler arquivos de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificar automaticamente todas as colunas como confidenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar cópias dos valores originais que foram mascarados em consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o Server Audit e escolher o destino no escopo de toda a instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma especificação de banco escolhe grupos ou ações de banco a auditar e pertence ao audit. O audit é o objeto que define destino; especificação não classifica nem guarda valores de consulta.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe criou um Server Audit e uma especificação, mas ainda não habilitou nenhum objeto. O que se deve concluir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A coleta ainda não está ativa, pois os objetos começam desabilitados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A coleta já está ativa, porque criar a especificação inicia todos os eventos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente eventos de SELECT são registrados por padrão em qualquer banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O audit está ativo, mas os registros são descartados após cada conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classificação das colunas habilita automaticamente o destino do audit.",
+          "correct": false
+        }
+      ],
+      "explanation": "Audits e especificações são inicialmente criados desabilitados. É preciso habilitar as especificações e o audit para começar a receber os eventos selecionados.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual grupo é indicado para registrar criação, alteração e remoção de objetos de servidor, como bancos e endpoints?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SERVER_OBJECT_CHANGE_GROUP, que cobre eventos CREATE, ALTER e DROP desses objetos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AUDIT_CHANGE_GROUP, que registra somente consultas SELECT em tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "USER_DEFINED_AUDIT_GROUP, que registra qualquer mudança de esquema automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DATABASE_OBJECT_ACCESS_GROUP, que registra toda troca de senha do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP, que acompanha DDL de endpoints.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação especifica que SERVER_OBJECT_CHANGE_GROUP inclui CREATE, ALTER e DROP de qualquer objeto de servidor, como banco de dados ou endpoint. AUDIT_CHANGE_GROUP acompanha mudanças na auditoria.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que grupo de ação permite acompanhar criação, alteração ou exclusão de audits e especificações de auditoria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "AUDIT_CHANGE_GROUP, para mudanças nos próprios componentes de auditoria.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SERVER_OBJECT_CHANGE_GROUP, limitado a leituras de colunas classificadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DATABASE_OBJECT_ACCESS_GROUP, que mascara os arquivos de saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SCHEMA_OBJECT_ACCESS_GROUP, que registra somente logins bem-sucedidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BACKUP_RESTORE_GROUP, que controla alterações de permissões em tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "AUDIT_CHANGE_GROUP é descrito para criação, alteração e remoção de audits e especificações. Essa cobertura é importante porque mudanças na própria auditoria afetam a trilha de controle.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de habilitar o audit e a especificação, como um administrador pode consultar eventos gravados em destino de arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelo Log File Viewer do SSMS ou pela função `fn_get_audit_file`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente pela visão `sys.sensitivity_classifications` no banco auditado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pelo menu de máscara dinâmica, que exibe cada comando registrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pela função `sys.masked_columns`, que lista o conteúdo integral dos eventos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas editando o arquivo com uma conta sem permissões de leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para arquivo, a documentação indica Log File Viewer do SSMS ou `fn_get_audit_file`. A visão de classificações e a visão de colunas mascaradas não consultam eventos de audit.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A conta de serviço do SQL Server grava eventos de auditoria em arquivo. Qual conjunto de acesso deve ter no diretório de destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura e gravação, mantendo o acesso limitado às contas operacionais autorizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente execução, pois o mecanismo nunca precisa escrever no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acesso público de leitura e gravação, para facilitar a verificação independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permissão UNMASK no banco e nenhum acesso ao sistema de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controle total para todas as contas autenticadas no domínio da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conta de serviço precisa de leitura e gravação no local do arquivo; acesso de leitores e administradores deve ser concedido conforme função e restrito para proteger os registros.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para ler dados de arquivo por `fn_get_audit_file`, qual permissão é suficiente no SQL Server 2022 e posteriores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VIEW SERVER SECURITY AUDIT, conforme a regra dessas versões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "VIEW ANY SENSITIVITY CLASSIFICATION, que autoriza leitura de qualquer arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ALTER ANY MASK, desde que o banco contenha colunas confidenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SELECT em todas as tabelas auditadas, sem privilégio de leitura de audit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "UNMASK em escopo de servidor, que inclui automaticamente fn_get_audit_file.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação diferencia versões: SQL Server 2019 e anteriores requerem CONTROL SERVER; SQL Server 2022 e posteriores aceitam VIEW SERVER SECURITY AUDIT para ler com `fn_get_audit_file`.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja acompanhar leituras e atualizações de uma tabela específica no escopo de banco. Qual configuração é coerente com SQL Server Audit?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluir ações SELECT e UPDATE na especificação de auditoria de banco para o objeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar UNMASK à classificação, que registra consultas e alterações da coluna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar SERVER_OBJECT_CHANGE_GROUP, que cobre leituras de linhas de qualquer tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma máscara parcial, pois ela armazena a identidade de quem atualizou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar a tabela com label CRITICAL, que ativa logs automáticos de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ações de banco como SELECT e UPDATE podem ser auditadas em objetos de esquema por uma Database Audit Specification. Rótulos e máscaras não ativam registro de eventos automaticamente.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DBA planeja alterar uma Database Audit Specification que está habilitada. Qual procedimento é exigido para aplicar a alteração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar a especificação, alterá-la e então habilitá-la novamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder UNMASK ao DBA e editar a especificação enquanto permanece ligada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todas as classificações do banco para liberar a edição da especificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Parar o serviço SQL Server, pois especificações não podem ser modificadas online.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar diretamente o arquivo de audit, sem modificar o objeto de especificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação instrui que a especificação de banco deve estar em STATE=OFF antes de modificações. Depois de alterar as ações, é possível habilitá-la novamente.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Database Audit Specification foi anexada a um banco em outro servidor. Qual condição é indicada para que ela escreva no audit da instância espelhada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar no servidor espelhado um audit com o mesmo GUID do audit de origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atribuir o mesmo rótulo de sensibilidade a todas as tabelas do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder UNMASK no banco espelhado a toda conta que acessa o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear a especificação para coincidir com o nome da instância original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar apenas a máscara dinâmica, pois ela transporta o destino do audit.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para uma base espelhada cuja especificação de banco escreve no audit do servidor espelho, a documentação requer um audit no espelho com o mesmo GUID para funcionar corretamente.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer liberar ao atendente o necessário para confirmar um e-mail, sem revelar o endereço completo nem permitir alteração. Qual desenho é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder SELECT, configurar máscara de e-mail e não conceder UNMASK nem UPDATE.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder UNMASK e UPDATE, pois a máscara continuará escondendo o endereço original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificar a coluna como CRITICAL, o que remove automaticamente SELECT e UPDATE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder ALTER ANY MASK e retirar SELECT, para exibir o e-mail parcialmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar somente auditoria de servidor, que mascara consultas e impede gravações.",
+          "correct": false
+        }
+      ],
+      "explanation": "DDM pode exibir uma forma mascarada a quem tem SELECT sem UNMASK. UPDATE precisa ser revogado separadamente, e a classificação por si só não modifica permissões.",
+      "section": "4. Compor os controles e interpretar a evidência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa usa um relatório de classificação como evidência de que todos os dados confidenciais estão protegidos. Qual conclusão técnica é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O relatório mostra metadados classificados, mas não prova sozinho cobertura completa nem efetividade de acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O relatório comprova que todas as colunas foram criptografadas e auditadas desde sua criação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O relatório demonstra que cada recomendação automática foi validada contra o conteúdo dos valores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O relatório substitui testes de DDM, pois a classificação já aplica UNMASK conforme o rótulo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O relatório garante que administradores não conseguem ler dados marcados como confidenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O relatório apresenta o estado de classificação salvo e é útil para conformidade, mas recomendações baseiam-se em nomes e rótulos não impõem proteção. É necessário validar inventário, permissões, máscara e audit separadamente.",
+      "section": "4. Compor os controles e interpretar a evidência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Classificar uma coluna como altamente sensível concede automaticamente UNMASK somente ao responsável pela segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O rótulo é metadado de sensibilidade. Permissões como UNMASK precisam ser gerenciadas separadamente e não são concedidas automaticamente pela classificação.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server 2019 e posteriores, `sys.sensitivity_classifications` inclui os identificadores de objeto e de coluna relacionados ao item classificado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A visão retorna `major_id` para o objeto que contém a coluna e `minor_id` para a coluna, além de label, information type e rank.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes do SQL Server 2019, metadados de tipo de informação e rótulo podiam ser encontrados em propriedades estendidas com nomes específicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação cita `sys_information_type_name` e `sys_sensitivity_label_name` em `sys.extended_properties` para versões anteriores ao SQL Server 2019.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma recomendação de classificação do SSMS comprova que a coluna contém apenas o tipo de dado sugerido, sem exceções.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A recomendação automática se baseia em nomes de colunas. A equipe deve revisar a sugestão e não a tratar como validação dos valores existentes.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo do SSMS é possível adicionar classificação manualmente, além de revisar recomendações automáticas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O SSMS permite incluir classificação manual especificando coluna, information type e sensitivity label, e então salvar os metadados.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O rank HIGH corresponde ao valor numérico 40 na visão de classificações do SQL Server.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. HIGH corresponde a 30; 40 representa CRITICAL, e MEDIUM corresponde a 20. Os ranks expressam níveis de classificação do metadado, não permissões de consulta, alteração ou liberação do valor sem máscara.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário com SELECT e sem UNMASK recebe o valor original da coluna mascarada porque a máscara é apenas um rótulo de metadado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. DDM é uma regra de apresentação que retorna o dado mascarado para usuários sem UNMASK. O rótulo de classificação é que consiste em metadado descritivo.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário pode receber UNMASK em escopo de banco e ainda assim precisa de SELECT no objeto para consultar o valor original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. UNMASK não expõe metadados nem permite consulta isoladamente; precisa estar acompanhada de SELECT aplicável à tabela ou coluna.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Conceder ALTER ANY MASK a um analista, sem ALTER na tabela, basta para substituir ou remover qualquer máscara daquela tabela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A alteração, substituição ou remoção de máscara requer ALTER ANY MASK e também ALTER na tabela correspondente. A primeira permissão autoriza administrar regras de máscara; a segunda dá a alteração necessária no objeto da tabela.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usuários administrativos com controle apropriado, como sysadmin ou db_owner, podem ver dados sem máscara por possuírem controle amplo no banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação informa que CONTROL inclui permissões ligadas a máscara e permite aos administradores apropriados ver valores originais. DDM não protege contra esses privilégios amplos.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A máscara dinâmica é recomendada como único controle para impedir que usuários maliciosos descubram valores por consultas ad hoc.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação alerta que consultas ad hoc podem permitir inferência ou tentativa de descoberta. DDM deve ser combinada com permissões mínimas e auditoria.",
+      "section": "2. Máscara dinâmica: reduzir exposição na consulta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Criar um Server Audit já o deixa coletando eventos, embora a especificação associada permaneça desabilitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Audits e especificações começam desabilitados. A especificação e o audit precisam ser habilitados para que os eventos selecionados sejam enviados ao destino.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Database Audit Specification pertence a um audit e coleta ações ou grupos de eventos em escopo de banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A especificação de banco seleciona ações ou grupos de eventos do banco e se associa ao objeto Audit que define o destino da coleta.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SERVER_OBJECT_CHANGE_GROUP registra apenas eventos SELECT e UPDATE executados em tabelas de usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Esse grupo abrange CREATE, ALTER e DROP de objetos de servidor, como bancos de dados e endpoints. SELECT e UPDATE são ações de banco configuráveis em escopo apropriado.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "AUDIT_CHANGE_GROUP pode registrar alterações feitas nos próprios objetos e especificações de auditoria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O grupo contempla eventos de criação, alteração e remoção de audits e especificações, tornando visíveis mudanças na própria trilha de auditoria.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria ativa impede que o comando monitorado seja executado, pois a função do audit é bloquear alterações não autorizadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SQL Server Audit registra eventos configurados, mas não bloqueia comandos. Autorização e prevenção dependem de permissões e outros controles de segurança.",
+      "section": "4. Compor os controles e interpretar a evidência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A conta de serviço do SQL Server precisa de leitura e gravação no local escolhido para arquivos de audit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação indica permissões de leitura e gravação para a conta de serviço. Acesso de leitores e administradores deve ser restrito conforme a função.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server 2019 ou anterior, a leitura de audit por `fn_get_audit_file` exige VIEW SERVER SECURITY AUDIT, enquanto SQL Server 2022 exige CONTROL SERVER.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. É o inverso: SQL Server 2019 e anteriores requerem CONTROL SERVER; SQL Server 2022 e posteriores aceitam VIEW SERVER SECURITY AUDIT.",
+      "section": "3. Controle de alterações com SQL Server Audit",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna pode estar classificada, mascarada e incluída no escopo de auditoria, pois esses controles tratam de funções distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Classificação descreve sensibilidade, DDM altera a apresentação a certos usuários e Audit registra ações selecionadas; podem ser combinados conforme a necessidade.",
+      "section": "4. Compor os controles e interpretar a evidência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A funcionalidade Data Discovery & Classification é compatível com SQL Server 2012 e posteriores, e pode ser usada com SSMS 17.5 ou posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do SQL Server informa suporte a Data Discovery & Classification a partir do SQL Server 2012 e uso com SSMS 17.5 ou posterior. A compatibilidade do recurso não significa que a classificação por si só controle permissões ou mascare conteúdo.",
+      "section": "1. Descoberta e classificação: saber o que proteger",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Data Discovery & Classification - SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Descoberta por nomes de colunas, recomendações, rótulos, tipos, relatórios, permissões e metadados",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/security/sql-data-discovery-and-classification?view=sql-server-ver17",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "sys.sensitivity_classifications (Transact-SQL)",
+      "publisher": "Microsoft Learn",
+      "reference": "Colunas classificadas, label, information_type, ranks e permissão de visualização",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-sensitivity-classifications-transact-sql?view=sql-server-ver17",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dynamic Data Masking - SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Funções de máscara, permissões SELECT, UNMASK e ALTER ANY MASK, limitações e risco de inferência",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/security/dynamic-data-masking?view=sql-server-ver17",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server Audit (Database Engine)",
+      "publisher": "Microsoft Learn",
+      "reference": "Audits, especificações de servidor e banco, destinos, fluxo de habilitação, permissões e leitura de registros",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/security/auditing/sql-server-audit-database-engine?view=sql-server-ver17",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server Audit Action Groups and Actions",
+      "publisher": "Microsoft Learn",
+      "reference": "Grupos SERVER_OBJECT_CHANGE_GROUP e AUDIT_CHANGE_GROUP e ações de banco como SELECT e UPDATE",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/security/auditing/sql-server-audit-action-groups-and-actions?view=sql-server-ver17",
+      "accessedAt": "2026-11-14"
+    }
+  ]
+}

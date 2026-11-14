@@ -1,0 +1,1623 @@
+{
+  "id": "informatica.framework-grails-gorm-componentes",
+  "subject": "Informática",
+  "title": "Framework Grails: estrutura, GORM e componentes",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Framework Grails: Estrutura da aplicação e componentes (Services, Controllers, Views); Mapeamento Objeto-Relacional (GORM); Configuração, plugins e gerenciamento de dependências.",
+    "Framework web Apache Grails",
+    "Estrutura de aplicações Grails",
+    "Componentes Services Controllers e Views",
+    "Camadas MVC no framework Grails",
+    "GORM e mapeamento objeto-relacional Grails",
+    "Classes de domínio e persistência GORM",
+    "Configuração de aplicações Apache Grails",
+    "Plugins e dependências no Grails",
+    "Gerenciamento de dependências Gradle no Grails",
+    "Controllers e actions do Grails",
+    "Services e injeção de dependências Grails",
+    "Views GSP e JSON no Apache Grails"
+  ],
+  "scope": {
+    "covers": "Apache Grails: convenções e estrutura da aplicação; papéis de classes de domínio, Services, Controllers, actions, Views GSP e respostas JSON; fluxo de requisição e injeção de dependências; GORM como camada de persistência, classes de domínio, CRUD, consultas, validação, associações, mapeamento e transações; configuração por ambientes, application.yml, DataSource e múltiplas fontes; Gradle e resolução de dependências; plugins, perfis, instalação e dependências entre plugins.",
+    "excludes": "Sintaxe completa da linguagem Groovy; administração de SGBD; SQL específico de fornecedores; detalhes de versões antigas ou futuras do Grails; implementação interna do Hibernate; desenvolvimento aprofundado de plugins e segurança web avançada."
+  },
+  "theoryTitle": "Como uma aplicação Grails organiza a web e os dados",
+  "chapters": [
+    {
+      "title": "1. Estrutura da aplicação e caminho da requisição",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação web precisa receber uma requisição, decidir que operação executar, trabalhar com dados e devolver uma resposta. Grails organiza esse trabalho com convenções de diretórios e artefatos. Em vez de configurar cada classe do zero, a estrutura e os nomes usuais ajudam o framework a reconhecer sua função.\n\n> **Siglas e termos deste capítulo**\n> - **MVC**: Model-View-Controller, separação entre dados/regras, tratamento da requisição e apresentação.\n> - **Artefato**: tipo de classe reconhecido pelo Grails, como controller, service ou domain class.\n> - **Action**: método de controller que atende uma operação.\n> - **GSP**: Groovy Server Pages, tecnologia de templates HTML do Grails.\n> - **Injeção de dependência**: fornecimento de um objeto colaborador pelo contêiner, em vez de criá-lo manualmente.\n\n### Convenções que dão forma ao projeto\n\nUma aplicação convencional reúne o código da aplicação em `grails-app/`: `controllers/` contém controladores web; `services/` concentra operações de negócio reutilizáveis; `domain/` contém classes persistidas e o modelo do domínio; `views/` guarda GSPs e templates; `conf/` concentra configuração, mapeamentos de URL e recursos de inicialização. Código-fonte e recursos gerais também ficam em áreas próprias, como `src/main/groovy` e `src/main/resources`. A localização exata de alguns arquivos pode variar conforme o perfil e a versão, mas a convenção central é reconhecer o papel pelo tipo e localização do artefato.\n\n| Componente | Responsabilidade típica | Exemplo de tarefa |\n| --- | --- | --- |\n| Domain class | Representar entidade persistida e suas regras/associações | `Livro` com título e associação ao autor |\n| Service | Reunir lógica de negócio e coordenar operações | Emprestar livro e registrar a data |\n| Controller | Interpretar a solicitação, chamar colaboradores e escolher resposta | Receber `id`, consultar service e renderizar |\n| View | Apresentar dados ao usuário ou serializar uma representação | GSP HTML ou template JSON |\n\n### Da URL à resposta\n\nAs regras de URL mapeiam um caminho e, quando aplicável, o método HTTP a um controller e uma action. A action pode receber dados vinculados à requisição, validar ou delegar trabalho ao service e então renderizar uma view, redirecionar ou produzir conteúdo como JSON. Por convenção, uma action que retorna um modelo pode ser associada à view correspondente; o controller também pode selecionar explicitamente outra view ou responder com um formato de dados.\n\nA separação é prática: o controller não deve virar o lugar de toda regra de negócio. A view apresenta; o service coordena regras; o GORM/domain cuida da persistência e do modelo. O controller pode receber services por injeção de dependência, sem instanciá-los com `new`.\n\n### Services: lógica reutilizável e transações\n\nUm service é um bean administrado pela aplicação. Controllers e outros componentes podem injetá-lo pelo nome da propriedade, por exemplo, `bookService`. Services são adequados para casos de uso que atravessam várias entidades, precisam ser chamados por mais de uma interface ou exigem delimitação transacional. A configuração transacional declarativa do Grails permite que um método de service participe de transação; configurações como somente leitura podem expressar operações sem escrita. Não se deve presumir que qualquer método arbitrário de qualquer classe tenha automaticamente a mesma semântica transacional de um service configurado.\n\n### Views: apresentação e formatos\n\nGSP combina marcação com expressões e tags do framework para produzir HTML. Templates parciais podem ser compartilhados, e layouts definem estrutura comum de páginas. Em aplicações orientadas a API, controllers também podem retornar JSON diretamente ou usar templates de JSON, com seleção de formato conforme negociação de conteúdo/configuração. Uma view não é o lugar para consultar diretamente o banco ou implementar regras centrais do negócio.\n\n### Como cai na prova\n\n- `grails-app/controllers` trata solicitações; `grails-app/services` abriga lógica reutilizável; `grails-app/views` contém apresentação.\n- Uma action é executada no controller; não é sinônimo de service nem de view.\n- Injeção de dependência entrega o service ao controller; não é necessário criar manualmente uma nova instância para cada chamada.\n- GSP normalmente produz HTML; JSON pode ser respondido ou renderizado por mecanismos próprios."
+    },
+    {
+      "title": "2. GORM: modelo de objetos e persistência",
+      "markdown": "### O problema que este assunto resolve\n\nO código trabalha com objetos, enquanto o banco relacional organiza linhas, colunas e chaves. GORM é a implementação de mapeamento objeto-relacional (ORM) associada ao ecossistema Grails. Ela permite operar sobre classes de domínio com uma API de persistência e consultas, evitando que toda operação CRUD precise ser escrita como SQL manual. No backend relacional tradicional de Grails, a integração Hibernate implementa o mapeamento; GORM também possui implementações para outros armazenamentos, conforme o módulo escolhido.\n\n> **Siglas e termos deste capítulo**\n> - **ORM**: Object-Relational Mapping, mapeamento entre objetos e estruturas relacionais.\n> - **CRUD**: criar, ler, atualizar e excluir registros.\n> - **Domain class**: classe que representa um conceito do domínio e pode ser persistida pelo GORM.\n> - **DataSource**: configuração/conexão lógica usada para alcançar uma fonte de dados.\n> - **HQL**: Hibernate Query Language, linguagem de consulta orientada ao modelo de entidades.\n> - **Transação**: unidade de trabalho que agrupa operações com confirmação ou reversão.\n\n### Domain classes e convenção\n\nUma classe colocada em `grails-app/domain` é reconhecida como artefato de domínio. Propriedades tipadas formam atributos persistidos por convenção, salvo configurações que os excluam ou alterem. GORM oferece operações como `save`, busca por identificador, consultas dinâmicas e exclusão. `save` pode devolver a instância persistida ou falhar na validação; a aplicação deve tratar erros e não supor que toda chamada teve êxito. A sessão/estado de persistência também importa: uma alteração em objeto gerenciado pode ser sincronizada no contexto transacional.\n\nGORM fornece validação declarativa por constraints, por exemplo, exigir um valor, limitar tamanho ou verificar unicidade. As constraints são regras de validação da aplicação, e não substituem necessariamente restrições no banco: concorrência pode permitir que duas tentativas passem pela checagem de unicidade antes de gravarem. Para integridade crítica, alinham-se validação e restrições persistentes.\n\n### Associações e mapeamento\n\nClasses podem se relacionar. Uma associação muitos-para-um representa, por exemplo, muitos livros ligados a um autor; um-para-muitos expressa a coleção correspondente; muitos-para-muitos exige que vários registros de cada lado se associem a vários do outro, em geral por tabela de junção. É essencial entender quem é o lado proprietário e como cascatas e carregamento afetam gravação e consulta. GORM permite declarar associações pelas propriedades e ajustar detalhes de persistência por blocos de mapeamento.\n\n| Necessidade | Conceito GORM | Atenção prática |\n| --- | --- | --- |\n| Uma linha representa uma entidade | Domain class | Nome e propriedades formam o modelo persistente por convenção |\n| Validar dados de entrada | Constraints | Validação não elimina a necessidade de integridade no banco |\n| Relacionar entidades | Associação | Cardinalidade, lado proprietário e cascata afetam persistência |\n| Ajustar coluna/tabela | Bloco `mapping` | Permite alterar convenções como nome, tipo ou estratégia de chave |\n\n### Consultas sem misturar camadas\n\nAlém de métodos CRUD e consultas dinâmicas baseadas em nomes, o GORM oferece critérios e consultas orientadas ao domínio; o backend Hibernate também suporta HQL e SQL quando necessário. A consulta deve expressar filtros e ordenação de forma previsível. Carregar uma coleção relacionada em um laço pode gerar muitas consultas (problema N+1); estratégias de busca e paginação ajudam a controlar custo. APIs de consulta do GORM não tornam consultas automaticamente baratas: índices, cardinalidade e plano do banco continuam relevantes.\n\n### Transações e várias fontes\n\nUma transação delimita um conjunto coerente de alterações. No uso web, serviços são um lugar comum para agrupar leituras e gravações de um caso de uso. Com várias fontes de dados, a associação do domínio ao datasource e a configuração transacional precisam corresponder; uma transação local em uma fonte não se transforma automaticamente em transação distribuída entre bancos distintos. A configuração específica depende dos módulos e recursos adotados.\n\n### Como cai na prova\n\n- GORM mapeia entidades de domínio e oferece persistência/consultas; não é um banco de dados nem uma linguagem Groovy.\n- `save` pode falhar por validação; quem chama deve verificar o resultado.\n- Associação muitos-para-muitos não significa que uma instância pertença a apenas uma instância do outro lado.\n- Constraints de validação não substituem automaticamente todas as garantias de integridade do SGBD.\n- ORM reduz código repetitivo, mas não remove a necessidade de compreender transações, consultas e desempenho."
+    },
+    {
+      "title": "3. Configuração, ambientes e dependências",
+      "markdown": "### O problema que este assunto resolve\n\nA aplicação precisa conhecer porta, banco, credenciais, logging e bibliotecas. Esses valores mudam entre desenvolvimento, teste e produção. Grails combina arquivos de configuração, propriedades externas e resolução de dependências para manter o comportamento configurável sem espalhar valores fixos pelo código.\n\n> **Siglas e termos deste capítulo**\n> - **Gradle**: ferramenta de build usada por projetos Grails para tarefas e dependências.\n> - **Build script**: arquivo que declara plugins de build e bibliotecas necessárias.\n> - **Repositório**: serviço de onde ferramentas de build resolvem artefatos.\n> - **Ambiente**: conjunto de configurações selecionado para desenvolvimento, teste ou produção.\n> - **DataSource**: parâmetros que permitem à aplicação obter conexões com o banco.\n\n### Configuração da aplicação\n\n`application.yml` é um local comum para configuração Grails e Spring Boot. Configurações específicas de ambiente podem ser organizadas por perfis/ambientes, enquanto propriedades externas permitem variar valores sem recompilar o código. O acesso a configuração em runtime pode ser feito pelo objeto `grailsApplication` nos contextos que o disponibilizam. Segredos de produção devem ser fornecidos por mecanismo apropriado do ambiente, e não incorporados ao repositório.\n\nO `DataSource` descreve driver, URL, usuário, senha e opções de conexão, além de permitir configuração separada por ambiente e de fontes nomeadas. O GORM usa essa configuração para persistir entidades. O perfil de desenvolvimento pode usar banco local; produção pode apontar para serviço gerenciado, mas a diferença deve ser explícita e controlada. Uma configuração de banco incorreta pode impedir inicialização ou direcionar gravações ao ambiente errado.\n\n### Build e dependências\n\nO build Gradle declara plugins e dependências, geralmente no arquivo `build.gradle` ou `build.gradle` com sintaxe Groovy, conforme o projeto. Dependências têm escopos: uma biblioteca necessária apenas em testes não deve ser tratada automaticamente como dependência de runtime. A resolução localiza versões em repositórios declarados e monta o classpath. O relatório de dependências e as tarefas do Gradle ajudam a diagnosticar conflitos transitivos.\n\nDependências transitivas são trazidas por outra biblioteca; duas podem exigir versões incompatíveis de um mesmo componente. A escolha de versão deve ser explícita e compatível com a plataforma Grails adotada. O framework fornece um conjunto integrado de versões por meio de seus mecanismos de plataforma/BOM ou configuração equivalente; sobrescritas indiscriminadas podem quebrar compatibilidade.\n\n### Plugins e perfis\n\nPlugins adicionam capacidades ao Grails: podem fornecer artefatos, configuração, tarefas ou integração com outros sistemas. Há plugins que são dependências do build/aplicação e plugins de Gradle que atuam no próprio processo de build; não se deve confundir esses papéis. Um plugin instalado pode declarar dependências de outros plugins. Quando existe dependência obrigatória, o plugin dependente só deve carregar se o requisito estiver disponível; relações de ordem permitem carregar depois ou antes de outro plugin quando apropriado.\n\nPerfis (profiles) são modelos para gerar aplicações com conjuntos diferentes de recursos, como web, REST ou plugin. O perfil define ponto de partida e features, mas não é sinônimo de plugin individual. A linha de comando Grails e o Gradle oferecem tarefas para criar, executar, testar e empacotar o projeto.\n\n| Item | Onde costuma ser declarado | Função |\n| --- | --- | --- |\n| Configuração de aplicação | `application.yml` e fontes externas | Valores de runtime e por ambiente |\n| Dependência de biblioteca | Build Gradle | Componente no classpath de build, teste ou execução |\n| Plugin Grails | Configuração/dependências do projeto | Artefatos e integração do framework |\n| Plugin Gradle | Bloco de plugins do build | Tarefas e comportamento do processo de compilação |\n| Profile | Ferramenta/gerador Grails | Estrutura inicial e conjunto de recursos de um tipo de projeto |\n\n### Como cai na prova\n\n- `application.yml` trata configuração de aplicação; o build Gradle trata plugins de build e dependências.\n- Configuração por ambiente permite alterar DataSource e outros valores sem duplicar a lógica de negócio.\n- Dependência transitiva chega por outra dependência e pode gerar conflitos de versão.\n- Plugin pode declarar dependência e ordem de carregamento; profile é um modelo para gerar uma classe de aplicação/projeto.\n- Configuração em produção deve ser externa quando sensível e coerente com o ambiente selecionado."
+    },
+    {
+      "title": "4. Integração dos componentes e escolhas de arquitetura",
+      "markdown": "### O problema que este assunto resolve\n\nConhecer cada diretório isoladamente não basta: em uma aplicação real, um pedido atravessa várias peças. Saber a fronteira entre elas facilita manutenção, teste e diagnóstico de falhas.\n\n> **Siglas e termos deste capítulo**\n> - **DTO/command object**: objeto de entrada que agrupa dados e pode receber validação.\n> - **Binding**: associação dos parâmetros da requisição a propriedades de um objeto.\n> - **Renderização**: transformação de um modelo em HTML, JSON ou outro formato de resposta.\n> - **Scaffolding**: geração de operações/interface a partir de artefatos de domínio.\n> - **N+1**: padrão de consultas em que uma consulta inicial é seguida por uma consulta por registro relacionado.\n\n### Exemplo completo: registrar um empréstimo\n\nUma requisição `POST /emprestimos` chega ao mapeamento de URL e é encaminhada a uma action de `EmprestimoController`. A action recebe dados, valida um command object e chama `emprestimoService.registrar(...)`. O service verifica disponibilidade, carrega as entidades com GORM e coordena as alterações dentro da transação. Se tudo for válido, o controller redireciona para a página de confirmação ou renderiza JSON; a view apresenta os dados ao usuário. Se a validação falhar, o controller pode reapresentar o formulário com erros.\n\nEsse fluxo mostra a fronteira: controle HTTP e escolha de resposta ficam no controller; regra de negócio e coordenação transacional no service; estado persistente em classes de domínio; apresentação na view. A regra de negócio central não deve depender da forma HTML específica para poder ser reutilizada por uma API, tarefa ou teste.\n\n### Vinculação, validação e resposta\n\nO data binding converte parâmetros da requisição em propriedades de objetos. A aplicação deve limitar quais campos podem ser vinculados e validar entrada; receber um campo não significa que ele seja confiável. Command objects podem concentrar campos e constraints de uma operação sem expor diretamente toda a entidade persistente. Após executar o caso de uso, a resposta pode ser HTML, redirecionamento, JSON ou erro HTTP apropriado. Negociação de conteúdo e mapeamentos de URL influenciam essa escolha.\n\n### Testabilidade e desempenho\n\nComo services são injetados, um teste pode substituir colaboradores ou testar o caso de uso em contexto controlado. Grails oferece recursos para testes unitários e de integração de controllers, services e domain classes. Testes unitários isolam a lógica; testes de integração verificam o comportamento com framework e persistência reais. Scaffolding acelera protótipos e operações CRUD, mas não decide automaticamente as regras específicas do negócio.\n\nNo acesso a dados, paginação limita volume; carregamento de relações deve ser pensado para evitar N+1. Uma action que devolve entidade inteira pode expor mais campos do que o formato público exige; a view/serializador deve selecionar a representação adequada. Transações devem envolver o caso de uso com limites claros, evitando manter recursos abertos durante trabalho externo demorado.\n\n### Como cai na prova\n\n- Fluxo típico: URL mapping → controller/action → service/GORM → view ou resposta.\n- Binding não é validação nem autorização; dados recebidos precisam ser verificados.\n- Scaffolding gera estrutura inicial, mas não substitui regras de negócio próprias.\n- Teste unitário e teste de integração respondem perguntas diferentes.\n- Paginação e plano de carregamento reduzem custos; ORM não elimina o risco de N+1."
+    }
+  ],
+  "summary": "Grails organiza aplicações por convenção: controllers atendem solicitações, services concentram casos de uso e transações, domain classes modelam dados persistentes e views apresentam HTML ou outras representações. GORM é a camada ORM que fornece validação, associações, consultas e operações CRUD sobre o domínio. Configuração e DataSources são ajustáveis por ambiente; Gradle declara plugins e dependências; plugins acrescentam capacidades e profiles orientam a geração de tipos de projeto. O fluxo usual é URL mapping → action → service/GORM → view ou resposta.",
+  "flashcards": [
+    {
+      "front": "Em que diretório convencional ficam controllers Grails?",
+      "back": "Em `grails-app/controllers`; são artefatos da camada web que recebem solicitações e expõem actions."
+    },
+    {
+      "front": "Qual é a função principal de um service Grails?",
+      "back": "Concentrar lógica de negócio reutilizável e coordenar operações, podendo delimitar transações."
+    },
+    {
+      "front": "Onde ficam views convencionais de uma aplicação Grails?",
+      "back": "Em `grails-app/views`; ali ficam GSPs, templates e outras representações de saída."
+    },
+    {
+      "front": "O que é uma action?",
+      "back": "Um método de controller que executa uma operação associada a uma requisição ou rota."
+    },
+    {
+      "front": "O que significa GSP?",
+      "back": "Groovy Server Pages, templates que o Grails usa principalmente para produzir HTML."
+    },
+    {
+      "front": "O que faz GORM?",
+      "back": "Mapeia objetos do domínio para armazenamento e oferece operações de persistência e consulta."
+    },
+    {
+      "front": "O que representa uma domain class?",
+      "back": "Uma entidade/conceito do domínio que pode ser persistida e consultada pelo GORM."
+    },
+    {
+      "front": "Quais são as operações CRUD?",
+      "back": "Create, Read, Update e Delete: criar, ler, atualizar e excluir registros."
+    },
+    {
+      "front": "O que o método `save` pode sinalizar?",
+      "back": "Persistência bem-sucedida ou falha de validação; a aplicação deve verificar o resultado."
+    },
+    {
+      "front": "Para que servem constraints em GORM?",
+      "back": "Declarar regras de validação como obrigatoriedade, tamanho e unicidade."
+    },
+    {
+      "front": "Constraints garantem sozinhas unicidade sob concorrência?",
+      "back": "Não necessariamente; restrições no banco também podem ser necessárias para integridade concorrente."
+    },
+    {
+      "front": "Qual é o papel de um bloco `mapping`?",
+      "back": "Ajustar como propriedades e entidades são mapeadas para estruturas persistentes."
+    },
+    {
+      "front": "Como o Grails disponibiliza services a controllers?",
+      "back": "Como dependências gerenciadas e injetadas pelo contêiner da aplicação."
+    },
+    {
+      "front": "Para que serve `application.yml`?",
+      "back": "Para configurações da aplicação, inclusive parâmetros que podem variar por ambiente."
+    },
+    {
+      "front": "O que é um DataSource?",
+      "back": "A configuração lógica que permite à aplicação obter conexões com uma fonte de dados."
+    },
+    {
+      "front": "Qual ferramenta de build é comum em projetos Grails?",
+      "back": "Gradle, que executa tarefas e resolve plugins e dependências declaradas pelo projeto."
+    },
+    {
+      "front": "O que é uma dependência transitiva?",
+      "back": "Uma biblioteca que entra no projeto porque outra dependência a requer."
+    },
+    {
+      "front": "O que um plugin Grails pode fornecer?",
+      "back": "Artefatos, configuração, tarefas ou integração com outras capacidades do framework."
+    },
+    {
+      "front": "O que é um profile Grails?",
+      "back": "Um modelo de projeto que define estrutura e recursos iniciais para um tipo de aplicação."
+    },
+    {
+      "front": "O que significa problema N+1 em consultas?",
+      "back": "Uma consulta inicial seguida por consultas adicionais, muitas vezes uma para cada entidade relacionada."
+    },
+    {
+      "front": "Qual é o caminho típico de uma requisição Grails?",
+      "back": "Mapeamento de URL, controller/action, service e GORM, depois view ou outra resposta."
+    },
+    {
+      "front": "Quando uma view GSP é usada?",
+      "back": "Quando a aplicação renderiza uma página HTML com templates e dados preparados pelo controller."
+    },
+    {
+      "front": "Como reduzir conflitos de dependências transitivas?",
+      "back": "Inspecionar a árvore de dependências e alinhar versões com a plataforma Grails usada."
+    },
+    {
+      "front": "Qual diferença básica entre teste unitário e de integração?",
+      "back": "O unitário isola uma unidade; o de integração verifica colaboração com partes reais do framework e persistência."
+    }
+  ],
+  "tips": [
+    "Memorize o trio: controller recebe e decide a resposta; service executa o caso de uso; view apresenta.",
+    "GORM é a camada ORM do Grails; domain class é o modelo persistente, não o próprio banco.",
+    "Ao ler `grails-app/controllers`, `services`, `domain` ou `views`, associe diretório e responsabilidade.",
+    "Separe configuração de runtime (`application.yml`) de plugins e bibliotecas declarados no build Gradle.",
+    "Em questões de persistência, confira validação, transação, associação e possível custo N+1.",
+    "Plugin amplia uma aplicação; profile fornece um ponto de partida com estrutura e recursos selecionados."
+  ],
+  "traps": [
+    "Atribuir regras centrais de negócio à view ou ao controller confunde apresentação/HTTP com o service.",
+    "Supor que toda chamada a `save` necessariamente grava com sucesso ignora falhas de validação.",
+    "Tratar constraints do GORM como substitutas universais das restrições do banco ignora concorrência e integridade persistente.",
+    "Confundir plugin Grails com plugin Gradle mistura extensão em runtime com ferramenta de build.",
+    "Afirmar que o ORM elimina SQL, transações e problemas de desempenho é exagerar o que o mapeamento resolve.",
+    "Confundir profile com plugin: profile orienta a geração do projeto; plugin acrescenta capacidades a um projeto."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de uma requisição que registra uma operação de negócio.",
+      "answer": "O mapeamento de URL leva ao controller/action; a action valida os dados e chama um service; o service coordena domínio e GORM, possivelmente em transação; o controller escolhe renderização, redirecionamento ou resposta JSON."
+    },
+    {
+      "question": "Compare controller, service e view.",
+      "answer": "Controller coordena a interação HTTP; service implementa/coordenada o caso de uso; view transforma dados preparados em HTML ou outra representação."
+    },
+    {
+      "question": "O que oferece GORM além de mapear objetos?",
+      "answer": "Operações CRUD, consultas, validação declarativa, associações e integração transacional com persistência."
+    },
+    {
+      "question": "Por que verificar o resultado de `save`?",
+      "answer": "A validação pode impedir a persistência; ignorar a falha pode levar a aplicação a tratar como gravado um objeto que não foi salvo."
+    },
+    {
+      "question": "Como representar uma regra de obrigatoriedade em GORM?",
+      "answer": "Declarar uma constraint de validação apropriada na classe de domínio e manter as garantias críticas também no banco quando necessário."
+    },
+    {
+      "question": "Diferencie GSP e resposta JSON.",
+      "answer": "GSP é um template normalmente usado para HTML; JSON é uma representação de dados que pode ser retornada diretamente ou produzida por templates de JSON."
+    },
+    {
+      "question": "Para que servem perfis de ambiente?",
+      "answer": "Para variar parâmetros como DataSource, logging e recursos conforme desenvolvimento, teste ou produção sem alterar as regras do domínio."
+    },
+    {
+      "question": "Diferencie dependência direta e transitiva.",
+      "answer": "A direta é declarada pelo projeto; a transitiva é trazida porque uma dependência declarada depende dela."
+    },
+    {
+      "question": "Como uma associação pode afetar desempenho?",
+      "answer": "O carregamento ingênuo de relações pode gerar consultas N+1; paginação e estratégia de busca adequada reduzem consultas e volume."
+    },
+    {
+      "question": "Quando usar um service?",
+      "answer": "Quando um caso de uso contém regras reutilizáveis, coordena várias entidades ou precisa de limites transacionais claros."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camadas MVC trocadas",
+      "summary": "Controllers lidam com solicitação e resposta, services com casos de uso e views com apresentação. Domain classes representam dados e comportamento do domínio."
+    },
+    {
+      "key": "e2",
+      "title": "GORM entendido como banco",
+      "summary": "GORM é uma camada ORM/API de persistência; entidades e operações são mapeadas para a fonte de dados configurada."
+    },
+    {
+      "key": "e3",
+      "title": "Validação confundida com garantia absoluta",
+      "summary": "Constraints validam dados na aplicação, mas integridade sob concorrência pode exigir restrições persistentes no banco."
+    },
+    {
+      "key": "e4",
+      "title": "Configuração e build misturados",
+      "summary": "application.yml e fontes externas ajustam a aplicação em runtime; Gradle declara plugins de build e dependências."
+    },
+    {
+      "key": "e5",
+      "title": "Plugins, profiles e desempenho",
+      "summary": "Plugins acrescentam capacidades; profiles definem modelos de projeto; ORM não evita por si só N+1, consultas caras ou erros transacionais."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um projeto Grails convencional, qual associação entre diretório e artefato está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`grails-app/controllers` contém as actions que atendem solicitações web.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`grails-app/views` contém a configuração principal de conexão com bancos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`grails-app/services` armazena os templates HTML renderizados pelo framework.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`grails-app/domain` contém exclusivamente as rotas HTTP da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grails-app/controllers` é reservado para entidades persistentes do GORM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controllers ficam convencionalmente em `grails-app/controllers` e expõem actions. Views guardam apresentação, services lógica reutilizável e domain classes modelam entidades persistentes.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente é mais apropriado para coordenar uma regra de negócio que altera duas entidades dentro de uma transação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma view GSP, pois ela mantém aberta a transação durante a renderização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um service, pois pode coordenar entidades e delimitar o caso de uso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um mapeamento de URL, pois ele confirma operações do banco automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma folha de estilo, pois ela representa as alterações das entidades.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um profile de projeto, pois ele executa cada solicitação em produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Services são apropriados para coordenar regras reutilizáveis e operações transacionais. A view apresenta dados; mapeamento de URL direciona solicitações; profile serve à geração de projetos.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura MVC de Grails, que papel costuma caber a uma action de controller?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar colunas e índices que definem o esquema físico do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compilar dependências transitivas antes da execução do projeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atender a operação solicitada, coordenar colaboradores e escolher uma resposta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renderizar obrigatoriamente HTML mesmo quando o cliente pediu JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir todas as entidades de domínio por parâmetros de URL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A action participa do tratamento da solicitação: pode receber dados, chamar services e decidir entre renderizar, redirecionar ou responder em outro formato.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Grails usa GSP em uma página e JSON em uma API. Qual afirmação descreve corretamente essas representações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GSP é destinado somente à configuração do DataSource; JSON guarda a lógica de negócio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "GSP e JSON são nomes diferentes para a mesma linguagem de consulta GORM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GSP normalmente produz HTML; JSON pode ser retornado ou renderizado para uma API.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "JSON só pode ser criado manualmente fora dos controllers e das views.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A existência de GSP impede que o mesmo controller ofereça uma resposta de API.",
+          "correct": false
+        }
+      ],
+      "explanation": "GSP é o mecanismo de templates usado principalmente para páginas HTML. Grails também permite respostas JSON, diretamente ou com mecanismos de templates próprios.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Grails pode fornecer um service a um controller por injeção de dependência, deixando o contêiner gerenciar o colaborador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Services são beans gerenciados pela aplicação e podem ser injetados em controllers e outros componentes, evitando criação manual acoplada.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo usual, uma view deve executar consultas arbitrárias ao banco e concentrar as regras centrais do negócio para evitar services.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. A view apresenta dados preparados; regras centrais e coordenação de persistência pertencem a componentes apropriados, como services e GORM/domain.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um controller chama um service injetado e, após concluir a operação, redireciona para uma página de confirmação. Essa separação é compatível com Grails.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. O controller coordena a solicitação e a resposta, enquanto o service pode implementar o caso de uso. Redirecionar é uma das respostas possíveis.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um formulário web, qual descrição melhor distingue binding de validação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Binding associa parâmetros a propriedades; validação verifica se os valores atendem às regras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Binding confirma a transação; validação seleciona a rota HTTP a ser usada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Binding define o template HTML; validação cria dependências no build Gradle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Binding autoriza o usuário; validação transforma toda entidade em JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Binding e validação são operações exclusivas do banco, sem interação com a aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Data binding associa dados recebidos a objetos. Validação aplica constraints ou regras para determinar se esses valores são aceitáveis; uma etapa não equivale à outra.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um command object pode agrupar e validar os campos recebidos para uma operação sem expor diretamente todas as propriedades de uma entidade persistente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Command objects são úteis para dados de entrada de uma ação e podem ter validação própria, separando o formato da solicitação do modelo persistente.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação expressa com precisão o lugar de GORM em uma aplicação Grails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É a camada de mapeamento e persistência de objetos de domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É um servidor relacional independente que substitui o banco configurado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um mecanismo de templates que produz páginas GSP no navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um gerenciador de URLs que não interage com entidades persistentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um plugin exclusivo de compilação que substitui o sistema de build Gradle.",
+          "correct": false
+        }
+      ],
+      "explanation": "GORM é a implementação ORM associada ao Grails: mapeia objetos do domínio para armazenamento e oferece API para persistência e consultas.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário descreve uma classe de domínio Grails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma classe em `grails-app/domain` que modela um conceito persistível, como `Autor`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma classe em `grails-app/views` que executa a resolução de bibliotecas externas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma classe em `grails-app/controllers` que só pode representar uma tabela de configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo YAML que substitui todas as entidades e suas propriedades no GORM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tarefa Gradle que converte HTML em linhas do banco a cada requisição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Domain classes modelam conceitos do domínio e são reconhecidas pelo GORM para persistência conforme convenções e mapeamentos configurados.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar `save` em uma entidade, qual cuidado é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar o resultado, pois a validação pode impedir que a instância seja persistida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o retorno, pois toda chamada grava os dados mesmo com constraints inválidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recriar o banco inteiro, pois `save` só funciona depois de executar scaffolding.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a instância em controller, pois GORM não persiste objetos de domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover as constraints, pois o método não pode interagir com validação declarativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação pode fazer a operação falhar; quem chama deve conferir o resultado e tratar erros, sem assumir que toda chamada gravou.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma constraint declarativa do GORM pode exigir que uma propriedade esteja preenchida ou limitar seu tamanho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Constraints são usadas para validações declarativas como obrigatoriedade, tamanho e outras regras de propriedade.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação de unicidade executada na aplicação, sozinha, elimina em qualquer cenário a necessidade de restrição única no banco, inclusive sob gravações concorrentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Duas operações concorrentes podem validar antes de qualquer uma confirmar a gravação. Uma restrição persistente no banco pode ser necessária para garantir integridade concorrente.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma relação muitos-para-muitos permite que várias instâncias de um lado se associem a várias instâncias do outro lado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Essa cardinalidade admite múltiplas associações em ambos os lados; o mapeamento e a persistência precisam considerar tabela de junção e lado proprietário.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma responsabilidade do bloco de mapeamento de uma classe de domínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajustar detalhes como nomes e características do mapeamento persistente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir obrigatoriamente toda rota HTTP que aponta para o controller.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar os textos das views e dos layouts da aplicação web.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o DataSource e fornecer credenciais por argumento de consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher quais plugins Gradle serão carregados durante a compilação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bloco `mapping` permite ajustar detalhes do mapeamento de propriedades e entidades para as estruturas persistentes; rotas, views e dependências têm outros locais de configuração.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "board": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação pode agrupar alterações de um caso de uso para que sejam confirmadas ou revertidas como unidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Uma transação estabelece uma unidade de trabalho de persistência com confirmação ou reversão, e services são um local comum para delimitar o caso de uso.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação local configurada para uma fonte de dados passa automaticamente a coordenar de forma atômica todas as outras fontes de dados da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Uma transação local em uma fonte não se torna distribuída por inferência. Transações coordenadas entre recursos diferentes exigem configuração e infraestrutura apropriadas.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao carregar uma lista de entidades e acessar uma relação para cada elemento, qual risco de consulta deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O padrão N+1, com consultas adicionais repetidas para relações dos resultados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A execução de todos os plugins instalados em uma transação do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conversão automática das entidades em dependências transitivas do Gradle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A remoção das constraints declarativas durante a renderização da view.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A substituição do mecanismo ORM por uma rota URL baseada em convenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão N+1 ocorre quando a consulta inicial é seguida por consultas repetidas para carregar relações. Paginação e uma estratégia de busca adequada ajudam a controlar o custo.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o uso adequado de paginação em consultas GORM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limitar os registros obtidos em cada página para controlar volume e custo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter automaticamente qualquer relação em transação distribuída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir as constraints de validação por diretivas de apresentação HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impedir que o banco utilize índices nas consultas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fazer a resolução das bibliotecas do projeto em tempo de resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação reduz o volume retornado de uma só vez e auxilia no controle de custo. Ela não substitui integridade, transações, índices ou resolução de dependências.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o backend de GORM usado em aplicações Grails é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GORM pode usar Hibernate no backend relacional e admite outros módulos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "GORM sempre grava diretamente em arquivos GSP, sem usar uma fonte de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hibernate é o nome do diretório onde o Gradle armazena os controllers web.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Toda aplicação Grails exige que o usuário escreva SQL para cada operação CRUD.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mapeamento objeto-relacional funciona somente para rotas e parâmetros HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backend relacional clássico de Grails integra GORM e Hibernate, enquanto o ecossistema GORM também oferece módulos para outros tipos de armazenamento. O mapeamento não é um mecanismo de rotas nem de templates.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual arquivo é um local comum para configurações de runtime de uma aplicação Grails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`application.yml`, que pode reunir propriedades da aplicação e por ambiente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`settings.gradle`, que guarda os textos HTML enviados aos navegadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`gradlew`, que armazena as entidades de domínio e suas constraints.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`grails-app/views`, que define a resolução transitiva das bibliotecas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grails-app/controllers`, que substitui os arquivos de configuração externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "`application.yml` é um local comum para a configuração de runtime, inclusive valores que variam com o ambiente. Scripts Gradle e diretórios web têm outras funções.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza um DataSource na configuração de uma aplicação Grails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Parâmetros e opções que permitem à aplicação obter conexões com uma fonte de dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma coleção de templates GSP usados para compor o layout de páginas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um catálogo de rotas que substitui os controllers e suas actions.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de testes unitários executados pelo navegador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um mecanismo que converte profiles de projeto em tabelas de junção.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DataSource descreve como a aplicação alcança a fonte de dados, incluindo parâmetros de conexão e opções relacionadas; GORM usa essa configuração para persistência.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de responsabilidades é apropriada para Gradle em um projeto Grails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar tarefas de build e resolver plugins e bibliotecas declarados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Renderizar todas as views em HTML e decidir a regra de negócio de cada action.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar registros de domínio como substituto permanente do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Receber requisições HTTP e autenticar usuários sem código da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar objetos em runtime e assumir o papel de service transacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gradle atua no build: executa tarefas e resolve dependências declaradas. A requisição web, a apresentação e as regras de negócio são responsabilidades de componentes da aplicação.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca necessária somente para testes deve sempre ser tratada como dependência de runtime da aplicação publicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Dependências podem ter escopos diferentes. Uma ferramenta usada apenas em testes não precisa, por esse motivo, integrar o classpath de runtime publicado.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca transitiva é trazida ao projeto porque outra dependência declarada depende dela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. A dependência transitiva não precisa ser declarada diretamente pela aplicação para aparecer: outra biblioteca pode solicitá-la durante a resolução.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação a configurações por ambiente, qual prática é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Variar valores como DataSource conforme o ambiente, mantendo a lógica do domínio comum.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar toda a lógica de negócio para um controller diferente em cada ambiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar credenciais de produção em views para permitir alteração pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar manualmente as entidades persistentes sempre que muda o ambiente ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o mesmo endereço de banco em desenvolvimento, teste e produção por convenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Perfis/ambientes permitem variar parâmetros como a fonte de dados sem duplicar as regras de negócio. Segredos devem ser fornecidos por configuração externa apropriada.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "board": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Credenciais sensíveis de produção devem ser embutidas no repositório em `application.yml` para que qualquer ambiente use os mesmos valores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Valores sensíveis devem vir de mecanismos apropriados de configuração do ambiente, em vez de serem incorporados ao repositório e compartilhados sem controle.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas dependências transitivas requerem versões incompatíveis da mesma biblioteca. Que recurso de build ajuda a investigar o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar o relatório ou a árvore de dependências resolvidas do Gradle.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Renderizar novamente todas as views GSP até o conflito desaparecer.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover as classes de domínio para controllers e compilar sem plugins.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar uma action HTTP que remova as dependências do classpath.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o DataSource, pois ele determina a versão de cada biblioteca Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "O relatório de dependências do Gradle expõe caminhos transitivos e versões resolvidas, permitindo identificar quem solicita cada biblioteca e alinhar a configuração.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobrescrever indiscriminadamente as versões integradas pelo ecossistema Grails pode introduzir incompatibilidades entre componentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Componentes do framework são testados em combinações compatíveis; sobrescrever versões sem avaliar compatibilidade pode quebrar APIs ou integração entre bibliotecas.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente plugin Grails de plugin Gradle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Plugin Grails acrescenta capacidades ao framework; plugin Gradle altera o processo de build.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Plugin Grails é sempre uma view; plugin Gradle é sempre uma entidade persistida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Plugin Grails configura apenas o banco; plugin Gradle recebe requisições HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Plugin Grails é um profile; plugin Gradle é o nome de uma action de controller.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos são sinônimos para uma dependência usada somente durante testes unitários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Plugins Grails estendem funcionalidades do ecossistema da aplicação; plugins Gradle participam do sistema de build, suas tarefas e configuração.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um profile Grails define um modelo de projeto e pode oferecer estrutura inicial adequada a uma aplicação web, REST ou plugin.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Profiles servem como modelos para gerar projetos com diferentes estruturas e recursos iniciais; não são simplesmente plugins individuais instalados em runtime.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plugin pode declarar dependência de outro plugin e condições de ordenação para carregar depois de uma capacidade necessária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Plugins podem declarar dependências e relações de ordem; uma dependência obrigatória não resolvida pode impedir o carregamento do plugin que precisa dela.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe gera telas CRUD com scaffolding. Qual conclusão sobre o recurso é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele acelera a criação de estrutura inicial, sem substituir regras específicas do negócio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele escolhe automaticamente todas as políticas e invariantes do domínio da empresa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele elimina a necessidade de controllers e de validação das solicitações recebidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele transforma uma aplicação web em um profile sem qualquer código executável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele garante desempenho ideal para qualquer consulta e volume de dados futuros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Scaffolding gera operações e estruturas iniciais a partir de artefatos, acelerando protótipos e CRUDs, mas não conhece todas as regras específicas nem assegura desempenho ideal.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Grails, teste unitário e teste de integração têm objetivos diferentes: o primeiro isola uma unidade, e o segundo verifica colaboração com componentes reais do framework ou persistência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Testes unitários isolam componentes; testes de integração exercitam interações com o framework, configuração e persistência em contexto mais próximo da aplicação real.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste unitário de service deve necessariamente abrir uma conexão com o banco de produção para confirmar cada regra de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Testes unitários isolam uma unidade e podem usar colaboradores controlados. Testes de integração verificam o comportamento com persistência real/configurada em ambiente apropriado.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade persistente contém campos internos que não devem aparecer numa API pública. Qual solução é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Preparar uma representação de saída controlada em view ou serializador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retornar sempre a entidade inteira, pois o GORM oculta automaticamente todo campo sensível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover a entidade para o diretório de controllers e eliminar o service.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o arquivo Gradle para filtrar propriedades em cada resposta HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar a tabela por uma view GSP e deixar que o cliente escolha as colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta pública deve selecionar explicitamente os dados que serão expostos por meio de uma representação/serializador ou template. A entidade persistente não deve ser presumida como formato público seguro.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num fluxo de registro, um service verifica disponibilidade e altera duas entidades; o controller valida entrada e escolhe a resposta. Essa divisão mantém responsabilidades distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. O controller cuida da interação HTTP e da resposta, enquanto o service coordena a regra de negócio e as alterações persistentes, normalmente sob um limite transacional.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa o fluxo comum entre solicitação web e resposta numa aplicação Grails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "URL mapping, controller/action, service e GORM, depois view ou resposta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "View GSP, Gradle, profile, DataSource e então a requisição HTTP inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DataSource, plugin de build, layout, domain class e compilador HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GORM, view, URL mapping, dependências transitivas e controller como etapa final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Profile, tabela de junção, arquivo YAML, service e navegador do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rota direciona a solicitação a uma action; o controller coordena service e persistência; por fim, escolhe view, redirecionamento ou resposta de dados.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O data binding torna confiáveis os parâmetros recebidos e, por isso, elimina validação de entrada e controle dos campos vinculáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Binding apenas associa dados a propriedades. A aplicação ainda precisa limitar campos aceitos e validar valores; binding não é mecanismo de confiança nem de autorização.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre GORM e desempenho é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GORM simplifica persistência, mas estratégias de consulta e carregamento ainda afetam o custo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O mapeamento ORM faz qualquer consulta ter custo constante, independentemente dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultas N+1 são corrigidas automaticamente pelo controller ao renderizar HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Paginação torna desnecessários índices e análise da cardinalidade das relações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A camada GORM impede que o banco participe da execução e otimização das consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ORM reduz trabalho repetitivo e oferece abstrações, mas o banco executa consultas e suas características continuam relevantes. Estratégias de busca, paginação, índices e cardinalidade influenciam desempenho.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pode responder a formatos diferentes mantendo a lógica de negócio no service, em vez de duplicá-la em cada view.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. O service pode ser reutilizado por diferentes interfaces; controllers e mecanismos de representação escolhem HTML, JSON ou outra resposta adequada.",
+      "section": "4. Integração dos componentes e escolhas de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso pode representar uma associação muitos-para-um em um modelo de biblioteca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Muitos livros referenciando um autor, com o mapeamento da relação no domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Muitos controllers usando uma única senha armazenada em cada view GSP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Muitos plugins Gradle resolvendo uma única action HTTP em runtime.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Muitos DataSources sendo declarados dentro do HTML da página inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Muitas consultas SQL sendo convertidas em profiles para gerar aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na cardinalidade muitos-para-um, várias instâncias, como livros, podem referenciar uma mesma instância, como autor; a associação é declarada no modelo e mapeada pelo GORM.",
+      "section": "2. GORM: modelo de objetos e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação ajuda a manter controlada a dependência entre versões de bibliotecas numa aplicação Grails?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar a resolução do Gradle e alinhar versões com a plataforma adotada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar todas as bibliotecas no controller que recebe a primeira requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar cada versão em uma view para seleção pelo navegador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar as classes de domínio por arquivos YAML em toda execução do build.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a resolução transitiva sem identificar quais componentes a exigem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A inspeção da resolução de dependências e o alinhamento com versões compatíveis ajudam a evitar conflitos transitivos e incompatibilidades entre componentes do Grails.",
+      "section": "3. Configuração, ambientes e dependências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação descreve corretamente o papel de uma view e de um controller numa resposta HTML?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O controller coordena a solicitação; a view apresenta os dados preparados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A view escolhe a dependência transitiva; o controller compila o banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controller substitui o GORM; a view confirma toda transação de persistência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A view define o DataSource; o controller declara associações entre domain classes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controller contém somente CSS; a view executa a tarefa de build do Gradle.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controller coordena o tratamento HTTP e pode preparar um modelo; a view usa esses dados para produzir a apresentação, como HTML.",
+      "section": "1. Estrutura da aplicação e caminho da requisição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Grails — Getting Started e estrutura da aplicação",
+      "publisher": "Apache Grails",
+      "reference": "Convenção de diretórios, artefatos domain, controllers, services e views; perfis de aplicação",
+      "url": "https://grails.apache.org/docs/latest/guide/gettingStarted.html",
+      "accessedAt": "2026-11-11"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Grails — Object Relational Mapping (GORM)",
+      "publisher": "Apache Grails",
+      "reference": "Domain classes, persistência, consultas e mapeamento objeto-relacional",
+      "url": "https://grails.apache.org/docs/latest/guide/GORM.html",
+      "accessedAt": "2026-11-11"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Grails — The Service Layer",
+      "publisher": "Apache Grails",
+      "reference": "Services, injeção de dependência e transações declarativas",
+      "url": "https://grails.apache.org/docs/latest/guide/services.html",
+      "accessedAt": "2026-11-11"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Grails — The Web Layer",
+      "publisher": "Apache Grails",
+      "reference": "Controllers, actions, binding, models, GSP, views e respostas JSON",
+      "url": "https://grails.apache.org/docs/latest/guide/theWebLayer.html",
+      "accessedAt": "2026-11-11"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Grails — Configuration",
+      "publisher": "Apache Grails",
+      "reference": "Configuração, ambientes, DataSource, resolução de dependências e build Gradle",
+      "url": "https://grails.apache.org/docs/latest/guide/conf.html",
+      "accessedAt": "2026-11-11"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Grails — Plugins",
+      "publisher": "Apache Grails",
+      "reference": "Instalação, repositórios, artefatos, configuração e ordem de carregamento de plugins",
+      "url": "https://grails.apache.org/docs/latest/guide/plugins.html",
+      "accessedAt": "2026-11-11"
+    }
+  ]
+}

@@ -1,0 +1,856 @@
+{
+  "id": "informatica.sql-server-solucoes-hibridas",
+  "subject": "Informática",
+  "title": "Soluções híbridas do SQL Server",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Soluções híbridas do MSSQL Server",
+    "SQL Server híbrido com Azure",
+    "Azure Arc para SQL Server",
+    "SQL Server habilitado pelo Azure Arc",
+    "Managed Instance link híbrido",
+    "Link do SQL Managed Instance",
+    "Replicação híbrida SQL Server Azure",
+    "Recuperação de desastre SQL híbrida",
+    "Migração SQL Server para Azure",
+    "Integração híbrida de bancos SQL"
+  ],
+  "scope": {
+    "covers": "Soluções híbridas do Microsoft SQL Server com Azure: Azure Arc-enabled SQL Server para conectar, inventariar e administrar instâncias que permanecem em datacenter, borda ou nuvem de terceiros; arquitetura, requisitos de conexão, extensões e serviços integrados; Managed Instance link baseado em grupos de disponibilidade distribuídos, replicação quase em tempo real, leitura escalada, uso de serviços Azure, migração online, recuperação de desastre e retorno; modos de link, compatibilidade de versões, preparação, segurança, limitações e benefício de failover híbrido.",
+    "excludes": "Administração geral do mecanismo SQL Server, sintaxe SQL, desenho de bancos, alta disponibilidade exclusivamente local, outros serviços de dados Azure sem ligação com SQL Server, implantação completa de redes Azure e regras contratuais detalhadas de licenciamento."
+  },
+  "theoryTitle": "SQL Server entre o ambiente local e o Azure",
+  "chapters": [
+    {
+      "title": "1. O que torna a solução híbrida",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode manter bancos SQL Server em seu próprio datacenter, em lojas e filiais, ou em uma nuvem de outro provedor e, ainda assim, usar serviços de gerenciamento e dados do Azure. Esse arranjo é híbrido: o banco não precisa ser movido para que o ambiente seja acompanhado pelo Azure. Há duas capacidades diferentes que aparecem com frequência em prova: **Azure Arc-enabled SQL Server** conecta e representa instâncias externas como recursos gerenciáveis no Azure; **Managed Instance link** replica bancos entre SQL Server e Azure SQL Managed Instance. Uma capacidade faz gestão e integração de serviços; a outra mantém cópias de dados sincronizadas e pode apoiar migração ou recuperação.\n\n> **Siglas e termos deste capítulo**\n> - **Azure Arc**: plataforma para projetar recursos que estão fora do Azure como recursos administráveis pelo Azure.\n> - **SQL Server habilitado pelo Azure Arc**: instância instalada em máquina conectada ao Arc e registrada como recurso SQL Server no Azure.\n> - **Azure SQL Managed Instance (MI)**: serviço gerenciado de banco relacional no Azure com ampla compatibilidade com o mecanismo SQL Server.\n> - **Plano de controle**: camada de inventário, configuração e gestão; não é a cópia operacional do banco.\n> - **Híbrido**: uso coordenado de recursos locais e em nuvem, mantendo dados ou cargas em mais de um ambiente.\n\n### Azure Arc: o banco permanece onde está\n\nA instância que será habilitada pelo Arc pode estar numa máquina física ou virtual com Windows ou Linux, no datacenter, em uma localização de borda ou em provedor de nuvem pública ou hospedagem. O Azure Connected Machine agent registra a máquina como **Server - Azure Arc**. A extensão do SQL Server detecta e registra as instâncias como recursos **SQL Server - Azure Arc**. Assim, o portal pode oferecer inventário central das instâncias e bancos e integração com recursos de gestão, sem converter a instância local em SQL Managed Instance.\n\nO agente e a extensão iniciam comunicação segura para os serviços Azure por HTTPS/TLS de saída na porta TCP 443. É possível usar proxy HTTPS configurado, ExpressRoute, Private Link ou Internet conforme os requisitos do agente e do serviço. Para a conexão do serviço de processamento de dados do Arc para SQL Server, a documentação aponta endpoint regional `*.arcdataservices.com`, porta 443 e direção de saída. A arquitetura não exige abrir uma conexão de entrada genérica da Internet para o mecanismo SQL.\n\n### O que Arc entrega e o que não entrega\n\nArc oferece ponto central de inventário e integração; algumas capacidades dependem de extensões e serviços adicionais. Por exemplo, Defender for Cloud e avaliação de boas práticas requerem Azure Monitoring Agent conectado a um workspace do Log Analytics para coleta e relatórios. A avaliação de migração pode examinar instâncias habilitadas pelo Arc em datacenters, borda e nuvens públicas. Arc, por si só, não sincroniza tabelas, não transforma a instância em serviço gerenciado e não cria uma réplica de recuperação. Para movimentar os dados quase em tempo real entre SQL Server e Managed Instance, avalie o link.\n\n| Necessidade | Solução relacionada | Resultado principal |\n| --- | --- | --- |\n| Inventariar e administrar instâncias que continuam fora do Azure | SQL Server habilitado pelo Azure Arc | Recursos SQL e servidor visíveis no Azure e integração de gestão |\n| Espelhar um banco em Managed Instance | Managed Instance link | Réplica secundária atualizada quase em tempo real |\n| Mover uma aplicação para MI mantendo o banco de origem disponível durante a transição | Managed Instance link | Migração online com janela reduzida de indisponibilidade |\n| Retomar operação após desastre | Managed Instance link, conforme versões e política compatíveis | Failover manual e, nas combinações suportadas, failback |\n\n### Como cai na prova\n\n- “Gerenciar sem migrar” aponta para Azure Arc; “replicar entre SQL Server e MI” aponta para Managed Instance link.\n- Arc não é um serviço que hospeda o banco nem uma ferramenta de replicação.\n- Inventário central não significa que consultas da aplicação passam a ser executadas no Azure.\n- Serviços como avaliação e Defender podem exigir extensões adicionais, não apenas o registro do recurso."
+    },
+    {
+      "title": "2. Conexão, requisitos e operação do Azure Arc",
+      "markdown": "### O problema que este assunto resolve\n\nPara administrar uma instância SQL Server fora do Azure, primeiro é necessário conectar a máquina e habilitar a extensão de SQL. Essa sequência evita confundir registro da máquina com registro da instância. Também deixa claro que o serviço depende de identidade, permissões, conectividade de saída e versões de extensão suportadas.\n\n> **Siglas e termos deste capítulo**\n> - **Agente de máquina conectada**: software que conecta o servidor externo ao Azure Arc.\n> - **Extensão do SQL Server**: componente que descobre e representa as instâncias SQL no Azure.\n> - **AMA**: Azure Monitoring Agent, agente de monitoramento que coleta dados para serviços como avaliação e Defender.\n> - **Microsoft Entra ID**: serviço de identidade e autenticação da Microsoft.\n> - **Provedor de recursos**: componente registrado na assinatura para habilitar operações de determinado serviço Azure.\n\n### Onboarding em etapas\n\nAntes de habilitar uma instância, a organização precisa de assinatura Azure ativa, verificar os requisitos de rede do agente, permitir acesso aos domínios necessários para instalação e operação, abrir a saída HTTPS para os endpoints regionais do processamento de dados e registrar os provedores `Microsoft.AzureArcData` e `Microsoft.HybridCompute`. O agente de máquina conectada deve estar no modo completo. A documentação de pré-requisitos também exige permissão de leitura na assinatura e privilégio de administrador local para instalar e configurar o agente (root no Linux ou membro de Administradores Locais no Windows).\n\nSe a máquina ainda não estiver conectada, o portal gera um script de onboarding que é executado nela. O script instala o agente, se necessário, e a extensão do SQL Server. O agente cria o recurso de servidor Arc; a extensão cria os recursos das instâncias SQL instaladas. Se o servidor já estiver conectado, mas a extensão SQL não tiver sido instalada automaticamente, a conexão da extensão pode ser feita separadamente. Ao validar, confira os dois níveis: estado do recurso de máquina e estado do recurso de SQL Server.\n\n### Limites de plataforma e telemetria\n\nA documentação atual lista SQL Server 2014 ou posterior, em versão de 64 bits, em configurações de sistema operacional suportadas. Ela não oferece suporte a SQL Server em contêineres, SQL Server 2008/2008 R2/2012, edição Business Intelligence e sistemas Windows Server anteriores ao mínimo suportado. Essas matrizes são sensíveis à versão do agente/extensão, então o candidato deve reconhecer que compatibilidade não significa “qualquer SQL Server em qualquer ambiente”. Extensões SQL lançadas há mais de um ano deixam de estar no período de suporte indicado pela documentação.\n\nO fluxo normal de conexão é iniciado de dentro da rede, com tráfego de saída HTTPS. Proxy deve ser configurado conforme as regras do agente. Alguns serviços Arc precisam do AMA e do Log Analytics; logo, ver o servidor no inventário não prova que os dados de avaliação já estão sendo coletados. As extensões precisam estar instaladas, atualizadas e conectadas ao destino de monitoramento apropriado.\n\n### Operação e segurança\n\nUse permissões de menor privilégio para ações de operação depois do onboarding, separe a identidade de implantação das identidades de consulta e restrinja quem pode executar comandos remotos ou alterar extensões. Monitore a saúde do agente e da extensão: desconexão pode deixar o banco funcionando localmente, mas desatualizar inventário e telemetria no Azure. O gerenciamento pelo Azure não substitui backups, controle de acesso dentro do SQL Server, atualização do mecanismo nem plano de continuidade.\n\n### Como cai na prova\n\n- O Connected Machine agent representa a máquina; a extensão SQL representa as instâncias.\n- A comunicação do Arc é de saída por HTTPS/TCP 443, e serviços opcionais podem exigir AMA e Log Analytics.\n- A conta de instalação precisa de leitura na assinatura e privilégio local administrativo; o pré-requisito de SQL Managed Instance link é diferente e inclui sysadmin no SQL Server.\n- Conexão Arc habilita gestão e inventário, não replica nem hospeda bancos."
+    },
+    {
+      "title": "3. Managed Instance link: replicação e cenários híbridos",
+      "markdown": "### O problema que este assunto resolve\n\nHá casos em que a aplicação continua gravando no SQL Server local, mas a equipe quer manter uma cópia no Azure para consultas, análises, serviços Azure, migração gradual ou contingência. O **Managed Instance link** cria replicação quase em tempo real entre SQL Server e Azure SQL Managed Instance. Ele se apoia em grupos de disponibilidade distribuídos e no recurso Always On availability groups do SQL Server. A cópia no destino é secundária e somente leitura enquanto a origem é primária; após uma mudança de função, o novo primário atende gravações conforme o cenário e o procedimento de failover.\n\n> **Siglas e termos deste capítulo**\n> - **AG**: grupo de disponibilidade Always On, mecanismo de alta disponibilidade do SQL Server.\n> - **DAG**: distributed availability group, grupo distribuído que conecta grupos/replicas em ambientes distintos.\n> - **Primário**: réplica que contém o banco principal para leitura e gravação no momento.\n> - **Secundário**: réplica que recebe as alterações e, nesse uso, é acessível para leitura.\n> - **Failover**: mudança do papel de primário para secundário.\n> - **Failback**: retorno da carga ao ambiente primário anterior, quando suportado.\n\n### Usos práticos do link\n\nA equipe pode manter o link por longo período para usar serviços Azure sem migrar todo o patrimônio de dados. Um caso típico deixa gravações no SQL Server e direciona relatórios somente de leitura à cópia em MI, reduzindo a carga de consulta na origem. A cópia também pode alimentar análise e processamento no Azure. O link pode consolidar bancos de várias instâncias SQL Server em uma MI ou distribuir bancos de uma origem para diferentes instâncias gerenciadas, respeitadas as limitações de capacidade e links.\n\nPara migração, a replicação mantém a origem online enquanto a cópia acompanha as alterações. Em uma janela de corte, a equipe faz failover para MI e direciona a aplicação ao destino. A documentação apresenta o link como opção de migração online com downtime mínimo, inclusive para tier Business Critical. Esse benefício não elimina preparação, teste de compatibilidade, planejamento de conexão da aplicação ou escolha de política de atualização compatível.\n\nPara continuidade de negócio, a réplica secundária pode receber o failover manual no desastre. A possibilidade de manter o link e voltar depende da versão do SQL Server e da política de atualização da MI. SQL Server 2016, 2017 e 2019 têm replicação em uma direção a partir do SQL Server; promover a MI rompe o link e o failback para SQL Server não é suportado pelo link. A partir de SQL Server 2022 (e nas combinações suportadas com SQL Server 2025), é possível configurar cenários bidirecionais, fazer failover e retornar, desde que as políticas de atualização correspondam.\n\n### Endpoints e acesso às cópias\n\nPara consultas da aplicação à réplica de MI, use o endpoint apropriado. O endpoint local à VNet é recomendado para aplicações no Azure ou conectadas por VPN/ExpressRoute. O endpoint público, quando disponível e necessário, carrega tráfego de cliente, mas não é o caminho de replicação do link. A replicação usa o endpoint local à VNet, e a documentação do link restringe o estabelecimento do link a esse endpoint; não se deve substituir a conexão de replicação por endpoint público ou private endpoint.\n\nO link replica bancos de usuário, não objetos de servidor. Logins de usuário, jobs do SQL Server Agent e outros objetos no escopo do servidor precisam de plano próprio de migração/configuração. Bancos de sistema também não são replicados. Assim, replicar a base de dados não produz sozinho um ambiente de aplicação completo.\n\n### Como cai na prova\n\n- SQL Server 2019 e anteriores: origem inicial obrigatoriamente SQL Server, fluxo de replicação unidirecional; failover para MI rompe o link e não há failback pelo link.\n- SQL Server 2022/2025: pode haver primário inicial em qualquer lado e retorno, sob política compatível.\n- A réplica de MI serve para leitura enquanto secundária; não trate a replicação como ativo-ativo de escrita no mesmo banco.\n- O link copia bancos de usuário, não jobs, logins ou bancos de sistema."
+    },
+    {
+      "title": "4. Preparação, compatibilidade e limites do link",
+      "markdown": "### O problema que este assunto resolve\n\nO Managed Instance link não é uma opção que se ativa sem preparar os dois lados. É preciso confirmar suporte de versão e edição, Always On, chave e certificados, conectividade, capacidade e permissões. Erros nessa preparação podem impedir a criação do link ou fazer uma réplica atrasar quando a carga aumenta.\n\n> **Siglas e termos deste capítulo**\n> - **CU**: cumulative update, atualização cumulativa do SQL Server.\n> - **TDE**: Transparent Data Encryption, criptografia de dados em repouso.\n> - **Endpoint de espelhamento**: endpoint de rede do SQL Server usado na comunicação de disponibilidade.\n> - **Política de atualização**: trilha de versão do Azure SQL Managed Instance, que condiciona compatibilidade de replicação e failover.\n> - **VNet**: rede virtual do Azure.\n\n### Modos de link e permissões\n\nNo modo de banco único, cada link replica um banco. Para replicar vários bancos, cria-se um link por banco, e o grupo de disponibilidade usado pelo link contém um banco. O modo de múltiplos bancos (em prévia na documentação consultada) estende um grupo Always On existente por um link, sem dividi-lo em grupos de um banco; exige atualizações cumulativas, edições e adesão explícita em cada réplica, além da política compatível na MI. Não confunda os modos nem aplique requisitos do modo de prévia como se fossem necessários para todo link simples.\n\nNa preparação, o administrador do SQL Server precisa de sysadmin. No Azure, use SQL Managed Instance Contributor ou uma função personalizada com permissões adequadas sobre a MI, certificados, bancos, grupos distribuídos e o recurso hybridLink. Crie a database master key em `master` para proteger certificados usados na autenticação e comunicação. O link autentica por troca de certificados; autenticação Windows não estabelece essa conexão.\n\nHabilite Always On availability groups, recurso desabilitado por padrão numa instalação nova. Verifique a versão e CU exigidas, faça backup com checksums e considere as configurações recomendadas para recursos como Accelerated Database Recovery e Service Broker quando forem usados no destino. Reinícios do serviço podem ser necessários após alterar pré-requisitos. A documentação recomenda sinalizadores de inicialização em cenários específicos: compressão do fluxo de seeding pode reduzir transferência ao custo de CPU; otimização para setores de disco diferentes pode ajudar quando primário e secundário usam tamanhos distintos.\n\n### Rede, capacidade e compatibilidade\n\nA instância e a MI precisam trocar tráfego de replicação pelos endpoints e portas configurados; a rede deve permitir comunicação entre os ambientes e resolução adequada dos nomes. Se existirem várias instâncias SQL Server no mesmo host, cada uma requer endpoint de espelhamento separado e porta dedicada. Igualar capacidade é importante: compare CPU ou vCores, memória e throughput de I/O. Uma secundária muito menor pode não acompanhar a primária e pode não sustentar a carga após failover.\n\nA edição General Purpose e Business Critical de MI é compatível com o link; as edições Enterprise, Developer e Standard do SQL Server são listadas como suportadas. Versões antigas, incluindo SQL Server 2008 a 2014, não têm o suporte necessário a grupos distribuídos. Para SQL Server 2022 como origem inicial, a MI pode ter políticas compatíveis; para iniciar o link a partir da MI em direção a SQL Server 2022, é necessária a atualização cumulativa mínima indicada pela documentação e a política SQL Server 2022 correspondente. Política Always-up-to-date pode impedir replicação de volta ou failback a SQL Server, embora permita certas migrações unidirecionais a MI.\n\n### Backups, licenciamento e decisão de arquitetura\n\nAs bases da MI ligadas são automaticamente protegidas por backups completos e de log no Azure, mesmo que a MI não seja primária; esse fluxo não inclui backups diferenciais, o que pode alongar a restauração. Isso complementa, mas não dispensa, testar restauração, retenção e requisitos operacionais. Uma MI secundária dedicada apenas a recuperação de desastre pode qualificar para o benefício de failover híbrido: no modelo pay-as-you-go há desconto de licenciamento; com Azure Hybrid Benefit, vCores da secundária podem retornar ao conjunto de licenças, desde que os requisitos de passividade sejam observados.\n\nAntes de escolher, responda: preciso de gestão central sem mover os bancos (Arc), cópia legível no Azure (link), destino de migração (link e cutover), ou contingência com retorno (link em versões e política compatíveis)? Depois confirme requisitos de rede, capacidade, versão, objetos fora do banco, backup e teste de failover.\n\n### Como cai na prova\n\n- Chave mestra em `master`, Always On habilitado, certificados e permissões são itens de preparação do link.\n- Modo simples: um banco por link; modo múltiplo: grupo de disponibilidade existente, funcionalidade em prévia e com pré-requisitos específicos.\n- A replicação não migra objetos de servidor; endpoints de cliente e de replicação têm funções diferentes.\n- Benefício de failover híbrido é para réplica secundária passiva dedicada a DR, não para uma MI que executa carga de produção."
+    }
+  ],
+  "summary": "Duas tecnologias formam o núcleo das soluções híbridas de SQL Server com Azure. Azure Arc conecta servidores e instâncias que permanecem no datacenter, na borda ou em outra nuvem, centralizando inventário e integração com serviços Azure; agente e extensão usam comunicação segura de saída e algumas funções exigem AMA e Log Analytics. Managed Instance link usa grupos de disponibilidade distribuídos para replicar bancos de usuário quase em tempo real entre SQL Server e Azure SQL Managed Instance. Isso habilita leitura escalada, uso de dados em serviços Azure, migração com corte planejado e recuperação de desastre. Versões 2016 a 2019 oferecem fluxo unidirecional do SQL Server para MI; combinações compatíveis com SQL Server 2022/2025 permitem failover e retorno bidirecionais. O link requer Always On, preparação criptográfica com certificados, permissões, rede e capacidade compatíveis. Ele não replica bancos de sistema, logins nem jobs de servidor.",
+  "flashcards": [
+    { "front": "Qual é a diferença principal entre Azure Arc para SQL Server e Managed Instance link?", "back": "Arc conecta e administra/inventaria uma instância que continua onde está; o link replica bancos entre SQL Server e Azure SQL Managed Instance." },
+    { "front": "Onde pode estar instalado um SQL Server habilitado pelo Azure Arc?", "back": "Em máquina física ou virtual no datacenter, borda ou provedor de nuvem/hospedagem, nos sistemas suportados." },
+    { "front": "Que recurso Azure registra o Connected Machine agent?", "back": "O servidor como recurso Server - Azure Arc; a extensão SQL registra cada instância como SQL Server - Azure Arc." },
+    { "front": "Qual é o fluxo típico de rede de Arc para os serviços Azure?", "back": "Conexão segura de saída por HTTPS/TLS, TCP 443; pode usar proxy conforme suporte e configuração." },
+    { "front": "O que pode ser necessário para Defender for Cloud e avaliação de boas práticas?", "back": "Azure Monitoring Agent instalado e conectado a um workspace do Log Analytics." },
+    { "front": "Em que tecnologia se baseia o Managed Instance link?", "back": "Grupos de disponibilidade distribuídos (distributed availability groups), com Always On habilitado no SQL Server." },
+    { "front": "Qual é a direção para SQL Server 2016, 2017 e 2019 no link?", "back": "Replicação unidirecional do SQL Server para Azure SQL Managed Instance; failover quebra o link e não há failback pelo link." },
+    { "front": "O que SQL Server 2022 habilita nos cenários compatíveis de link?", "back": "Primário inicial em qualquer lado e failover/failback bidirecional, condicionado à política de atualização compatível." },
+    { "front": "Como funciona o modo single-database?", "back": "Um banco por link; para vários bancos, é criado um link separado para cada um." },
+    { "front": "O que o modo multiple-database (preview) conecta?", "back": "Todos os bancos de um grupo Always On existente por um link, sob requisitos específicos e adesão das réplicas." },
+    { "front": "A réplica secundária de MI ligada é gravável?", "back": "Enquanto secundária, a cópia replicada é acessível para leitura; não é escrita ativa simultânea com o primário." },
+    { "front": "Quais objetos ficam fora da replicação do Managed Instance link?", "back": "Bancos de sistema e objetos de escopo de servidor como logins e tarefas do SQL Server Agent." },
+    { "front": "Que permissão SQL local é indicada para preparar o link?", "back": "Sysadmin no SQL Server." },
+    { "front": "Para que serve a database master key em master no cenário do link?", "back": "Protege os certificados empregados na autenticação e comunicação entre SQL Server e MI." },
+    { "front": "Como o link autentica SQL Server e Managed Instance?", "back": "Por certificados trocados entre os lados; autenticação Windows não estabelece o link." },
+    { "front": "Qual endpoint deve ser usado para o tráfego de replicação do link?", "back": "O endpoint local à VNet da Managed Instance; endpoint público é para tráfego de cliente, não replicação." },
+    { "front": "Por que comparar CPU, memória e I/O das réplicas?", "back": "Para que a secundária acompanhe a replicação e sustente a carga após failover." },
+    { "front": "Quais backups automatizados são citados para bancos na MI ligada?", "back": "Backups completos e de log no armazenamento Azure; a estratégia não inclui diferenciais nesse cenário descrito." },
+    { "front": "Quando o benefício de failover híbrido pode reduzir custo da MI secundária?", "back": "Quando é passiva, dedicada apenas a recuperação de desastre e atende os requisitos do benefício." },
+    { "front": "O link substitui o plano de migração de logins e jobs?", "back": "Não. Ele replica bancos de usuário; logins e jobs de servidor precisam de migração/configuração separada." }
+  ],
+  "tips": [
+    "Separe o verbo do enunciado: administrar/inventariar indica Arc; replicar, migrar ou falhar para uma cópia indica Managed Instance link.",
+    "Memorize a distinção de versões: 2016–2019 é unidirecional para MI; 2022/2025 podem permitir retorno com política compatível.",
+    "Lembre o duplo registro do Arc: Connected Machine agent para servidor; extensão SQL para instância.",
+    "No link, pense em Always On, grupo distribuído, certificado, database master key e permissão sysadmin.",
+    "A cópia do link é do banco de usuário; planeje objetos no escopo do servidor à parte.",
+    "Diferencie endpoint de consulta do cliente do endpoint local à VNet usado para replicação."
+  ],
+  "traps": [
+    "Afirmar que Azure Arc move o SQL Server local para o Azure é incorreto: a instância continua no host e recebe integração de gestão.",
+    "Inventário central do Arc não quer dizer que os bancos estejam replicados nem que seus dados foram copiados para o Azure.",
+    "Dizer que o link replica logins, tarefas do Agent e bancos de sistema confunde banco de usuário com objetos de servidor.",
+    "Atribuir failback automático a SQL Server 2019 é errado: o fluxo 2016–2019 é unidirecional e failover para MI rompe o link.",
+    "O endpoint público da MI não transporta o tráfego de replicação do Managed Instance link.",
+    "Uma réplica que executa workloads não se enquadra como secundária passiva dedicada apenas a DR para o benefício de failover híbrido."
+  ],
+  "activeRecall": [
+    { "question": "Explique a diferença entre gestão híbrida e replicação híbrida neste assunto.", "answer": "Azure Arc conecta e inventaria servidores/instâncias SQL fora do Azure para gestão; Managed Instance link transmite alterações de um banco entre SQL Server e Managed Instance, permitindo leitura, migração e DR conforme suporte." },
+    { "question": "Descreva o onboarding do SQL Server pelo Azure Arc.", "answer": "Verificar assinatura, requisitos e rede, permissões, registrar provedores de recursos, executar o script de conexão da máquina e instalar a extensão SQL. Validar o recurso Server - Azure Arc e os recursos SQL Server - Azure Arc." },
+    { "question": "Quais portas e direção de tráfego caracterizam a arquitetura Arc descrita?", "answer": "Comunicação segura de saída HTTPS/TLS por TCP 443; o servidor precisa alcançar endpoints Azure, inclusive o endpoint regional do serviço de processamento de dados." },
+    { "question": "O que torna uma avaliação do Arc diferente do simples inventário?", "answer": "Algumas avaliações e recursos de Defender requerem Azure Monitoring Agent ligado a Log Analytics para coleta e relatório; registrar a instância, isoladamente, não implica telemetria completa." },
+    { "question": "Como o Managed Instance link mantém o banco secundário atualizado?", "answer": "Usa grupos de disponibilidade distribuídos e Always On para replicação quase em tempo real do primário para a secundária." },
+    { "question": "Compare o modo de banco único ao modo de múltiplos bancos.", "answer": "No modo de banco único cada link replica uma base e vários bancos exigem links separados. O modo múltiplo estende um grupo de disponibilidade existente por um link, mas está em prévia e exige requisitos específicos em todas as réplicas." },
+    { "question": "Quais cenários híbridos o link atende?", "answer": "Leitura escalada e relatórios em MI, uso de serviços Azure sem migração total, consolidação/distribuição, migração online e recuperação de desastre com failback apenas nas combinações suportadas." },
+    { "question": "Que pontos devem ser verificados antes de um failover planejado?", "answer": "Compatibilidade de versão/edição e política de atualização, estado e atraso da réplica, conectividade da aplicação, capacidade da secundária, objetos de servidor migrados separadamente, backup e procedimento de retorno." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Arc confundido com hospedagem ou replicação", "summary": "Arc registra máquina e instâncias externas para inventário e gestão Azure. O banco permanece no host; Arc não o move nem sincroniza seu conteúdo para MI." },
+    { "key": "e2", "title": "Direção e failback do link generalizados", "summary": "SQL Server 2016–2019 replica em uma direção para MI e o failover rompe o link. Failback pelo link depende de SQL Server 2022/2025 e política de atualização correspondente." },
+    { "key": "e3", "title": "Escopo da replicação superestimado", "summary": "O link replica bancos de usuário, não bancos de sistema, logins nem tarefas SQL Server Agent. Objetos de servidor exigem plano separado." },
+    { "key": "e4", "title": "Pré-requisitos e endpoints trocados", "summary": "O link usa Always On/grupos distribuídos, certificados protegidos pela database master key, sysadmin local e endpoint local à VNet. Endpoint público é para cliente, não para replicação." },
+    { "key": "e5", "title": "Capacidades de serviço confundidas", "summary": "Arc inventory não substitui AMA/Log Analytics quando requeridos para telemetria. Link replica dados e oferece cópia secundária, mas não equivale a ativo-ativo nem dispensa teste de backup e failover." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma secretaria mantém SQL Server em seu datacenter e quer ver inventário das instâncias no portal Azure sem migrar os bancos. Qual tecnologia atende diretamente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Azure Arc com agente de máquina e extensão SQL, registrando os recursos locais no Azure.", "correct": true },
+        { "key": "B", "text": "Managed Instance link, pois ele registra cada host local mesmo sem criar réplica de banco.", "correct": false },
+        { "key": "C", "text": "Azure SQL Database, que converte a instância local em um recurso gerenciado sem transferência.", "correct": false },
+        { "key": "D", "text": "Always On local, que publica automaticamente o inventário de servidores no portal Azure.", "correct": false },
+        { "key": "E", "text": "Log Analytics isoladamente, que descobre instâncias SQL sem agente Arc ou extensão.", "correct": false }
+      ],
+      "explanation": "Azure Arc conecta o servidor externo e a extensão SQL registra as instâncias como recursos Azure, permitindo inventário central sem mover o banco. Managed Instance link replica dados para MI; Always On local não registra recursos no Azure. Log Analytics pode receber telemetria, mas não substitui onboarding e extensão Arc.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Azure Arc para SQL Server, o Connected Machine agent e a extensão SQL têm funções distintas: o primeiro conecta a máquina e a segunda representa as instâncias SQL como recursos no Azure.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O agente de máquina cria o recurso Server - Azure Arc. A extensão do SQL Server detecta/conecta as instâncias e as disponibiliza como recursos SQL Server - Azure Arc.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer uma réplica quase em tempo real de um banco local em Azure SQL Managed Instance para direcionar relatórios somente de leitura. Qual recurso foi desenhado para isso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Azure Arc, que copia continuamente páginas de dados para o inventário central.", "correct": false },
+        { "key": "B", "text": "Managed Instance link, que mantém em MI uma réplica para consultas de leitura.", "correct": true },
+        { "key": "C", "text": "SQL Server Agent, que transforma jobs locais em uma réplica transacional no Azure.", "correct": false },
+        { "key": "D", "text": "Azure Monitor, que armazena os dados de negócio coletados pelas métricas da instância.", "correct": false },
+        { "key": "E", "text": "Azure Hybrid Benefit, que replica tabelas e redireciona consultas de relatório.", "correct": false }
+      ],
+      "explanation": "Managed Instance link replica dados quase em tempo real e permite usar a cópia secundária para leitura escalada e relatórios. Arc é gestão/inventário, SQL Server Agent agenda tarefas, Monitor coleta telemetria e o benefício híbrido trata de licenciamento.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Azure Arc transforma a instância física de SQL Server em uma Azure SQL Managed Instance, transferindo automaticamente o banco e retirando-o do servidor original.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Arc conecta e representa recursos que permanecem fora do Azure; não é um processo de migração nem muda a instância para serviço gerenciado. O Managed Instance link pode apoiar replicação e migração para MI.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual fluxo de rede descreve a comunicação arquitetural do SQL Server habilitado pelo Azure Arc com serviços Azure?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Conexões de entrada abertas na porta SQL, iniciadas livremente pelos serviços Azure.", "correct": false },
+        { "key": "B", "text": "Túnel de entrada permanente por SSH, sem necessidade de TLS ou identidade Azure.", "correct": false },
+        { "key": "C", "text": "HTTPS/TLS de saída pela porta TCP 443, com possibilidade de proxy.", "correct": true },
+        { "key": "D", "text": "Tráfego de saída sem criptografia na porta 1433, usado pelo agente para enviar inventário.", "correct": false },
+        { "key": "E", "text": "Replicação por endpoint público da MI, mesmo quando não existe instância gerenciada.", "correct": false }
+      ],
+      "explanation": "A arquitetura descrita usa comunicação segura iniciada de dentro do ambiente, HTTPS/TLS em TCP 443; o agente pode usar proxy configurado. Isso não é uma conexão de entrada ao mecanismo SQL nem tráfego de replicação do Managed Instance link.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância já aparece no inventário Arc, mas a equipe não encontra dados de avaliação de boas práticas. A documentação indica que certos serviços precisam do AMA conectado a Log Analytics.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Inventário Arc não garante telemetria de todos os serviços. Defender for Cloud e avaliação de boas práticas podem requerer Azure Monitoring Agent instalado e conectado a um workspace Log Analytics.",
+      "section": "2. Conexão, requisitos e operação do Azure Arc", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao preparar o Azure Arc, qual conjunto de permissões é compatível com o onboarding descrito pela documentação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Leitura na assinatura e administrador local para instalar e configurar o agente.", "correct": true },
+        { "key": "B", "text": "Somente db_owner em cada banco e nenhuma permissão sobre a assinatura Azure.", "correct": false },
+        { "key": "C", "text": "Somente Contributor em Log Analytics, sem privilégio no sistema operacional da máquina.", "correct": false },
+        { "key": "D", "text": "Somente sysadmin no mecanismo SQL, pois o agente herda essa permissão no Windows.", "correct": false },
+        { "key": "E", "text": "Somente leitor no portal e conta SQL autenticada por Windows para instalar a extensão.", "correct": false }
+      ],
+      "explanation": "O onboarding requer leitura na assinatura e administrador local para instalar/configurar o agente (root no Linux ou Administradores Locais no Windows). Sysadmin SQL é requisito indicado para preparar Managed Instance link, não substitui a administração do sistema operacional.",
+      "section": "2. Conexão, requisitos e operação do Azure Arc", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O SQL Server habilitado pelo Azure Arc pode estar em máquina física ou virtual fora do Azure, inclusive em datacenter, borda ou nuvem de outro provedor, se a configuração for suportada.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O objetivo do recurso é estender serviços de Azure a instâncias SQL hospedadas fora do Azure, incluindo datacenters, locais de borda e provedores de nuvem/hospedagem.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma diferença correta entre Azure Arc e Managed Instance link?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Arc replica bancos; o link apenas coleta telemetria sem manter cópia de dados.", "correct": false },
+        { "key": "B", "text": "Arc centraliza gestão; o link replica dados entre SQL Server e MI.", "correct": true },
+        { "key": "C", "text": "Arc é exclusivo para bancos em MI; o link só funciona entre duas máquinas locais.", "correct": false },
+        { "key": "D", "text": "Arc gerencia somente logins; o link transfere apenas jobs do SQL Server Agent.", "correct": false },
+        { "key": "E", "text": "Ambos são nomes diferentes para Always On local e não integram serviços Azure.", "correct": false }
+      ],
+      "explanation": "Arc representa e administra máquinas/instâncias externas pelo Azure. Managed Instance link tem função de replicação de bancos entre SQL Server e MI, com usos de leitura, migração e recuperação conforme compatibilidade.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do Azure Arc lista SQL Server em contêineres como configuração suportada desde que o host tenha o Connected Machine agent.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. SQL Server em contêineres está entre as configurações não suportadas para SQL Server habilitado pelo Azure Arc. A presença do agente no host não torna essa configuração suportada.",
+      "section": "2. Conexão, requisitos e operação do Azure Arc", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer que um banco SQL Server 2019 continue primário e replique para MI; em uma falha, pretende promover a MI e depois devolver a carga ao SQL Server usando o mesmo link. O que deve considerar?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O fluxo 2019 é unidirecional; promover a MI rompe o link e o failback não é suportado por ele.", "correct": true },
+        { "key": "B", "text": "O link reverte automaticamente o fluxo quando a instância SQL Server volta a responder.", "correct": false },
+        { "key": "C", "text": "A direção depende apenas de qual instância tem mais memória, sem relação com a versão.", "correct": false },
+        { "key": "D", "text": "O failback é suportado desde SQL Server 2016 se a cópia de MI estiver somente para leitura.", "correct": false },
+        { "key": "E", "text": "A replicação reversa ocorre por padrão após um backup diferencial completo na MI.", "correct": false }
+      ],
+      "explanation": "Para SQL Server 2016–2019, a replicação pelo link segue do SQL Server para MI. O failover manual para MI em desastre rompe o link e o retorno pelo link não é suportado; deve-se planejar recuperação por outra estratégia ou usar versão/política que suporte bidirecionalidade.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Managed Instance link, a replicação de SQL Server 2016 a 2019 permite failover manual para MI, mas essa operação quebra o link e não oferece failback pelo próprio link.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação diferencia o fluxo unidirecional das versões 2016–2019 do cenário bidirecional a partir do SQL Server 2022 em combinações compatíveis. No primeiro, failover para MI rompe o vínculo.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo sustenta a replicação do Managed Instance link entre os ambientes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Grupos de disponibilidade distribuídos, com Always On habilitado.", "correct": true },
+        { "key": "B", "text": "Azure Arc Resource Graph, que transmite páginas alteradas por consultas de inventário.", "correct": false },
+        { "key": "C", "text": "SQL Server Agent em cada ponta, que exporta e importa tabelas por jobs noturnos.", "correct": false },
+        { "key": "D", "text": "Uma cópia de backup completa agendada, sem mecanismo de atualização entre backups.", "correct": false },
+        { "key": "E", "text": "O endpoint público da MI, que cria automaticamente uma conexão de espelhamento reversível.", "correct": false }
+      ],
+      "explanation": "O link usa distributed availability groups e depende de Always On availability groups no SQL Server. Backup e jobs podem fazer parte de outras estratégias, mas não são o mecanismo do link quase em tempo real.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se o SQL Server é o primário e a MI é a secundária no link, a cópia replicada em MI pode atender leituras enquanto a base primária recebe gravações.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação descreve o primário como leitura/gravação e os dados replicados na MI como somente leitura, o que permite read scale-out e descarregar relatórios da origem.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização está listando o que será transferido pela replicação híbrida. Qual item deve ser planejado separadamente porque não é replicado pelo link?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "As linhas das tabelas do banco de usuário que estão sendo replicadas pelo vínculo.", "correct": false },
+        { "key": "B", "text": "As alterações transacionais no banco de usuário mantidas pela réplica secundária.", "correct": false },
+        { "key": "C", "text": "Logins definidos no servidor e seus mapeamentos locais.", "correct": true },
+        { "key": "D", "text": "As páginas de dados do banco de usuário disponíveis na cópia secundária de MI.", "correct": false },
+        { "key": "E", "text": "A base de usuário selecionada como origem para estabelecer o link híbrido.", "correct": false }
+      ],
+      "explanation": "O link replica bancos de usuário, não logins de usuário nem outros objetos de servidor. Logins e seus mapeamentos precisam de procedimento separado; jobs do Agent e bancos de sistema também ficam fora do escopo replicado.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Managed Instance link replica bancos de sistema e tarefas do SQL Server Agent junto com cada banco de usuário, de modo que nenhuma configuração adicional seja necessária no destino.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A replicação cobre bancos de usuário, não bancos de sistema, jobs do Agent ou logins. Esses objetos de servidor devem ser tratados em plano de migração e operação separado.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para reduzir o impacto de relatórios no SQL Server que continua recebendo gravações, qual desenho é coerente com o link?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter gravações no SQL Server e enviar leituras à secundária MI.", "correct": true },
+        { "key": "B", "text": "Enviar gravações alternadamente às duas cópias e deixar o link reconciliar conflitos.", "correct": false },
+        { "key": "C", "text": "Executar relatórios no inventário Arc, que armazena uma cópia tabular dos bancos.", "correct": false },
+        { "key": "D", "text": "Usar o endpoint público para replicar a origem e consultar a mesma base gravável.", "correct": false },
+        { "key": "E", "text": "Desativar o Always On e consultar os arquivos de log recebidos pelo Azure Monitor.", "correct": false }
+      ],
+      "explanation": "O desenho documentado mantém a base primária SQL Server para leitura/gravação e usa a secundária replicada em MI para leituras, como relatórios. O link não é um mecanismo de escrita ativo-ativo com reconciliação de conflitos.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "SQL Server 2022 e 2025 podem participar de recuperação bidirecional com failback quando a política de atualização da MI corresponde à versão suportada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Para as combinações suportadas, versões 2022/2025 permitem estabelecer o link a partir de qualquer lado e retornar a carga. A política de atualização da MI precisa corresponder; versão sozinha não garante failback.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende iniciar um link de SQL Managed Instance para SQL Server 2022 e deseja poder falhar de volta. Qual condição de compatibilidade deve ser observada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar a política Always-up-to-date, pois ela sempre habilita o retorno a qualquer versão.", "correct": false },
+        { "key": "B", "text": "Usar política SQL Server 2022 correspondente e cumprir a CU exigida.", "correct": true },
+        { "key": "C", "text": "Usar política SQL Server 2025, pois a MI pode replicar para uma versão SQL anterior sem restrição.", "correct": false },
+        { "key": "D", "text": "Manter a política sem correspondência, pois a direção do link não depende de versão.", "correct": false },
+        { "key": "E", "text": "Desabilitar os grupos distribuídos e definir a versão apenas pelo endpoint de cliente.", "correct": false }
+      ],
+      "explanation": "Para criar o link da MI para SQL Server 2022 e fazer failover nessa direção, a documentação exige política de atualização SQL Server 2022 correspondente e a atualização cumulativa mínima. Política incompatível pode impedir replicação ou retorno.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Versões SQL Server 2008 a 2014 são aceitas pelo Managed Instance link desde que seja criado um endpoint de espelhamento dedicado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A documentação exclui SQL Server 2008 a 2014 porque esses mecanismos não têm o suporte a grupos de disponibilidade distribuídos necessário ao link. Um endpoint dedicado não corrige a incompatibilidade do mecanismo.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual requisito local é indicado para a identidade que prepara o Managed Instance link no mecanismo SQL Server?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Permissão sysadmin no SQL Server para executar a preparação necessária ao link.", "correct": true },
+        { "key": "B", "text": "Permissão db_datareader somente no banco replicado e nenhuma permissão de servidor.", "correct": false },
+        { "key": "C", "text": "Permissão de operador de jobs do Agent, sem acesso à configuração Always On.", "correct": false },
+        { "key": "D", "text": "Conta de usuário apenas no portal Azure, autenticada por Windows no endpoint.", "correct": false },
+        { "key": "E", "text": "Permissão de backup em MI, aplicada também automaticamente no SQL Server local.", "correct": false }
+      ],
+      "explanation": "A preparação do SQL Server para o link requer sysadmin. No Azure, a identidade precisa de SQL Managed Instance Contributor ou permissões personalizadas correspondentes; os papéis não se substituem entre os ambientes.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A funcionalidade Always On availability groups pode estar desabilitada numa nova instalação SQL Server e precisa ser habilitada para usar o Managed Instance link.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Always On availability groups é dependência do link e vem desabilitada por padrão numa nova instalação; habilitá-la envolve configuração do serviço e reinício conforme a documentação.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que criar ou confirmar uma database master key em master durante a preparação do link?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Para proteger certificados usados na comunicação do link.", "correct": true },
+        { "key": "B", "text": "Para criptografar os backups diferenciais e habilitar autenticação Windows na replicação.", "correct": false },
+        { "key": "C", "text": "Para converter logins do servidor em usuários replicados dentro de cada banco de sistema.", "correct": false },
+        { "key": "D", "text": "Para substituir a chave de criptografia de todos os bancos de usuário da instância.", "correct": false },
+        { "key": "E", "text": "Para armazenar a senha da assinatura Azure e dispensar a troca de certificados.", "correct": false }
+      ],
+      "explanation": "A chave mestra do banco `master` protege os certificados empregados pelo link para autenticação e comunicação. Ela não é a chave de criptografia de todos os bancos, nem substitui certificados ou credenciais Azure.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Managed Instance link, a autenticação entre SQL Server e Managed Instance é baseada em certificados trocados; autenticação Windows não estabelece o link.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A autenticação do link é baseada em certificados e ocorre por troca entre as pontas. A documentação informa que autenticação Windows não pode ser usada para estabelecer essa conexão.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O modo single-database deve ser escolhido quando um único vínculo precisa replicar vários bancos de um grupo Always On existente sem criar links separados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Single-database replica um banco por link; para vários bancos são criados links separados. O modo multiple-database (em prévia na documentação consultada) é que estende um grupo existente por um link, sob pré-requisitos adicionais.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância tem um grupo Always On com vários bancos, e a equipe quer estendê-lo por um único link. Qual modo corresponde ao objetivo, considerando que a disponibilidade pode estar em prévia?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Single-database, pois um link individual inclui qualquer quantidade de bases do grupo.", "correct": false },
+        { "key": "B", "text": "Multiple-database, com CUs, edições e adesão de cada réplica.", "correct": true },
+        { "key": "C", "text": "Azure Arc inventory, que estende grupos locais ao Azure sem replicar os bancos.", "correct": false },
+        { "key": "D", "text": "Hybrid failover benefit, que agrupa bancos em MI sem sincronização de dados.", "correct": false },
+        { "key": "E", "text": "Endpoint público, que transforma vários grupos Always On em um único banco lógico.", "correct": false }
+      ],
+      "explanation": "Multiple-database link mode estende um grupo Always On existente por um link e cobre os bancos do grupo. A documentação o marca como prévia e exige atualizações cumulativas, edições suportadas e opt-in em cada réplica; single-database é um banco por link.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O endpoint público da Managed Instance pode transportar o tráfego de clientes, mas não é o endpoint de replicação do Managed Instance link.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação separa o tráfego do cliente, que pode usar endpoint público em determinados desenhos, do tráfego de replicação do link, que usa o endpoint local à VNet. O link não é estabelecido por endpoint público ou private endpoint.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Há duas instâncias SQL Server no mesmo host e ambas usarão link. Como deve ser tratado o endpoint de espelhamento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Cada instância precisa de endpoint próprio e porta dedicada.", "correct": true },
+        { "key": "B", "text": "As instâncias devem compartilhar o endpoint e a porta, pois o link identifica o banco pelo nome.", "correct": false },
+        { "key": "C", "text": "Somente a instância nomeada precisa de endpoint, pois a padrão encaminha toda replicação.", "correct": false },
+        { "key": "D", "text": "A segunda instância deve usar endpoint público, enquanto a primeira usa a VNet local.", "correct": false },
+        { "key": "E", "text": "A porta é criada no Azure Arc e não depende da configuração local do SQL Server.", "correct": false }
+      ],
+      "explanation": "Com várias instâncias no host, cada instância precisa de endpoint de espelhamento separado e uma porta dedicada. A documentação indica que somente a instância padrão deve usar 5022; compartilhar endpoint causa conflito de configuração.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica secundária com capacidade de CPU, memória e I/O muito inferior à primária pode atrasar a replicação e não sustentar o serviço após failover.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A preparação recomenda compatibilizar capacidade entre as réplicas, incluindo CPU/vCores, memória e throughput de I/O. Uma secundária subdimensionada pode não acompanhar a primária nem suportar a carga após assumir o papel principal.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação resume corretamente as permissões e o preparo criptográfico do link?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Sysadmin em SQL Server, papel Contributor ou permissões equivalentes na MI e certificados protegidos por chave em master.", "correct": true },
+        { "key": "B", "text": "Db_owner nos bancos, usuário Windows comum na MI e chave mestra criada somente no banco replicado.", "correct": false },
+        { "key": "C", "text": "Leitor na assinatura, conta de operador de Agent e autenticação por senha SQL sem certificados.", "correct": false },
+        { "key": "D", "text": "Administrador local no host apenas, pois a MI herda as permissões da máquina de origem.", "correct": false },
+        { "key": "E", "text": "Papel de monitoramento no Azure, sem permissão de alteração de link ou grupos distribuídos.", "correct": false }
+      ],
+      "explanation": "A documentação recomenda sysadmin no SQL Server e SQL Managed Instance Contributor (ou permissões personalizadas equivalentes) no Azure. A database master key em master protege certificados usados na comunicação. Permissão local de sistema operacional é relevante ao Arc, mas não substitui essas permissões do link.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um benefício de failover híbrido pode reduzir o custo de licenciamento de uma MI secundária dedicada exclusivamente a DR e sem workloads, se os requisitos forem atendidos.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação prevê o benefício para MI secundária passiva usada apenas para recuperação de desastre. O efeito varia: pode haver desconto pay-as-you-go ou retorno de vCores ao pool do Azure Hybrid Benefit; uma instância com cargas não atende a premissa de passividade.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade típica do Managed Instance link numa migração para Azure?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Manter a origem online enquanto a MI recebe alterações e permitir corte planejado ao destino.", "correct": true },
+        { "key": "B", "text": "Exportar uma imagem estática do servidor Arc e reconstruir automaticamente todos os bancos.", "correct": false },
+        { "key": "C", "text": "Converter consultas T-SQL em chamadas REST sem replicar qualquer banco de dados.", "correct": false },
+        { "key": "D", "text": "Desligar a origem no início, pois a cópia de MI só pode ser carregada por backup isolado.", "correct": false },
+        { "key": "E", "text": "Migrar jobs e logins sem copiar dados, deixando o banco original como única base ativa.", "correct": false }
+      ],
+      "explanation": "O link permite replicar enquanto a origem permanece online; após a cópia acompanhar as mudanças, a equipe pode fazer o corte para MI. É uma migração com downtime mínimo, mas requer planejamento de compatibilidade e de objetos que não são replicados.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Os backups automatizados dos bancos na Managed Instance ligada incluem backups completos e de log no Azure, mas não backups diferenciais nesse cenário descrito.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação informa que bases da MI configurada com link são protegidas por backups completos e de log no armazenamento Azure, mas não diferenciais. Isso pode aumentar o tempo de restauração e deve entrar no planejamento de recuperação.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer usar dados SQL Server em serviços Azure sem transferir toda a operação de gravação para a nuvem. Qual uso do link é compatível com esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter o primário local e usar a réplica de MI para relatórios, análise ou outros serviços Azure.", "correct": true },
+        { "key": "B", "text": "Registrar a instância em Arc e presumir que cada serviço Azure consulta o banco local sem rede.", "correct": false },
+        { "key": "C", "text": "Desativar a replicação e enviar somente metadados de inventário ao endpoint Arc.", "correct": false },
+        { "key": "D", "text": "Usar a réplica de MI como banco secundário gravável simultâneo para todas as transações.", "correct": false },
+        { "key": "E", "text": "Substituir o link por backups diferenciais, que disponibilizam a cópia para leitura contínua.", "correct": false }
+      ],
+      "explanation": "O link permite aproveitar serviços Azure sobre dados replicados e descarregar leituras/relatórios sem migrar a operação inteira. Arc dá gestão do recurso, não disponibiliza automaticamente os dados para consultas de serviço Azure.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A presença de uma MI secundária no link torna desnecessário testar backups, restauração e o procedimento de failover, pois a réplica garante recuperação automática sem intervenção.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O failover de desastre é descrito como manual e depende de versão/configuração. Backups automatizados da MI não eliminam a necessidade de validar restauração, retenção, conectividade e procedimento operacional.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No desenho de leitura escalada, como deve ser entendida a cópia replicada em MI enquanto a instância SQL Server permanece primária?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Como secundária somente leitura, apta a receber consultas direcionadas pela aplicação.", "correct": true },
+        { "key": "B", "text": "Como réplica gravável que aceita atualizações locais e resolve conflitos depois.", "correct": false },
+        { "key": "C", "text": "Como catálogo Arc sem páginas de dados, adequado apenas a auditoria de inventário.", "correct": false },
+        { "key": "D", "text": "Como backup frio, que precisa ser restaurado novamente antes de cada consulta.", "correct": false },
+        { "key": "E", "text": "Como réplica do servidor inteiro, incluindo jobs e logins sincronizados automaticamente.", "correct": false }
+      ],
+      "explanation": "Enquanto a origem é primária, o banco replicado em MI é acessível para leitura e pode servir a read scale-out. Não é uma réplica ativa para gravações concorrentes, um backup frio ou réplica de objetos de servidor.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No modo single-database, cada link replica uma base e vários bancos podem ser replicados por links separados.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O modo de banco único limita cada link a uma base; para várias bases são estabelecidos vínculos separados. O modo múltiplo permite estender um grupo existente, mas tem requisitos específicos e status de prévia na documentação consultada.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta uma decisão correta sobre o tamanho da MI secundária?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Dimensionar CPU/vCores, memória e I/O para acompanhar replicação e possível carga após failover.", "correct": true },
+        { "key": "B", "text": "Escolher sempre a menor capacidade, pois a MI recebe somente logs e não executa consultas.", "correct": false },
+        { "key": "C", "text": "Dimensionar apenas armazenamento, pois CPU e memória não afetam a atualização secundária.", "correct": false },
+        { "key": "D", "text": "Usar uma capacidade diferente sem teste, já que a replicação ajusta automaticamente a taxa de escrita.", "correct": false },
+        { "key": "E", "text": "Definir a capacidade pelo tamanho da extensão Arc, sem observar a carga SQL Server.", "correct": false }
+      ],
+      "explanation": "A capacidade da réplica deve ser compatível em CPU/vCores, memória e I/O. Uma MI pequena pode não acompanhar o primário e pode não atender à aplicação quando assumir o papel principal durante failover.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para SQL Server habilitado pelo Azure Arc, a existência de um agente antigo garante suporte permanente, mesmo que a extensão SQL tenha sido lançada há mais de um ano.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A documentação informa que somente versões da extensão SQL lançadas dentro do último ano são suportadas. É necessário acompanhar e atualizar a extensão; a presença do agente não torna uma extensão fora do período suportada.",
+      "section": "2. Conexão, requisitos e operação do Azure Arc", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer criar uma ligação da MI para SQL Server e manter failback, mas escolhe a política Always-up-to-date na MI. Qual conclusão é consistente com as limitações documentadas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A política Always-up-to-date pode impedir replicação e failover de volta para SQL Server.", "correct": true },
+        { "key": "B", "text": "A política torna todas as versões antigas de SQL Server compatíveis para retorno automático.", "correct": false },
+        { "key": "C", "text": "A política só afeta o inventário Arc e não participa da compatibilidade do link.", "correct": false },
+        { "key": "D", "text": "A política garante failback e elimina a exigência de grupos de disponibilidade distribuídos.", "correct": false },
+        { "key": "E", "text": "A política permite replicar bancos de sistema se a réplica estiver em Business Critical.", "correct": false }
+      ],
+      "explanation": "A política Always-up-to-date pode permitir link unidirecional do SQL Server para MI em determinadas combinações, mas não suporta replicação/failover da MI de volta a SQL Server 2022/2025 como exigido para failback. O retorno requer política correspondente à versão do SQL Server.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do link limita a replicação a bancos de usuário; os bancos de sistema ficam fora desse escopo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A lista de limitações afirma que apenas bancos de usuário podem ser replicados. Bancos de sistema, logins e jobs de servidor não são copiados pelo link.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa conecta várias origens a uma MI e quer centralizar dados; outra origem única quer cópias em várias regiões. Como esses arranjos são descritos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Consolidação reúne várias origens numa MI; distribuição replica uma origem a várias MIs.", "correct": true },
+        { "key": "B", "text": "Consolidação replica uma origem em várias regiões; distribuição junta todas numa instância.", "correct": false },
+        { "key": "C", "text": "Ambos exigem Arc e não podem usar Managed Instance link ou cópias somente leitura.", "correct": false },
+        { "key": "D", "text": "Consolidação replica apenas logins; distribuição transfere bancos de sistema entre instâncias.", "correct": false },
+        { "key": "E", "text": "Ambos são modos de failback que alternam gravações entre todas as réplicas.", "correct": false }
+      ],
+      "explanation": "A documentação descreve consolidação como replicar bancos de várias instâncias SQL Server para uma MI e deconsolidação/distribuição como replicar de uma origem para várias MIs, inclusive para aproximar cópias de leitura de usuários em regiões diferentes.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Managed Instance link pode ser usado para manter uma cópia próxima em tempo real fora do Azure a partir de uma MI, em cenários suportados por SQL Server 2022 ou posterior.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Com SQL Server 2022 e versões posteriores suportadas, é possível estabelecer o link a partir da MI para SQL Server, criando cópia fora do Azure para testar continuidade, atender conformidade ou outros objetivos híbridos, sob política compatível.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer manter a MI secundária exclusivamente para desastre. Qual afirmação sobre o benefício de failover híbrido é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A condição pressupõe réplica passiva sem workloads; o efeito depende do modelo de cobrança/licença.", "correct": true },
+        { "key": "B", "text": "O benefício vale para qualquer MI, mesmo com aplicações de leitura e gravação permanentes.", "correct": false },
+        { "key": "C", "text": "O benefício elimina cobrança de armazenamento e de todos os serviços Azure da instância.", "correct": false },
+        { "key": "D", "text": "O benefício transforma a réplica em backup offline e interrompe a replicação do banco.", "correct": false },
+        { "key": "E", "text": "O benefício concede failback automático a versões SQL Server 2016 a 2019.", "correct": false }
+      ],
+      "explanation": "O benefício é voltado à secundária passiva dedicada somente a recuperação de desastre, sem workloads. Pode reduzir cobrança de licenciamento pay-as-you-go ou devolver vCores ao pool Azure Hybrid Benefit; não elimina todos os custos nem altera suporte de failback.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração de uma cópia para consulta a partir da aplicação hospedada no Azure ou conectada por VPN/ExpressRoute, o endpoint VNet-local é a abordagem recomendada; o endpoint público é uma alternativa de cliente, não de replicação.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A recomendação é usar o endpoint local à VNet para clientes no Azure, redes emparelhadas ou conectadas por VPN/ExpressRoute. Endpoint público pode levar tráfego de cliente quando não há alternativa privada, mas não o tráfego de replicação do link.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual item é uma verificação concreta de preparação do SQL Server para o link, além de confirmar que a versão e atualização são compatíveis?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Habilitar Always On, confirmar chave mestra em master e preparar certificados usados na conexão.", "correct": true },
+        { "key": "B", "text": "Desabilitar Always On, remover certificados e transferir o banco por endpoint Arc.", "correct": false },
+        { "key": "C", "text": "Ativar autenticação Windows para o link e criar a chave mestra no Log Analytics.", "correct": false },
+        { "key": "D", "text": "Criar somente um job de backup local e presumir que isso registra o grupo distribuído.", "correct": false },
+        { "key": "E", "text": "Instalar AMA no servidor e considerar que a extensão habilita automaticamente o link.", "correct": false }
+      ],
+      "explanation": "A preparação do link inclui habilitar Always On availability groups, criar ou confirmar a database master key em master e usar certificados para proteger a comunicação. AMA atende telemetria de Arc, não substitui a configuração de alta disponibilidade do link.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Managed Instance link replica todos os objetos e configurações da instância SQL Server, de modo que a secundária contenha automaticamente logins, jobs e bancos de sistema idênticos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O link replica bancos de usuário, mas não objetos no nível de servidor, como logins e tarefas do SQL Server Agent, nem bancos de sistema. O desenho de migração/DR precisa reconstruir ou sincronizar esses elementos separadamente.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um time precisa decidir entre Arc e link. Ele quer apenas avaliação de migração das instâncias existentes, sem criar réplica no Azure neste momento. Qual opção é pertinente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Habilitar as instâncias pelo Azure Arc e usar a avaliação de migração disponível para recursos Arc.", "correct": true },
+        { "key": "B", "text": "Criar um link para cada banco, pois avaliação de migração só existe após failover.", "correct": false },
+        { "key": "C", "text": "Instalar apenas SQL Server Agent, que publica estimativa de migração no portal Azure.", "correct": false },
+        { "key": "D", "text": "Ativar benefício de failover híbrido, que analisa compatibilidade sem réplica passiva.", "correct": false },
+        { "key": "E", "text": "Migrar imediatamente todos os bancos para MI, pois não há avaliação prévia via Arc.", "correct": false }
+      ],
+      "explanation": "A avaliação de migração da documentação pode examinar instâncias SQL Server habilitadas pelo Arc em datacenters, borda e nuvens. Isso é distinto de criar um link para replicação e pode apoiar decisão antes da migração.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar link para migração online, é dispensável testar compatibilidade da aplicação porque a replicação atualiza somente dados e não interfere no corte para MI.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Replicação não elimina o planejamento do corte: a equipe precisa validar recursos e diferenças de plataforma, conectividade da aplicação, objetos de servidor não replicados, estado da réplica e procedimento de retorno. Link reduz downtime, não garante compatibilidade automática.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A conexão do SQL Server ao Azure Arc usa o mesmo canal de dados do Managed Instance link para replicar transações à MI.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O canal Arc conecta máquina/extensão aos serviços Azure para gestão, inventário e telemetria; Managed Instance link usa grupos de disponibilidade distribuídos para replicar dados. São mecanismos e propósitos distintos.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um link simples usa uma availability group contendo apenas o banco da ligação; não se deve presumir que um link single-database inclui todo um grupo com várias bases.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A modalidade single-database replica uma base por link e o grupo usado por essa modalidade contém um banco. Para estender um grupo multi-base por um link, existe o modo multiple-database com requisitos próprios e status de prévia.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual par de edições é suportado pelo Managed Instance link segundo a documentação consultada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Azure MI nos tiers General Purpose ou Business Critical e SQL Server Enterprise, Developer ou Standard.", "correct": true },
+        { "key": "B", "text": "Azure MI somente em General Purpose e SQL Server somente em Business Intelligence.", "correct": false },
+        { "key": "C", "text": "Azure MI somente em camada gratuita e SQL Server somente em edição Express antiga.", "correct": false },
+        { "key": "D", "text": "Qualquer tier MI e qualquer edição de SQL Server, inclusive contêineres não suportados.", "correct": false },
+        { "key": "E", "text": "Azure MI somente em Business Critical e SQL Server apenas em Developer sem atualização.", "correct": false }
+      ],
+      "explanation": "A documentação indica suporte do link nos tiers General Purpose e Business Critical da MI e nas edições Enterprise, Developer e Standard do SQL Server. Isso não significa compatibilidade de qualquer versão, host ou atualização.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Managed Instance link pode ser mantido durante meses ou anos para uso híbrido contínuo, e não precisa ser tratado exclusivamente como assistente de migração de curta duração.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação informa que o link pode permanecer por longo período e atender uso contínuo de serviços Azure, leitura escalada, análise e outros cenários híbridos, além da eventual migração.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Arc perde conectividade com Azure, mas o SQL Server local continua ativo. Qual interpretação operacional é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O banco pode continuar local, enquanto inventário e integração de gestão ficam desatualizados até reconectar.", "correct": true },
+        { "key": "B", "text": "O Arc interrompe automaticamente todas as transações SQL até recuperar o canal de entrada.", "correct": false },
+        { "key": "C", "text": "A instância migra para MI em modo somente leitura e apaga a cópia local ao desconectar.", "correct": false },
+        { "key": "D", "text": "A extensão converte o canal Arc em failover Always On sem configuração do link.", "correct": false },
+        { "key": "E", "text": "A desconexão impede restauração de backups locais, pois o inventário Arc guarda os dados.", "correct": false }
+      ],
+      "explanation": "Arc fornece canal de gestão e integração; a instância permanece instalada no host. Se esse canal cai, a gestão/inventário no Azure pode perder atualização, mas isso não significa que Arc interrompa por si só o mecanismo local ou promova uma réplica MI.",
+      "section": "2. Conexão, requisitos e operação do Azure Arc", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No link, o failover de desastre deve ser considerado manual e planejado; uma cópia secundária existente não promove sozinha o tráfego da aplicação sem ação de operação.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação do cenário Managed Instance link descreve failover manual para a secundária. A organização precisa executar o procedimento, redirecionar aplicações e verificar limitações de failback conforme versão e política.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual serviço adicional é necessário para relatórios de telemetria em certos recursos de avaliação e Defender sobre SQL Server Arc?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Azure Monitoring Agent ligado a um workspace do Log Analytics para coleta e relatórios.", "correct": true },
+        { "key": "B", "text": "Managed Instance link com réplica gravável, mesmo que o banco permaneça no host.", "correct": false },
+        { "key": "C", "text": "SQL Server Agent configurado para enviar senhas de administrador ao portal Azure.", "correct": false },
+        { "key": "D", "text": "Endpoint público de MI, mesmo quando a organização não usa Managed Instance.", "correct": false },
+        { "key": "E", "text": "Azure Hybrid Benefit, que coleta automaticamente métricas de consulta do mecanismo.", "correct": false }
+      ],
+      "explanation": "Alguns serviços, incluindo Defender for Cloud e avaliação de boas práticas, requerem AMA e conexão com Log Analytics para coletar e reportar dados. Managed Instance link e benefício de licenciamento atendem objetivos diferentes.",
+      "section": "2. Conexão, requisitos e operação do Azure Arc", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para várias instâncias no mesmo host, cada uma pode usar endpoint de espelhamento separado com porta dedicada, evitando conflito entre conexões de link.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A documentação orienta endpoint de espelhamento distinto por instância e porta dedicada; a instância padrão deve ser a única a usar a porta convencional citada. Isso evita colisão no host.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um arquiteto está desenhando recuperação após desastre e quer operar em MI após failover, mas manter opção suportada de retorno ao SQL Server. Qual recomendação é a mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar SQL Server 2022/2025 suportado e política de MI correspondente.", "correct": true },
+        { "key": "B", "text": "Usar SQL Server 2019, pois qualquer link unidirecional continua replicando depois do failover.", "correct": false },
+        { "key": "C", "text": "Usar somente Azure Arc, pois o inventário garante retorno automático dos dados para a origem.", "correct": false },
+        { "key": "D", "text": "Usar endpoint público para estabelecer retorno bidirecional sem grupos distribuídos.", "correct": false },
+        { "key": "E", "text": "Usar uma MI secundária com workloads permanentes para ativar benefício passivo de DR.", "correct": false }
+      ],
+      "explanation": "Failback via link depende de versões modernas suportadas e política de atualização correspondente, como SQL Server 2022/2025 nas combinações documentadas. O cenário 2016–2019 perde o link ao promover MI. É necessário ensaiar o procedimento e não confundir Arc com replicação.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A avaliação de migração do Azure Arc só pode analisar servidores já hospedados em Azure; SQL Server em datacenter ou borda precisa ser migrado antes de ser avaliado.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A documentação descreve avaliação de migração para instâncias habilitadas por Arc em datacenters, locais de borda, nuvens públicas e provedores de hospedagem. A avaliação pode preceder a migração efetiva.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual cuidado com versões e serviço deve anteceder a criação de um link?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Conferir CU e versão SQL Server, política da MI e sistema operacional.", "correct": true },
+        { "key": "B", "text": "Conferir apenas o nome do banco, pois o link não depende de atualização cumulativa.", "correct": false },
+        { "key": "C", "text": "Conferir apenas a versão do portal Azure, pois o mecanismo SQL é irrelevante.", "correct": false },
+        { "key": "D", "text": "Escolher política de atualização inferior à origem para garantir compatibilidade entre versões.", "correct": false },
+        { "key": "E", "text": "Atualizar somente a extensão Arc, que fornece suporte a grupos distribuídos em qualquer SQL.", "correct": false }
+      ],
+      "explanation": "O Managed Instance link tem matriz de suporte que considera versão/CU do SQL Server, política de atualização da MI, versão de sistema operacional e direção pretendida. Extensão Arc não acrescenta suporte a grupos distribuídos em mecanismos antigos.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se a replicação estiver configurada, um Managed Instance link pode copiar apenas um banco de usuário por link no modo single-database; o limite não se aplica ao modo multiple-database da mesma forma.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A modalidade single-database replica um banco por link. Multiple-database estende todos os bancos do grupo de disponibilidade existente, com requisitos e status de prévia próprios; ambos continuam limitados à replicação de bancos de usuário.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer uma segunda cópia legível em região Azure diferente para aproximar consultas de usuários geograficamente distribuídos. Qual uso do Managed Instance link corresponde a esse desenho?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Replicar uma origem para MIs em várias regiões como cópias de leitura.", "correct": true },
+        { "key": "B", "text": "Usar um único endpoint Arc para transformar o servidor local em réplica ativa multirregional.", "correct": false },
+        { "key": "C", "text": "Criar backups diferenciais em cada região e tratá-los como réplicas consultáveis continuamente.", "correct": false },
+        { "key": "D", "text": "Replicar logins do SQL Server Agent para endpoints públicos sem copiar o banco de usuário.", "correct": false },
+        { "key": "E", "text": "Configurar Always On local sem ligação com MI, que disponibiliza automaticamente regiões Azure.", "correct": false }
+      ],
+      "explanation": "A documentação descreve deconsolidação: uma instância SQL Server pode replicar para várias MIs, inclusive em regiões diferentes, fornecendo cópias somente leitura mais próximas dos clientes. Isso não torna todas as réplicas graváveis nem é função de Arc.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "É correto usar Azure Arc como substituto para backup e restauração, porque o inventário do SQL Server habilitado pelo Arc armazena uma cópia integral dos dados.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Arc conecta e inventaria os recursos, mas não é repositório de backup do conteúdo do banco. Backup/restauração e replicação híbrida são capacidades distintas e precisam de ferramentas e planos próprios.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma área pretende habilitar o Azure Arc em servidor SQL Linux. Qual detalhe de privilégio local é compatível com os pré-requisitos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "No Linux, instalar e configurar o agente requer a conta root.", "correct": true },
+        { "key": "B", "text": "A instalação exige somente login SQL sysadmin, sem privilégio no sistema operacional.", "correct": false },
+        { "key": "C", "text": "A instalação deve ser feita como usuário sem privilégios e sem acesso à assinatura.", "correct": false },
+        { "key": "D", "text": "A instalação exige Administradores Locais, grupo que existe da mesma forma em Linux.", "correct": false },
+        { "key": "E", "text": "A instalação requer credencial Windows e autenticação integrada pelo endpoint público da MI.", "correct": false }
+      ],
+      "explanation": "Para instalar/configurar o agente em Linux, os pré-requisitos indicam conta root; em Windows, membro de Administradores Locais. Também é necessária permissão de leitura na assinatura Azure.",
+      "section": "2. Conexão, requisitos e operação do Azure Arc", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância SQL Server Arc pode ser administrada centralmente mesmo se os dados permanecerem no datacenter, pois o recurso conecta o plano de gestão sem exigir migração do banco.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Arc estende serviços de Azure a instâncias que continuam em datacenter, borda ou nuvem externa. A conexão permite gestão central; transferência de dados para MI é outro cenário, implementado por link ou outra estratégia.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção define de forma precisa a principal cautela ao tratar replicação pelo link como plano completo de recuperação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Planejar objetos de servidor, failover, capacidade, backup e conexão da aplicação.", "correct": true },
+        { "key": "B", "text": "Confiar que logins e jobs serão copiados, pois todos os metadados ficam no banco de usuário.", "correct": false },
+        { "key": "C", "text": "Presumir failback automático em todas as versões, evitando manter procedimento documentado.", "correct": false },
+        { "key": "D", "text": "Usar endpoint público para replicação e ignorar capacidade e atualização da secundária.", "correct": false },
+        { "key": "E", "text": "Desativar backups, pois a réplica de MI substitui qualquer necessidade de restauração.", "correct": false }
+      ],
+      "explanation": "O link trata da replicação de bancos de usuário, não de todo o servidor. Continuidade exige plano para logins/jobs, compatibilidade e política de failover/failback, capacidade da réplica, backup/restauração e mudança de conexão da aplicação.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um benefício de failover híbrido deve ser aplicado à MI secundária que processa relatórios e outras cargas permanentes, pois toda réplica de disponibilidade é considerada passiva.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O benefício descrito exige réplica secundária passiva dedicada exclusivamente a DR e sem workloads. Uma MI usada continuamente para relatórios não satisfaz essa premissa, ainda que receba replicação.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer copiar dados de MI de volta para SQL Server para cumprir requisito de cópia local. Qual cenário habilita esse desenho segundo a documentação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Managed Instance link a partir da MI para SQL Server 2022 ou posterior suportado, com política correspondente.", "correct": true },
+        { "key": "B", "text": "Qualquer link de SQL Server 2016 para MI, pois toda réplica antiga envia dados de volta.", "correct": false },
+        { "key": "C", "text": "Azure Arc por si só, pois o recurso de inventário envia as tabelas ao host local.", "correct": false },
+        { "key": "D", "text": "Endpoint público de cliente, que reverte a direção da replicação sem configurar link.", "correct": false },
+        { "key": "E", "text": "Benefício de licenciamento de réplica passiva, que exporta dados para SQL Server.", "correct": false }
+      ],
+      "explanation": "SQL Server 2022 e posteriores suportados permitem estabelecer o link a partir da MI para SQL Server e criar uma réplica quase em tempo real fora do Azure, desde que a política de atualização corresponda. Arc, endpoint público e benefício de licenciamento não fazem essa replicação.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Managed Instance link depende de conectividade e endpoints configurados entre os ambientes; sua existência não significa que a aplicação foi automaticamente redirecionada para a réplica.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Link mantém replicação e disponibiliza a secundária, mas clientes precisam de conectividade e configuração de conexão. Após failover ou corte de migração, o direcionamento da aplicação é uma etapa operacional explícita.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática reduz risco ao planejar uma migração híbrida de SQL Server para MI?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Preparar o link, acompanhar a sincronização, testar compatibilidade e planejar o corte e os objetos externos ao banco.", "correct": true },
+        { "key": "B", "text": "Alterar a origem durante o corte sem sincronizar, pois a MI consulta diretamente o disco local.", "correct": false },
+        { "key": "C", "text": "Remover jobs e logins antes do inventário, já que o link os reconstruirá no destino.", "correct": false },
+        { "key": "D", "text": "Desconsiderar versão e política da MI, pois qualquer endpoint aceita replicação SQL.", "correct": false },
+        { "key": "E", "text": "Apagar a origem ao criar o link, para impedir alterações concorrentes durante a cópia.", "correct": false }
+      ],
+      "explanation": "O link permite manter a origem online durante a sincronização, mas o corte exige preparar o ambiente, validar compatibilidade, confirmar estado da réplica e planejar conexão da aplicação e objetos de servidor que não são replicados. Apagar a origem no início destruiria o papel da primária.",
+      "section": "3. Managed Instance link: replicação e cenários híbridos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A alta disponibilidade Always On habilitada no SQL Server, sozinha, garante que o modo multiple-database do link possa ser criado sem atualização cumulativa ou adesão das réplicas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Multiple-database mode tem requisitos próprios: atualizações cumulativas e opt-in em cada réplica, além de edições e política da MI compatíveis. Habilitar Always On é necessário, mas não suficiente para esse modo.",
+      "section": "4. Preparação, compatibilidade e limites do link", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma área usa Arc para centralizar inventário de SQL e Managed Instance link para manter cópia de leitura em Azure. Como interpretar essa arquitetura?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Os recursos podem coexistir: Arc dá gestão/inventário e o link transporta dados para a réplica de MI.", "correct": true },
+        { "key": "B", "text": "São alternativas mutuamente exclusivas, pois habilitar Arc desliga Always On no SQL Server.", "correct": false },
+        { "key": "C", "text": "O Arc passa a armazenar a réplica, e o link apenas registra os metadados do servidor.", "correct": false },
+        { "key": "D", "text": "O link substitui a identidade Arc e garante telemetria AMA sem configuração adicional.", "correct": false },
+        { "key": "E", "text": "A arquitetura cria escrita ativa em ambos os locais sem considerar versão da instância.", "correct": false }
+      ],
+      "explanation": "As tecnologias atendem funções diferentes e podem compor uma arquitetura híbrida. Arc oferece controle e inventário de recursos externos; o link replica dados entre SQL Server e MI. Telemetria opcional ainda pode exigir AMA/Log Analytics e o link continua sujeito à sua matriz de suporte.",
+      "section": "1. O que torna a solução híbrida", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server enabled by Azure Arc: overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopo de gestão Arc, arquitetura, comunicação HTTPS de saída, extensões e integração com serviços Azure",
+      "url": "https://learn.microsoft.com/en-us/sql/sql-server/azure-arc/overview?view=sql-server-ver17",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Prerequisites - SQL Server enabled by Azure Arc",
+      "publisher": "Microsoft Learn",
+      "reference": "Versões, sistemas, permissões, provedores de recursos, conectividade e configurações não suportadas",
+      "url": "https://learn.microsoft.com/en-us/sql/sql-server/azure-arc/prerequisites?view=sql-server-ver16",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managed Instance link overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Arquitetura, modos, casos de uso, compatibilidade, failover, endpoints, backups e limitações",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-feature-overview?view=azuresql",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Prepare environment for the Managed Instance link",
+      "publisher": "Microsoft Learn",
+      "reference": "Permissões, capacidade, chave mestra, Always On, certificados e preparação de SQL Server",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-preparation?view=azuresql",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configure a Managed Instance link with scripts",
+      "publisher": "Microsoft Learn",
+      "reference": "Configuração, versões, topologia primário/secundário e pré-requisitos do vínculo",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-configure-how-to-scripts?tabs=sql-mi&view=azuresql",
+      "accessedAt": "2026-11-14"
+    }
+  ]
+}

@@ -1,0 +1,1054 @@
+{
+  "id": "informatica.administracao-sistemas-zos-linux-unix-windows",
+  "subject": "Informática",
+  "title": "Administração de sistemas operacionais: z/OS, Linux, Unix e Windows",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração de sistemas operacionais",
+    "Administração de sistemas z/OS Linux Unix Windows",
+    "Administração de sistemas operacionais z/OS e Linux",
+    "Administração de sistemas Unix e Windows",
+    "Sistemas operacionais para desktop e servidor",
+    "Administração do Windows Desktop e Server",
+    "Administração de Linux e Unix em servidores",
+    "Administração de sistemas IBM z/OS",
+    "Linguagens de script para administração de sistemas",
+    "Compartilhamento e segurança em sistemas operacionais",
+    "Integridade de sistemas operacionais e arquivos",
+    "Sistemas z/OS Linux Unix e MS Windows"
+  ],
+  "scope": {
+    "covers": "Princípios e rotinas de administração em z/OS, Linux, Unix e Microsoft Windows Desktop e Server; inicialização, contas, grupos, arquivos, processos, serviços, armazenamento, registros e atualizações; ambiente z/OS com TSO/E, ISPF, JES, JCL, conjuntos de dados, z/OS UNIX System Services e RACF; Linux e Unix com shell, permissões, propriedade, processos, serviços, logs e scripts; Windows cliente e servidor com serviços, Server Manager, PowerShell, NTFS, ACL, SMB e políticas; scripts administrativos, compartilhamento de recursos, menor privilégio, auditoria, cópias de segurança, validação e integridade de dados e configurações.",
+    "excludes": "Projeto interno do kernel, programação avançada de aplicações, comandos e parâmetros dependentes de distribuição ou versão não identificados, administração aprofundada de banco de dados, desenho de redes corporativas, configuração completa de Active Directory, RACF avançado e procedimentos específicos de mudança em ambientes de produção."
+  },
+  "theoryTitle": "Administrar sistemas distintos com controle e rastreabilidade",
+  "chapters": [
+    {
+      "title": "1. Rotina de administração e diferenças entre plataformas",
+      "markdown": "### O problema que este assunto resolve\n\nAdministrar um sistema operacional é manter seus recursos disponíveis, previsíveis e protegidos: iniciar e parar serviços, controlar usuários, acompanhar consumo, corrigir falhas e aplicar mudanças sem perder dados. As tarefas são semelhantes entre plataformas, mas as ferramentas, os objetos de segurança e os registros não são intercambiáveis. Um administrador que procura um arquivo de configuração Linux no Registro do Windows ou presume que um conjunto de dados z/OS é um arquivo comum pode alterar o objeto errado.\n\n> **Siglas e termos deste capítulo**\n> - **z/OS**: sistema operacional IBM para mainframes, com serviços tradicionais MVS e ambiente POSIX chamado z/OS UNIX System Services.\n> - **USS**: Unix System Services, ambiente de comandos, shell, processos e arquivos Unix integrado ao z/OS.\n> - **TSO/E**: ambiente interativo de acesso a z/OS; costuma ser usado com painéis ISPF.\n> - **JES**: subsistema de entrada de trabalhos; recebe, agenda e acompanha trabalhos em lote.\n> - **JCL**: linguagem de controle que descreve trabalho, passos, programas e alocação de dados para execução no z/OS.\n> - **Serviço**: programa de longa duração iniciado e supervisionado pelo sistema operacional ou por um gerenciador de serviços.\n\n### Quatro ambientes, modelos operacionais diferentes\n\n| Ambiente | Objetos e ferramentas que aparecem na administração |\n| --- | --- |\n| **z/OS** | TSO/E e ISPF para interação; JCL para descrever trabalhos em lote; JES para filas e saída; conjuntos de dados MVS e sistemas de arquivos USS; RACF integrado aos serviços de autorização do z/OS. |\n| **Linux** | Shell e utilitários; arquivos e diretórios; usuários, grupos e permissões; processos; serviços gerenciados, em muitas distribuições, por systemd; logs e interfaces do kernel, como `/proc` e `/sys`. |\n| **Unix** | Família de sistemas com interfaces e ferramentas que variam por implementação; shell, processos, arquivos, usuários e grupos são conceitos comuns. A presença de um comando não garante que suas opções sejam idênticas em todas as variantes. |\n| **Windows Desktop** | Interface gráfica e PowerShell; serviços, contas locais ou de domínio, NTFS, logs de eventos e políticas aplicadas ao computador. O foco inclui uso interativo e gestão do dispositivo cliente. |\n| **Windows Server** | Acrescenta funções de servidor, como arquivos, DNS ou diretório, conforme instaladas. Server Manager e ferramentas RSAT podem administrar servidores locais ou remotos; PowerShell automatiza tarefas. |\n\nNo z/OS, o mesmo sistema reúne a operação de trabalhos em lote e o ambiente USS. Um caminho como `/u/ana/relatorio` pertence ao sistema de arquivos USS; um nome como `ANA.DADOS.RELATORIO` identifica um conjunto de dados MVS. São formas de armazenamento e nomes diferentes. Uma tarefa pode interagir com ambos, mas não se deve tratar a sintaxe de alocação JCL como se fosse apenas um caminho Unix.\n\n### Uma sequência segura de trabalho\n\nAntes de mudar um servidor, identifique o host e o ambiente, confirme a conta usada, registre o estado atual e delimite o recurso afetado. Faça a mudança com privilégio mínimo, valide o resultado por uma segunda observação e preserve logs e evidências. Se uma atualização ou alteração de serviço falhar, consulte os eventos, compare a configuração com a cópia conhecida e use o procedimento de recuperação aprovado. Não transforme uma correção emergencial em alteração não documentada.\n\nA administração diária costuma percorrer cinco perguntas: o sistema está respondendo? quais processos e serviços estão ativos? há espaço e memória suficientes? surgiram erros nos registros? as cópias de segurança e a restauração de amostra continuam válidas? Métricas sem contexto não provam integridade; por exemplo, espaço livre não mostra se os arquivos podem ser lidos.\n\n### Processos, serviços e trabalhos em lote\n\nUm **processo** é uma instância de execução; pode ser encerrado sem que o serviço responsável tenha sido desinstalado. Um **serviço** geralmente permanece ativo aguardando solicitações e pode ser configurado para iniciar automaticamente, sob demanda ou manualmente, conforme a plataforma. No z/OS, um trabalho de lote submetido ao JES passa por filas e produz saída de trabalho; o operador acompanha o estado e examina mensagens e dados de saída. Isso não é igual a iniciar uma sessão interativa TSO.\n\nNo Windows Server, Server Manager consolida inventário e tarefas de funções e recursos e pode administrar computadores Windows Server remotos que foram adicionados à ferramenta. Instalar RSAT num cliente fornece ferramentas de administração remota; não transforma o próprio Windows cliente num Windows Server nem habilita Server Manager a administrar o sistema operacional cliente como servidor.\n\n### Como cai na prova\n\n- JCL descreve trabalho e alocação; JES recebe e gerencia execução e filas; TSO/E dá acesso interativo.\n- z/OS UNIX é integrado ao z/OS, mas conjunto de dados MVS e arquivo USS não são o mesmo objeto.\n- Linux e Unix compartilham conceitos, mas a disponibilidade e as opções de comandos variam entre implementações.\n- Server Manager e RSAT administram funções e servidores Windows Server; não são um mecanismo de transformar Windows Desktop em servidor."
+    },
+    {
+      "title": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "markdown": "### O problema que este assunto resolve\n\nEm Linux e Unix, grande parte da configuração e dos dados aparece como arquivos, mas a autorização depende de identidade, grupo, modo de acesso e, quando presentes, controles adicionais como ACLs ou módulos de segurança. O administrador precisa saber qual identidade executa um comando e distinguir leitura do conteúdo, gravação, travessia de diretório e execução.\n\n> **Siglas e termos deste capítulo**\n> - **UID/GID**: identificadores numéricos de usuário e grupo usados pelo sistema.\n> - **ACL**: lista de controle de acesso que permite registrar permissões para identidades além do trio tradicional dono, grupo e outros.\n> - **umask**: máscara que remove permissões da criação padrão de arquivos e diretórios.\n> - **PID**: identificador de processo.\n> - **shell**: interpretador de comandos que também executa scripts e encadeia utilitários.\n> - **stdout/stderr**: fluxos de saída normal e de diagnóstico de um processo.\n\n### Dono, grupo e bits de permissão\n\nO modo tradicional separa permissões do **dono**, do **grupo** e de **outros usuários**. Para cada classe, leitura (`r`), gravação (`w`) e execução (`x`) têm significado próprio. Num arquivo, `x` autoriza tentar executá-lo, sujeito a outros controles; num diretório, `x` permite atravessá-lo e alcançar nomes dentro dele. Ter `r` no diretório permite listar nomes, mas sem `x` o usuário normalmente não consegue acessar os objetos pelo caminho. Gravar em um arquivo não equivale a poder criar ou apagar nomes no diretório que o contém.\n\nA representação octal soma os valores de leitura, gravação e execução: `r=4`, `w=2`, `x=1`. Assim, modo `750` dá ao dono leitura, gravação e execução; ao grupo, leitura e execução; e a outros, nenhum desses bits. O comando `chmod` altera modos, enquanto `chown` e `chgrp` alteram dono e grupo, conforme autoridade e sistema. A **umask** subtrai bits das permissões iniciais solicitadas: umask `027` impede por padrão gravação para grupo e qualquer permissão para outros, sem conceder bits que a aplicação não pediu. ACLs e políticas como SELinux podem impor controles além desses bits; um modo aparentemente permissivo, por si só, não prova que o acesso será concedido.\n\n### Usuários, privilégios e processos\n\nCada processo executa com credenciais que incluem IDs de usuário e grupos, além de outros atributos. O superusuário tradicional tem poderes amplos, mas administrar com conta privilegiada para tarefas comuns aumenta o impacto de erro. Quando uma tarefa precisa de elevação, use mecanismo controlado, registre a ação e restrinja quem pode obtê-la. `sudo` é uma forma comum de delegar comandos específicos conforme configuração local; não é sinônimo de tornar todo usuário administrador sem limite.\n\nProcessos podem ser inspecionados por ferramentas do sistema; sinais permitem solicitar ações como término, mas um sinal de encerramento não garante que a aplicação concluiu gravações ou liberou recursos de forma limpa. Em sistemas com systemd, `systemctl` consulta ou controla unidades de serviço. `journalctl` consulta o diário do systemd; instalações também podem gravar logs em arquivos, por exemplo sob `/var/log`. Não presuma que todas as distribuições usam exatamente o mesmo gerenciador ou caminho de log. O kernel expõe informações e interfaces administrativas por `/proc` e `/sys`; elas não devem ser tratadas como diretórios comuns de dados persistentes.\n\n### Shell e scripts administrativos\n\nUm script de shell é uma sequência de comandos interpretada pelo shell. Variáveis, parâmetros posicionais, condição, laço, funções, códigos de saída e redirecionamento permitem automatizar operações repetidas. O código de saída zero costuma representar sucesso; valor diferente de zero sinaliza falha para o chamador, embora o significado específico do código dependa do programa. `>` redireciona a saída padrão e substitui o destino; `>>` acrescenta; `2>` redireciona a saída de erro; `|` conecta a saída padrão de um comando à entrada do próximo.\n\nUm script robusto valida argumentos, trata caminhos com espaços usando aspas, verifica a identidade e o diretório de trabalho, registra o que mudou e interrompe ou trata explicitamente falhas. A linha inicial de interpretação (*shebang*) indica o interpretador esperado quando o arquivo é executado diretamente. Permissão de execução é necessária nessa forma de invocação, mas chamar explicitamente um interpretador com o arquivo tem regras distintas. Nunca use texto fornecido por usuário em uma construção de comando sem validação: expansão e interpretação podem transformar dado em comando.\n\nO shell também oferece comandos internos e encadeamento. Uma variável exportada é herdada por processos filhos; uma variável local do shell que não foi exportada não é automaticamente visível ao programa externo. O ambiente, o `PATH`, o diretório corrente e os privilégios influenciam o resultado de um script, por isso registrar apenas o texto do script não basta para reconstituir uma execução.\n\n### Como cai na prova\n\n- Permissão `x` em diretório significa travessia; não significa executar o diretório como um programa.\n- `umask` retira bits das permissões solicitadas na criação; não concede nem altera retroativamente permissões de arquivos existentes.\n- Redirecionar `2>` captura erros; `>` substitui o arquivo de saída se ele existir.\n- systemd é comum em Linux, não uma característica universal de todo Unix; confira a implementação local."
+    },
+    {
+      "title": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "markdown": "### O problema que este assunto resolve\n\nWindows Desktop e Windows Server compartilham componentes, mas têm papéis diferentes. Num cliente, administram-se dispositivo, contas, aplicativos, atualizações e conectividade do usuário. No Server, funções instaladas oferecem serviços a outros computadores; cada função aumenta a superfície de configuração e precisa de identidade, permissões, logs e atualização compatíveis com o serviço prestado.\n\n> **Siglas e termos deste capítulo**\n> - **NTFS**: sistema de arquivos do Windows que suporta descritores de segurança, ACLs, criptografia e cotas.\n> - **ACL**: lista de permissões associada a um objeto, como arquivo, diretório ou compartilhamento.\n> - **SMB**: protocolo de compartilhamento de arquivos e impressoras usado pelo servidor SMB do Windows.\n> - **UAC**: User Account Control, mecanismo que ajuda a controlar elevação de privilégios no Windows.\n> - **RSAT**: conjunto de ferramentas para administrar funções e recursos de Windows Server a partir de outro computador Windows.\n> - **PowerShell**: shell e linguagem de automação baseada em comandos e objetos.\n\n### Contas, serviços e registros\n\nAs permissões de NTFS são associadas a usuários ou grupos por ACLs. Conceder acesso a grupos funcionais simplifica a manutenção quando pessoas mudam de função, desde que os membros do grupo e o escopo do recurso sejam revisados. A permissão efetiva pode resultar de várias entradas aplicáveis, herança e associação a grupos; uma entrada isolada não conta toda a história. A aba **Acesso Efetivo** ajuda a avaliar o acesso calculado para uma identidade e um objeto.\n\nServiços são processos gerenciados pelo sistema, podem ser configurados para iniciar em momentos diferentes e executam sob uma conta de serviço. Conceder à conta do serviço apenas os direitos necessários reduz o impacto de comprometimento. O Visualizador de Eventos organiza registros por canais e provedores; eventos de sistema, segurança e aplicativos ajudam a correlacionar uma falha com início de serviço, autenticação ou atualização. Limpar um log remove evidência e não corrige a causa.\n\nWindows Server pode instalar funções e recursos pelo Server Manager ou por cmdlets PowerShell apropriados. Server Manager administra servidores Windows Server locais ou remotos adicionados; RSAT instala ferramentas de gestão num Windows cliente. Windows Desktop pode atuar como cliente de arquivos, autenticar-se e executar scripts, mas a presença do RSAT não instala funções de servidor nesse computador.\n\n### Compartilhamento: permissão de compartilhamento e permissão NTFS\n\nUm compartilhamento SMB publica um diretório pela rede, normalmente acessado por caminho UNC, como `\\arquivos\\financeiro`. Para acesso remoto, entram na avaliação a autorização do compartilhamento e a ACL NTFS do caminho físico. Uma permissão ampla num nível não supera uma restrição aplicável no outro. As permissões de compartilhamento comuns são Leitura, Alteração e Controle Total; NTFS oferece granularidade diferente, como Ler, Modificar e Controle Total. Para acesso pela rede, configure deliberadamente ambos os níveis e teste com a identidade de usuário, incluindo associação a grupos.\n\nAcrescentar `$` ao nome do compartilhamento torna-o oculto da enumeração usual, mas não cria autorização: quem conhece o caminho ainda precisa passar pelos controles de acesso. Remover `Everyone` pode ser parte de uma configuração restritiva, mas a ação correta é conceder acesso aos grupos e contas que realmente precisam do recurso, com permissões mínimas e revisadas. O fato de uma pasta não aparecer na navegação não é controle de segurança.\n\n### PowerShell e automação segura\n\nPowerShell trata a saída de cmdlets como objetos, o que permite selecionar propriedades, filtrar e encaminhar resultados sem depender exclusivamente de texto formatado. Cmdlets seguem com frequência o padrão `Verbo-Substantivo`; `Get-Service` consulta serviços e `Set-ExecutionPolicy` configura a política de execução. Scripts `.ps1` podem receber parâmetros, validar pré-condições, registrar resultados e ser executados local ou remotamente de acordo com permissões e configuração.\n\nA política de execução do PowerShell é uma proteção de segurança em camadas que controla condições de carregamento de arquivos de configuração e scripts; a documentação da Microsoft esclarece que não constitui uma fronteira de segurança, pois pode ser contornada por quem decide executar o conteúdo de outra forma. `Restricted` permite comandos individuais, mas impede scripts; `AllSigned` exige assinatura confiável para scripts e arquivos de configuração; `RemoteSigned` exige assinatura para arquivos identificados como obtidos da Internet, mantendo exceção para scripts locais não baixados. Uma assinatura não prova que o script é benigno: revise origem e conteúdo, use privilégio mínimo e controle mudanças.\n\n### Como cai na prova\n\n- Em acesso SMB, considere tanto a ACL do compartilhamento quanto as permissões NTFS do caminho físico.\n- Nome terminado em `$` oculta o compartilhamento da navegação comum, sem conceder sigilo ou substituir ACL.\n- RSAT e Server Manager apoiam gestão remota de servidores Windows Server; não convertem um cliente em sistema Server.\n- Política de execução reduz execução não intencional; não é uma fronteira de segurança nem substitui revisão de script e controle de privilégios."
+    },
+    {
+      "title": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "markdown": "### O problema que este assunto resolve\n\nNo mainframe, disponibilidade e segurança de trabalhos, conjuntos de dados, saídas e serviços interativos dependem de coordenação entre componentes. No ambiente distribuído, arquivos são compartilhados por exportações de rede, como NFS, ou por compartilhamentos SMB. Em ambos os casos, compartilhamento sem autorização correta pode expor dados ou permitir alteração indevida; cópia sem validação pode propagar corrupção.\n\n> **Siglas e termos deste capítulo**\n> - **RACF**: componente do Security Server do z/OS que autentica usuários e protege recursos por perfis e classes.\n> - **SAF**: System Authorization Facility, interface pela qual componentes solicitam decisões de segurança a um produto de segurança, como RACF.\n> - **JES2**: implementação de JES que gerencia entrada de trabalhos, filas, spool e saída.\n> - **SYSIN/SYSOUT**: dados de entrada e saída associados a um trabalho, frequentemente armazenados no spool.\n> - **NFS**: protocolo de compartilhamento de sistemas de arquivos em rede.\n> - **Hash/checksum**: valor calculado sobre conteúdo para detectar divergência; sua utilidade depende do método e do canal de comparação.\n\n### z/OS: autenticação, autorização, trabalhos e dados\n\nRACF valida a identidade usada no logon ou na submissão e participa das verificações de acesso. Em z/OS UNIX, a identidade RACF se associa a UID e grupo a GID; RACF verifica se o usuário está definido para USS e se o grupo conectado também está habilitado para esse ambiente antes de inicializar os controles necessários às verificações posteriores. As permissões de arquivo USS incluem proprietário, grupo e outros, e podem coexistir com controles RACF e políticas da instalação. UID zero representa superusuário no modelo Unix, portanto atribuí-lo é altamente privilegiado.\n\nConjuntos de dados MVS são protegidos por perfis da classe DATASET; classes de recurso geral podem proteger outros objetos. Uma autorização associada a perfil de conjunto de dados não é sinônimo de permissão de arquivo Unix. RACF usa níveis de acesso como NONE, READ, UPDATE, CONTROL e ALTER em contextos de conjuntos de dados, com efeitos distintos: READ permite consulta; UPDATE permite leitura e atualização de conteúdo; CONTROL inclui controle ampliado em contextos definidos, como operações sobre VSAM; ALTER pode autorizar mudanças mais amplas, inclusive exclusão ou renomeação. A autorização exata depende da classe, do tipo de conjunto e da operação.\n\nJES2 mantém spool de entrada e saída dos trabalhos e pode produzir conjuntos de dados do log, como JESJCL (declarações de controle e mensagens relativas a elas), JESMSGLG (mensagens do sistema), e JESYSMSG (registro de alocação, execução e encerramento de passos). SDSF oferece painéis para acompanhar filas, estados, saída e registros, e o acesso às funções e aos dados pode ser protegido por RACF/SAF. Se a proteção da classe JESSPOOL não estiver ativa, a autorização a SYSIN e SYSOUT pode não ser restringida pelo JES2 como esperado; a interface de visualização não substitui a política de acesso subjacente.\n\n### Compartilhar sem perder controle\n\nNFS e SMB permitem que sistemas diferentes acessem recursos por rede, mas o compartilhamento não elimina a necessidade de mapear identidades, restringir origem, aplicar permissões no servidor e registrar acessos. Uma permissão do cliente não deve ser tratada como autoridade superior à configuração do servidor. Em Windows, uma conta que acessa SMB é avaliada contra controles de compartilhamento e NTFS. No USS, direitos de usuário, grupo, modo e políticas de segurança determinam o acesso ao caminho.\n\nSeparar diretórios de dados, executáveis e logs reduz exposição acidental. Por exemplo, logs de servidor web guardados dentro de uma raiz publicada podem ficar acessíveis a visitantes; a Microsoft recomenda mantê-los fora de caminhos navegáveis. Para colaboração, conceda leitura onde basta consultar, gravação somente onde é necessária e privilégios administrativos apenas a quem executa administração. Revise contas de serviço e permissões herdadas após mudanças de função.\n\n### Integridade, disponibilidade e recuperação\n\nIntegridade significa que informação e configuração permanecem corretas, completas e protegidas contra alteração não autorizada. Controle de acesso impede algumas alterações, mas não detecta sozinho toda corrupção. Registros de auditoria apoiam rastreamento; versões ou cópias conhecidas permitem comparação; hashes detectam mudanças no conteúdo comparado, mas não provam autoria nem recuperam dados. Backups protegem contra perda, desde que sejam isolados do risco original e que restauração seja exercitada. Redundância melhora disponibilidade, mas pode replicar rapidamente uma exclusão ou corrupção.\n\nUma rotina consistente identifica os dados críticos, classifica quem pode ler ou alterar, define cópia e retenção, acompanha falhas, protege o caminho das cópias e testa restauração. Para scripts administrativos, controle versão, revisão por outra pessoa para mudanças de alto impacto, logs de execução e rollback documentado. Para atualizações, valide origem e assinatura quando disponíveis, aplique em ambiente de teste quando possível, mantenha plano de retorno e confirme a versão efetivamente instalada.\n\n### Como cai na prova\n\n- RACF e SAF participam das decisões de segurança no z/OS; UID/GID conectam a identidade RACF ao ambiente USS.\n- JES2 gerencia trabalhos e spool; SDSF mostra e controla recursos segundo autorização, não concede acesso por si só.\n- Hash detecta divergência entre conteúdos comparados, mas não substitui backup, controle de acesso ou autenticação.\n- Replicação favorece disponibilidade, porém pode propagar uma exclusão; backup restaurável e testado atende objetivo diferente."
+    }
+  ],
+  "summary": "Administração de sistemas exige reconhecer ferramentas e objetos próprios de cada plataforma. No z/OS, TSO/E/ISPF oferecem interação, JCL descreve trabalhos, JES gerencia filas e spool, USS fornece shell e sistema de arquivos POSIX integrado, e RACF/SAF participam da autenticação e autorização. Em Linux/Unix, identidades, grupos, bits de modo, ACLs, processos, serviços e shell compõem a rotina; umask retira permissões iniciais e scripts devem tratar argumentos e falhas. Windows Desktop atende estações; Windows Server instala funções e pode ser gerenciado por Server Manager, RSAT e PowerShell. NTFS usa ACLs e, em SMB, o acesso remoto depende também das permissões de compartilhamento. A política de execução do PowerShell é defesa em profundidade, não fronteira de segurança. Compartilhamento seguro requer escopo mínimo, identificação e revisão de permissões. Integridade envolve prevenção, auditoria, cópias protegidas e restauração testada: hash compara conteúdo, enquanto backup recupera perda e replicação prioriza disponibilidade.",
+  "flashcards": [
+    { "front": "Qual é a diferença entre JCL, JES e TSO/E no z/OS?", "back": "JCL descreve o trabalho e seus passos; JES recebe, agenda e acompanha trabalhos em lote e sua saída; TSO/E oferece acesso interativo ao sistema, muitas vezes por painéis ISPF." },
+    { "front": "O que é o z/OS UNIX System Services?", "back": "Ambiente integrado ao z/OS que oferece interface shell, utilitários, processos e sistema de arquivos compatíveis com interfaces POSIX." },
+    { "front": "Como se relacionam RACF, SAF e USS?", "back": "Componentes solicitam decisões pela interface SAF; RACF é um produto de segurança que as atende. Para USS, RACF associa identidade e grupo a UID e GID e verifica o acesso conforme controles configurados." },
+    { "front": "O que significa `x` em permissão de diretório Unix?", "back": "Permite atravessar o diretório e alcançar objetos por aquele caminho; não significa executar o diretório como programa." },
+    { "front": "O que a umask faz?", "back": "Remove bits das permissões solicitadas quando um novo arquivo ou diretório é criado; não acrescenta direitos nem altera retroativamente objetos existentes." },
+    { "front": "Em modo octal Unix, qual é o significado de 750?", "back": "Dono: leitura, gravação e execução; grupo: leitura e execução; outros: nenhum desses bits." },
+    { "front": "Qual é a diferença entre `>` e `>>` no shell?", "back": "`>` redireciona a saída padrão substituindo o destino existente; `>>` acrescenta ao final." },
+    { "front": "O que `2>` redireciona?", "back": "O fluxo de erro padrão (stderr), separado da saída normal." },
+    { "front": "O que uma permissão de leitura no diretório permite em Unix?", "back": "Em geral permite listar nomes; para acessar objetos pelo caminho também é necessária a permissão de travessia (`x`)." },
+    { "front": "O que um serviço do Windows executa?", "back": "Um processo gerenciado pelo sistema, normalmente executado sob uma conta de serviço e iniciado conforme configuração, como automaticamente ou sob demanda." },
+    { "front": "O que Server Manager e RSAT permitem?", "back": "Administrar funções, recursos e servidores Windows Server locais ou remotos por ferramentas de gestão; RSAT disponibiliza essas ferramentas em computadores clientes compatíveis." },
+    { "front": "Quais permissões são avaliadas num acesso remoto a arquivo por SMB no Windows?", "back": "As permissões do compartilhamento e as permissões NTFS aplicáveis ao caminho físico; ambas devem permitir o acesso pretendido." },
+    { "front": "O que significa acrescentar `$` ao nome de um compartilhamento Windows?", "back": "O compartilhamento deixa de aparecer na enumeração comum, mas continua acessível por quem conhece o caminho e tem autorização." },
+    { "front": "A política de execução PowerShell é uma fronteira de segurança?", "back": "Não. É uma proteção em camadas que ajuda a evitar execução não intencional, mas pode ser contornada e não substitui revisão, assinatura confiável, privilégio mínimo ou controle de origem." },
+    { "front": "O que a política `AllSigned` exige?", "back": "Que scripts e arquivos de configuração estejam assinados por um editor confiável, inclusive os criados localmente." },
+    { "front": "O que registra JESMSGLG no log de trabalho JES2?", "back": "Mensagens do sistema associadas ao trabalho. JESJCL registra o fluxo de controle submetido e JESYSMSG registra mensagens de execução, alocação e encerramento." },
+    { "front": "Qual é a função do SDSF?", "back": "Apresentar e permitir acompanhar ou controlar trabalhos, filas, saída e recursos z/OS, respeitando as autorizações configuradas." },
+    { "front": "Que proteção pode restringir acesso a SYSIN e SYSOUT no spool do JES2?", "back": "Proteção de recursos spool por RACF na classe JESSPOOL, devidamente configurada e ativa, junto aos demais controles aplicáveis." },
+    { "front": "O que um hash de arquivo comprova?", "back": "Permite detectar divergência entre conteúdos comparando valores calculados; sozinho não prova quem criou o conteúdo nem permite recuperá-lo." },
+    { "front": "Por que uma restauração de backup precisa ser testada?", "back": "Porque a existência de cópias não demonstra que estejam completas, legíveis, acessíveis ou capazes de recuperar o serviço no procedimento previsto." }
+  ],
+  "tips": [
+    "Associe JCL à descrição do trabalho, JES ao processamento e filas e TSO/E à interação do usuário; não use os termos como sinônimos.",
+    "Em permissões Unix, leia os três blocos dono-grupo-outros e avalie `x` em diretório como travessia do caminho.",
+    "Ao analisar SMB no Windows, confira os dois pontos de autorização: permissão do compartilhamento e ACL NTFS.",
+    "Lembre que um compartilhamento com `$` fica oculto na enumeração, não protegido contra acesso por caminho conhecido.",
+    "Para scripts, diferencie stdout de stderr e teste códigos de saída; saída visualmente vazia não garante sucesso.",
+    "Separe integridade, disponibilidade e recuperação: hash compara; replicação mantém cópia acessível; backup permite restaurar após perda."
+  ],
+  "traps": [
+    "Tratar o sistema de arquivos USS como se todo conjunto de dados MVS fosse apenas um caminho Unix ignora objetos e mecanismos de alocação distintos.",
+    "Supor que leitura num diretório Unix basta para abrir seus arquivos esquece a permissão de travessia no caminho.",
+    "Considerar política de execução PowerShell uma barreira contra um usuário determinado exagera sua função documentada de defesa em profundidade.",
+    "Concluir que um compartilhamento SMB oculto é secreto confunde ausência na navegação com autorização de acesso.",
+    "Achar que ACL NTFS permissiva supera uma permissão de compartilhamento restritiva ignora a avaliação conjunta no acesso pela rede.",
+    "Confundir réplica com backup esquece que exclusões e corrupção também podem ser copiadas para a réplica."
+  ],
+  "activeRecall": [
+    { "question": "Descreva o caminho de um trabalho em lote z/OS desde sua descrição até a consulta da saída.", "answer": "A JCL descreve o trabalho e os passos; o JES recebe e gerencia filas e execução; a saída pode ir ao spool e ser consultada por ferramentas como SDSF ou comandos autorizados de TSO/E." },
+    { "question": "Explique como o modo 640 limita acesso a um arquivo Unix.", "answer": "O dono pode ler e gravar; integrantes do grupo podem ler; outros não recebem leitura, gravação ou execução por esses bits. ACLs e políticas adicionais ainda podem afetar o acesso efetivo." },
+    { "question": "Por que `chmod 777` não é uma correção neutra para um erro de acesso?", "answer": "Concede leitura, gravação e execução a dono, grupo e outros no objeto, ampliando muito o acesso. O correto é identificar a identidade e conceder somente o direito necessário." },
+    { "question": "Quais verificações mínimas você faria antes de executar script administrativo recebido de outra equipe?", "answer": "Confirmar origem, conteúdo, parâmetros, identidade e privilégios usados, pré-condições, efeitos nos arquivos ou serviços, registros gerados e forma de interromper ou recuperar a operação." },
+    { "question": "Como avaliar uma negação de acesso a pasta compartilhada por SMB?", "answer": "Verificar a identidade e seus grupos, o caminho UNC, as permissões do compartilhamento e as ACLs NTFS em cada trecho relevante, incluindo herança e entradas de negação." },
+    { "question": "O que uma verificação por hash detecta e o que ela não resolve?", "answer": "Detecta diferença entre os conteúdos comparados; não identifica autoria, não impede por si só alteração e não recupera uma versão perdida." },
+    { "question": "Compare Windows Desktop e Windows Server na administração. ", "answer": "O Desktop é uma estação cliente, embora possa executar ferramentas e acessar serviços. Windows Server pode receber funções de servidor e ser administrado local ou remotamente por Server Manager, PowerShell e RSAT." },
+    { "question": "Quais medidas complementam a replicação para sustentar integridade e recuperação?", "answer": "Controle de acesso mínimo, auditoria, validação de cópias, backups isolados ou protegidos, retenção adequada e testes periódicos de restauração." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Confusão entre componentes z/OS", "summary": "JCL descreve o trabalho e suas alocações; JES recebe e gerencia trabalhos e saída; TSO/E é acesso interativo; SDSF oferece painéis operacionais." },
+    { "key": "e2", "title": "Permissões efetivas Unix incompletas", "summary": "Acesso considera identidade, dono, grupo, bits, travessia dos diretórios e ACLs ou políticas adicionais; `umask` afeta somente permissões iniciais na criação." },
+    { "key": "e3", "title": "Compartilhamento Windows tratado como uma ACL única", "summary": "O acesso remoto considera as permissões do compartilhamento e as permissões NTFS aplicáveis; ocultar nome com `$` não substitui autorização." },
+    { "key": "e4", "title": "Automação sem validação ou privilégio mínimo", "summary": "Scripts podem receber caminhos e argumentos inesperados; validar entrada, identidade, falhas, saída de erro e efeitos reduz alterações indevidas. Política de execução não é fronteira de segurança." },
+    { "key": "e5", "title": "Integridade confundida com disponibilidade", "summary": "Hash detecta divergência, controle de acesso restringe mudança, auditoria registra atividade, réplica melhora disponibilidade e backup testado permite recuperação; nenhum desses meios substitui todos os outros." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma analista precisa descrever um programa e seus arquivos de entrada e saída para execução em lote no z/OS. Qual componente cumpre essa função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "SDSF, que compõe e submete as declarações do trabalho ao sistema e define os passos a executar.", "correct": false },
+        { "key": "B", "text": "JCL, que declara o trabalho, seus passos e as alocações de dados.", "correct": true },
+        { "key": "C", "text": "RACF, que define a ordem dos programas dentro de cada trabalho.", "correct": false },
+        { "key": "D", "text": "TSO/E, que substitui a linguagem de controle em qualquer lote e registra as alocações de dados do job.", "correct": false },
+        { "key": "E", "text": "USS, que agenda trabalhos de lote e organiza suas filas de saída.", "correct": false }
+      ],
+      "explanation": "JCL descreve o trabalho, os passos e a alocação ou referência a conjuntos de dados. JES recebe e gerencia o processamento; SDSF permite acompanhar trabalhos e saída. RACF trata segurança e TSO/E oferece acesso interativo.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um operador quer consultar filas, estado e saída de trabalhos JES2 por painéis em uma sessão TSO/E, sem reescrever a JCL. Qual ferramenta é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "ISPF, usado para substituir a autorização RACF de trabalhos em execução.", "correct": false },
+        { "key": "B", "text": "JCL, que oferece painéis de consulta para a saída do spool.", "correct": false },
+        { "key": "C", "text": "SDSF, que apresenta e permite operar trabalhos conforme as autorizações.", "correct": true },
+        { "key": "D", "text": "RACF, que exibe filas de entrada e saída como seu painel principal.", "correct": false },
+        { "key": "E", "text": "systemctl, que consulta os estados internos de filas de JES2.", "correct": false }
+      ],
+      "explanation": "SDSF integra-se à sessão TSO/E e apresenta filas, estado, spool e saída de trabalhos; as funções exibidas dependem das autorizações. JCL descreve trabalhos, RACF protege recursos e systemctl é associado a unidades de serviço em sistemas com systemd.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa Server Manager instalado pelas ferramentas RSAT numa estação Windows 11. Qual alvo essa estação pode administrar com essa ferramenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Servidores Windows Server adicionados e acessíveis, conforme as permissões da equipe.", "correct": true },
+        { "key": "B", "text": "Qualquer computador cliente Windows da rede, como se tivesse funções de servidor instaladas e pudesse ser gerenciado como um servidor.", "correct": false },
+        { "key": "C", "text": "Somente a estação local, pois RSAT não administra máquinas remotas.", "correct": false },
+        { "key": "D", "text": "Servidores Unix, desde que o cliente tenha o módulo Server Manager e credenciais administrativas da plataforma.", "correct": false },
+        { "key": "E", "text": "Somente servidores que executem exatamente a mesma versão do Windows da estação.", "correct": false }
+      ],
+      "explanation": "Server Manager permite gerenciar servidores Windows Server locais ou remotos adicionados, conforme conectividade e autorização. RSAT fornece ferramentas de administração no cliente; não torna um Windows cliente servidor e Server Manager não é uma ferramenta de administração de Unix.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Linux de uma equipe, um usuário consegue listar nomes de uma pasta, mas não abrir arquivos por esse caminho. Qual permissão do diretório pode estar faltando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Gravação no arquivo, necessária para atravessar todos os diretórios e resolver os nomes dos arquivos.", "correct": false },
+        { "key": "B", "text": "Execução no diretório, que permite atravessá-lo para alcançar os objetos.", "correct": true },
+        { "key": "C", "text": "Leitura no sistema de arquivos, que inicia o processo da pasta e percorre seus diretórios ancestrais.", "correct": false },
+        { "key": "D", "text": "Gravação no diretório, que autoriza automaticamente a leitura dos arquivos.", "correct": false },
+        { "key": "E", "text": "Leitura no diretório, que concede execução nos arquivos descendentes.", "correct": false }
+      ],
+      "explanation": "Em diretório Unix, leitura permite listar nomes e execução permite travessia e resolução de nomes no caminho. Ainda podem existir restrições nos próprios arquivos ou em diretórios superiores, por isso a permissão de execução não concede leitura dos conteúdos por si só.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar arquivos com modo solicitado 666 e umask 027, que modo tradicional resulta para um arquivo regular, desconsideradas ACLs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "640: dono lê e grava, grupo lê e outros não recebem permissões.", "correct": true },
+        { "key": "B", "text": "750: dono pode executar, grupo pode ler e executar, outros não acessam.", "correct": false },
+        { "key": "C", "text": "666: a máscara é aplicada somente a arquivos criados pelo superusuário, mas não aos arquivos de contas comuns.", "correct": false },
+        { "key": "D", "text": "777: a máscara adiciona execução para manter compatibilidade de programas e permitir sua inicialização direta.", "correct": false },
+        { "key": "E", "text": "600: a máscara sempre remove toda permissão do grupo, qualquer que seja seu valor.", "correct": false }
+      ],
+      "explanation": "A umask remove bits do modo solicitado. Aplicar 027 a 666 produz 640: o grupo mantém leitura, enquanto escrita para grupo e todos os direitos de outros são removidos. A máscara não acrescenta execução nem tem regra especial geral para superusuário.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script shell precisa guardar erros de diagnóstico em `falhas.log` e acrescentar novos registros sem apagar os anteriores. Qual redirecionamento atende a necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar `> falhas.log` para acrescentar stderr ao final do arquivo existente sem apagar registros anteriores.", "correct": false },
+        { "key": "B", "text": "Usar `2>> falhas.log` para acrescentar stderr sem substituir o conteúdo anterior.", "correct": true },
+        { "key": "C", "text": "Usar `>> falhas.log` para capturar stderr e substituir o arquivo existente sempre que a rotina iniciar.", "correct": false },
+        { "key": "D", "text": "Usar `| falhas.log` para registrar automaticamente os dois fluxos do comando.", "correct": false },
+        { "key": "E", "text": "Usar `2> falhas.log` para acrescentar o fluxo normal e preservar os erros.", "correct": false }
+      ],
+      "explanation": "O descritor 2 é stderr e `>>` acrescenta ao destino. `>` e `2>` substituem o arquivo, `>>` sem o descritor seleciona stdout e o pipe liga fluxos entre processos, não nomeia sozinho um arquivo de log.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num servidor Windows, a pasta tem permissão NTFS de Modificar para o grupo Financeiro, mas a permissão do compartilhamento SMB concede somente Leitura a esse grupo. O que o usuário do grupo consegue fazer pela rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Alterar arquivos, pois a permissão NTFS mais detalhada sempre prevalece sobre SMB.", "correct": false },
+        { "key": "B", "text": "Ler conforme permitido por ambos os níveis, sem obter Modificar pela rede.", "correct": true },
+        { "key": "C", "text": "Acessar com Controle Total, pois duas ACLs combinam permissões por soma.", "correct": false },
+        { "key": "D", "text": "Alterar se mapear a pasta como unidade, pois o mapeamento ignora a ACL SMB.", "correct": false },
+        { "key": "E", "text": "Nenhum acesso, pois permissões NTFS e SMB nunca podem permitir leitura conjunta.", "correct": false }
+      ],
+      "explanation": "No acesso remoto, compartilham-se as permissões SMB e as NTFS aplicáveis. A permissão mais restritiva impede a alteração, embora ambas permitam leitura. Mapear unidade não remove a avaliação de autorização.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell baixado da Internet deve ser executado num ambiente configurado como `AllSigned`. Qual condição a política exige para o arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Que o arquivo esteja assinado por um editor tratado como confiável, inclusive se foi criado localmente.", "correct": true },
+        { "key": "B", "text": "Que o usuário pertença ao grupo Administradores e mantenha a assinatura opcional.", "correct": false },
+        { "key": "C", "text": "Que o script esteja armazenado numa pasta NTFS com Controle Total para todos.", "correct": false },
+        { "key": "D", "text": "Que a máquina seja Windows Server, porque a política não opera em clientes.", "correct": false },
+        { "key": "E", "text": "Que o arquivo seja convertido para comando interativo e não seja assinado.", "correct": false }
+      ],
+      "explanation": "AllSigned exige assinatura de editor confiável para scripts e arquivos de configuração, inclusive os criados localmente. A política não é condicionada à associação a Administradores e tampouco torna o conteúdo assinado necessariamente benigno.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa de evidência de que uma cópia de arquivo mudou em relação a uma versão aprovada. Qual mecanismo detecta diretamente divergência de conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Replicação síncrona, pois garante autoria e restaura versões apagadas.", "correct": false },
+        { "key": "B", "text": "Hash calculado para as duas versões e comparação dos valores obtidos.", "correct": true },
+        { "key": "C", "text": "ACL de leitura, pois impede qualquer alteração feita pelo proprietário.", "correct": false },
+        { "key": "D", "text": "Backup completo, que compara conteúdo e identifica automaticamente o autor.", "correct": false },
+        { "key": "E", "text": "Log de eventos, que recupera bytes sem guardar cópia do arquivo.", "correct": false }
+      ],
+      "explanation": "Comparar hashes calculados sobre as duas versões permite detectar diferença no conteúdo. Isso não prova autoria nem restaura o original; backup e controle de acesso atendem necessidades distintas.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O administrador acrescenta `$` ao nome de um compartilhamento SMB para que ele não apareça na enumeração comum. Qual conclusão está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O sufixo oculta a enumeração usual, mas não substitui controles de autorização.", "correct": true },
+        { "key": "B", "text": "O sufixo exige autenticação multifator antes de qualquer acesso ao caminho, mesmo para contas locais já autorizadas.", "correct": false },
+        { "key": "C", "text": "O sufixo criptografa os arquivos e restringe cópias fora do servidor, protegendo o conteúdo em repouso.", "correct": false },
+        { "key": "D", "text": "O sufixo impede o acesso até mesmo de administradores que saibam o caminho.", "correct": false },
+        { "key": "E", "text": "O sufixo concede Controle Total a quem conhece o nome exato do compartilhamento.", "correct": false }
+      ],
+      "explanation": "O caractere `$` torna o nome oculto da enumeração habitual, mas um usuário que conhece o caminho ainda pode tentar acessá-lo. A autorização continua dependendo das permissões SMB e NTFS configuradas.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um processo Linux grava dados temporários em `/proc` e espera encontrá-los após reiniciar o sistema. Qual avaliação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "É adequado, pois `/proc` é o diretório persistente padrão para arquivos de usuário e configurações da aplicação.", "correct": false },
+        { "key": "B", "text": "É inadequado, pois `/proc` expõe interfaces e informações do kernel, não armazenamento persistente comum.", "correct": true },
+        { "key": "C", "text": "É adequado somente quando o processo usa UID zero para preservar os dados.", "correct": false },
+        { "key": "D", "text": "É inadequado porque `/proc` armazena exclusivamente pacotes instalados pelo sistema e seus arquivos executáveis.", "correct": false },
+        { "key": "E", "text": "É adequado, desde que a umask do usuário permita gravação ao grupo.", "correct": false }
+      ],
+      "explanation": "`/proc` é um sistema de arquivos virtual que expõe interfaces e informações de processos ou do kernel; não é destino de armazenamento persistente comum. Dados duráveis devem ir a um sistema de arquivos próprio, com política de backup adequada.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer disponibilizar um servidor de arquivos Windows a usuários da rede. O Windows Server tem compartilhamento habilitado, mas a ACL NTFS nega leitura ao grupo autorizado na ACL SMB. O que deve ser revisado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A ACL NTFS do caminho físico, pois a permissão de compartilhamento permissiva não remove essa negação.", "correct": true },
+        { "key": "B", "text": "A extensão do arquivo, que determina a precedência da permissão de compartilhamento.", "correct": false },
+        { "key": "C", "text": "O nome do compartilhamento, que deve terminar em `$` para liberar leitura NTFS.", "correct": false },
+        { "key": "D", "text": "O protocolo NFS, que sempre substitui a autorização NTFS quando SMB está ativo.", "correct": false },
+        { "key": "E", "text": "A política de execução PowerShell, que controla leitura de arquivos em SMB.", "correct": false }
+      ],
+      "explanation": "A ACL NTFS do caminho físico participa da autorização, assim como a permissão do compartilhamento. Um nível que nega leitura limita o acesso pela rede mesmo que o outro conceda leitura. As opções restantes confundem nome, protocolo e execução de scripts com ACL de arquivo.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador altera uma configuração de serviço no Windows e o serviço para de iniciar. Qual ação inicial favorece diagnóstico e preserva evidências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Limpar os logs de eventos para que mensagens antigas não confundam a equipe antes de repetir a inicialização.", "correct": false },
+        { "key": "B", "text": "Reinstalar todas as funções do servidor antes de identificar a falha registrada e comparar a configuração alterada.", "correct": false },
+        { "key": "C", "text": "Consultar eventos e estado do serviço, comparar a mudança recente e validar a conta usada.", "correct": true },
+        { "key": "D", "text": "Conceder Controle Total a Everyone na pasta do serviço e tentar novamente sem examinar a identidade do processo.", "correct": false },
+        { "key": "E", "text": "Desabilitar a auditoria e reiniciar repetidamente até o serviço ficar ativo.", "correct": false }
+      ],
+      "explanation": "Consultar eventos e estado ajuda a localizar falha de inicialização, dependência, conta ou configuração recente sem destruir evidências. Conceder permissões amplas ou limpar logs mascara a causa e aumenta risco; reinstalar sem diagnóstico não é uma primeira medida controlada.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja garantir que exclusões acidentais numa pasta compartilhada não sejam propagadas imediatamente para todas as cópias e que os dados possam ser recuperados. Qual controle atende melhor ao objetivo de recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter somente uma réplica online que receba alterações e exclusões em tempo real.", "correct": false },
+        { "key": "B", "text": "Criar backups protegidos com retenção e testar a restauração de arquivos.", "correct": true },
+        { "key": "C", "text": "Calcular hash após cada alteração e apagar a versão anterior do arquivo.", "correct": false },
+        { "key": "D", "text": "Ocultar o nome do compartilhamento para impedir exclusões por usuários autorizados.", "correct": false },
+        { "key": "E", "text": "Conceder leitura a todos e remover qualquer registro de alteração de dados.", "correct": false }
+      ],
+      "explanation": "Backups protegidos e testados permitem recuperar uma versão anterior após exclusão ou corrupção. Uma réplica online pode propagar a exclusão; hash detecta divergência, mas não armazena a versão recuperável.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração de dados para o z/OS precisa dar acesso ao arquivo `/u/equipe/entrada` pelo USS. Qual conjunto de identidades é relevante para associação de usuários RACF ao ambiente USS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "UID para a identidade do usuário e GID para o grupo, associados às definições RACF aplicáveis.", "correct": true },
+        { "key": "B", "text": "PID para o usuário e JCL para o grupo, definidos pelo spool do JES2.", "correct": false },
+        { "key": "C", "text": "SID para o caminho e ACL de compartilhamento para a sessão TSO/E.", "correct": false },
+        { "key": "D", "text": "Número do job para o usuário e classe SYSOUT para o grupo de arquivos.", "correct": false },
+        { "key": "E", "text": "Nome do conjunto de dados MVS para substituir UID, GID e controles do caminho.", "correct": false }
+      ],
+      "explanation": "Em USS, a identidade RACF associa-se a UID e grupo RACF a GID. O sistema verifica se o usuário e seu grupo de conexão estão definidos para o ambiente UNIX e então utiliza controles de acesso para as operações de arquivo. PID e job number identificam processos e trabalhos, não usuários Unix.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador pretende alterar um serviço Linux gerenciado por systemd e confirmar o resultado. Qual abordagem usa os papéis usuais dessas ferramentas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar `journalctl` para editar o serviço e `chmod` para consultar seus eventos.", "correct": false },
+        { "key": "B", "text": "Usar `systemctl` para consultar ou controlar a unidade e examinar os registros pertinentes.", "correct": true },
+        { "key": "C", "text": "Usar `/proc` para gravar a definição persistente e `umask` para iniciá-la.", "correct": false },
+        { "key": "D", "text": "Usar `JES2` para iniciar o daemon e `SDSF` para aprovar seus privilégios.", "correct": false },
+        { "key": "E", "text": "Usar `Get-Service` em qualquer Unix, pois cmdlets PowerShell são utilitários POSIX.", "correct": false }
+      ],
+      "explanation": "Em sistemas Linux que usam systemd, systemctl consulta e controla unidades de serviço; os registros podem ser examinados no journal ou nos logs locais, conforme a configuração. Isso não é universal a todas as variantes Unix. Os demais comandos têm funções ou plataformas distintas.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe de suporte quer instalar uma função de servidor num Windows Server remoto e fazer isso de modo centralizado. Qual ferramenta oferece essa possibilidade, desde que o servidor esteja adicionado e o operador autorizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Server Manager, que pode gerenciar funções e recursos de servidores Windows locais e remotos.", "correct": true },
+        { "key": "B", "text": "Visualizador de Eventos, que instala funções como parte da consulta de logs.", "correct": false },
+        { "key": "C", "text": "SDSF, que administra funções Windows por meio das filas do z/OS.", "correct": false },
+        { "key": "D", "text": "umask, que seleciona funções do Windows a partir dos bits de acesso.", "correct": false },
+        { "key": "E", "text": "NTFS, que identifica funções disponíveis e as instala automaticamente.", "correct": false }
+      ],
+      "explanation": "Server Manager pode adicionar, remover e administrar funções e recursos de servidores locais ou remotos incluídos na ferramenta, por assistente ou cmdlets associados. Visualizador de Eventos consulta registros; NTFS controla arquivos e umask pertence a Unix-like.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa de script foi concluída sem imprimir mensagens, mas a ferramenta retornou código de saída diferente de zero. Como deve ser tratado o resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Como sucesso comprovado, pois somente mensagens em stderr indicam falha e os códigos de saída não precisam ser tratados.", "correct": false },
+        { "key": "B", "text": "Como indicação de falha que deve ser interpretada e registrada pelo script chamador.", "correct": true },
+        { "key": "C", "text": "Como prova de que a saída padrão foi redirecionada para um arquivo oculto e de que a operação terminou corretamente.", "correct": false },
+        { "key": "D", "text": "Como autorização negada pelo sistema, mesmo sem consultar o comando executado.", "correct": false },
+        { "key": "E", "text": "Como sucesso, desde que a variável de ambiente PATH contenha diretórios válidos.", "correct": false }
+      ],
+      "explanation": "O código de saída é um indicador importante do resultado: zero costuma sinalizar sucesso e valor não zero sinaliza falha, embora seu significado específico dependa do comando. A ausência de texto não anula o código nem identifica sozinha a causa.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em RACF, uma equipe autorizada a ler um conjunto de dados deve receber a autorização mínima compatível com essa tarefa. Qual nível corresponde diretamente à consulta sem atualização do conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "ALTER, que permite as operações mais amplas sobre o conjunto de dados.", "correct": false },
+        { "key": "B", "text": "CONTROL, que concede controle ampliado em contextos específicos de conjunto de dados.", "correct": false },
+        { "key": "C", "text": "UPDATE, que permite modificar dados além de apenas consultá-los.", "correct": false },
+        { "key": "D", "text": "READ, que permite consultar o conjunto de dados sem conceder atualização por esse nível.", "correct": true },
+        { "key": "E", "text": "OPERATIONS, atributo que substitui o perfil e dá leitura universal a qualquer usuário.", "correct": false }
+      ],
+      "explanation": "READ é o nível destinado a consulta. UPDATE acrescenta atualização de conteúdo; CONTROL e ALTER têm autorizações mais amplas, com efeitos específicos para o recurso. Atribuir somente o necessário segue menor privilégio.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma administração Linux usa o comando `chmod 750 relatorio.sh` num arquivo comum. Qual descrição dos bits tradicionais está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Dono recebe leitura, gravação e execução; grupo recebe leitura e execução; outros não recebem bits.", "correct": true },
+        { "key": "B", "text": "Dono recebe leitura e gravação; grupo recebe leitura; outros recebem execução para iniciar o arquivo diretamente.", "correct": false },
+        { "key": "C", "text": "Dono recebe controle total; grupo recebe alteração; outros recebem somente leitura.", "correct": false },
+        { "key": "D", "text": "Dono recebe execução; grupo recebe gravação e execução; outros recebem leitura, conforme a ordem dos três dígitos.", "correct": false },
+        { "key": "E", "text": "Dono recebe leitura; grupo recebe leitura e gravação; outros recebem leitura e execução.", "correct": false }
+      ],
+      "explanation": "Os dígitos representam dono, grupo e outros. 7 equivale a leitura, gravação e execução; 5 equivale a leitura e execução; 0 não concede esses bits. ACLs ou políticas adicionais ainda podem alterar a avaliação efetiva.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No acesso a um recurso remoto do Windows por nome UNC, uma equipe descobre que uma permissão local não explica o resultado. Qual recurso ajuda a examinar permissões efetivas de compartilhamento e sistema de arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A guia Acesso Efetivo ou ferramenta compatível, avaliando a identidade no servidor e o caminho de rede.", "correct": true },
+        { "key": "B", "text": "A política de execução local, que consolida permissões NTFS e SMB sem consultar o servidor nem a identidade avaliada.", "correct": false },
+        { "key": "C", "text": "A umask do cliente, que determina o acesso de leitura e gravação no servidor Windows.", "correct": false },
+        { "key": "D", "text": "O logon interativo da conta, que garante o mesmo acesso a qualquer compartilhamento remoto.", "correct": false },
+        { "key": "E", "text": "Apenas a ACL da pasta local mapeada, que sempre reproduz permissões remotas e de compartilhamento para toda identidade.", "correct": false }
+      ],
+      "explanation": "A avaliação de acesso efetivo pode considerar ACL do sistema de arquivos e do compartilhamento no servidor remoto. A Microsoft orienta usar o caminho UNC quando a análise depende do controle no nível do compartilhamento; uma unidade mapeada pode não fornecer a mesma avaliação.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa conservar logs de auditoria e impedir que visitantes da aplicação os leiam por navegador. Qual organização de diretórios favorece esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Manter os logs fora da raiz publicada e conceder leitura somente a operadores autorizados.", "correct": true },
+        { "key": "B", "text": "Colocar os logs na raiz web com um nome oculto por cifrões no final do arquivo.", "correct": false },
+        { "key": "C", "text": "Armazenar os logs dentro de `/proc` para que o kernel bloqueie acesso remoto.", "correct": false },
+        { "key": "D", "text": "Deixar os logs no compartilhamento público e esconder o nome da pasta na enumeração SMB.", "correct": false },
+        { "key": "E", "text": "Apagar os registros após cada consulta, mantendo somente o código de status do serviço.", "correct": false }
+      ],
+      "explanation": "Logs armazenados fora da raiz acessível pelo navegador não ficam publicados por engano. ACLs devem limitar consulta a operadores necessários, e a retenção deve preservar evidência. Nomes ocultos ou caminhos virtuais não substituem controle de acesso.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script usa `rm -rf \"$DESTINO\"` para apagar uma área de trabalho. Qual medida reduz o risco de uma variável vazia ou incorreta apontar para o local errado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Validar que o caminho está definido, normalizado e dentro da raiz esperada antes da remoção.", "correct": true },
+        { "key": "B", "text": "Remover as aspas para que o shell expanda os espaços como um único argumento e mantenha o destino dentro da raiz.", "correct": false },
+        { "key": "C", "text": "Executar o script como superusuário para que o diretório seja sempre localizado corretamente.", "correct": false },
+        { "key": "D", "text": "Redirecionar stderr para `/dev/null`, evitando que o shell use o valor vazio e validando o caminho antes da remoção.", "correct": false },
+        { "key": "E", "text": "Aplicar umask restritiva, que impede comandos de exclusão em caminhos fora do usuário.", "correct": false }
+      ],
+      "explanation": "Antes de uma exclusão recursiva, o script precisa validar presença e formato do destino, restringi-lo à raiz aprovada e interromper se a condição falhar. Aspas protegem espaços mas não corrigem variável vazia; privilégios elevados e descarte de erros aumentam o risco.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de operação z/OS precisa confirmar quais declarações JCL foram submetidas e quais mensagens acompanharam o processamento de um trabalho. Qual associação de saídas JES2 está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "JESJCL contém declarações de controle; JESMSGLG reúne mensagens do sistema; JESYSMSG registra alocação e execução dos passos.", "correct": true },
+        { "key": "B", "text": "JESJCL contém o diário do kernel USS; JESMSGLG armazena RACF; JESYSMSG contém somente a senha TSO.", "correct": false },
+        { "key": "C", "text": "JESJCL identifica a conta RACF; JESMSGLG substitui a fila de entrada; JESYSMSG executa os programas do job.", "correct": false },
+        { "key": "D", "text": "JESJCL armazena arquivos permanentes; JESMSGLG lista ACLs do USS; JESYSMSG apresenta somente a saída impressa.", "correct": false },
+        { "key": "E", "text": "JESJCL e JESMSGLG são sinônimos; JESYSMSG é o painel do SDSF que autoriza todos os trabalhos.", "correct": false }
+      ],
+      "explanation": "No log de trabalho JES2, JESJCL apresenta declarações de controle submetidas, JESMSGLG reúne mensagens do sistema e JESYSMSG registra mensagens de alocação, execução e encerramento. São conjuntos de dados de saída, não mecanismos que executam ou autorizam o job.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende conceder temporariamente privilégio elevado a um operador Linux para executar uma ação delimitada. Qual prática reduz melhor a exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Delegar por mecanismo controlado somente os comandos necessários, registrar a ação e remover a concessão ao fim.", "correct": true },
+        { "key": "B", "text": "Compartilhar a senha de root entre operadores e confiar na memória para auditoria posterior, sem registrar quem executou a tarefa.", "correct": false },
+        { "key": "C", "text": "Aplicar chmod 777 nos arquivos do sistema e executar a rotina com uma conta comum, liberando escrita também a outros usuários.", "correct": false },
+        { "key": "D", "text": "Adicionar todos os operadores ao grupo root e manter o privilégio após a manutenção.", "correct": false },
+        { "key": "E", "text": "Desativar os registros do comando para que credenciais privilegiadas não apareçam nos logs.", "correct": false }
+      ],
+      "explanation": "Uma delegação limitada, individual, temporária e auditável aplica menor privilégio e mantém rastreabilidade. Compartilhar root elimina atribuição individual; permissões abertas e supressão de logs aumentam exposição em vez de controlá-la.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell configurado em `RemoteSigned` recebe arquivo baixado da Internet sem assinatura. Segundo a finalidade da política, qual condição pode permitir sua execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O arquivo precisa ser assinado por qualquer certificado, mesmo sem editor confiável.", "correct": false },
+        { "key": "B", "text": "O arquivo pode ser executado se for desbloqueado, embora a origem e o conteúdo ainda devam ser verificados.", "correct": true },
+        { "key": "C", "text": "A política é ignorada sempre que o arquivo tem extensão `.ps1` e caminho UNC.", "correct": false },
+        { "key": "D", "text": "O usuário precisa habilitar `AllSigned` para dispensar assinatura dos scripts baixados.", "correct": false },
+        { "key": "E", "text": "O arquivo pode ser executado apenas como serviço Windows Server, nunca numa sessão cliente.", "correct": false }
+      ],
+      "explanation": "RemoteSigned exige assinatura confiável para scripts identificados como baixados da Internet, mas permite que scripts não assinados sejam executados se desbloqueados, conforme documentação. Isso não torna a execução segura por si só: deve-se conferir origem, conteúdo e privilégios; política de execução não é fronteira de segurança.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer provar que um arquivo veio de um fornecedor aprovado, além de verificar que os bytes não mudaram desde o recebimento. Que combinação é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Verificar assinatura digital e identidade do signatário e comparar hash calculado com valor confiável recebido por canal seguro.", "correct": true },
+        { "key": "B", "text": "Comparar dois hashes enviados juntos pelo mesmo canal e considerar autoria comprovada sem verificar certificado.", "correct": false },
+        { "key": "C", "text": "Usar réplica de rede e interpretar a disponibilidade do espelho como assinatura do fornecedor.", "correct": false },
+        { "key": "D", "text": "Conceder leitura NTFS a Administradores e considerar o acesso como prova de origem.", "correct": false },
+        { "key": "E", "text": "Executar o arquivo em PowerShell AllSigned sem conferir o editor, a origem nem a assinatura apresentada.", "correct": false }
+      ],
+      "explanation": "Hash compara conteúdo, mas seu valor precisa vir de uma fonte confiável para detectar substituição maliciosa. Assinatura digital validada pode vincular o conteúdo ao signatário, desde que certificado e cadeia sejam conferidos. Nenhum mecanismo de réplica ou ACL prova autoria externa.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num z/OS com RACF, uma conta de aplicação precisa acessar diretório USS. Qual conjunto de verificações descreve corretamente uma condição básica para seu primeiro uso de serviço USS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "RACF verifica se o usuário está definido como usuário USS e se seu grupo de conexão está definido como grupo USS.", "correct": true },
+        { "key": "B", "text": "JES2 verifica somente se o job possui SYSOUT e concede acesso a todo caminho USS usado pelo programa, sem checar UID ou grupo.", "correct": false },
+        { "key": "C", "text": "SDSF traduz automaticamente qualquer nome de conjunto MVS em diretório USS acessível e configura as permissões correspondentes.", "correct": false },
+        { "key": "D", "text": "O TSO prefixa o nome do diretório com o usuário e elimina verificações de identidade e grupo.", "correct": false },
+        { "key": "E", "text": "A umask do usuário determina se RACF precisa autenticar a conta na primeira chamada USS.", "correct": false }
+      ],
+      "explanation": "Na primeira solicitação de função USS, RACF verifica se a identidade está definida como usuário USS e se o grupo de conexão atual está definido como grupo USS, inicializando controles para verificações subsequentes. As outras alternativas misturam spool, prefixo TSO, nomes de dados e umask com autenticação USS.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um shell define `PASTA=/srv/jobs` sem exportar a variável e inicia um utilitário externo. Qual é o comportamento padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O utilitário recebe `PASTA` automaticamente, pois todo valor do shell é exportado aos processos filhos.", "correct": false },
+        { "key": "B", "text": "O utilitário não recebe `PASTA` como variável de ambiente, embora o shell possa usar seu valor.", "correct": true },
+        { "key": "C", "text": "O utilitário recebe a variável somente se o diretório `/srv/jobs` tiver modo 777.", "correct": false },
+        { "key": "D", "text": "O shell converte a variável em argumento posicional e a envia ao programa automaticamente.", "correct": false },
+        { "key": "E", "text": "A variável é gravada em `/proc` e compartilhada com qualquer processo iniciado no sistema.", "correct": false }
+      ],
+      "explanation": "Variáveis definidas no shell ficam disponíveis nele, mas só são herdadas pelo ambiente de processos filhos quando exportadas. Permissões de diretório, argumentos posicionais e `/proc` não exportam por conta própria uma variável do shell.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de menor privilégio para um servidor de aplicação deve levar em conta também a identidade sob a qual o serviço roda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um serviço executa ações com os direitos da identidade que o hospeda. Limitar esses direitos reduz o impacto de falhas ou comprometimento; a conta precisa manter somente os acessos exigidos pelo serviço.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No z/OS, JCL é o subsistema que recebe trabalhos, mantém filas de execução e administra a saída de lote.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. JCL descreve trabalho, passos e alocações. Quem recebe e gerencia o processamento e as filas é o JES, como JES2; ferramentas como SDSF acompanham estado e saída.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em permissões Unix, o bit de execução de um diretório está relacionado à travessia do caminho para alcançar seus itens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O bit `x` num diretório autoriza atravessá-lo e resolver nomes nesse caminho. Listar nomes costuma requerer também leitura, e abrir o arquivo depende de permissões próprias e demais controles.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A umask concede permissões adicionais a arquivos já existentes quando o administrador muda seu valor no shell.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A umask afeta permissões iniciais de objetos criados por processos no ambiente correspondente, removendo bits do modo solicitado. Alterar a máscara não muda permissões de arquivos preexistentes.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um compartilhamento Windows terminado em `$` pode ser acessado por um usuário que conheça seu caminho e tenha as permissões necessárias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O cifrão oculta o nome da enumeração comum, mas não desativa o compartilhamento nem substitui a avaliação de permissões SMB e NTFS.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se uma cópia de segurança existe, não há necessidade de testar uma restauração, pois a presença do arquivo comprova que ele pode ser recuperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O arquivo pode estar incompleto, corrompido, inacessível ou depender de etapas não documentadas. Testes de restauração validam que o procedimento e a cópia permitem recuperar os dados pretendidos.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `Restricted` permite comandos individuais interativos, mas impede a execução de arquivos de script segundo a política efetiva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A política Restricted permite comandos individuais, mas bloqueia arquivos de script, módulos de script e perfis PowerShell. Essa configuração é uma proteção contra execução não intencional, não uma fronteira de segurança.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A consulta de saída pelo SDSF torna dispensável configurar as autorizações sobre os dados de spool, pois o painel já autentica o operador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SDSF exibe e controla recursos conforme a segurança configurada. A autenticação para entrar no painel não substitui autorização a funções, trabalhos ou dados de spool, cuja proteção pode envolver RACF e classes como JESSPOOL.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Calcular um hash de arquivo permite identificar que seu conteúdo diverge de uma referência, mas não restaura automaticamente os bytes anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O hash é útil para comparação e detecção de alteração quando o valor de referência é confiável. Para recuperar o conteúdo original é necessária uma cópia válida ou outra fonte de recuperação.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na avaliação de um arquivo por SMB em Windows, basta verificar a ACL NTFS, pois a permissão configurada no compartilhamento é ignorada quando os dois controles existem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Para acesso pela rede, as permissões do compartilhamento também participam da avaliação. A autorização efetiva depende da combinação dos controles SMB e NTFS aplicáveis ao caminho e à identidade.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma assinatura digital válida de script PowerShell garante que o script não contenha comportamento malicioso, porque a política de execução verifica a intenção do código.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A assinatura ajuda a verificar integridade e identidade associada ao signatário, mas não avalia se o comportamento é benigno. Política de execução controla condições de carregamento; a revisão do código, origem e privilégios continuam necessárias.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em z/OS, um diretório USS e um conjunto de dados MVS usam necessariamente o mesmo tipo de nome, o mesmo modelo de alocação e a mesma autorização de arquivo Unix.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. USS fornece caminhos de sistema de arquivos e permissões de estilo Unix, enquanto conjuntos de dados MVS têm nomes qualificados e mecanismos próprios de alocação e proteção, como perfis DATASET RACF. A integração não torna os objetos idênticos.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica pode aumentar a disponibilidade de dados, embora uma exclusão ou corrupção também possa ser propagada para ela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Replicação mantém outra cópia operacional, mas pode replicar alterações destrutivas. Cópias de segurança com retenção e restauração testada fornecem uma via distinta de recuperação.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No shell, `>` normalmente substitui o destino de saída se o arquivo já existir, enquanto `>>` acrescenta conteúdo ao final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esses operadores atuam sobre o fluxo redirecionado: `>` abre o destino para substituição e `>>` acrescenta. Sem especificar o descritor, o redirecionamento normalmente se refere à saída padrão, não ao fluxo de erros.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Windows Desktop com RSAT passa a aceitar funções de Windows Server e pode ser administrado pelo Server Manager como um servidor remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. RSAT disponibiliza ferramentas no cliente para administrar funções e recursos em Windows Server. Isso não instala funções de servidor no cliente; Server Manager não gerencia computadores que executam sistema operacional Windows cliente como alvos de servidor.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No z/OS, permissões USS com UID e GID tornam desnecessários os perfis RACF de conjuntos de dados MVS usados pela mesma aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. UID/GID e permissões do sistema de arquivos aplicam-se às operações USS; conjuntos de dados MVS são recursos distintos e podem depender de perfis RACF da classe DATASET. Uma aplicação que usa ambos precisa de autorizações compatíveis em cada modelo.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A opção `AllSigned` do PowerShell exige assinatura confiável também para scripts locais criados na própria máquina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. AllSigned aplica a exigência de assinatura a scripts e arquivos de configuração, inclusive os criados localmente. A assinatura deve ser validada e o conteúdo ainda precisa de revisão, pois assinatura não é atestado de ausência de comportamento malicioso.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dar ao usuário leitura num diretório Unix garante que ele atravesse todos os diretórios ancestrais e leia o conteúdo de qualquer arquivo abaixo dele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Leitura no diretório permite em geral listar nomes, mas a travessia requer execução nos diretórios do caminho. A leitura do arquivo depende das permissões desse objeto, da identidade e de controles adicionais como ACL ou política de segurança.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança administrativa bem-sucedida deve ser considerada íntegra mesmo quando não há registro da identidade usada nem validação posterior do resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Sem identificar a conta executora e validar o estado final, a equipe perde rastreabilidade e não confirma que a mudança produziu o efeito previsto. Registro e verificação não provam sozinhos ausência de falha, mas são controles importantes de integridade operacional.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deve avaliar permissões efetivas Windows considerando associação a grupos e herança, pois uma entrada isolada da ACL pode não descrever todo o acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A autorização calculada considera entradas aplicáveis à identidade, inclusive grupos e herança, além do caminho e do nível compartilhamento quando remoto. A ferramenta Acesso Efetivo auxilia a avaliação do resultado combinado.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O encerramento abrupto de um processo é sempre equivalente a parar o serviço de forma controlada, porque ambos garantem gravação dos dados pendentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um sinal ou encerramento forçado não garante que a aplicação concluiu gravações e liberou recursos de maneira limpa. Quando possível, use o procedimento de parada do serviço e confirme o estado e os registros posteriores.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A autorização `UPDATE` em perfil RACF de conjunto de dados permite atualização de conteúdo e, por isso, não corresponde ao privilégio mínimo de um grupo que apenas consulta dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. READ atende consulta; UPDATE permite leitura e alteração de conteúdo. A autorização deve corresponder à atividade, e concessões mais amplas que a necessidade aumentam o risco de modificação indevida.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um checksum armazenado junto ao arquivo no mesmo local gravável pelo mesmo usuário sempre fornece evidência independente de que o arquivo não foi adulterado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Se o agente que altera o arquivo também pode substituir o valor de referência, ele pode recalcular ambos. A comparação é mais útil quando o valor confiável é protegido ou obtido por canal autenticado; o checksum tampouco recupera dados.",
+      "section": "4. z/OS, compartilhamento entre ambientes e integridade operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta de serviço Windows com permissão de administrador local reduz o impacto de comprometimento em comparação com uma conta restrita aos recursos usados pelo serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Direitos administrativos ampliam as ações possíveis se o serviço for comprometido. Uma identidade com permissões mínimas necessárias limita o impacto e favorece o princípio do menor privilégio.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um operador confirmou que um trabalho z/OS apareceu no spool. Isso prova que todas as etapas terminaram com sucesso e que os dados de saída estão corretos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A presença de saída ou registro no spool não demonstra sucesso sem examinar estado final, códigos de retorno e mensagens pertinentes. Também não valida o conteúdo produzido; os critérios de negócio e integridade precisam ser conferidos.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A interface de shell e a API do z/OS UNIX System Services se baseiam em interfaces de sistemas abertos, embora USS continue integrado ao sistema z/OS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A IBM descreve a API e a interface shell de USS como baseadas em padrões POSIX e outros padrões de sistemas abertos. USS interage com elementos z/OS, como JES, TSO/E, RACF, zFS e serviços de comunicação, em vez de ser um sistema desconectado do mainframe.",
+      "section": "1. Rotina de administração e diferenças entre plataformas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, a política de execução do PowerShell pode ter escopo de computador, usuário ou sessão, e uma configuração de Group Policy pode prevalecer sobre as políticas definidas no PowerShell.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação distingue escopos locais, de usuário e de sessão; a política de Group Policy tem precedência sobre valores ajustados nos escopos do PowerShell. A sessão guarda sua configuração apenas em memória e perde o ajuste quando é encerrada.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma ACL NTFS pode granular permissões de arquivos e pastas para usuários ou grupos, e o NTFS também oferece suporte a cotas de disco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O NTFS permite controle granular de acesso por ACL e suporta recursos administrativos como cotas de disco. A quota regula consumo de armazenamento; não substitui a permissão de acesso aos objetos nem a avaliação SMB numa conexão de rede.",
+      "section": "3. Windows Desktop e Server: serviços, políticas, PowerShell e compartilhamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num script executado diretamente em Unix-like, a linha inicial com shebang indica ao sistema o interpretador esperado para o arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A linha iniciada por `#!` identifica o interpretador a ser usado na execução direta do arquivo, sujeito à disponibilidade do caminho indicado. Invocar manualmente um interpretador com o arquivo é uma forma distinta de execução.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num pipeline de shell, a saída padrão de um comando pode ser conectada à entrada padrão do comando seguinte, enquanto os erros permanecem em fluxo separado por padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O operador pipe conecta stdout de um processo à entrada do próximo. Stderr não entra automaticamente nesse canal em um pipeline simples; é preciso redirecionar ou combinar fluxos explicitamente, de acordo com o shell.",
+      "section": "2. Linux e Unix: arquivos, identidades, processos e shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RACF and z/OS UNIX",
+      "publisher": "IBM Documentation",
+      "reference": "Validação de identidade USS, UID/GID, verificação de acesso a arquivos e usuários privilegiados.",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=guide-racf-zos-unix",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "z/OS UNIX System Services Planning",
+      "publisher": "IBM Documentation",
+      "reference": "Planejamento, operação, gestão de sistemas de arquivos, segurança e monitoramento de USS.",
+      "url": "https://www.ibm.com/docs/en/zos/2.5.0?topic=services-zos-unix-system-planning",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SDSF and MVS operations planning",
+      "publisher": "IBM Documentation",
+      "reference": "Filas JES, estado dos trabalhos, saída, logs e funções de monitoramento pelo SDSF.",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=environment-sdsf-mvs-operations-planning",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "JES2 system data sets",
+      "publisher": "IBM Documentation",
+      "reference": "Conteúdo de JESJCL, JESMSGLG e JESYSMSG no log de trabalho.",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=punches-jes2-system-data-sets",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Controlling access to SYSIN and SYSOUT",
+      "publisher": "IBM Documentation",
+      "reference": "Proteção de dados de spool do JES2 e classe RACF JESSPOOL.",
+      "url": "https://www.ibm.com/docs/en/zos/3.2.0?topic=spool-controlling-access-sysin-sysout",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Linux kernel user's and administrator's guide",
+      "publisher": "The Linux Kernel documentation",
+      "reference": "Interfaces administrativas, /proc, /sys, subsistemas, namespaces e documentação de administração do kernel Linux.",
+      "url": "https://www.kernel.org/doc/html/latest/admin-guide/index.html",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Linux man-pages project",
+      "publisher": "Linux man-pages project",
+      "reference": "Semântica de processos, credenciais, permissões de arquivos e interfaces Unix/Linux.",
+      "url": "https://www.kernel.org/doc/man-pages/",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NTFS overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Recursos do NTFS, descritores de segurança e controle granular por ACL.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/ntfs-overview",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Share and NTFS Permissions",
+      "publisher": "Microsoft Learn",
+      "reference": "Configuração de permissões de compartilhamento e de pastas NTFS, inclusive compartilhamentos ocultos.",
+      "url": "https://learn.microsoft.com/en-us/iis/web-hosting/configuring-servers-in-the-windows-web-platform/configuring-share-and-ntfs-permissions",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Execution_Policies",
+      "publisher": "Microsoft Learn",
+      "reference": "Comportamento de Restricted, RemoteSigned e AllSigned e limites da política de execução do PowerShell.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.6",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Server Manager",
+      "publisher": "Microsoft Learn",
+      "reference": "Gestão local ou remota de servidores Windows Server e funções pelo Server Manager.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/server-manager/server-manager",
+      "accessedAt": "2026-11-13"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is SMB File Sharing for Windows and Windows Server?",
+      "publisher": "Microsoft Learn",
+      "reference": "Servidor SMB, compartilhamento de arquivos e eventos SMB no Windows.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/file-server-smb-overview",
+      "accessedAt": "2026-11-13"
+    }
+  ]
+}

@@ -1,0 +1,704 @@
+{
+  "id": "informatica.apis-integracao-seguranca",
+  "subject": "Informática",
+  "title": "APIs, integração e segurança",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "APIs e segurança (REST, JSON, XML, CORS, CSRF, XSS, API Gateway, SSO e certificados digitais)",
+    "Interfaces de programação e integração segura",
+    "APIs REST e segurança de aplicações",
+    "Integração de sistemas com APIs REST",
+    "Formatos JSON e XML em APIs",
+    "Segurança de APIs e serviços web",
+    "CORS, CSRF e XSS em aplicações web",
+    "API Gateway e controle de tráfego",
+    "Single Sign-On e federação de identidade",
+    "Certificados digitais e autenticação TLS"
+  ],
+  "scope": {
+    "covers": "Conceito e desenho de APIs REST sobre HTTP; semântica de métodos e códigos; representação de dados em JSON e XML; CORS e preflight; CSRF e XSS; autenticação, autorização, validação e limites de consumo de APIs; função de API Gateway; SSO e OpenID Connect; certificados digitais, cadeia de confiança, TLS e assinatura digital.",
+    "excludes": "Implementação detalhada de produto específico de gateway, configuração completa de servidores, algoritmos criptográficos em nível matemático, legislação brasileira de certificação e especificação aprofundada de todos os fluxos OAuth."
+  },
+  "theoryTitle": "APIs e integração segura entre aplicações",
+  "chapters": [
+    {
+      "title": "1. APIs, REST e formatos de representação",
+      "markdown": "### O problema que este assunto resolve\n\nUma API (interface de programação de aplicações) define como um sistema oferece operações e dados a outro sistema. Em uma API web, cliente e servidor trocam mensagens HTTP: a requisição identifica um recurso e uma operação; a resposta informa o resultado e, quando aplicável, uma representação do recurso. Uma API bem definida reduz dependências internas entre os sistemas e explicita o contrato de integração.\n\n> **Siglas e termos deste capítulo**\n> - **API**: conjunto de operações e regras de comunicação oferecidas por um programa.\n> - **REST**: estilo arquitetural que organiza a interação em torno de recursos identificados por URI e da interface uniforme do HTTP.\n> - **URI**: identificador de recurso, como `/clientes/42`.\n> - **JSON**: formato textual leve para representar objetos, listas, números, textos, booleanos e nulo.\n> - **XML**: linguagem textual de marcação extensível, estruturada por elementos e atributos.\n> - **Idempotência**: propriedade pela qual repetir uma operação produz o mesmo efeito pretendido que executá-la uma vez.\n\n### Recursos, métodos e respostas HTTP\n\nEm REST, uma rota deve nomear um recurso; o método HTTP expressa a intenção. `GET /pedidos/42` solicita a representação do pedido. `POST /pedidos` envia dados para processamento, normalmente criando um pedido. `PUT /clientes/42` substitui a representação do cliente, enquanto `PATCH` costuma alterar parte dela. `DELETE /pedidos/42` solicita a remoção. A semântica exata depende do contrato publicado pelo serviço, mas os métodos padronizados não devem ser tratados como nomes arbitrários de função.\n\n| Método | Intenção usual | Propriedade relevante |\n| --- | --- | --- |\n| GET | Obter representação | Seguro: não solicita mudança de estado |\n| POST | Processar conteúdo ou criar recurso | Em geral não idempotente |\n| PUT | Substituir representação do recurso | Idempotente por definição HTTP |\n| PATCH | Aplicar alterações parciais | Idempotência depende da operação definida |\n| DELETE | Remover representação | Idempotente quanto ao efeito pretendido |\n\nOs códigos de status comunicam o resultado sem depender do formato do corpo: `200` indica sucesso com resposta; `201` indica criação; `204` indica sucesso sem conteúdo; `400` sinaliza requisição inválida; `401` ausência de autenticação válida; `403` recusa de autorização; `404` recurso não encontrado; `409` conflito; `429` limitação de requisições; e códigos `5xx` apontam falha do servidor ou de um intermediário. Não se deve usar `401` e `403` como sinônimos: o primeiro trata de credenciais/autenticação, o segundo de permissão.\n\n### JSON e XML: dados não são código\n\nJSON define valores como objeto, array, número, string, `true`, `false` e `null`. Nomes de membros são strings entre aspas duplas; texto transmitido entre sistemas deve usar UTF-8. O tipo de mídia usual é `application/json`. JSON é um formato de dados, não uma linguagem segura para executar: parseie com parser próprio, nunca com `eval`. Também valide campos, tipos, tamanhos, limites numéricos e estrutura conforme o contrato; sintaxe válida não significa dado autorizado ou semanticamente correto.\n\nXML representa dados com elementos aninhados, atributos e texto. Sua extensibilidade é útil em contratos documentais e integrações legadas. XML pode ser validado por esquema, mas a validação de estrutura não substitui autorização nem validação de negócio. Parsers XML devem ser configurados para não buscar entidades externas desnecessárias; o processamento inseguro de entidades externas pode permitir leitura de arquivos ou requisições a outros serviços (XXE).\n\n| Aspecto | JSON | XML |\n| --- | --- | --- |\n| Estrutura | Objetos, arrays e valores | Elementos, atributos e texto |\n| Tipagem/contrato | Validada pela aplicação ou esquema adotado | Pode usar DTD ou XML Schema |\n| Uso comum | APIs web leves | Documentos e integrações que exigem marcação/contrato XML |\n| Cuidado | Não interpretar com `eval`; controlar tamanho e profundidade | Desabilitar entidades externas quando não necessárias |\n\n### Como cai na prova\n\n- GET é leitura segura; não é licença para produzir efeitos colaterais na aplicação.\n- PUT e DELETE são idempotentes no sentido do efeito pretendido, embora respostas sucessivas possam ter códigos diferentes.\n- JSON sintaticamente válido ainda pode conter campos proibidos ou valores fora do domínio esperado.\n- XML Schema e JSON Schema ajudam a verificar formato; não decidem se o usuário pode acessar o recurso.\n- `401` trata de autenticação; `403`, de autorização negada."
+    },
+    {
+      "title": "2. CORS, CSRF e XSS no navegador",
+      "markdown": "### O problema que este assunto resolve\n\nO navegador aplica regras de origem para limitar como uma página acessa recursos de outro site. Ao mesmo tempo, cookies podem ser enviados automaticamente em requisições, e dados externos podem acabar inseridos em uma página como marcação ou script. CORS, CSRF e XSS tratam de problemas diferentes: permissão de leitura entre origens, requisições forjadas com credenciais e execução de conteúdo não confiável no contexto da página.\n\n> **Siglas e termos deste capítulo**\n> - **Origem**: combinação de esquema, host e porta; mudar qualquer componente cria outra origem.\n> - **CORS**: mecanismo HTTP pelo qual o servidor declara quais origens de navegador podem ler certas respostas.\n> - **Preflight**: requisição `OPTIONS` que o navegador envia antes de certas requisições cross-origin.\n> - **CSRF**: falsificação de requisição entre sites; o navegador autenticado é induzido a enviar ação indesejada.\n> - **XSS**: injeção de conteúdo que o navegador interpreta como código executável.\n> - **SameSite**: atributo de cookie que restringe em que contextos cross-site o navegador o envia.\n\n### CORS não autentica nem bloqueia todo acesso\n\nO servidor responde com cabeçalhos como `Access-Control-Allow-Origin` para declarar a origem autorizada. Se uma requisição cross-origin exigir preflight, o navegador envia `OPTIONS` com `Origin`, `Access-Control-Request-Method` e possivelmente `Access-Control-Request-Headers`; o servidor informa métodos e cabeçalhos admitidos. O preflight é uma verificação de permissão do navegador, não a requisição de negócio. Requisições simples podem ser enviadas mesmo que o navegador depois impeça o JavaScript de ler a resposta; por isso CORS não substitui autenticação, autorização, validação ou proteção contra CSRF.\n\nPara credenciais cross-origin, o servidor precisa permitir credenciais e indicar uma origem específica; `Access-Control-Allow-Origin: *` não pode ser combinado com credenciais. Refletir sem validação qualquer valor recebido em `Origin` transforma a política em permissão ampla. CORS é aplicado por navegadores, não impede chamadas diretas feitas por clientes fora do navegador.\n\n### CSRF: proteger ações autenticadas\n\nEm CSRF, a vítima já tem sessão válida no site alvo. Um site malicioso induz o navegador da vítima a enviar uma requisição e o navegador pode anexar automaticamente o cookie de sessão. O servidor confunde a ação forjada com ação legítima. A defesa clássica é um token anti-CSRF imprevisível, associado à sessão ou ao contexto da requisição, enviado em campo ou cabeçalho que o atacante não consegue obter por outra origem e validado no servidor. Também se pode verificar `Origin`/`Referer` conforme o fluxo, usar cookies `SameSite` como defesa adicional e exigir confirmação para operações sensíveis.\n\nNão altere estado com `GET`: métodos seguros podem ser acionados por navegação, imagens ou links, aumentando a superfície de CSRF. `SameSite` reduz envio cross-site de cookies, mas seu efeito depende do atributo, do navegador e do fluxo; não deve ser a única defesa quando a operação exige proteção robusta. Tokens bearer enviados explicitamente em cabeçalho não são automaticamente anexados pelo navegador como cookies, mas continuam exigindo armazenamento e proteção adequados.\n\n### XSS: saída no contexto correto\n\nXSS ocorre quando dado não confiável chega ao DOM em contexto que o navegador interpreta como HTML, JavaScript, CSS ou URL executável. Pode ser armazenado (persistido pelo sistema), refletido na resposta imediata ou baseado no DOM (a lógica do cliente usa fonte não confiável em um destino perigoso). Para exibir texto, prefira APIs que criam nós de texto e o escape automático do framework. Se HTML permitido pelo produto precisar ser exibido, use sanitizador mantido e restritivo. Codifique a saída para o contexto exato; escapar HTML não torna seguro um valor usado em JavaScript, CSS ou URL. Validação de entrada e Content Security Policy ajudam, mas não substituem codificação contextual e APIs seguras.\n\n| Risco | O que o navegador faz | Defesa central |\n| --- | --- | --- |\n| CORS mal configurado | Permite que script de outra origem leia resposta | Allowlist explícita e política de credenciais correta |\n| CSRF | Envia sessão do usuário junto de ação forjada | Token validado no servidor; SameSite como camada adicional |\n| XSS | Interpreta dado inserido como script/marcação ativa | Codificação contextual, APIs seguras e sanitização quando há HTML |\n\n### Como cai na prova\n\n- CORS controla leitura cross-origin por scripts do navegador; não é controle de acesso da API para todos os clientes.\n- CSRF explora credenciais que o navegador anexa automaticamente; validar token no servidor é central.\n- XSS é código malicioso executado no navegador da vítima; a falha está no tratamento de saída/contexto.\n- Sanitizar HTML não torna automaticamente segura uma string em JavaScript, CSS ou URL.\n- Uma resposta CORS permissiva não conserta autenticação ou autorização fraca."
+    },
+    {
+      "title": "3. Segurança de API e API Gateway",
+      "markdown": "### O problema que este assunto resolve\n\nUma API pode ser acessada por aplicações móveis, páginas web, parceiros e serviços automatizados. Ela precisa identificar o cliente, verificar o que cada identidade pode fazer, limitar o consumo e manter visibilidade das rotas expostas. Um API Gateway atua como ponto de entrada controlado para APIs e serviços internos; sua presença ajuda a aplicar políticas comuns, mas não corrige falhas de autorização na lógica de negócio.\n\n> **Siglas e termos deste capítulo**\n> - **Autenticação**: comprovação de quem é o usuário ou cliente.\n> - **Autorização**: decisão sobre quais recursos e operações essa identidade pode usar.\n> - **API Gateway**: intermediário que recebe chamadas, aplica políticas e encaminha para serviços de destino.\n> - **Rate limit/throttling**: controle da taxa ou do volume de chamadas.\n> - **JWT**: formato compacto de token com claims; um token assinado não é necessariamente criptografado.\n> - **SSRF**: falsificação de requisição do lado do servidor, quando entrada controlada pelo atacante leva o servidor a acessar destinos indevidos.\n\n### Controles que pertencem à API\n\nAutenticação pode usar sessão, credenciais de cliente, tokens ou certificados de cliente conforme o cenário. Depois de autenticar, a API precisa autorizar cada ação e cada objeto solicitado: saber que alguém está autenticado não significa permitir acesso a qualquer `/contas/{id}`. Verifique o vínculo entre identidade e objeto no servidor e não confie em identificadores fornecidos pelo cliente. A autorização por função também precisa ser aplicada a cada operação, inclusive rotas administrativas e propriedades sensíveis de resposta.\n\nValide conteúdo recebido com allowlists de campos, tipos, faixas e tamanho máximo; rejeite propriedades inesperadas quando apropriado e evite vincular automaticamente o objeto inteiro recebido a entidades internas. Limite paginação, tempo de processamento, tamanho de corpo, concorrência e frequência de chamadas. Mensagens de erro devem informar o necessário sem vazar tokens, segredos, consultas internas ou dados de outros usuários. Use TLS, rotação e armazenamento seguro de segredos, logs sem credenciais, inventário de versões/rotas e desative endpoints obsoletos.\n\n### O papel e os limites do Gateway\n\nUm gateway pode terminar TLS, rotear por caminho/host, aplicar autenticação ou encaminhar ao provedor de identidade, validar tokens conforme a configuração, impor limites de taxa e tamanho, registrar métricas e padronizar cabeçalhos. Em alguns produtos, também converte protocolos ou agrega respostas. Rate limiting protege capacidade e reduz abuso, mas limites configurados podem ser aproximados ou aplicados de modo distribuído; não substituem quotas de negócio, autorização por objeto, proteção contra fraude nem monitoramento de custo. Uma API acessível diretamente no serviço de origem pode contornar políticas do gateway, então a rede e o serviço também precisam impor controles.\n\n| Necessidade | Controle apropriado | O que não resolve sozinho |\n| --- | --- | --- |\n| Identificar cliente | Autenticação forte, credencial protegida ou token validado | Permissão sobre cada registro |\n| Restringir ações | Autorização no serviço para função, objeto e propriedade | Abuso de volume |\n| Proteger capacidade | Rate limit, limites de payload e timeout | Acesso indevido a dados |\n| Tornar políticas consistentes | Gateway, catálogo de rotas e configuração revisada | Falha de negócio dentro do serviço |\n\n### Como cai na prova\n\n- API key identifica/contabiliza consumidor em muitos gateways; sozinha não prova identidade de usuário nem autoriza acesso sensível.\n- `401` não substitui autorização por objeto: toda rota com identificador precisa verificar a permissão sobre aquele objeto.\n- Gateway centraliza controles de borda; o serviço de origem deve continuar protegido contra acesso direto.\n- Limitação de taxa reduz sobrecarga, mas não é teto infalível nem mecanismo de autorização.\n- Tokens assinados podem ser lidos por quem os possui; não coloque segredo no payload sem criptografia."
+    },
+    {
+      "title": "4. SSO, federação e certificados digitais",
+      "markdown": "### O problema que este assunto resolve\n\nEm SSO (Single Sign-On), a pessoa autentica-se por um provedor de identidade e usa essa autenticação em aplicações confiantes, sem digitar novamente a senha em cada uma. A aplicação consumidora continua responsável por validar a resposta recebida e decidir suas próprias permissões. Certificados digitais fazem outra parte do trabalho: vinculam uma identidade ou nome a uma chave pública por meio de uma autoridade certificadora, permitindo validação de servidor, cliente ou assinatura conforme o uso.\n\n> **Siglas e termos deste capítulo**\n> - **IdP/OP**: provedor de identidade (Identity Provider) / OpenID Provider, que autentica o usuário.\n> - **RP**: relying party, aplicação que confia no resultado de autenticação.\n> - **SSO**: Single Sign-On, autenticação compartilhada entre aplicações integradas.\n> - **OpenID Connect (OIDC)**: camada de identidade sobre OAuth 2.0; define, entre outros elementos, o ID Token.\n> - **ID Token**: afirmações assinadas sobre a autenticação e o usuário destinadas ao cliente OIDC.\n> - **Certificado digital**: documento eletrônico que associa identidade ou nome a uma chave pública, assinado por emissor confiável.\n> - **CA**: autoridade certificadora que emite e assina certificados.\n\n### Fluxo de SSO e validação do token\n\nNo fluxo Authorization Code do OIDC, a aplicação (RP) redireciona o agente do usuário ao OP. Após autenticação e decisão de consentimento quando aplicável, o OP retorna um código de autorização à URI de redirecionamento registrada. O cliente troca o código no token endpoint e recebe tokens. O ID Token comunica autenticação; o access token é destinado ao acesso a recursos protegidos. Não confunda os dois nem use um access token como prova de login sem o contrato apropriado.\n\nA aplicação deve conferir assinatura do ID Token usando chaves confiáveis do emissor, emissor (`iss`), destinatário (`aud`), validade temporal (`exp`), valor de `nonce` quando usado e demais requisitos do fluxo. A URI de redirecionamento deve ser previamente registrada e comparada com rigor. `state` associa a resposta à solicitação iniciada pelo cliente e ajuda a impedir correlação/CSRF no fluxo de redirecionamento. Um token apenas decodificado não foi validado: conteúdo legível não prova origem nem integridade. Após autenticação, cada serviço aplica sua autorização local.\n\n### Certificados, TLS e assinatura\n\nUm certificado X.509 contém dados como emissor, titular, chave pública, período de validade, número de série e extensões de uso, e é assinado pela CA emissora. O cliente valida a cadeia até uma âncora confiável, verifica nomes (por exemplo, se o nome do host corresponde ao certificado), período de validade e estado de revogação conforme a política. Certificado expirado, nome incompatível, cadeia não confiável ou assinatura inválida impedem confiar naquele vínculo. Em TLS, o certificado do servidor permite ao cliente autenticar o endpoint e negociar proteção criptográfica; HTTPS também protege confidencialidade e integridade do tráfego enquanto a conexão está estabelecida.\n\nNa autenticação mútua TLS (mTLS), cliente e servidor podem apresentar certificados e validar a identidade um do outro. Isso autentica a conexão entre pares, mas não determina por si só que operações de negócio cada identidade pode executar. Assinatura digital é produzida com a chave privada e verificada com a chave pública correspondente; ela permite verificar integridade e origem conforme a confiança na chave, mas não cifra automaticamente o conteúdo. A chave privada deve permanecer sob controle do titular e ser protegida; certificados e chaves públicas podem ser distribuídos.\n\n| Mecanismo | Afirmação principal | Decisão que ainda cabe à aplicação |\n| --- | --- | --- |\n| SSO/OIDC | O OP autenticou usuário e emitiu token para o cliente | Autorizar ações e dados locais |\n| Certificado TLS de servidor | Chave pública está vinculada ao nome/identidade certificado | Autorizar uso da aplicação |\n| mTLS | O par da conexão provou posse da chave privada correspondente | Mapear identidade a permissões |\n| Assinatura digital | Conteúdo assinado não foi alterado e corresponde à chave privada | Avaliar identidade, validade e finalidade da assinatura |\n\n### Como cai na prova\n\n- OAuth trata autorização delegada; OIDC acrescenta identidade e ID Token.\n- ID Token é destinado ao cliente OIDC; access token é destinado ao recurso/API.\n- Decodificar JWT não valida assinatura, emissor, audiência ou expiração.\n- Certificado contém chave pública; não contém a chave privada do titular.\n- Certificado e mTLS autenticam nomes/pares conforme a cadeia e a configuração, mas não substituem autorização de negócio.\n- Assinatura digital atesta integridade/origem sob confiança adequada; não equivale a criptografia do conteúdo."
+    }
+  ],
+  "summary": "APIs expõem operações de sistemas por contratos; REST usa recursos identificados por URI e semântica HTTP. JSON representa dados com objetos, arrays e valores; XML usa elementos e atributos. CORS regula leitura cross-origin pelo navegador, CSRF induz ações com credenciais anexadas automaticamente e XSS faz o navegador interpretar entrada como código. API Gateway centraliza roteamento, autenticação configurada, métricas e limites, sem substituir autorização por objeto no serviço. SSO com OIDC delega autenticação ao OP; o cliente valida ID Token e mantém sua autorização. Certificados vinculam uma identidade/nome a chave pública por cadeia de confiança; TLS autentica endpoints e protege canal, mTLS autentica ambos os pares, e assinatura digital oferece verificação de integridade/origem sem cifrar o conteúdo.",
+  "flashcards": [
+    { "front": "O que uma API define?", "back": "Um contrato de operações, dados e regras por meio do qual um sistema oferece funcionalidades a outros sistemas." },
+    { "front": "Como REST costuma identificar recursos?", "back": "Por URIs, como /clientes/42, usando a semântica uniforme dos métodos HTTP." },
+    { "front": "Qual é a intenção usual de GET?", "back": "Obter uma representação do recurso; é método seguro e não deve solicitar mudança de estado." },
+    { "front": "O que significa idempotência em HTTP?", "back": "Repetir a mesma requisição tem o mesmo efeito pretendido que executá-la uma vez, ainda que a resposta possa variar." },
+    { "front": "Quais valores JSON admite?", "back": "Objeto, array, número, string e os literais true, false e null." },
+    { "front": "Qual tipo de mídia é usado para JSON?", "back": "application/json." },
+    { "front": "Por que não se deve analisar JSON com eval?", "back": "Eval executa código; deve-se usar um parser JSON que interpreta dados sem executar o texto como programa." },
+    { "front": "Como XML representa estrutura?", "back": "Por elementos aninhados, atributos e texto; esquemas podem validar sua estrutura." },
+    { "front": "O que CORS autoriza?", "back": "Que scripts de determinadas origens de navegador leiam respostas cross-origin, conforme cabeçalhos do servidor." },
+    { "front": "Quando ocorre preflight CORS?", "back": "Antes de certas requisições cross-origin, o navegador consulta via OPTIONS os métodos e cabeçalhos que o servidor aceita." },
+    { "front": "CORS impede uma chamada feita por curl?", "back": "Não. CORS é aplicado pelos navegadores; clientes fora do navegador não são restringidos por essa política." },
+    { "front": "Como funciona um ataque CSRF?", "back": "Induz o navegador de usuário autenticado a enviar ação ao site confiável, normalmente levando junto o cookie de sessão." },
+    { "front": "Qual é a defesa central contra CSRF em sessão por cookie?", "back": "Token anti-CSRF imprevisível, validado no servidor para a operação protegida." },
+    { "front": "O que caracteriza XSS?", "back": "Entrada não confiável é interpretada pelo navegador como marcação ou código executável no contexto da aplicação." },
+    { "front": "Qual defesa reduz XSS ao exibir texto?", "back": "Codificar para o contexto de saída e preferir APIs que inserem texto sem interpretá-lo como HTML." },
+    { "front": "O que autenticação responde?", "back": "Quem é o usuário ou cliente que apresenta a credencial." },
+    { "front": "O que autorização responde?", "back": "Quais recursos, operações e propriedades aquela identidade pode acessar." },
+    { "front": "O que API Gateway pode centralizar?", "back": "Roteamento, políticas de borda, limites de taxa, métricas e autenticação configurada." },
+    { "front": "API key basta para autenticar usuário?", "back": "Não; frequentemente identifica consumidor ou plano de uso, mas não substitui autenticação forte e autorização." },
+    { "front": "Para que serve rate limiting?", "back": "Reduzir sobrecarga e abuso controlando a frequência de chamadas; não garante autorização nem teto absoluto." },
+    { "front": "O que OIDC acrescenta ao OAuth 2.0?", "back": "Uma camada de identidade, incluindo o ID Token que comunica informações de autenticação ao cliente." },
+    { "front": "Qual a diferença entre ID Token e access token?", "back": "ID Token destina-se ao cliente OIDC; access token destina-se ao recurso protegido/API." },
+    { "front": "O que validar em um ID Token?", "back": "Assinatura, emissor, audiência, validade temporal, nonce quando aplicável e requisitos do fluxo." },
+    { "front": "O que um certificado digital associa?", "back": "Identidade ou nome a uma chave pública, com assinatura de uma autoridade certificadora." },
+    { "front": "O certificado digital contém chave privada?", "back": "Não. Ele contém a chave pública; a chave privada fica protegida com o titular." },
+    { "front": "O que valida uma cadeia de certificados?", "back": "Assinaturas até uma âncora confiável, nomes, validade e requisitos de estado/finalidade." },
+    { "front": "O que mTLS autentica?", "back": "Pode autenticar servidor e cliente, pois ambos apresentam certificados na conexão TLS." },
+    { "front": "Assinatura digital cifra a mensagem?", "back": "Não necessariamente; verifica integridade e vínculo com a chave privada, não confidencialidade." },
+    { "front": "O que significa HTTP 401?", "back": "A requisição não tem autenticação válida ou credenciais adequadas." },
+    { "front": "O que significa HTTP 403?", "back": "O servidor entendeu a requisição, mas recusa a autorização para aquela ação." }
+  ],
+  "tips": [
+    "Ao ler uma questão REST, separe recurso (URI), operação (método) e resultado (status HTTP).",
+    "Pergunte se a falha está no navegador ou no servidor: CORS é política de navegador; autorização deve ser garantida no servidor.",
+    "Para CSRF, procure sessão por cookie enviada automaticamente e token verificado no backend.",
+    "Para XSS, identifique o contexto de inserção: HTML, atributo, JavaScript, CSS e URL pedem tratamento distinto.",
+    "Num cenário com gateway, confira se o serviço de origem ainda está exposto diretamente e se autoriza cada objeto.",
+    "Em OIDC e certificados, diferencie identidade autenticada de permissão de negócio; ambas precisam ser verificadas."
+  ],
+  "traps": [
+    "CORS não é firewall geral e não bloqueia clientes que não sejam navegadores.",
+    "JSON bem formado não é automaticamente confiável, válido para o negócio ou autorizado.",
+    "SameSite ajuda contra CSRF, mas não substitui por si só todas as verificações de ação sensível.",
+    "Um token JWT pode ser decodificado e lido sem que sua assinatura ou suas claims sejam válidas.",
+    "API Gateway pode impor políticas comuns, mas não corrige BOLA/IDOR dentro do serviço.",
+    "Certificado público não é segredo; é a chave privada correspondente que deve ser protegida."
+  ],
+  "activeRecall": [
+    "Explique com exemplo a diferença entre POST e PUT e defina idempotência.",
+    "Enumere valores JSON válidos e explique por que eval não é parser adequado.",
+    "Descreva o preflight CORS e o que o navegador faz com sua resposta.",
+    "Conte o fluxo de CSRF desde o cookie de sessão até a validação do token.",
+    "Compare XSS armazenado, refletido e baseado no DOM e indique uma defesa contextual.",
+    "Diferencie autenticação, autorização por função e autorização por objeto.",
+    "Liste controles que um gateway pode aplicar e duas coisas que ele não garante.",
+    "Descreva os papéis do OP, RP, ID Token e access token em OIDC.",
+    "Explique como a cadeia de certificado permite confiar em uma chave pública.",
+    "Compare TLS, mTLS e assinatura digital quanto ao que cada um demonstra."
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Semântica HTTP confundida", "summary": "Métodos têm semânticas distintas; 401 trata de autenticação, 403 de autorização, e códigos de sucesso também dependem da operação." },
+    { "key": "e2", "title": "Formato tratado como segurança", "summary": "JSON/XML válidos ainda exigem validação semântica, limites, proteção do parser e autorização dos campos e recursos." },
+    { "key": "e3", "title": "CORS, CSRF e XSS misturados", "summary": "CORS é política de leitura entre origens no navegador; CSRF usa credenciais automáticas; XSS injeta conteúdo executável." },
+    { "key": "e4", "title": "Gateway considerado proteção completa", "summary": "O gateway centraliza controles de borda, mas autorização por objeto, acesso direto ao serviço e regras de negócio precisam de proteção própria." },
+    { "key": "e5", "title": "Tokens e certificados confundidos", "summary": "OIDC separa ID Token de access token; certificado contém chave pública; validar assinatura/cadeia não define permissão de negócio." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação precisa buscar a representação de um pedido sem solicitar alteração de estado. Qual método expressa essa intenção segundo HTTP?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "GET, que solicita a representação atual do recurso identificado pela URI.", "correct": true },
+        { "key": "B", "text": "POST, que executa uma leitura por enviar sempre o filtro no corpo da requisição.", "correct": false },
+        { "key": "C", "text": "PUT, que consulta o recurso e preserva qualquer representação já armazenada.", "correct": false },
+        { "key": "D", "text": "DELETE, que obtém os dados do recurso antes de removê-lo do servidor.", "correct": false },
+        { "key": "E", "text": "PATCH, que devolve o estado atual sem aplicar alterações parciais ao recurso.", "correct": false }
+      ],
+      "explanation": "GET solicita a representação atual do recurso e é método seguro: o cliente não solicita mudança de estado. POST processa conteúdo, PUT substitui representação, PATCH aplica alteração e DELETE remove.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe duas requisições PUT idênticas para substituir o endereço de um cliente pelo mesmo valor. Sobre a propriedade do método, assinale a correta.",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A segunda requisição deve falhar, porque PUT só pode ser usado uma vez por recurso.", "correct": false },
+        { "key": "B", "text": "O método é idempotente quanto ao efeito pretendido, embora respostas possam diferir.", "correct": true },
+        { "key": "C", "text": "O método é seguro porque toda substituição deixa o estado do servidor intocado.", "correct": false },
+        { "key": "D", "text": "A segunda chamada cria obrigatoriamente uma cópia adicional do mesmo cliente.", "correct": false },
+        { "key": "E", "text": "A operação só será idempotente se o servidor retornar sempre o mesmo código HTTP.", "correct": false }
+      ],
+      "explanation": "PUT é idempotente: repetir a substituição pelo mesmo conteúdo mantém o efeito pretendido. Idempotência não exige respostas idênticas e não significa que o método seja seguro ou sem mudança inicial.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O servidor criou um novo recurso de pedido e quer indicar explicitamente essa criação na resposta HTTP. Qual código é o mais apropriado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "204, que informa a criação bem-sucedida e exige que o corpo descreva o pedido.", "correct": false },
+        { "key": "B", "text": "401, que identifica o novo recurso e solicita ao cliente que autentique novamente.", "correct": false },
+        { "key": "C", "text": "201, que comunica a criação de um recurso pela operação concluída.", "correct": true },
+        { "key": "D", "text": "403, que confirma que o pedido foi criado, mas oculta sua representação.", "correct": false },
+        { "key": "E", "text": "304, que representa a criação de uma versão modificada na cache do cliente.", "correct": false }
+      ],
+      "explanation": "201 Created comunica criação bem-sucedida. 204 é sucesso sem conteúdo; 401 é problema de autenticação; 403 é recusa de autorização; 304 trata de validação de cache.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente sem credencial válida pede uma rota protegida, e outro cliente autenticado não tem permissão para a mesma rota. Qual associação distingue adequadamente as situações?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "401 para a falta de autenticação válida; 403 para a autorização recusada.", "correct": true },
+        { "key": "B", "text": "403 para a falta de credencial; 401 para a permissão negada após autenticação.", "correct": false },
+        { "key": "C", "text": "404 para ambas, pois HTTP não diferencia credenciais e permissões de rota.", "correct": false },
+        { "key": "D", "text": "409 para a falta de autenticação; 429 para qualquer falha de autorização.", "correct": false },
+        { "key": "E", "text": "500 para a falta de credencial; 201 para a permissão recusada pelo serviço.", "correct": false }
+      ],
+      "explanation": "401 indica ausência de autenticação válida ou credenciais adequadas; 403 indica que o servidor recusa autorização para a ação. São etapas distintas do controle de acesso.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem JSON contém o valor literal nulo como `Null`. Considerando a sintaxe definida para JSON, qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "É válido, pois os literais JSON aceitam qualquer combinação de maiúsculas e minúsculas.", "correct": false },
+        { "key": "B", "text": "É inválido: o literal é `null` em letras minúsculas, assim como `true` e `false`.", "correct": true },
+        { "key": "C", "text": "É válido somente quando aparece como valor de uma propriedade chamada Null.", "correct": false },
+        { "key": "D", "text": "É inválido porque JSON permite strings e números, mas não valores nulos.", "correct": false },
+        { "key": "E", "text": "É válido se o cabeçalho HTTP declarar XML como tipo de mídia da resposta.", "correct": false }
+      ],
+      "explanation": "Os três literais JSON são `true`, `false` e `null`, sempre em minúsculas. O formato também admite objetos, arrays, números e strings.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe propõe usar `eval` para converter em objetos o texto JSON recebido de parceiros. Qual é a avaliação de segurança mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "É seguro quando o conteúdo tem aspas duplas e o parceiro usa HTTPS na transmissão.", "correct": false },
+        { "key": "B", "text": "É seguro após validar apenas o primeiro caractere e remover espaços do documento.", "correct": false },
+        { "key": "C", "text": "Use parser JSON; `eval` pode executar código e não é um mecanismo de análise seguro.", "correct": true },
+        { "key": "D", "text": "É necessário porque JSON permite instruções de atribuição que o parser padrão rejeita.", "correct": false },
+        { "key": "E", "text": "É recomendável quando a API assina o texto, pois assinatura elimina efeitos de execução.", "correct": false }
+      ],
+      "explanation": "JSON deve ser interpretado por parser de dados. Eval executa o texto como código; HTTPS e assinatura podem proteger transporte ou integridade, mas não transformam execução em análise segura.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema recebe XML de terceiros e precisa extrair elementos sem permitir que referências externas levem o parser a abrir arquivos locais ou acessar outros destinos. Qual medida se aplica?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Ativar a resolução irrestrita de entidades, mas limitar o tamanho da resposta HTTP.", "correct": false },
+        { "key": "B", "text": "Desabilitar entidades externas quando não forem necessárias e configurar o parser com segurança.", "correct": true },
+        { "key": "C", "text": "Trocar o nome das tags XML para minúsculas antes de validar o documento recebido.", "correct": false },
+        { "key": "D", "text": "Confiar em XML Schema, que impede por si só qualquer acesso externo do parser.", "correct": false },
+        { "key": "E", "text": "Converter o XML em JSON com `eval` para descartar automaticamente declarações externas.", "correct": false }
+      ],
+      "explanation": "A configuração segura do parser deve impedir resolução externa de entidades quando não necessária, reduzindo risco de XXE. Validar estrutura com esquema não substitui controlar recursos externos usados pelo parser.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API valida que `quantidade` é um número positivo no JSON recebido. Essa validação, por si só, demonstra que o usuário pode alterar qualquer pedido identificado no corpo?",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A validação de tipo e faixa verifica formato ou regra de dado, não autorização. O servidor ainda precisa confirmar que a identidade pode alterar aquele pedido específico.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve usar GET para transferir dinheiro, pois a leitura do recurso permite que navegadores e caches repitam a solicitação sem efeitos adicionais.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. GET é método seguro e pode ser acionado por navegação ou mecanismos automáticos; transferir dinheiro muda estado e deve usar operação apropriada protegida contra repetição e CSRF.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O servidor recebe a mesma requisição DELETE duas vezes. A repetição pode retornar outro status, embora o efeito pretendido de remover o recurso permaneça idempotente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Idempotência diz respeito ao efeito pretendido da operação, não à igualdade de todas as respostas. A primeira chamada pode remover o recurso e a seguinte informar que ele já não existe.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma resposta HTTP com código 204, o servidor comunica sucesso sem fornecer conteúdo de resposta.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. 204 No Content expressa sucesso sem corpo de resposta. Se a criação de um recurso for o resultado que se deseja destacar, 201 é o código específico de criação.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O tipo de mídia usual para JSON é `application/xml`, porque os dois formatos representam estruturas hierárquicas interoperáveis.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O tipo de mídia registrado para JSON é `application/json`; `application/xml` indica XML. Semelhança de uso não torna os formatos intercambiáveis.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "CORS é um mecanismo aplicado pelo navegador que permite ao servidor declarar quais origens podem ler determinadas respostas cross-origin.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O servidor informa sua política em cabeçalhos CORS e o navegador aplica a restrição de leitura pelo script. Isso não substitui controles de acesso do servidor.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço configura `Access-Control-Allow-Origin: *` junto de `Access-Control-Allow-Credentials: true` para permitir cookies a qualquer site. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A política está correta, pois o curinga é necessário sempre que se permitem cookies.", "correct": false },
+        { "key": "B", "text": "A combinação é inválida para credenciais; deve-se autorizar origem específica e confiável.", "correct": true },
+        { "key": "C", "text": "A política é segura se o navegador enviar também o cabeçalho Accept com JSON.", "correct": false },
+        { "key": "D", "text": "O curinga só é proibido em requisições GET e funciona com métodos de escrita.", "correct": false },
+        { "key": "E", "text": "A credencial passa a ser segura porque CORS criptografa os cookies antes de enviá-los.", "correct": false }
+      ],
+      "explanation": "Respostas CORS com credenciais não podem usar o curinga como origem permitida. O serviço deve comparar a origem com uma allowlist e devolver a origem específica; CORS não cifra cookies.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O navegador envia OPTIONS com Origin e Access-Control-Request-Method antes de uma requisição cross-origin que exige preflight. Para que serve essa troca?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O navegador consulta se a política do servidor permite aquela origem, método e cabeçalhos solicitados.", "correct": true },
+        { "key": "B", "text": "O servidor executa a operação de negócio no OPTIONS e depois repete automaticamente a gravação.", "correct": false },
+        { "key": "C", "text": "O cliente envia a senha no preflight para substituir a autenticação da chamada principal.", "correct": false },
+        { "key": "D", "text": "A consulta corrige a autorização por objeto antes de a API processar qualquer identificador.", "correct": false },
+        { "key": "E", "text": "O OPTIONS criptografa a origem e oculta o endereço da aplicação dos servidores intermediários.", "correct": false }
+      ],
+      "explanation": "Preflight é uma consulta OPTIONS do navegador sobre a permissão CORS para método e cabeçalhos pretendidos. Não executa a operação de negócio nem substitui autenticação e autorização.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script em navegador não consegue ler uma resposta por causa da política CORS. Isso prova que a requisição não chegou ao servidor nem produziu efeito.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Em requisições simples, o navegador pode enviar a chamada e depois impedir que o script leia a resposta. A aplicação deve proteger operações no servidor, inclusive contra CSRF.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um banco autenticado por cookie recebe uma chamada de transferência iniciada por página maliciosa; o navegador anexa o cookie de sessão. Que ataque descreve o caso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "CSRF, pois a página induz o navegador autenticado a executar uma ação no site alvo.", "correct": true },
+        { "key": "B", "text": "XSS, pois todo envio automático de cookie executa JavaScript no servidor bancário.", "correct": false },
+        { "key": "C", "text": "CORS, pois o navegador pode anexar cookies apenas quando a resposta usa XML.", "correct": false },
+        { "key": "D", "text": "SSRF, pois o navegador da vítima faz uma requisição originada pelo servidor bancário.", "correct": false },
+        { "key": "E", "text": "XXE, pois o cookie é interpretado como entidade externa dentro do documento da página.", "correct": false }
+      ],
+      "explanation": "CSRF explora credenciais que o navegador envia automaticamente para um site no qual o usuário tem sessão. O atacante induz uma ação; XSS, SSRF e XXE são categorias diferentes.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida oferece defesa central contra CSRF em uma aplicação que autentica ações por cookie de sessão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Armazenar o mesmo identificador de sessão em um campo oculto e nunca validá-lo no servidor.", "correct": false },
+        { "key": "B", "text": "Emitir token anti-CSRF imprevisível e exigir sua validação no servidor para a ação.", "correct": true },
+        { "key": "C", "text": "Permitir qualquer origem CORS, já que o navegador bloqueará o envio dos cookies de sessão.", "correct": false },
+        { "key": "D", "text": "Codificar a página em UTF-8, impedindo que outro site crie formulários de transferência.", "correct": false },
+        { "key": "E", "text": "Usar apenas o método GET para que navegadores repitam a operação com segurança.", "correct": false }
+      ],
+      "explanation": "Token anti-CSRF imprevisível ligado à sessão ou requisição e verificado no servidor impede aceitar a ação forjada sem o token apropriado. CORS e codificação de caracteres não são defesa equivalente.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação que usa cookies SameSite pode dispensar automaticamente qualquer proteção adicional contra CSRF, inclusive em operações financeiras sensíveis.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. SameSite reduz o envio cross-site de cookies conforme atributo e contexto, mas é uma camada adicional. Operações sensíveis ainda devem aplicar proteção apropriada, como token verificado no servidor.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um fórum salva comentário e, depois, exibe uma tag enviada pelo usuário como HTML executável no navegador de cada visitante. Qual vulnerabilidade é mais diretamente descrita?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "XSS armazenado, porque conteúdo persistido é interpretado como código na página.", "correct": true },
+        { "key": "B", "text": "CSRF refletido, porque todo comentário persiste credenciais no cabeçalho Origin.", "correct": false },
+        { "key": "C", "text": "CORS armazenado, porque o texto do comentário define a origem HTTP permitida.", "correct": false },
+        { "key": "D", "text": "SSRF baseado no DOM, pois o servidor consulta a URL do próprio comentário.", "correct": false },
+        { "key": "E", "text": "Autenticação quebrada, pois o visitante necessariamente recebe a senha do autor.", "correct": false }
+      ],
+      "explanation": "O conteúdo é armazenado e depois tratado como marcação executável no navegador de visitantes, caracterizando XSS armazenado. A saída deve ser tratada no contexto adequado ou sanitizada se HTML for requisito.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A codificação de saída HTML para texto comum torna automaticamente seguro o mesmo valor quando inserido em uma URL `href` ou em código JavaScript.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Cada contexto tem regras próprias. Codificação HTML não valida URL nem protege string em JavaScript; use APIs seguras, validação de URL e proteção específica para cada contexto.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Content Security Policy pode ser usada como defesa adicional contra XSS, mas não substitui codificação contextual e APIs seguras para manipular dados não confiáveis.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. CSP reduz impacto ao restringir fontes de conteúdo, mas pode ser configurada incorretamente e não elimina a causa da injeção. Codificação adequada, sanitização quando necessária e sinks seguros permanecem fundamentais.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota `/contas/{id}` autentica corretamente o usuário, mas retorna qualquer conta cujo identificador seja informado. Qual correção enfrenta diretamente a falha?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aplicar autorização no servidor que confira se a identidade pode acessar aquela conta específica.", "correct": true },
+        { "key": "B", "text": "Trocar os identificadores numéricos por UUID e manter a consulta sem verificar titularidade.", "correct": false },
+        { "key": "C", "text": "Ativar CORS para a origem do usuário, impedindo alterações diretas de identificadores.", "correct": false },
+        { "key": "D", "text": "Exigir TLS e considerar que criptografia do canal concede acesso a todo objeto recebido.", "correct": false },
+        { "key": "E", "text": "Limitar a quantidade de chamadas por minuto, sem alterar a decisão de acesso à conta.", "correct": false }
+      ],
+      "explanation": "A API deve autorizar cada objeto solicitado, verificando vínculo e permissão no servidor. Identificadores difíceis de adivinhar, CORS, TLS e rate limiting não substituem autorização por objeto.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API key divulgada a um consumidor prova, por si só, qual pessoa está usando a API e concede autorização a todos os dados retornados.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. API keys frequentemente identificam aplicações consumidoras ou planos de uso. Não são, sozinhas, autenticação de usuário ou autorização suficiente para dados sensíveis.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve responsabilidades típicas que um API Gateway pode centralizar na entrada de APIs?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Roteamento, políticas de borda, métricas e limites de taxa aplicados às chamadas recebidas.", "correct": true },
+        { "key": "B", "text": "Decisões de negócio internas e autorização de cada objeto sem consultar qualquer serviço.", "correct": false },
+        { "key": "C", "text": "Criação automática de cópias de segurança e restauração de todas as bases conectadas.", "correct": false },
+        { "key": "D", "text": "Substituição integral de TLS, identidades, logs e validação de dados em todos os sistemas.", "correct": false },
+        { "key": "E", "text": "Garantia de que nenhum endpoint interno poderá ser acessado por outra rota de rede.", "correct": false }
+      ],
+      "explanation": "Gateway pode rotear, aplicar controles de entrada, limites e observabilidade. Não assume necessariamente decisões de negócio ou autorização de objeto, e serviços expostos diretamente ainda exigem proteção.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway limita chamadas por segundo e retorna 429 quando há excesso. Esse controle também garante que o consumidor tenha permissão para ler o registro solicitado.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Throttling controla volume e protege capacidade; autorização precisa avaliar identidade, ação e recurso. Um cliente pode estar dentro do limite e ainda não ter permissão para aquele registro.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O serviço de origem pode ser acessado diretamente pela rede, sem passar pelo gateway que aplica autenticação e limites. Qual risco arquitetural surge?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Chamadas diretas podem contornar políticas de borda; a rede e o próprio serviço também precisam controlar acesso.", "correct": true },
+        { "key": "B", "text": "O gateway duplicará as respostas e transformará todos os métodos HTTP em operações idempotentes.", "correct": false },
+        { "key": "C", "text": "A exposição direta torna CORS uma autenticação confiável para os clientes fora do navegador.", "correct": false },
+        { "key": "D", "text": "A API perde automaticamente certificados digitais e deixa de poder usar TLS entre serviços.", "correct": false },
+        { "key": "E", "text": "Apenas respostas JSON serão afetadas, porque endpoints diretos não podem retornar XML.", "correct": false }
+      ],
+      "explanation": "Se a origem é alcançável sem o intermediário, os controles centralizados nele podem ser evitados. Restrinja conectividade e mantenha autenticação e autorização no serviço conforme a arquitetura.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API deve limitar tamanho de corpos, paginação e custo de processamento para reduzir consumo de recursos por chamadas abusivas.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Limites de tamanho, paginação, tempo e frequência controlam consumo de recursos. Eles devem ser combinados com autorização, monitoramento e validação das regras de negócio.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API registra tokens bearer completos e senhas em logs para facilitar a investigação de falhas de integração.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Tokens e senhas são credenciais; logs podem ser acessados por operadores e sistemas diversos. Registre contexto útil sem expor segredos, mascarando ou omitindo valores sensíveis.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um token JWT tem três segmentos separados por pontos e o consumidor consegue decodificar seu payload. O que isso permite concluir sem validação criptográfica?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Que as claims são verdadeiras, pois o payload legível comprova assinatura e identidade do emissor.", "correct": false },
+        { "key": "B", "text": "Apenas que o conteúdo foi codificado para transporte; é preciso validar assinatura e claims.", "correct": true },
+        { "key": "C", "text": "Que o token está criptografado com a chave privada e não pode ser lido por seu portador.", "correct": false },
+        { "key": "D", "text": "Que a API autorizou todas as operações indicadas no payload para qualquer usuário.", "correct": false },
+        { "key": "E", "text": "Que a expiração não precisa ser conferida quando a estrutura JSON é sintaticamente válida.", "correct": false }
+      ],
+      "explanation": "Decodificação revela conteúdo, mas não prova integridade ou origem. O verificador deve validar assinatura, emissor, audiência, tempo e demais claims exigidas, e depois aplicar autorização.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se um cliente excede uma meta de throttling configurada em determinado gateway, essa meta necessariamente funciona como limite rígido impossível de ultrapassar.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Em serviços de gateway, limites e quotas podem ser metas aplicadas em melhor esforço e permitir excedentes pontuais. Não se deve usá-los como controle único de custo, fraude ou autorização.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário autenticado pode alterar uma propriedade interna `isAdmin` enviada no JSON porque a API já confirmou que a sessão é válida.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A API deve limitar campos modificáveis e verificar autorização para propriedades sensíveis. Autenticação válida não autoriza elevar privilégios nem vincular indiscriminadamente todo o JSON recebido.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa deseja que seus usuários entrem em vários sistemas por meio de uma autenticação central e que cada sistema continue aplicando permissões locais. Que desenho atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "SSO com provedor de identidade confiável e autorização mantida por cada aplicação consumidora.", "correct": true },
+        { "key": "B", "text": "CORS entre os domínios, pois liberar leitura de respostas compartilha automaticamente a senha do usuário.", "correct": false },
+        { "key": "C", "text": "API key única dentro de todos os navegadores, dispensando identidade e política por sistema.", "correct": false },
+        { "key": "D", "text": "Certificado do servidor instalado no navegador, que concede acesso administrativo a todas as aplicações.", "correct": false },
+        { "key": "E", "text": "XSS controlado no domínio central, que transmite a sessão para aplicações não integradas.", "correct": false }
+      ],
+      "explanation": "SSO permite autenticação compartilhada por um provedor de identidade integrado; cada RP valida a resposta e continua decidindo permissões locais. CORS e API keys não criam federação de identidade.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No OpenID Connect, qual descrição distingue corretamente o ID Token do access token?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O ID Token comunica autenticação ao cliente; o access token é apresentado ao recurso protegido.", "correct": true },
+        { "key": "B", "text": "O ID Token cifra o banco de dados; o access token substitui o certificado TLS do servidor.", "correct": false },
+        { "key": "C", "text": "O ID Token concede autorização universal; o access token serve apenas para exibir nome e foto.", "correct": false },
+        { "key": "D", "text": "Ambos são senhas permanentes do usuário, e podem ser gravados em logs sem mascaramento.", "correct": false },
+        { "key": "E", "text": "O access token autentica o usuário perante o cliente, enquanto o ID Token autoriza qualquer API.", "correct": false }
+      ],
+      "explanation": "OIDC define ID Token como informação de identidade/autenticação para o cliente. Access token autoriza chamadas ao recurso protegido conforme audiência, escopo e contrato do provedor.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma RP decodifica um ID Token e exibe as claims sem conferir assinatura, emissor, audiência ou expiração. A operação constitui validação suficiente.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Decodificar só torna o conteúdo legível. A RP precisa validar assinatura e claims requeridas, incluindo emissor, audiência e validade temporal, além de nonce e regras do fluxo quando aplicáveis.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo Authorization Code do OIDC, o cliente recebe um código na URI de redirecionamento e o troca no token endpoint por tokens conforme o protocolo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O OP retorna o authorization code para a URI registrada e o cliente o troca no token endpoint. O cliente deve validar a resposta e proteger o fluxo contra falsificação e redirecionamentos indevidos.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual validação de certificado TLS ajuda o cliente a confirmar que se conectou ao servidor esperado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Conferir a cadeia até âncora confiável, período de validade e correspondência do nome do host.", "correct": true },
+        { "key": "B", "text": "Verificar apenas que o certificado contém uma chave pública, sem comparar host ou emissor.", "correct": false },
+        { "key": "C", "text": "Aceitar qualquer certificado expirado se o servidor transmitir a página por HTTPS.", "correct": false },
+        { "key": "D", "text": "Comparar a chave privada do servidor com a senha digitada pelo usuário na aplicação.", "correct": false },
+        { "key": "E", "text": "Validar o campo de país do certificado e dispensar assinatura e cadeia de confiança.", "correct": false }
+      ],
+      "explanation": "O cliente verifica confiança na cadeia, validade e identidade do host, entre outros requisitos da política. A simples presença de chave pública não prova que ela pertence ao servidor desejado.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma infraestrutura de certificados, a autoridade certificadora assina o certificado que associa dados do titular ou nome a uma chave pública.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A CA assina o certificado para que clientes que confiam nela possam validar o vínculo entre titular/nome e chave pública. A chave privada correspondente permanece com seu titular.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado X.509 contém a chave privada do titular para que qualquer cliente da rede possa verificar a assinatura da CA.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O certificado contém a chave pública e dados assinados pelo emissor. A chave privada é mantida sob controle do titular e nunca deve ser distribuída no certificado público.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em mTLS, cliente e servidor podem apresentar certificados e validar a identidade do par durante o estabelecimento da conexão TLS.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. TLS convencional autentica normalmente o servidor ao cliente; mTLS também solicita certificado do cliente. A aplicação ainda precisa mapear a identidade autenticada a permissões adequadas.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma assinatura digital válida garante confidencialidade do conteúdo porque só o titular da chave privada consegue ler a mensagem assinada.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Assinatura digital permite verificar integridade e relação com a chave privada correspondente; não cifra automaticamente o conteúdo. Confidencialidade exige mecanismo de criptografia apropriado.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor apresenta certificado expirado, mas a conexão usa TLS e o nome do host coincide. O cliente deve considerar o vínculo válido sem outras verificações.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O período de validade integra as verificações de certificado. TLS cifra o canal, mas não torna confiável um certificado expirado ou cuja cadeia não atende à política.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API habilita mTLS para clientes parceiros. Qual conclusão é correta sobre a autorização das operações oferecidas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O certificado autentica o par da conexão; cada operação ainda requer autorização conforme identidade e política.", "correct": true },
+        { "key": "B", "text": "A posse de certificado substitui todas as verificações de objeto, função e escopo da API.", "correct": false },
+        { "key": "C", "text": "O certificado cifra as respostas e define automaticamente quais campos JSON podem ser alterados.", "correct": false },
+        { "key": "D", "text": "mTLS permite omitir validação do cliente e confiar em qualquer certificado enviado pelo parceiro.", "correct": false },
+        { "key": "E", "text": "A autenticação mTLS só funciona para navegadores e não pode ser usada entre serviços.", "correct": false }
+      ],
+      "explanation": "mTLS permite autenticar os pares da conexão conforme certificados e cadeia confiável. A API ainda precisa mapear essa identidade a escopos, funções e recursos permitidos.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo OIDC, o parâmetro state pode correlacionar a resposta recebida à solicitação iniciada pelo cliente e ajudar a proteger o fluxo de redirecionamento.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O cliente associa state à solicitação e confere o valor retornado para detectar respostas não vinculadas ao fluxo iniciado. A aplicação também deve validar URI de redirecionamento e tokens.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação inclui o valor recebido do usuário em uma página usando API que o insere como nó de texto, sem interpretar marcação. Essa escolha reduz diretamente o risco de XSS naquele ponto.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. APIs de texto evitam que o conteúdo seja interpretado como HTML executável nesse contexto. Outros usos da mesma entrada ainda precisam de validação e proteção específicas.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado é revogado antes do fim de seu período de validade. A data futura de expiração basta para o cliente confiar nele sem considerar o estado de revogação aplicável.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Validade temporal e estado de revogação são verificações distintas. Quando a política de confiança exige consulta de revogação, certificado revogado não deve ser aceito apenas porque sua data ainda não expirou.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta JSON informa a propriedade role com o valor admin para o usuário, mas não há autorização correspondente no servidor. Qual afirmação sobre a resposta é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A propriedade só deve ser aceita se a política do servidor autorizar sua divulgação e uso.", "correct": true },
+        { "key": "B", "text": "O formato JSON torna a claim confiável, pois nomes de propriedade não podem ser alterados.", "correct": false },
+        { "key": "C", "text": "A resposta autoriza o usuário, porque dados de API são sempre fonte de identidade confiável.", "correct": false },
+        { "key": "D", "text": "Basta o gateway remover CORS para transformar a propriedade em privilégio válido.", "correct": false },
+        { "key": "E", "text": "Um certificado TLS do servidor converte qualquer valor de role em autorização efetiva.", "correct": false }
+      ],
+      "explanation": "A autorização deve vir de política confiável do servidor, não de um campo fornecido ou exposto sem controle no JSON. Tipo de mídia e TLS não transformam dados em permissão.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "OpenID Connect exige que o provedor obtenha uma decisão de autorização antes de liberar informações ao relying party, conforme o fluxo e parâmetros usados.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Após autenticar o usuário, o OP deve obter decisão sobre liberação de informações conforme solicitação, consentimento ou política aplicável. A autenticação não significa liberação irrestrita de atributos.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+    ,{
+      "statement": "Uma API retorna 429 após chamadas acima da taxa configurada. Qual é a interpretação usual desse status?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O cliente excedeu um limite de requisições e deve reduzir ou espaçar chamadas.", "correct": true },
+        { "key": "B", "text": "O servidor não reconhece o método HTTP e exige a troca da URI por uma rota registrada.", "correct": false },
+        { "key": "C", "text": "A identidade foi autenticada, mas o usuário não pode acessar o objeto solicitado.", "correct": false },
+        { "key": "D", "text": "O recurso foi criado, mas o servidor não tem conteúdo para retornar ao consumidor.", "correct": false },
+        { "key": "E", "text": "O corpo JSON está sintaticamente inválido e precisa ser enviado no formato XML.", "correct": false }
+      ],
+      "explanation": "429 Too Many Requests informa que o cliente enviou chamadas em excesso conforme a política aplicada. O cliente pode reduzir taxa e seguir instruções de espera quando fornecidas.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição autenticada busca um recurso de outro usuário e a aplicação devolve 403 depois de verificar a permissão. Qual controle foi aplicado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Autorização, que decide se aquela identidade pode executar a ação sobre o recurso.", "correct": true },
+        { "key": "B", "text": "Serialização, que transforma um objeto interno em uma sequência de bytes HTTP.", "correct": false },
+        { "key": "C", "text": "Autenticação, que apenas comprova que a credencial apresentada pertence ao usuário.", "correct": false },
+        { "key": "D", "text": "CORS, que valida a propriedade de cada registro consultado no banco de dados.", "correct": false },
+        { "key": "E", "text": "Throttling, que limita operações de escrita para impedir toda leitura não autorizada.", "correct": false }
+      ],
+      "explanation": "A verificação de permissão sobre a ação e o recurso é autorização. Autenticação identifica a pessoa; CORS e throttling têm objetivos diferentes.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor precisa permitir requisições CORS apenas de dois domínios de frontend conhecidos. Como deve estruturar a política?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Comparar Origin com uma allowlist e responder com a origem específica autorizada.", "correct": true },
+        { "key": "B", "text": "Refletir qualquer Origin recebido e confiar que navegadores rejeitam sites maliciosos.", "correct": false },
+        { "key": "C", "text": "Usar sempre `*` e habilitar credenciais para todas as origens da Internet.", "correct": false },
+        { "key": "D", "text": "Aceitar apenas o cabeçalho Content-Type, pois ele identifica o domínio de origem.", "correct": false },
+        { "key": "E", "text": "Desabilitar autenticação da API, deixando o navegador decidir quais usuários são confiáveis.", "correct": false }
+      ],
+      "explanation": "Uma allowlist explícita evita conceder leitura a qualquer origem. Refletir valores não verificados amplia a política; credenciais cross-origin requerem origem específica.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma SPA insere em `innerHTML` uma mensagem recebida de usuário sem sanitização. Qual é o principal risco?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O navegador pode interpretar o conteúdo como marcação ativa e executar XSS.", "correct": true },
+        { "key": "B", "text": "O navegador transforma automaticamente todo HTML em texto inerte antes de renderizar.", "correct": false },
+        { "key": "C", "text": "O conteúdo altera a política CORS do servidor e autoriza a origem do usuário.", "correct": false },
+        { "key": "D", "text": "A aplicação cria uma entidade XML externa e inicia necessariamente uma chamada SSRF.", "correct": false },
+        { "key": "E", "text": "A mensagem passa a ser um certificado TLS porque foi incorporada ao DOM da SPA.", "correct": false }
+      ],
+      "explanation": "`innerHTML` interpreta o valor como marcação. Dado não confiável deve ser inserido como texto ou sanitizado com ferramenta apropriada se o produto aceitar HTML.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API usa token anti-CSRF no cabeçalho, mas aceita qualquer valor sem comparar com a sessão ou validar sua origem. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A mera presença de um campo chamado token não oferece defesa se o servidor não valida o valor.", "correct": true },
+        { "key": "B", "text": "A defesa está completa porque qualquer texto no cabeçalho impede o envio automático de cookies.", "correct": false },
+        { "key": "C", "text": "A API só precisa validar o token para chamadas GET, que são as operações de alteração de estado.", "correct": false },
+        { "key": "D", "text": "O cabeçalho converte a requisição em preflight e garante que a ação de negócio foi autorizada.", "correct": false },
+        { "key": "E", "text": "O token é equivalente ao certificado TLS e prova a identidade do servidor remoto.", "correct": false }
+      ],
+      "explanation": "O token precisa ser imprevisível e validado pelo servidor em relação à sessão ou requisição. Um campo sem validação não demonstra que a chamada veio do fluxo legítimo.",
+      "section": "2. CORS, CSRF e XSS no navegador", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de gateway exige API key e também autenticação por um mecanismo apropriado para usuário ou serviço. Por que manter os controles distintos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A chave pode identificar consumidor e plano, enquanto a autenticação e autorização controlam identidade e acesso.", "correct": true },
+        { "key": "B", "text": "A API key sempre contém uma assinatura de certificado individual para cada usuário final.", "correct": false },
+        { "key": "C", "text": "A chave torna desnecessário validar tokens, pois gateways conhecem todos os objetos de negócio.", "correct": false },
+        { "key": "D", "text": "Os mecanismos são duplicados: ambos cifram o corpo JSON e escondem a rota do cliente.", "correct": false },
+        { "key": "E", "text": "API keys substituem autorização por objeto sempre que a chamada passa pelo gateway.", "correct": false }
+      ],
+      "explanation": "API keys são frequentemente usadas para identificação de consumidor e associação a plano de uso; não devem ser confundidas com autenticação individual e autorização de recursos.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API envia access token no cabeçalho Authorization e restringe o token a uma audiência de serviço. Qual propriedade a audiência ajuda a verificar?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Que o token foi destinado ao recurso ou cliente esperado segundo o contrato do emissor.", "correct": true },
+        { "key": "B", "text": "Que o navegador permitirá leitura cross-origin sem consultar cabeçalhos CORS.", "correct": false },
+        { "key": "C", "text": "Que a chamada não excederá limites de taxa definidos pelo API Gateway.", "correct": false },
+        { "key": "D", "text": "Que o conteúdo do token foi cifrado e não pode ser decodificado por seu portador.", "correct": false },
+        { "key": "E", "text": "Que qualquer operação solicitada está autorizada sem checagem de escopo ou permissão.", "correct": false }
+      ],
+      "explanation": "A audiência identifica o destinatário pretendido conforme as regras do token. Ela não implica criptografia, permissão universal ou dispensa dos demais controles e claims.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API pode receber dados em JSON e devolver a mesma informação em XML sem alterar as regras de autenticação e autorização aplicáveis ao recurso.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. JSON e XML são formatos de representação; negociar ou converter a representação não substitui autenticação e autorização do recurso acessado.",
+      "section": "1. APIs, REST e formatos de representação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário que concluiu SSO em um provedor de identidade deve receber automaticamente a mesma função administrativa em todos os sistemas conectados.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. SSO compartilha autenticação; cada aplicação consumidora valida a resposta e decide autorização local conforme sua política e atributos confiáveis.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado de servidor contém chave pública e informações assinadas pelo emissor, que podem ser validadas por clientes que confiam na cadeia correspondente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O certificado liga dados do titular/nome à chave pública e é assinado pelo emissor. A confiança depende da validação da cadeia e das demais verificações aplicáveis.",
+      "section": "4. SSO, federação e certificados digitais", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "TLS protege o tráfego em trânsito, mas a aplicação ainda precisa validar entrada, autorizar operações e proteger segredos usados por APIs.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. TLS protege confidencialidade e integridade da conexão e autentica o endpoint conforme os certificados; não corrige falhas de lógica, validação, autorização ou gestão de segredo.",
+      "section": "3. Segurança de API e API Gateway", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    { "kind": "OFICIAL", "title": "RFC 9110 — HTTP Semantics", "publisher": "IETF / RFC Editor", "reference": "Semântica de métodos, segurança, idempotência, status e cabeçalhos HTTP", "url": "https://www.rfc-editor.org/rfc/rfc9110.html", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "RFC 8259 — The JSON Data Interchange Format", "publisher": "IETF / RFC Editor", "reference": "Sintaxe, valores, UTF-8, tipo application/json e considerações de segurança", "url": "https://www.rfc-editor.org/rfc/rfc8259.html", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "Extensible Markup Language (XML) 1.0", "publisher": "W3C", "reference": "Recomendação para estrutura e sintaxe XML", "url": "https://www.w3.org/TR/xml/", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "Cross-Site Request Forgery Prevention Cheat Sheet", "publisher": "OWASP", "reference": "Tokens anti-CSRF, SameSite e recomendações de proteção de requisições", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "Cross Site Scripting Prevention Cheat Sheet", "publisher": "OWASP", "reference": "Codificação contextual, APIs seguras, sanitização e defesas adicionais", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "OWASP API Security Top 10 — 2023", "publisher": "OWASP", "reference": "Riscos de autorização por objeto/função, autenticação, consumo de recursos, SSRF e configuração", "url": "https://api-security.owasp.org/editions/2023/en/0x11-t10/", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "OpenID Connect Core 1.0", "publisher": "OpenID Foundation", "reference": "Authorization Code Flow, ID Token, validação de token e funções OP/RP", "url": "https://openid.net/specs/openid-connect-core-1_0.html", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "Usage plans and API keys for REST APIs in API Gateway", "publisher": "Amazon Web Services", "reference": "Planos, API keys, limites e alerta de que chaves não substituem autenticação/autorização", "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-usage-plans.html", "accessedAt": "2026-11-13" },
+    { "kind": "OFICIAL", "title": "Throttle requests to your REST APIs for better throughput in API Gateway", "publisher": "Amazon Web Services", "reference": "Rate limiting, token bucket, respostas 429 e limites best-effort", "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-request-throttling.html", "accessedAt": "2026-11-13" }
+  ]
+}
