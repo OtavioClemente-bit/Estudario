@@ -1,0 +1,2053 @@
+{
+  "id": "informatica.arquitetura-distribuida-servicos-nomes-diretorio",
+  "subject": "Informática",
+  "title": "Arquitetura distribuída, serviços de nomes e de diretório",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura distribuída e serviços de nomes",
+    "Serviços de nomes em sistemas distribuídos",
+    "Serviços de diretório em sistemas distribuídos",
+    "DNS e diretórios LDAP",
+    "Serviço de nomes DNS e resolução de nomes",
+    "Diretório hierárquico e protocolo LDAP",
+    "Descoberta de serviços baseada em DNS",
+    "Sistemas distribuídos, nomes e diretórios",
+    "Arquitetura distribuída, serviços de nomes e de diretório"
+  ],
+  "scope": {
+    "covers": "Conceitos de arquitetura distribuída; componentes, comunicação por mensagens, transparência, escalabilidade, disponibilidade, falhas parciais, replicação e cache; espaços de nomes hierárquicos e resolução; DNS, zonas, delegação, resolvedores, cache e registros A, AAAA, CNAME, NS, MX, PTR, SOA e SRV; descoberta de serviços DNS-SD; diretórios distribuídos X.500/LDAP, DIT, entradas, atributos, objectClass, DN e RDN; operações LDAP Bind, Search, Add, Modify, Delete e Modify DN; filtros, escopos, referrals, TLS e cuidados de segurança.",
+    "excludes": "Configuração prática de servidores DNS ou LDAP, sintaxe completa de filtros LDAP, administração de Active Directory, protocolos proprietários de descoberta, roteamento de rede, implementação de algoritmos de consenso e detalhes criptográficos de DNSSEC."
+  },
+  "theoryTitle": "Como sistemas distribuídos localizam recursos",
+  "chapters": [
+    {
+      "title": "Arquitetura distribuída",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema distribuído reúne computadores independentes que cooperam por uma rede para oferecer uma aplicação. Para o usuário, a tela pode parecer uma única aplicação; por trás dela, um cliente pode chamar um serviço de autenticação, outro de pagamentos e um banco de dados remoto. Cada parte tem memória, processador e falhas próprios. A rede é o meio de comunicação, e não uma memória compartilhada confiável.\n\n> **Siglas e termos deste capítulo**\n> - **Nó**: computador ou processo participante do sistema.\n> - **Middleware**: camada que oferece comunicação e serviços comuns entre componentes.\n> - **RPC**: chamada de procedimento remoto apresentada ao programa como uma invocação, embora atravesse a rede.\n> - **Falha parcial**: uma parte falha enquanto as demais continuam funcionando.\n> - **Replicação**: manutenção de cópias de dados ou serviços em mais de um nó.\n\n### O que muda quando os componentes estão separados\n\nUma chamada remota pode atrasar, perder resposta ou falhar depois de o servidor executar a operação. Por isso, o cliente não deve concluir automaticamente que uma operação não ocorreu só porque expirou o tempo de espera: o servidor pode ter concluído e a resposta ter se perdido. Repetir uma operação de leitura costuma ser seguro; repetir uma cobrança ou uma criação pode duplicar efeitos se o serviço não tiver mecanismos de idempotência ou deduplicação.\n\n| Propriedade | O que oferece | Limite prático |\n| --- | --- | --- |\n| Transparência de acesso | Interface uniforme para recursos locais e remotos | Não elimina latência nem falhas de rede |\n| Transparência de localização | Nome do recurso sem endereço físico embutido | É preciso resolver o nome para um destino utilizável |\n| Replicação | Cópias para leitura, tolerância a falhas ou distribuição de carga | Cópias podem divergir até serem sincronizadas |\n| Escalabilidade | Crescimento de usuários, dados ou nós | Um ponto central pode virar gargalo |\n| Disponibilidade | Serviço responde apesar de falhas isoladas | Réplicas e failover também exigem coordenação |\n\n### Comunicação e limites\n\nOs componentes podem trocar mensagens diretamente, por filas, por chamadas remotas ou por meio de um intermediário. Uma fila desacopla quem publica de quem consome, mas não torna o processamento instantâneo nem garante por si só que um efeito de negócio ocorrerá exatamente uma vez. Timeouts limitam o tempo de espera; retries precisam considerar se a operação pode ser repetida sem dano. Logs com identificadores de correlação ajudam a acompanhar uma solicitação que atravessa serviços.\n\n### Como cai na prova\n\n- Um processo remoto não é uma função local: há atraso, perda e falhas parciais.\n- Replicação melhora disponibilidade ou capacidade, mas cria o problema de manter cópias coerentes.\n- Nome lógico separado de endereço físico facilita trocar a localização do serviço sem alterar todos os clientes.\n- Timeout não prova que a operação remota deixou de produzir efeito.",
+      "section": "Arquitetura distribuída"
+    },
+    {
+      "title": "Serviços de nomes",
+      "markdown": "### O problema que este assunto resolve\n\nPessoas e aplicações preferem nomes estáveis, como `api.exemplo.org`, a endereços numéricos que podem mudar. Um serviço de nomes associa identificadores a informações sobre recursos. O nome não precisa codificar a localização: essa separação permite mover ou replicar o recurso sem exigir que todos os clientes aprendam seu novo endereço.\n\n> **Siglas e termos deste capítulo**\n> - **DNS**: Domain Name System, sistema distribuído de nomes da Internet.\n> - **Resolvedor (resolver)**: componente que busca uma resposta DNS para uma aplicação.\n> - **Servidor autoritativo**: fonte responsável pelos dados de uma zona.\n> - **Zona**: parte administrada da árvore DNS, servida por servidores autoritativos.\n> - **TTL**: tempo de vida indicado para que uma resposta possa permanecer em cache.\n> - **RR**: resource record, registro de recurso DNS com nome, tipo, classe, TTL e dados.\n\n### Hierarquia e delegação\n\nO espaço DNS é uma árvore: a raiz fica no topo, abaixo estão domínios como `.org`, e em níveis seguintes nomes como `exemplo.org` e `api.exemplo.org`. Um nome totalmente qualificado é lido da parte mais específica à esquerda em direção à raiz, separando rótulos por pontos. A administração é distribuída por zonas. Uma zona pode delegar um subdomínio a outros servidores por registros NS; o pai conserva a informação necessária para encaminhar consultas à delegação.\n\nO resolvedor pode responder do cache ou consultar servidores. Na resolução recursiva, o cliente pede ao resolvedor que obtenha a resposta final; o resolvedor percorre a hierarquia, começando por servidores raiz e seguindo referências para níveis mais específicos. Servidores autoritativos fornecem os registros da zona que administram. Cache reduz consultas repetidas, mas uma alteração pode não aparecer imediatamente nos clientes que ainda guardam uma resposta válida conforme seu TTL.\n\n### Registros úteis na prática\n\n| Tipo | Uso típico | Exemplo conceitual |\n| --- | --- | --- |\n| A | Nome para endereço IPv4 | `app` → IPv4 |\n| AAAA | Nome para endereço IPv6 | `app` → IPv6 |\n| CNAME | Alias para outro nome canônico | `www` → `servidor` |\n| NS | Servidores autoritativos de uma zona | zona → nomes de servidores DNS |\n| MX | Servidores que recebem correio do domínio | domínio → host de e-mail e preferência |\n| PTR | Resolução reversa de endereço para nome | endereço → nome associado |\n| SOA | Dados de autoridade e parâmetros da zona | origem, contato e serial da zona |\n| SRV | Serviço, prioridade, peso, porta e alvo | serviço → host e porta |\n\nUm CNAME aponta para outro nome, não guarda por si só o endereço final. Consultas ao nome canônico seguem a cadeia até chegar aos dados necessários. O registro MX identifica servidores de correio, enquanto SRV publica parâmetros de localização de um serviço. DNS responde perguntas tipadas: o mesmo nome pode ter registros de tipos diferentes.\n\n### Como cai na prova\n\n- DNS é hierárquico e distribuído; não depende de uma cópia central completa da base.\n- Cache melhora desempenho e reduz carga, mas pode servir informação antiga até expirar o TTL.\n- NS trata de autoridade/delegação; MX de correio; PTR de mapeamento reverso; SRV de localização de serviços.\n- Resolver um nome não é o mesmo que autenticar o servidor encontrado.",
+      "section": "Serviços de nomes"
+    },
+    {
+      "title": "Serviços de diretório",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço de diretório mantém informações sobre objetos e permite localizá-los por atributos. Em vez de guardar somente uma tradução pontual de nome para endereço, um diretório pode organizar usuários, grupos, computadores e recursos em uma estrutura pesquisável. O modelo X.500/LDAP distribui dados entre servidores; cada servidor pode manter um fragmento do conjunto de informações do diretório.\n\n> **Siglas e termos deste capítulo**\n> - **LDAP**: Lightweight Directory Access Protocol, protocolo de acesso a diretórios.\n> - **DIT**: Directory Information Tree, árvore de entradas do diretório.\n> - **DIB**: Directory Information Base, conjunto de informações mantidas pelo diretório.\n> - **Entrada**: objeto do diretório descrito por atributos e valores.\n> - **DN**: Distinguished Name, nome distinto que identifica uma entrada no contexto da árvore.\n> - **RDN**: Relative Distinguished Name, componente que distingue uma entrada de seu pai.\n> - **DUA / DSA**: agente cliente/usuário do diretório e agente servidor do diretório.\n\n### Entradas, atributos e nomes\n\nUma entrada pode representar, por exemplo, uma pessoa e conter atributos `cn` (nome comum), `sn` (sobrenome), `mail` e `uid`. Atributo é um tipo de informação associado a um ou mais valores. `objectClass` indica as classes de objeto que a entrada satisfaz e ajuda a definir quais atributos são obrigatórios ou permitidos pelo esquema.\n\nA DIT organiza entradas em uma árvore. O DN é formado pela sequência de RDNs desde a entrada até a raiz. Exemplo: `uid=ana,ou=pesquisa,dc=exemplo,dc=org`. O RDN `uid=ana` distingue a entrada de Ana entre as entradas irmãs da unidade `ou=pesquisa`; os componentes seguintes indicam os ancestrais. DN não é simplesmente um endereço de rede, nem precisa ser um nome de usuário globalmente único fora daquele diretório.\n\n### Operações LDAP e pesquisa\n\n| Operação | Para que serve |\n| --- | --- |\n| Bind | Iniciar associação e, conforme o mecanismo, autenticar/estabelecer identidade |\n| Search | Pesquisar entradas a partir de uma base, escopo e filtro |\n| Add | Criar uma entrada |\n| Modify | Adicionar, substituir ou remover valores de atributos |\n| Delete | Remover uma entrada |\n| Modify DN | Renomear ou mover uma entrada na árvore |\n| Unbind | Encerrar a associação do cliente |\n\nUma pesquisa escolhe uma base, um escopo (entrada base, um nível abaixo ou subárvore) e um filtro, por exemplo buscar entradas com `objectClass=person` e `sn=Silva`. O resultado pode conter entradas e referências de continuação (referrals) quando outra parte do diretório precisa ser consultada. Uma resposta positiva a Bind não significa que a aplicação já autorizou toda ação de negócio: autenticação e autorização são decisões distintas.\n\n### Segurança e operação\n\nAs credenciais e dados de diretório precisam de proteção em trânsito e controle de acesso no servidor. LDAP pode ser usado com TLS; StartTLS negocia a camada TLS sobre a conexão LDAP, e LDAPS é o nome comum para LDAP encapsulado em TLS desde o início, conforme a implantação. Pesquisas devem limitar atributos e escopo ao necessário. Permissões de leitura não devem ser confundidas com permissão para alterar entradas. Réplicas ou fragmentos podem responder a consultas, mas consistência e atualização dependem da implementação e configuração do diretório.\n\n### Como cai na prova\n\n- Diretórios são adequados a consultas por atributos e a informações relativamente estruturadas.\n- No LDAP, a interação segue o modelo cliente-servidor; pedidos de operação recebem respostas.\n- DN identifica a posição/nome distinto da entrada; RDN é o componente relativo ao pai.\n- Search consulta, Modify altera atributos e Modify DN muda nome ou posição; Bind não é uma operação de pesquisa.",
+      "section": "Serviços de diretório"
+    },
+    {
+      "title": "Descoberta de serviços",
+      "markdown": "### O problema que este assunto resolve\n\nSaber o endereço de um host não basta quando o cliente precisa descobrir qual instância oferece determinado serviço, em qual porta e com quais parâmetros. Descoberta de serviço acrescenta uma etapa: o cliente consulta o mecanismo de nomes/diretório para obter instâncias candidatas e então escolhe uma conforme disponibilidade, prioridade ou política da aplicação.\n\n> **Siglas e termos deste capítulo**\n> - **DNS-SD**: DNS-Based Service Discovery, descoberta de instâncias usando registros DNS.\n> - **Instância de serviço**: oferta nomeada de um tipo de serviço em um domínio.\n> - **SRV**: registro que publica prioridade, peso, porta e alvo de um serviço.\n> - **TXT**: registro de texto usado por DNS-SD para metadados da instância.\n> - **Referral**: referência LDAP que indica outro servidor ou contexto para continuar uma consulta.\n> - **Failover**: troca para uma instância alternativa após indisponibilidade.\n\n### DNS-SD em passos\n\nDNS-SD usa consultas DNS padronizadas para enumerar e resolver instâncias. Uma consulta PTR pode listar instâncias de um tipo de serviço em um domínio. Para cada instância, registros SRV informam prioridade, peso, porta e host-alvo; registros TXT podem transportar propriedades textuais. A consulta posterior de A/AAAA do alvo obtém endereço IPv4/IPv6. Assim, descobrir o serviço, resolver o host e conectar-se à porta são etapas distintas.\n\nPrioridade e peso de SRV ajudam a selecionar destinos, mas não são prova de que a aplicação está saudável no instante da conexão. O cliente ainda pode precisar de timeout, tentativa alternativa e verificação de saúde. TTL e cache também afetam o tempo até mudanças de instâncias serem observadas.\n\n### Nome, diretório e catálogo de serviço não são sinônimos\n\n| Necessidade | Exemplo de mecanismo | Resultado característico |\n| --- | --- | --- |\n| Descobrir endereço associado a nome | DNS A/AAAA | Endereço de rede |\n| Descobrir servidor de correio | DNS MX | Host e preferência de correio |\n| Descobrir instância de serviço | DNS-SD com PTR/SRV/TXT | Instância, alvo, porta e metadados |\n| Pesquisar pessoa por atributo | Diretório LDAP Search | Entradas que satisfazem filtro |\n| Alterar cadastro | LDAP Modify | Valores de atributos atualizados |\n\nDNS é especialmente usado para resolução distribuída e dados associados a nomes; LDAP oferece um modelo de diretório com entradas, esquema e operações de pesquisa/atualização. Há sobreposições de uso em catálogos e descoberta, mas seus modelos não são intercambiáveis. O DNS não fornece, por si só, a autorização para usar um serviço; LDAP não escolhe automaticamente a instância mais rápida para qualquer aplicação.\n\n### Como cai na prova\n\n- Se a questão pede host e porta de uma instância, considere SRV; para enumerar instâncias DNS-SD, considere PTR.\n- Se pede localizar usuário por sobrenome e outros atributos, é cenário típico de pesquisa em diretório.\n- Uma resposta de nome informa dados publicados; health check, autenticação e autorização são controles separados.\n- Resolver nomes e consultar diretórios reduzem dependência de endereços fixos no cliente, mas também criam dependência operacional dos serviços de resolução.",
+      "section": "Descoberta de serviços"
+    }
+  ],
+  "summary": "Sistemas distribuídos são compostos por nós independentes que se comunicam por rede e enfrentam falhas parciais, latência e necessidade de coordenação. Serviços de nomes associam identificadores a dados e localização; no DNS, uma árvore distribuída de zonas usa registros tipados, delegação e cache. Serviços de diretório organizam objetos em árvores de entradas e atributos. LDAP permite autenticar a associação, pesquisar e modificar entradas usando DN, filtros e operações definidas. DNS-SD combina registros PTR, SRV e TXT para descobrir instâncias. Nome/resolução, disponibilidade, autenticação e autorização são funções relacionadas, mas distintas.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um sistema distribuído?",
+      "back": "Nós independentes cooperam e trocam mensagens por uma rede para oferecer uma função comum."
+    },
+    {
+      "front": "O que é uma falha parcial?",
+      "back": "Uma parte do sistema falha enquanto outras continuam operando."
+    },
+    {
+      "front": "Por que um timeout não prova que uma operação remota falhou?",
+      "back": "O servidor pode ter executado a operação e a resposta pode ter se perdido ou atrasado."
+    },
+    {
+      "front": "O que é transparência de localização?",
+      "back": "Usar um nome lógico sem expor ao cliente a localização física atual do recurso."
+    },
+    {
+      "front": "Qual o principal benefício do cache DNS?",
+      "back": "Reduz consultas repetidas e latência ao guardar respostas pelo período permitido."
+    },
+    {
+      "front": "O que significa TTL em uma resposta DNS?",
+      "back": "Tempo de vida associado aos dados para orientar sua permanência em cache."
+    },
+    {
+      "front": "O que é uma zona DNS?",
+      "back": "Parte da árvore DNS administrada e servida por servidores autoritativos."
+    },
+    {
+      "front": "O que faz um registro A?",
+      "back": "Associa um nome a um endereço IPv4."
+    },
+    {
+      "front": "O que faz um registro AAAA?",
+      "back": "Associa um nome a um endereço IPv6."
+    },
+    {
+      "front": "Para que serve CNAME?",
+      "back": "Indica um alias que aponta para outro nome canônico."
+    },
+    {
+      "front": "Para que servem registros NS?",
+      "back": "Identificam servidores autoritativos associados a uma zona ou delegação."
+    },
+    {
+      "front": "Qual é o uso de MX?",
+      "back": "Publicar os servidores que recebem correio para um domínio, com preferências."
+    },
+    {
+      "front": "O que representa PTR?",
+      "back": "Um ponteiro usado tipicamente em resolução reversa de endereço para nome."
+    },
+    {
+      "front": "O que SRV publica?",
+      "back": "Prioridade, peso, porta e alvo de um serviço."
+    },
+    {
+      "front": "O que é DNS-SD?",
+      "back": "Mecanismo de descoberta de instâncias de serviço por consultas DNS padronizadas."
+    },
+    {
+      "front": "O que significa DIT?",
+      "back": "Árvore de entradas de um diretório."
+    },
+    {
+      "front": "O que é um DN?",
+      "back": "Nome distinto da entrada, formado pelos componentes desde ela até a raiz da árvore."
+    },
+    {
+      "front": "O que é um RDN?",
+      "back": "Componente que distingue uma entrada de seu pai imediato."
+    },
+    {
+      "front": "Qual é a finalidade de objectClass?",
+      "back": "Indicar classes da entrada e contribuir para determinar atributos permitidos ou requeridos."
+    },
+    {
+      "front": "Qual operação LDAP pesquisa entradas?",
+      "back": "Search, com base, escopo e filtro."
+    },
+    {
+      "front": "Qual operação LDAP altera valores de atributos?",
+      "back": "Modify."
+    },
+    {
+      "front": "Bind concede autorização geral à aplicação?",
+      "back": "Não; inicia a associação e pode autenticar, mas autorização de ações é decisão separada."
+    }
+  ],
+  "tips": [
+    "Leia o tipo do registro DNS antes de interpretar os dados: MX, NS e SRV respondem a necessidades diferentes.",
+    "Separe cliente, resolvedor recursivo e servidor autoritativo ao descrever uma resolução DNS.",
+    "Em um DN, siga os RDNs da entrada em direção aos ancestrais; o primeiro componente costuma ser o mais específico.",
+    "Uma questão LDAP de pesquisa normalmente combina base, escopo e filtro.",
+    "Identifique se o enunciado pede localização, descoberta, autenticação ou autorização: uma resposta DNS não resolve as quatro tarefas.",
+    "Ao avaliar retries em sistemas distribuídos, verifique se a operação é idempotente e se há proteção contra duplicidade."
+  ],
+  "traps": [
+    "Confundir servidor DNS autoritativo com resolvedor recursivo do cliente.",
+    "Supor que uma resposta em cache se atualiza imediatamente quando a fonte muda.",
+    "Tratar CNAME como se armazenasse diretamente um endereço IP.",
+    "Confundir DN completo com RDN relativo ao pai.",
+    "Afirmar que Bind e autenticação dispensam autorização para cada operação.",
+    "Achar que SRV confirma saúde ou disponibilidade da instância anunciada."
+  ],
+  "activeRecall": [
+    "Explique por que uma arquitetura distribuída não consegue tratar toda chamada remota como chamada local.",
+    "Descreva o percurso de uma consulta recursiva quando o resolvedor ainda não tem a resposta em cache.",
+    "Compare as funções de A, AAAA, CNAME, MX, NS, PTR e SRV.",
+    "Explique como a delegação por zonas permite administrar a árvore DNS de forma distribuída.",
+    "Dado `uid=joao,ou=ti,dc=exemplo,dc=org`, identifique o RDN da entrada e descreva o restante do DN.",
+    "Explique a relação entre entrada LDAP, atributo, valor e objectClass.",
+    "Descreva como uma operação Search delimita os resultados usando base, escopo e filtro.",
+    "Compare descoberta DNS-SD de instância de serviço com busca LDAP de uma pessoa por atributos."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Timeout tratado como prova de não execução",
+      "summary": "A resposta pode se perder após a execução; retries sem idempotência podem duplicar operações remotas."
+    },
+    {
+      "key": "e2",
+      "title": "Papéis confundidos na resolução DNS",
+      "summary": "O resolvedor recursivo busca respostas para o cliente; o autoritativo fornece dados da zona que administra."
+    },
+    {
+      "key": "e3",
+      "title": "Registros DNS trocados",
+      "summary": "A e AAAA localizam endereços; MX trata de correio; NS de autoridade; PTR de resolução reversa; SRV de serviços."
+    },
+    {
+      "key": "e4",
+      "title": "DN confundido com RDN",
+      "summary": "RDN distingue a entrada de seu pai; DN compõe o nome hierárquico da entrada pelos ancestrais até a raiz."
+    },
+    {
+      "key": "e5",
+      "title": "Autenticação confundida com autorização",
+      "summary": "Bind estabelece identidade, mas permissões de leitura e alteração dependem das políticas do servidor e da aplicação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um sistema distribuído, uma chamada a outro processo pode sofrer atraso ou falha de comunicação mesmo que o programa cliente tenha enviado corretamente a solicitação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A comunicação atravessa uma rede sujeita a atraso, perda e interrupção. O envio bem-sucedido pelo cliente não garante que a resposta chegará dentro do prazo esperado.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma chamada remota termina por timeout, o cliente pode concluir que o servidor não executou a operação solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O servidor pode ter concluído a operação e a resposta ter se perdido ou chegado tarde. O cliente conhece o timeout, não o resultado efetivo; uma repetição pode duplicar efeitos.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separar o nome lógico de um recurso de seu endereço atual permite mudar sua localização sem obrigar cada cliente a armazenar o novo endereço diretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cliente usa o nome lógico e consulta um serviço de resolução para obter os dados atuais. Essa separação oferece transparência de localização, embora não elimine dependência do serviço de nomes.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Manter réplicas de um serviço pode melhorar sua disponibilidade, mas torna necessário considerar como as cópias receberão atualizações e permanecerão coerentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Réplicas permitem atender consultas mesmo diante de falhas isoladas e podem distribuir carga. A contrapartida é sincronizar as cópias e tratar leituras que encontrem dados ainda não propagados.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de mensagens garante, por si só, que cada efeito de negócio será aplicado exatamente uma vez, mesmo diante de falhas e repetição de mensagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma fila pode desacoplar produtores e consumidores e oferecer mecanismos de entrega, mas não garante sozinha efeito de negócio exatamente uma vez. Deduplicação, idempotência ou transação precisam ser consideradas na aplicação.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Transparência de acesso pode apresentar uma interface comum para operações locais e remotas, sem remover a latência própria da comunicação pela rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A interface pode esconder diferenças de invocação, mas não torna o custo de uma chamada remota igual ao de uma chamada local, nem impede falhas de comunicação.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação elimina a necessidade de coordenação entre nós, pois cada cópia pode ser atualizada sem considerar as demais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Réplicas precisam de algum mecanismo ou política para propagar e conciliar alterações. Atualizações independentes podem produzir valores divergentes e leituras inconsistentes.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação idempotente produz o mesmo estado observável quando é repetida com os mesmos parâmetros, o que pode tornar retries mais seguros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Idempotência diz respeito ao efeito de execuções repetidas, não à ausência de falhas. Ela ajuda a lidar com respostas perdidas porque a repetição não cria um efeito adicional distinto.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O espaço de nomes DNS é organizado como uma árvore de rótulos, com a raiz no topo e domínios em níveis inferiores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O DNS usa uma hierarquia de nomes. Domínios e subdomínios ocupam posições na árvore, e a administração dos dados pode ser distribuída por zonas.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro A associa um nome DNS a um endereço IPv6, enquanto AAAA é usado para endereços IPv4.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A é usado para endereço IPv4 e AAAA para endereço IPv6. A troca entre os tipos é uma confusão frequente em questões sobre registros DNS.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tempo de vida de uma resposta em cache pode atrasar a observação de uma alteração DNS feita na fonte autoritativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um resolvedor pode manter a resposta até o TTL expirar. Alterar os dados autoritativos não apaga imediatamente todas as cópias em cache espalhadas pela rede.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro NS informa o endereço de correio preferencial que recebe mensagens destinadas ao domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. NS identifica servidores de nomes autoritativos da zona. O registro MX é que publica servidores de correio e suas preferências.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um CNAME fornece um alias para outro nome; a resolução pode então prosseguir para consultar os dados associados ao nome canônico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O dado do CNAME é outro nome, não o endereço numérico final. O resolvedor prossegue a resolução para obter o tipo de dado pedido no nome canônico.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resolvedor recursivo e um servidor autoritativo têm o mesmo papel: ambos respondem apenas com dados da zona que administram.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O resolvedor recursivo busca respostas para o cliente, recorrendo à hierarquia quando necessário. O autoritativo fornece dados da zona pela qual responde; os papéis não são equivalentes.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa LDAP pode limitar os resultados indicando uma base, um escopo e um filtro de atributos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Search delimita o ponto inicial na árvore, a parte da árvore abrangida e as condições que as entradas precisam satisfazer.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RDN identifica necessariamente uma entrada considerando todos os ancestrais até a raiz do diretório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O RDN distingue uma entrada de seu pai imediato. A composição hierárquica dos componentes, desde a entrada até os ancestrais, forma o DN.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação LDAP Modify altera valores de atributos de uma entrada, enquanto Modify DN é usada para renomear ou mover uma entrada na árvore.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Modify atua sobre atributos; Modify DN altera o nome distinto e pode reposicionar a entrada. São operações diferentes, ainda que ambas modifiquem o diretório.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação realizada durante Bind determina automaticamente que o usuário pode ler e modificar qualquer entrada do diretório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Bind estabelece uma associação e pode autenticar uma identidade. O acesso a cada operação e entrada depende de controles de autorização e das políticas da aplicação e do servidor.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo LDAP, as entradas de um diretório podem ser distribuídas entre servidores, e um cliente interage com esses servidores por meio de operações de protocolo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo envolve clientes e servidores que mantêm fragmentos da base de informações do diretório. O protocolo define pedidos, respostas e referências para continuação quando aplicável.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No DNS-SD, uma consulta PTR pode enumerar instâncias de um tipo de serviço; registros SRV e TXT podem fornecer dados adicionais da instância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DNS-SD usa PTR para listar instâncias e SRV para publicar parâmetros como porta e host-alvo; TXT pode carregar propriedades textuais da instância.",
+      "section": "Descoberta de serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual propriedade distingue uma falha parcial de uma falha total do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma parte falha enquanto outras ainda podem responder e executar suas funções.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os processos param juntos, todos os nós deixam de responder e o sistema inteiro fica indisponível ao mesmo tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas os dados persistentes falham, mas todos os processos seguem iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rede permanece íntegra, mas a aplicação deixa de precisar de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema troca os nomes dos nós sem que qualquer componente falhe.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falhas parciais afetam alguns componentes enquanto outros continuam ativos, tornando necessário detectar e tratar estados diferentes entre os nós. Uma parada simultânea de todos caracterizaria uma falha total.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa mudar o endereço de um serviço sem alterar a configuração armazenada em cada cliente. Qual abordagem ajuda diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar um nome lógico estável e resolver esse nome para o endereço atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gravar o endereço numérico em cada cliente e atualizá-lo manualmente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inserir o endereço da rede como parte permanente do nome do recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar a localização apenas em mensagens de erro enviadas pelo serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o nome e exigir que cada cliente descubra o host por tentativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um serviço de nomes permite que o cliente use um identificador lógico e obtenha a localização vigente. Isso evita propagar a mudança em cada configuração cliente, embora o serviço de resolução também precise estar disponível.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o risco de repetir uma solicitação após perder a resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor certamente descartou a solicitação ao detectar que a conexão foi fechada, pois o encerramento do canal também desfaz qualquer operação que já estivesse em processamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resposta pode ter se perdido depois da execução, então um retry pode duplicar um efeito.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O cliente pode inferir o resultado correto apenas pelo tempo de espera configurado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma solicitação enviada pela rede é sempre revertida se a resposta não chegar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O intermediário da rede remove automaticamente os efeitos já confirmados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha no caminho de retorno não informa se o servidor concluiu a operação. Para repetir com segurança, a aplicação pode usar idempotência, identificadores de requisição ou deduplicação.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir a dependência de um único servidor e distribuir consultas de leitura entre cópias. Qual recurso arquitetural atende a essa necessidade, com custo de coerência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codificação do endereço de cada usuário dentro de seu nome permanente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação de dados ou serviço entre nós, com política para sincronizar as cópias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazenamento de todos os dados em um único processo com mais clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumento do TTL para que nenhuma atualização precise chegar às cópias, já que um prazo de cache maior replica os dados automaticamente e elimina divergências entre servidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uso de timeout longo para impedir que o serviço principal fique indisponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas distribuem carga e podem manter atendimento quando um nó falha. O sistema precisa tratar propagação de atualizações e divergências; TTL e timeout não substituem replicação nem sincronização.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura distribuída, qual função corresponde ao middleware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar toda a lógica de negócio apenas no computador do usuário final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todos os protocolos de rede por chamadas sem atraso e sem falhas, de modo que a camada esconda por completo latência, perda de mensagens e indisponibilidade dos nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fornecer serviços comuns de comunicação e integração entre componentes distribuídos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garantir a consistência de qualquer banco sem política de replicação definida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter cada dado persistente em endereço físico de memória compartilhada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Middleware oferece abstrações e serviços para facilitar a comunicação e a cooperação entre componentes. Ele não elimina propriedades fundamentais da rede nem substitui as decisões de consistência da aplicação.",
+      "section": "Arquitetura distribuída",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe publica uma nova versão de uma resposta em DNS e verifica que alguns clientes ainda recebem o dado anterior. Qual explicação é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O registro MX bloqueia a propagação até que cada cliente reinicie sua aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor autoritativo impede consultas a dados atualizados por padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O registro CNAME transforma qualquer resposta nova em um dado permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Resolvedores podem manter respostas em cache até terminar o TTL aplicável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A hierarquia DNS transmite alterações em tempo real e as envia imediatamente a todos os resolvedores sem cópias intermediárias.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cache DNS reduz tráfego, mas uma resposta armazenada pode continuar sendo usada durante seu TTL. Por isso, mudança na fonte autoritativa não implica atualização instantânea de todos os clientes.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro deve ser consultado para obter o endereço IPv6 publicado para um nome de host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NS, que guarda o endereço IPv6 do cliente que iniciou a consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A, que associa o nome exclusivamente a um endereço IPv6.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MX, que informa o endereço IPv6 do servidor de correio do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AAAA, que associa o nome ao endereço IPv6 publicado na zona.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "PTR, que substitui os registros de endereço direto para todo host.",
+          "correct": false
+        }
+      ],
+      "explanation": "AAAA publica um endereço IPv6 para o nome consultado. A é o registro de endereço IPv4; os demais tipos respondem a funções diferentes, como correio, autoridade ou resolução reversa.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro MX encontrado para um domínio informa principalmente o quê?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os servidores de nomes que são autoritativos por toda a Internet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um alias que deve ser seguido até o nome canônico do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Servidores que recebem correio para o domínio e sua preferência relativa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O host e a porta de uma instância de qualquer tipo de serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome reverso correspondente ao endereço do remetente da mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "MX identifica os servidores responsáveis por receber correio para o domínio e inclui preferência relativa entre eles. NS trata de servidores de nomes e SRV publica parâmetros de serviço como porta e alvo.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer delegar a administração de `pesquisa.exemplo.org` a outra equipe. Qual mecanismo DNS representa a delegação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um registro A no domínio pai que substitui toda a árvore de nomes inferior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um registro TXT que transfere automaticamente o controle do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um registro MX apontando para a equipe responsável pelo subdomínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um registro CNAME na raiz que apaga os dados autoritativos anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registros NS que indicam os servidores autoritativos da zona delegada.",
+          "correct": true
+        }
+      ],
+      "explanation": "A delegação é representada por NS que apontam para os servidores da zona filha. A equipe responsável administra os dados dessa zona, enquanto a hierarquia permite que consultas sejam encaminhadas a ela.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao funcionamento típico de um resolvedor recursivo sem resposta em cache?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consulta servidores na hierarquia, segue delegações e retorna ao cliente a resposta obtida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reescreve o nome recebido para um endereço escolhido sem consultar nenhum dado DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Solicita ao cliente que contate diretamente cada servidor de zona em sequência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Responde apenas com registros da zona local, mesmo quando ela não é autoritativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cria um registro autoritativo temporário em cada domínio consultado para guardar a resposta final no resolvedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O resolvedor recursivo busca a resposta em nome do cliente, percorrendo referências da hierarquia quando necessário. Ele pode começar por informação da raiz, seguir delegações e guardar dados em cache conforme os TTLs.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa identificar os servidores autoritativos de uma zona. Qual tipo de registro oferece essa informação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NS, que publica nomes de servidores de nomes para a zona.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "PTR, que publica os servidores de correio e sua ordem de preferência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SRV, que publica toda a árvore de servidores autoritativos DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MX, que associa a zona a seus servidores de nomes delegados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CNAME, que transfere autoridade para qualquer nome apontado.",
+          "correct": false
+        }
+      ],
+      "explanation": "NS identifica servidores de nomes associados à autoridade da zona. A delegação também usa NS no contexto da árvore DNS; MX é voltado a correio e CNAME é alias de nome.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de um serviço de diretório é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um conjunto organizado de entradas consultáveis por atributos e nomes hierárquicos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um arquivo plano de endereços IP que não admite atributos ou pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um mecanismo de transporte que encaminha pacotes ao host mais próximo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um único registro DNS usado para converter qualquer usuário em senha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tabela temporária de conexões sem objetos ou estrutura de informação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um diretório mantém objetos organizados e oferece operações para pesquisá-los e, conforme as permissões, atualizá-los. LDAP acessa diretórios com entradas, atributos, esquema e nomes hierárquicos.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em LDAP, o que representa o atributo objectClass de uma entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A porta de transporte que o cliente deve usar para consultar aquela entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O endereço DNS que substitui o DN em todas as operações do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A senha criptografada que autentica automaticamente qualquer Bind.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As classes de objeto associadas e as regras de atributos do esquema aplicáveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A lista de servidores autoritativos da zona DNS em que a entrada reside.",
+          "correct": false
+        }
+      ],
+      "explanation": "objectClass declara as classes às quais a entrada pertence; essas classes definem atributos obrigatórios e permitidos segundo o esquema. Não é endereço, senha nem informação de transporte.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No DN `uid=ana,ou=pesquisa,dc=exemplo,dc=org`, qual parte é o RDN da entrada de Ana?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`dc=org`, porque identifica o nível mais alto da árvore de nomes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`uid=ana`, que distingue a entrada de seu pai imediato.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`ou=pesquisa,dc=exemplo`, que representa todo o caminho até a raiz.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O DN inteiro, pois RDN e DN são sempre nomes equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`dc=exemplo,dc=org`, que identifica apenas a entrada folha.",
+          "correct": false
+        }
+      ],
+      "explanation": "`uid=ana` é o RDN da entrada, relativo ao contêiner `ou=pesquisa`. O DN completo reúne esse componente e os componentes dos ancestrais até a raiz considerada.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação LDAP é usada para buscar entradas que correspondam a condições sobre atributos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Add, que cria entradas novas a partir do resultado de um filtro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bind, que percorre a árvore e retorna todas as entradas correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Search, que recebe base, escopo e filtro para localizar entradas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Unbind, que pesquisa antes de encerrar a associação do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modify DN, que consulta atributos sem alterar o nome da entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Search é a operação de pesquisa. Base e escopo delimitam a parte da DIT consultada, enquanto o filtro define os critérios que as entradas precisam satisfazer.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação autenticou um usuário por Bind e precisa decidir se ele pode alterar um registro de funcionário. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autorização para a alteração ainda deve ser avaliada conforme as permissões aplicáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sucesso do Bind concede automaticamente permissão de escrita em toda a DIT.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O usuário só pode alterar se o servidor tiver respondido a uma consulta MX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma consulta Search bem-sucedida substitui qualquer política de autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A senha usada no Bind passa a ser o RDN da entrada modificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação estabelece ou verifica a identidade usada na associação, mas autorização determina quais operações essa identidade pode realizar. A política pode restringir leitura e escrita por entrada ou atributo.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação LDAP cria uma entrada nova no diretório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Delete, que remove a entrada antiga e cria automaticamente a substituta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modify, que cria qualquer DN inexistente antes de trocar atributos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Search, que grava os resultados encontrados como novas entradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modify DN, que cria uma cópia ao renomear qualquer entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Add, que solicita a inclusão de uma entrada com seus atributos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Add é a operação para criar uma entrada. Modify altera atributos de uma entrada existente, Search lê resultados e Delete remove a entrada indicada.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa LDAP produz um referral para outro contexto de diretório. O que essa resposta indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente recebeu uma senha temporária para entrar na entrada pesquisada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor informa uma referência para continuar a pesquisa em outro local ou servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A entrada solicitada foi removida e o servidor substituiu seus atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A associação LDAP foi encerrada sem que o cliente precise processar a resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O filtro foi convertido em registro SRV e enviado ao servidor DNS local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Referrals apontam a continuação em outro servidor ou contexto quando os dados consultados estão distribuídos. O cliente pode precisar seguir a referência conforme sua política e capacidade.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia adequadamente DNS e LDAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNS mantém apenas pessoas e LDAP traduz exclusivamente hostnames em endereços IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DNS autentica toda conexão e LDAP seleciona o host de menor latência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos são sinônimos e oferecem exatamente os mesmos registros e operações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DNS resolve nomes por registros tipados; LDAP pesquisa entradas e atributos de diretório.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "LDAP substitui a hierarquia de zonas DNS sempre que há servidores distribuídos.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNS associa nomes a registros tipados em um espaço hierárquico distribuído. LDAP oferece acesso a diretórios estruturados em entradas e atributos, com operações como Search e Modify.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de serviço é anunciada por DNS-SD. Qual registro fornece dados como porta e host-alvo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SRV, que publica prioridade, peso, porta e alvo para o serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MX, que fornece a porta e o endereço de qualquer aplicação anunciada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PTR, que sempre inclui o endereço IP e a porta de destino no próprio dado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NS, que identifica o processo cliente e o número da sessão ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOA, que enumera todas as instâncias disponíveis para o usuário final.",
+          "correct": false
+        }
+      ],
+      "explanation": "SRV informa parâmetros de localização do serviço, incluindo prioridade, peso, porta e host-alvo. A resolução de A ou AAAA para o alvo pode ser uma etapa posterior.",
+      "section": "Descoberta de serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em DNS-SD, qual uso é associado tipicamente ao registro PTR durante a descoberta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar o certificado que autentica criptograficamente todo serviço listado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir a prioridade dos servidores de correio do domínio consultado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enumerar instâncias de um tipo de serviço em um domínio de descoberta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Indicar que a aplicação já passou por verificação de saúde recente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fornecer a senha que o cliente usará ao abrir a conexão TCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNS-SD usa consultas PTR para obter nomes das instâncias anunciadas para um tipo de serviço. A resolução de cada instância pode então consultar SRV, TXT e os registros de endereço do alvo.",
+      "section": "Descoberta de serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço foi anunciado por SRV com alvo e porta. O que ainda precisa ocorrer para o cliente abrir uma conexão IP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar MX do alvo e usar o nome do servidor de correio como destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Obter endereço A ou AAAA do host-alvo e então conectar à porta anunciada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar Modify DN no diretório para transformar a porta em endereço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar o nome SRV como endereço numérico sem fazer resolução adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar SOA para autenticar a instância e iniciar a sessão automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "SRV fornece um nome de alvo e porta, mas não necessariamente o endereço IP. O cliente resolve o alvo por A ou AAAA e depois tenta estabelecer a conexão; descoberta não substitui autenticação ou health check.",
+      "section": "Descoberta de serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação busca usuários por sobrenome e unidade organizacional, retornando várias entradas com atributos selecionados. Qual mecanismo é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma consulta DNS A, pois o registro contém filtros arbitrários sobre pessoas e permite combinar sobrenome, unidade organizacional e atributos de cada usuário em resultados pesquisáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma consulta MX, pois sua preferência permite ordenar usuários por departamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma busca por PTR, que lista todas as entradas de diretório por atributo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma consulta SRV, que retorna atributos pessoais e grupos de autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma operação LDAP Search com base, escopo e filtro sobre os atributos relevantes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Diretórios LDAP foram projetados para pesquisar entradas e atributos, com escopo e filtro. Registros DNS tipados como A, MX, PTR ou SRV publicam dados voltados a nomes e serviços, não substituem esse modelo de consulta de pessoas.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida protege o conteúdo e as credenciais LDAP contra leitura passiva na rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar apenas um filtro Search mais específico, que cifra todas as mensagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar o DN em um registro TXT para ocultar as credenciais da sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar cache DNS no cliente para impedir que terceiros observem o tráfego.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proteger o canal com TLS, por exemplo negociando TLS por StartTLS conforme a implantação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar Modify DN para criptografar os atributos durante o transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege a comunicação em trânsito contra observação e alteração por terceiros no caminho, desde que seja configurado e validado corretamente. Filtros, nomes e cache não cifram o canal LDAP.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois nomes diferem apenas entre letras maiúsculas e minúsculas. Qual afirmação sobre nomes DNS é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A caixa das letras cria obrigatoriamente dois domínios distintos na hierarquia DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A diferença de caixa altera somente o TTL, sem alterar o nome consultado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nomes DNS não atribuem significado diferenciador à caixa das letras.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nome em maiúsculas passa a ser um registro CNAME do nome em minúsculas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A caixa determina se o nome será resolvido por LDAP ou por DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação de nomes DNS não diferencia maiúsculas de minúsculas. A caixa pode aparecer na representação textual, mas não cria nomes distintos apenas por essa diferença.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer manter cadastro de pessoas, grupos e computadores pesquisáveis por atributos e organizados em hierarquia. Qual tecnologia se ajusta melhor ao modelo descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um diretório LDAP com entradas, atributos, esquema e nomes distintos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente registros MX, pois eles armazenam atributos de todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas consultas A, que organizam objetos em uma árvore de entradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um registro SOA por pessoa, usado como mecanismo de pesquisa relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um PTR para cada grupo, que executa operações Add e Modify automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo de diretório LDAP representa objetos como entradas com atributos e organiza essas entradas na DIT. Operações de pesquisa e atualização permitem consultar e manter esse cadastro, sob controles de acesso.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta DNS retorna o alvo e a porta anunciados por SRV. É correto concluir que a instância está disponível e autorizada para o cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois a presença do registro comprova que o serviço está saudável e aceitou o cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, porque o registro SRV inclui o resultado de uma autenticação do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; descoberta fornece dados publicados, mas saúde e autorização exigem verificações próprias.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não, pois SRV só pode ser usado em serviços de correio e nunca indica uma porta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, desde que o nome esteja no cache, pois TTL equivale a uma concessão de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "SRV anuncia parâmetros de localização, não o estado atual de saúde, uma sessão aberta ou permissão de uso. O cliente ainda pode verificar a instância e realizar autenticação e autorização apropriadas.",
+      "section": "Descoberta de serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao terminar normalmente uma associação LDAP, qual operação o cliente pode usar para indicar que está encerrando a sessão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Add, que fecha a conexão depois de inserir uma entrada vazia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Unbind, que encerra a associação do cliente ao diretório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Search, que remove a associação após retornar todos os resultados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modify DN, que fecha a conexão ao mover a entrada raiz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compare, que finaliza a sessão se o atributo consultado existir.",
+          "correct": false
+        }
+      ],
+      "explanation": "Unbind é a operação de encerramento iniciada pelo cliente, que sinaliza o término da associação LDAP e permite encerrar a sessão de forma ordenada. Não cria, pesquisa ou altera entradas no diretório.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada LDAP contém o atributo `mail` com dois valores. Qual interpretação é compatível com o modelo de diretório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A entrada pode associar mais de um valor ao atributo, conforme o esquema aplicável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O segundo valor converte automaticamente o atributo em registro NS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo atributo LDAP deve conter exatamente um valor de qualquer tipo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os valores substituem o DN e tornam a entrada impossível de localizar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A entrada passa a ser um servidor DNS autoritativo para os endereços listados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atributos podem ter valores conforme a definição do esquema; alguns atributos são multivalorados. Os valores não substituem o DN nem convertem a entrada em registro DNS.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma zona DNS é atualizada e seus servidores autoritativos passam a servir o novo registro. Qual condição explica que outro resolvedor ainda não veja a alteração imediatamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor recursivo pode ter uma resposta anterior válida em seu cache até o TTL expirar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O registro SOA obriga todos os resolvedores a apagar o cache a cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O registro PTR impede a propagação de mudanças feitas na zona autoritativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente precisa alterar o DN para que o servidor autoritativo publique o registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um registro A nunca pode ser atualizado depois que foi consultado uma vez.",
+          "correct": false
+        }
+      ],
+      "explanation": "Servidores recursivos podem responder de seu cache durante o TTL dos dados armazenados. A fonte autoritativa pode já ter o valor novo enquanto alguns clientes ainda recebem uma cópia anterior válida.",
+      "section": "Serviços de nomes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja que uma consulta LDAP retorne somente entradas imediatamente abaixo da entrada-base, sem percorrer níveis mais profundos. Que escopo deve escolher?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Subárvore, pois esse escopo examina apenas os filhos diretos da base.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Entrada-base, pois esse escopo inclui todas as entradas descendentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Global, que é definido pelo protocolo para buscar toda a DIB.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um nível abaixo, que pesquisa as entradas-filhas imediatas da base.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Autoritativo, que percorre os servidores DNS associados ao DN informado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O escopo de um nível abaixo examina os filhos imediatos da base. O escopo de subárvore inclui descendentes em níveis inferiores, enquanto entrada-base limita o resultado à própria base.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma descoberta de serviço, qual afirmação sobre prioridade e peso de registros SRV é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servem como parâmetros de seleção entre destinos anunciados, mas não comprovam saúde instantânea.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituem a validação de certificado e autorizam o cliente a usar qualquer destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinam o TTL dos registros A e impedem que os alvos sejam alterados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indicam se o serviço já autenticou o cliente antes da conexão TCP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "São campos que apenas identificam a zona DNS e não afetam a seleção de alvos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prioridade e peso ajudam o cliente a selecionar entre alvos SRV de acordo com as regras do mecanismo. Eles não executam health check, autenticação ou autorização da aplicação.",
+      "section": "Descoberta de serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar uma busca LDAP, qual prática reduz resultados e exposição desnecessários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pesquisar desde a raiz em toda a DIT e retornar todos os atributos de cada entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar a base, o escopo, o filtro e os atributos retornados de acordo com a necessidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir o filtro por um registro MX que selecione os departamentos desejados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar Bind sem credenciais, pois a autenticação limita automaticamente os resultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar TLS para reduzir o número de entradas pesquisadas pelo servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Delimitar base e escopo, filtrar entradas e solicitar apenas os atributos necessários reduz carga e exposição de dados. A busca continua sujeita à autorização configurada; TLS protege o canal e não substitui o filtro.",
+      "section": "Serviços de diretório",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1034 — Domain Names: Concepts and Facilities",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Arquitetura DNS, hierarquia de nomes, distribuição, cache, zonas e delegação",
+      "url": "https://www.rfc-editor.org/rfc/rfc1034.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1035 — Domain Names: Implementation and Specification",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Formato de mensagens DNS e registros A, CNAME, MX, NS, PTR, SOA e SRV",
+      "url": "https://www.rfc-editor.org/rfc/rfc1035.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4511 — Lightweight Directory Access Protocol: The Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Modelo cliente-servidor, Bind, Search, Add, Modify, Delete, Modify DN, Unbind, referrals e StartTLS",
+      "url": "https://www.rfc-editor.org/rfc/rfc4511.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4512 — Lightweight Directory Access Protocol: Directory Information Models",
+      "publisher": "RFC Editor / IETF",
+      "reference": "DIT, DIB, entradas, nomes DN/RDN, objectClass, atributos e modelo de servidor",
+      "url": "https://www.rfc-editor.org/rfc/rfc4512.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6763 — DNS-Based Service Discovery",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Enumeração e resolução de instâncias por DNS-SD com registros PTR, SRV e TXT",
+      "url": "https://www.rfc-editor.org/rfc/rfc6763.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

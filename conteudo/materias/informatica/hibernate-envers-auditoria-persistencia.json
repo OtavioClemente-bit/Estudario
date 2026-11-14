@@ -1,0 +1,2065 @@
+{
+  "id": "informatica.hibernate-envers-auditoria-persistencia",
+  "subject": "Informática",
+  "title": "Hibernate Envers: auditoria e persistência histórica",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Hibernate Envers e auditoria histórica",
+    "Auditoria de entidades Hibernate Envers",
+    "Hibernate Envers para persistência histórica",
+    "Versionamento de entidades com Hibernate Envers",
+    "Revisões de dados no Hibernate Envers",
+    "Tabelas de auditoria do Hibernate Envers",
+    "Consulta histórica com AuditReader",
+    "Auditoria de persistência em Hibernate",
+    "Hibernate Envers: histórico de alterações",
+    "HibernateEnvers"
+  ],
+  "scope": {
+    "covers": "Hibernate Envers como extensão de auditoria e versionamento histórico de entidades: dependência e @Audited; revisões e transações; tabelas de auditoria, REVINFO, REV e REVTYPE; tipos de alteração; configuração de tabelas; exclusão e relações auditadas; entidade de revisão customizada e metadados; AuditReader e consultas históricas; estratégias Default e Validity; flags de modificação; limites e integração operacional.",
+    "excludes": "Auditoria de acesso à aplicação, trilhas de log de infraestrutura, segurança jurídica ou conformidade normativa, replicação e backup de banco, implementação interna de Hibernate e sintaxe completa de mapeamentos JPA."
+  },
+  "theoryTitle": "Auditoria de entidades persistentes com Hibernate Envers",
+  "chapters": [
+    {
+      "title": "1. Revisões e ativação da auditoria",
+      "markdown": "### O problema que este assunto resolve\n\nUma tabela operacional mostra o estado atual de cada entidade, mas não responde sozinha como um registro estava antes de uma alteração, quando mudou ou quais valores foram gravados em revisões anteriores. Hibernate Envers é uma extensão do Hibernate ORM que mantém versões históricas das entidades selecionadas. O recurso acompanha mudanças persistidas pelo Hibernate e permite consultar o estado de uma entidade em uma revisão.\n\n> **Siglas e termos deste capítulo**\n> - **ORM**: mapeamento entre objetos da aplicação e tabelas relacionais.\n> - **Entidade auditada**: entidade ou propriedade marcada para que suas alterações tenham histórico.\n> - **Revisão**: conjunto de alterações auditadas associado a uma transação confirmada.\n> - **@Audited**: anotação que seleciona a entidade ou propriedade cuja história será registrada.\n> - **AuditReader**: API do Envers para ler estados e revisões históricas.\n\n### Dependência e anotação\n\nO projeto precisa incluir o módulo `hibernate-envers`, coordenado atualmente como `org.hibernate.orm:hibernate-envers` para as linhas modernas do Hibernate. A entidade inteira pode receber `@Audited`; também é possível marcar propriedades específicas. A documentação do Hibernate apresenta o caso de uma classe `Person` em que nome, sobrenome e associação com endereço são auditados. Uma propriedade não marcada numa entidade parcialmente auditada não deve ser confundida com uma propriedade cujo histórico esteja automaticamente garantido: a seleção da auditoria depende do mapeamento e das anotações aplicadas.\n\nA auditoria não substitui o mapeamento normal da entidade. A tabela operacional continua armazenando o estado atual; o Envers acrescenta estruturas para registrar versões. Em uma transação que altera mais de uma entidade auditada, o número de revisão é global e identifica as mudanças daquele commit. Uma transação que não modifica dados auditados não precisa criar uma revisão.\n\n### Quando uma revisão passa a existir\n\nA revisão é vinculada à transação, e não a cada chamada de setter nem a cada instrução SQL isolada. Se a transação altera várias entidades auditadas e é confirmada, o conjunto fica associado à revisão correspondente. Se a transação é revertida, não se deve tratar as alterações como uma versão histórica confirmada. Essa unidade ajuda a reconstruir o conjunto de mudanças persistidas em conjunto.\n\nA revisão não é uma cópia integral automática de todo o banco. Apenas as entidades e propriedades incluídas no mapeamento de auditoria são objeto do histórico do Envers. Dados mantidos por SQL manual, outra aplicação ou mecanismo de persistência alheio ao fluxo instrumentado não devem ser presumidos como cobertos pela auditoria.\n\n### Como cai na prova\n\n- Envers é extensão de auditoria histórica para entidades Hibernate; não é ferramenta de log de acesso nem backup.\n- A ativação do histórico se dá com o módulo e `@Audited` no escopo desejado.\n- A revisão agrupa mudanças auditadas confirmadas na transação; não nasce obrigatoriamente para toda transação da aplicação.\n- A tabela operacional continua representando o estado atual; as tabelas de auditoria mantêm o histórico."
+    },
+    {
+      "title": "2. Estrutura das tabelas e tipos de revisão",
+      "markdown": "### O problema que este assunto resolve\n\nPara recuperar valores antigos, o Envers precisa guardar tanto a identidade da entidade como a revisão em que cada versão passa a valer. Ele faz isso por meio de tabelas de auditoria e de uma tabela de metadados de revisão.\n\n> **Siglas e termos deste capítulo**\n> - **REVINFO**: tabela padrão da entidade global de revisão.\n> - **REV**: coluna padrão que referencia o número da revisão na tabela de auditoria.\n> - **REVTYPE**: coluna padrão que indica a natureza da mudança.\n> - **ADD, MOD, DEL**: inclusão, modificação e exclusão, respectivamente.\n> - **Chave composta**: chave formada por mais de uma coluna; na auditoria, combina identidade original e revisão.\n\n### Tabela de auditoria\n\nPara uma entidade auditada cuja tabela operacional se chama `CLIENTE`, o padrão é uma tabela histórica como `CLIENTE_AUD`. O sufixo padrão `_AUD` pode ser substituído por prefixo ou sufixo configurado, ou por nome próprio via `@AuditTable`. A tabela de auditoria contém a chave original, a revisão, o tipo de revisão e os campos auditados. A chave primária costuma combinar o identificador da entidade com o número da revisão: assim há no máximo um registro histórico daquela entidade em determinada revisão.\n\nO campo `REV` liga a linha ao registro correspondente na tabela de revisão. `REVTYPE` distingue criação (`ADD`), alteração (`MOD`) e exclusão (`DEL`). Na exclusão, a linha histórica funciona como marcador de remoção; na estratégia padrão, ela pode guardar a identidade sem conservar os valores anteriores como uma linha normal. Para conhecer o estado imediatamente anterior à exclusão, consulta-se a revisão anterior àquela marcada como `DEL`.\n\n### Registro global da revisão\n\nA tabela padrão `REVINFO` guarda o número e o instante da revisão, com colunas padrão `ID` e `TIMESTAMP`. O número permite correlacionar versões de entidades diferentes que mudaram na mesma transação; o instante permite identificar temporalmente a revisão. É possível personalizar nomes e acrescentar metadados criando uma entidade de revisão própria, mas ela precisa continuar identificando revisão e timestamp.\n\nUma mesma revisão pode conter alterações de várias entidades auditadas. Não é correto interpretar o número como contador particular de cada linha. O valor representa uma revisão global do conjunto auditado, permitindo comparar registros diferentes no mesmo ponto histórico.\n\n### Relações e escolha do escopo\n\nUma relação também exige decisão explícita. Se a entidade relacionada não é auditada, mas seu valor é de referência estável, o modo `RelationTargetAuditMode.NOT_AUDITED` permite que o histórico da entidade principal aponte para o objeto relacionado atual. Isso não reconstrói versões antigas do alvo: o aluno deve distinguir a versão histórica da entidade auditada do estado corrente da referência não auditada. Relações de coleção e tabelas secundárias podem exigir anotações auxiliares, como `@AuditJoinTable` ou configurações de tabela secundária de auditoria.\n\n### Como cai na prova\n\n- `_AUD`, `REV`, `REVTYPE` e `REVINFO` são nomes padrão configuráveis, não exigências imutáveis.\n- `ADD`, `MOD` e `DEL` descrevem inclusão, modificação e exclusão; não são nomes de estratégias.\n- O registro `DEL` indica exclusão; não se deve lê-lo como se fosse o estado completo anterior.\n- Revisões são globais; várias entidades podem compartilhar uma revisão."
+    },
+    {
+      "title": "3. Leitura do histórico e metadados customizados",
+      "markdown": "### O problema que este assunto resolve\n\nGravar versões só é útil se a aplicação consegue consultá-las de forma controlada. A API `AuditReader`, normalmente obtida por `AuditReaderFactory` a partir do contexto Hibernate/JPA, oferece operações para buscar uma entidade em uma revisão, listar revisões de uma entidade e localizar revisões por intervalo de datas.\n\n> **Siglas e termos deste capítulo**\n> - **AuditReaderFactory**: fábrica que obtém um leitor de auditoria para o contexto de persistência.\n> - **find**: operação de consulta do estado histórico por classe, identificador e revisão.\n> - **@RevisionEntity**: marca a entidade customizada que guarda metadados de cada revisão.\n> - **@RevisionNumber**: identifica o atributo que contém o número da revisão.\n> - **@RevisionTimestamp**: identifica o instante da revisão.\n> - **RevisionListener**: ponto de extensão para preencher metadados adicionais na criação da revisão.\n\n### Consultando uma versão\n\nUma consulta histórica informa o tipo da entidade, sua chave e o número da revisão. Ela retorna o estado daquela instância que era válido no ponto indicado, ou ausência quando não havia entidade naquele momento ou a entidade já tinha sido excluída. A consulta não altera a entidade operacional nem restaura o banco para o passado. É uma leitura de histórico.\n\nTambém se pode pedir a lista de números de revisão relacionados a uma entidade e relacionar número e timestamp. Essa trilha responde perguntas como “em quais revisões este cadastro mudou?”; não equivale a uma consulta irrestrita de cada comando SQL executado. O Envers guarda mudanças de entidades mapeadas, em forma estruturada, e não necessariamente cada detalhe de execução da aplicação.\n\n### Quem realizou a mudança\n\nPor padrão, a revisão contém número e timestamp, mas não a identidade do usuário humano que acionou a operação. Para registrar usuário, origem da requisição ou outros metadados da aplicação, o projeto pode criar uma entidade anotada com `@RevisionEntity`, com os atributos de número e timestamp devidamente identificados, e adicionar campos próprios. Um `RevisionListener` pode preencher esses campos quando a revisão é criada. O contexto de segurança precisa fornecer o dado; Envers não descobre automaticamente a pessoa autenticada.\n\nA configuração admite uma entidade de revisão global customizada. Ela deve permanecer compatível com os campos exigidos para número e timestamp. Ao personalizar, não se deve criar várias entidades de revisão como se cada classe auditada tivesse seu próprio registro global independente.\n\n### Como cai na prova\n\n- `AuditReader.find(Tipo, id, revisão)` lê uma versão; não reverte o banco.\n- O leitor também permite localizar revisões associadas à entidade e consultar metadados temporais.\n- O usuário que causou uma alteração não é automaticamente conhecido; é preciso fornecer e persistir esse contexto.\n- A entidade customizada precisa representar número e timestamp da revisão, além dos campos adicionais."
+    },
+    {
+      "title": "4. Estratégias, flags e limites operacionais",
+      "markdown": "### O problema que este assunto resolve\n\nA forma de armazenar intervalos históricos afeta o custo de gravação e de leitura. Envers oferece uma estratégia padrão e uma estratégia de validade; entender o que cada uma guarda evita confundir consistência histórica com desempenho.\n\n> **Siglas e termos deste capítulo**\n> - **DefaultAuditStrategy**: estratégia padrão que associa cada linha histórica à revisão inicial de validade.\n> - **ValidityAuditStrategy**: estratégia que registra também a revisão final de validade.\n> - **REVEND**: nome padrão do campo de revisão final usado pela estratégia de validade.\n> - **Modified flag**: indicador que informa se uma propriedade específica mudou naquela revisão.\n> - **DDL**: comandos de definição de estrutura do banco.\n\n### Estratégia padrão e estratégia de validade\n\nNa `DefaultAuditStrategy`, cada nova linha histórica informa a revisão inicial em que os valores passam a valer. Ao buscar a versão de uma revisão posterior, a consulta procura a versão aplicável mais recente até aquele ponto, respeitando marcadores de exclusão. As linhas anteriores não precisam ser atualizadas ao chegar uma nova revisão.\n\nNa `ValidityAuditStrategy`, além da revisão inicial, registra-se a revisão final até a qual aquela versão foi válida. Quando surge nova versão, a linha anterior pode ser atualizada para preencher o fim do intervalo. Consultas podem então usar o intervalo inicial/final. Essa opção pode tornar a leitura histórica mais simples ou eficiente, com custo adicional de escrita pelas atualizações de fechamento. O nome da coluna final é configurável; o padrão documentado é `REVEND`.\n\n### Saber qual propriedade mudou\n\nPor padrão, o histórico registra o estado auditado da entidade, mas uma consulta pode precisar saber se uma propriedade específica foi alterada naquela revisão. A opção `withModifiedFlag` em `@Audited`, ou a configuração global correspondente, cria indicadores booleanos adicionais por propriedade auditada. O sufixo padrão dos campos é `_MOD`. Isso aumenta a estrutura e o volume armazenado; deve ser habilitado quando a análise de campo alterado justificar o custo.\n\n### Esquema e responsabilidade operacional\n\nA criação física das tabelas depende da estratégia de geração de esquema ou de scripts de implantação da aplicação. Em ambientes gerenciados por migrações, é necessário assegurar que as tabelas auxiliares do Envers sejam criadas antes de usar auditoria. A anotação não significa que toda infraestrutura de produção será alterada automaticamente. Também é necessário dimensionar armazenamento: cada mudança auditada acrescenta histórico, além dos dados atuais. Políticas de retenção e descarte devem ser tratadas deliberadamente, sem apagar revisões necessárias ao produto.\n\nEnvers registra auditoria de persistência dentro do modelo do Hibernate; não cobre por si só mudanças realizadas fora dele, log de autenticação, trilha de execução SQL, backup ou restauração temporal do banco inteiro. Esses objetivos exigem mecanismos próprios.\n\n### Como cai na prova\n\n- A estratégia padrão registra início; a de validade acrescenta fim e pode atualizar a versão anterior.\n- Há troca entre custo de gravação e consulta; não se deve afirmar que a estratégia de validade acelera tudo sem custo.\n- Flags de modificação indicam propriedade alterada, não substituem as versões completas.\n- As tabelas históricas precisam existir no esquema implantado; `@Audited` não é plano de migração de produção."
+    }
+  ],
+  "summary": "Hibernate Envers é uma extensão do Hibernate ORM para auditoria histórica de entidades persistidas. Inclua o módulo hibernate-envers e selecione entidades ou propriedades com @Audited. Uma transação confirmada que altera dados auditados gera uma revisão global; operações sem alterações auditadas não exigem revisão. Por padrão, tabelas de auditoria recebem sufixo _AUD e contêm identificador original, REV, REVTYPE e campos auditados; REVINFO registra número e timestamp. REVTYPE distingue ADD, MOD e DEL. AuditReader consulta uma instância em revisão e lista revisões, sem restaurar o banco. Dados como usuário responsável precisam ser incluídos por entidade @RevisionEntity e preenchidos pela aplicação, por exemplo com RevisionListener. DefaultAuditStrategy guarda a revisão inicial; ValidityAuditStrategy também guarda a revisão final e pode atualizar a linha anterior, trocando mais trabalho de gravação por consultas por intervalo. withModifiedFlag registra se uma propriedade mudou. O Envers não é backup, log de acesso nem garantia de auditoria para alterações feitas fora do fluxo Hibernate; a implantação deve criar as tabelas necessárias.",
+  "flashcards": [
+    {
+      "front": "O que é Hibernate Envers?",
+      "back": "Extensão do Hibernate ORM que registra versões históricas de entidades auditadas e permite consultá-las por revisão."
+    },
+    {
+      "front": "Qual dependência ativa os recursos do Envers?",
+      "back": "O módulo hibernate-envers, nas versões modernas coordenado como org.hibernate.orm:hibernate-envers."
+    },
+    {
+      "front": "Para que serve @Audited?",
+      "back": "Seleciona uma entidade ou propriedade cujo histórico de persistência deve ser registrado."
+    },
+    {
+      "front": "O que representa uma revisão?",
+      "back": "Um conjunto global de alterações auditadas associado a uma transação confirmada."
+    },
+    {
+      "front": "Uma transação sem alteração auditada sempre cria revisão?",
+      "back": "Não. A revisão corresponde a mudanças auditadas; uma transação sem elas não precisa de registro de revisão."
+    },
+    {
+      "front": "Qual é o sufixo padrão da tabela de auditoria?",
+      "back": "_AUD, alterável por configuração ou por @AuditTable."
+    },
+    {
+      "front": "O que guarda REVINFO por padrão?",
+      "back": "O número e o timestamp da revisão global, com nomes de coluna padrão ID e TIMESTAMP."
+    },
+    {
+      "front": "O que informa REV?",
+      "back": "A revisão associada à linha da tabela de auditoria."
+    },
+    {
+      "front": "O que informa REVTYPE?",
+      "back": "Se a mudança corresponde a inclusão (ADD), modificação (MOD) ou exclusão (DEL)."
+    },
+    {
+      "front": "Qual costuma ser a chave primária da tabela de auditoria?",
+      "back": "A combinação do identificador original da entidade com o número da revisão."
+    },
+    {
+      "front": "O que significa uma linha de auditoria DEL?",
+      "back": "Que a entidade foi excluída naquela revisão; para o estado anterior, consulte a revisão precedente."
+    },
+    {
+      "front": "O AuditReader restaura o banco ao passado?",
+      "back": "Não. Ele faz leitura histórica sem alterar o estado operacional do banco."
+    },
+    {
+      "front": "Que parâmetros identificam uma consulta histórica find?",
+      "back": "Tipo da entidade, identificador da instância e número da revisão."
+    },
+    {
+      "front": "Como registrar o usuário responsável pela revisão?",
+      "back": "Use entidade de revisão customizada e faça a aplicação preencher o metadado, por exemplo via RevisionListener."
+    },
+    {
+      "front": "Para que serve @RevisionEntity?",
+      "back": "Marca a entidade customizada que guarda metadados da revisão global."
+    },
+    {
+      "front": "Quais dados obrigatórios caracterizam a revisão customizada?",
+      "back": "Número da revisão, identificado por @RevisionNumber, e timestamp, identificado por @RevisionTimestamp."
+    },
+    {
+      "front": "O que faz DefaultAuditStrategy?",
+      "back": "Guarda a revisão inicial de validade de cada versão histórica."
+    },
+    {
+      "front": "O que acrescenta ValidityAuditStrategy?",
+      "back": "Guarda também a revisão final de validade e fecha a linha anterior quando entra nova versão."
+    },
+    {
+      "front": "Qual campo final é padrão na ValidityAuditStrategy?",
+      "back": "REVEND, configurável por propriedade de configuração."
+    },
+    {
+      "front": "Para que serve withModifiedFlag?",
+      "back": "Cria indicador booleano que informa se uma propriedade auditada mudou naquela revisão."
+    },
+    {
+      "front": "Qual sufixo padrão identifica flags de modificação?",
+      "back": "_MOD."
+    },
+    {
+      "front": "Uma associação com alvo não auditado pode aparecer em histórico?",
+      "back": "Sim, com modo NOT_AUDITED; o alvo apontado será seu estado atual, não uma versão histórica dele."
+    },
+    {
+      "front": "O Envers audita automaticamente SQL executado por qualquer cliente?",
+      "back": "Não. Seu escopo é a persistência mapeada e instrumentada pelo Hibernate."
+    },
+    {
+      "front": "A anotação @Audited cria necessariamente as tabelas em produção?",
+      "back": "Não. A implantação precisa gerar ou migrar o esquema com as tabelas de auditoria."
+    },
+    {
+      "front": "Qual o efeito de auditoria em relação a armazenamento?",
+      "back": "Cada alteração auditada acrescenta registros históricos e exige planejamento de espaço e retenção."
+    }
+  ],
+  "tips": [
+    "Associe REVINFO à revisão global e REVTYPE à ação ADD, MOD ou DEL.",
+    "Lembre-se de que @Audited escolhe o escopo; a dependência é hibernate-envers.",
+    "AuditReader lê um ponto histórico; ele não executa rollback do banco.",
+    "Default guarda revisão inicial; Validity acrescenta revisão final e atualiza linha anterior.",
+    "Usuário responsável não surge automaticamente: a aplicação fornece o dado à revisão customizada.",
+    "O padrão _AUD pode ser personalizado, e as tabelas precisam integrar a implantação do esquema."
+  ],
+  "traps": [
+    "Tratar Envers como log de toda consulta SQL, inclusive as emitidas fora do Hibernate.",
+    "Supor que cada entidade tem contador independente de revisão.",
+    "Confundir uma consulta histórica com restauração ou rollback dos dados atuais.",
+    "Afirmar que o marcador DEL contém necessariamente todos os valores anteriores à exclusão.",
+    "Dizer que a estratégia Validity só acrescenta desempenho e não custo de gravação.",
+    "Supor que @Audited provisiona sozinho tabelas em um ambiente de produção gerido por migrações."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o ciclo básico para começar a auditar uma entidade.",
+      "answer": "Adicionar o módulo hibernate-envers, marcar a entidade ou propriedades desejadas com @Audited, criar as tabelas de auditoria no esquema e então persistir alterações pelo Hibernate."
+    },
+    {
+      "question": "Como várias alterações ficam relacionadas a uma revisão?",
+      "answer": "As mudanças auditadas feitas numa transação confirmada são agrupadas sob uma revisão global, registrada na entidade de revisão."
+    },
+    {
+      "question": "Quais elementos distinguem uma linha da tabela de auditoria?",
+      "answer": "A chave original, o número de revisão (REV), o tipo da alteração (REVTYPE) e os valores auditados."
+    },
+    {
+      "question": "Como você explicaria o marcador de exclusão a um colega?",
+      "answer": "Ele registra em qual revisão a entidade foi excluída. Para reconstruir seus valores imediatamente antes, consulte o estado da revisão anterior."
+    },
+    {
+      "question": "Como obter o estado anterior sem modificar o estado corrente?",
+      "answer": "Usar AuditReader para consultar classe, identificador e revisão; a operação é uma leitura do histórico."
+    },
+    {
+      "question": "Como incluir a identidade do usuário em cada revisão?",
+      "answer": "Criar uma entidade @RevisionEntity com campos de número, timestamp e usuário e preencher o usuário a partir do contexto da aplicação, por exemplo via RevisionListener."
+    },
+    {
+      "question": "Compare as duas estratégias de armazenamento.",
+      "answer": "DefaultAuditStrategy guarda o início de validade e deixa versões antigas sem atualização; ValidityAuditStrategy também grava o fim, fechando a linha precedente para permitir consulta por intervalo, com mais escrita."
+    },
+    {
+      "question": "Quais verificações operacionais são necessárias ao adotar Envers?",
+      "answer": "Incluir a dependência compatível, gerar ou migrar as tabelas auxiliares, decidir escopo e retenção, e avaliar que mudanças fora do Hibernate não estarão automaticamente cobertas."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Auditoria não equivale a backup",
+      "summary": "Envers permite consultar estados históricos de entidades auditadas, mas não restaura o banco inteiro nem substitui cópia de segurança."
+    },
+    {
+      "key": "e2",
+      "title": "Revisão global confundida com versão por entidade",
+      "summary": "Uma revisão pode conter alterações de várias entidades na mesma transação confirmada; não é um contador independente de cada linha."
+    },
+    {
+      "key": "e3",
+      "title": "Metadados do usuário presumidos",
+      "summary": "REVINFO padrão guarda número e timestamp. Identidade do usuário ou origem da chamada deve vir da aplicação por entidade e listener customizados."
+    },
+    {
+      "key": "e4",
+      "title": "Estratégias de auditoria invertidas",
+      "summary": "Default guarda revisão inicial; Validity guarda início e fim e pode atualizar a versão anterior, com custo adicional de gravação."
+    },
+    {
+      "key": "e5",
+      "title": "Escopo do Envers superestimado",
+      "summary": "O histórico segue o mapeamento auditado e o fluxo Hibernate. SQL externo, logs de acesso e criação automática de esquema não são garantidos só pela anotação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual alteração habilita o Envers para guardar o histórico de uma entidade Hibernate?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar hibernate-envers e marcar a entidade com @Audited.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar hibernate-validator e marcar a classe com @Version.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar o driver JDBC e anotar a classe com @Transactional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar o módulo de cache e declarar a tabela com @Cacheable.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar Flyway e marcar a chave primária com @AuditTable.",
+          "correct": false
+        }
+      ],
+      "explanation": "Envers é fornecido pelo módulo hibernate-envers e a anotação @Audited seleciona a entidade ou propriedade a acompanhar. @Version trata de controle otimista, @Transactional demarca transação e Flyway controla migrações de esquema.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação confirma mudanças em três entidades auditadas. Como o Envers as representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como três revisões locais, uma sequência separada para cada entidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como uma revisão global que pode reunir as alterações confirmadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como uma revisão por comando SQL, antes do commit da transação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como uma revisão única somente se todas as classes forem iguais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como um snapshot integral de todas as tabelas do banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "As revisões do Envers são globais: alterações auditadas de várias entidades dentro da transação confirmada podem compartilhar a mesma revisão. Isso não cria contador separado por entidade nem snapshot integral do banco.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação da aplicação somente consulta entidades e não altera dados auditados. Qual conclusão é compatível com o modelo do Envers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela cria uma revisão porque toda transação recebe número histórico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela exige uma linha MOD para cada entidade que foi lida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela não precisa gerar revisão sem mudança auditada confirmada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela grava uma revisão DEL para registrar o fim da consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela sobrescreve a revisão anterior com o resultado consultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A revisão representa mudanças auditadas confirmadas, não toda transação nem leitura. Sem alteração auditada, não é necessário acrescentar uma revisão ao histórico.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o propósito da extensão Hibernate Envers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerenciar versões históricas de entidades persistidas pelo Hibernate.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir o mecanismo de transações por um coordenador distribuído.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Copiar continuamente todo o banco para um servidor de contingência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar migrações SQL numeradas durante cada leitura de entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar somente o usuário que abriu sessão no sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Envers acrescenta auditoria histórica de entidades, com revisões consultáveis. Replicação, migração de esquema, coordenação transacional e autenticação são responsabilidades distintas.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma entidade parcialmente auditada, que efeito produz @Audited aplicada a uma propriedade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seleciona aquela propriedade para registro histórico conforme o mapeamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativa a tabela operacional e transfere o valor ao REVINFO.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante histórico para todo campo de qualquer entidade relacionada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte a propriedade em chave composta pela revisão e pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instrui o Hibernate a gravar uma revisão em cada leitura do campo.",
+          "correct": false
+        }
+      ],
+      "explanation": "@Audited pode ser aplicada a propriedades para selecionar o que terá histórico. Ela não transfere os dados para REVINFO, não propaga automaticamente a auditoria a todo grafo e não registra leituras como revisões.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a relação entre tabela operacional e Envers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tabela operacional mantém o estado atual e a auditoria guarda versões históricas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tabela de auditoria substitui a operacional após a primeira revisão e passa a fornecer o estado corrente para consultas comuns.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela operacional recebe apenas chaves, enquanto REVINFO mantém todos os campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A auditoria armazena somente alterações futuras e descarta o estado corrente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas tabelas são cópias idênticas atualizadas sem registrar revisão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entidade continua sendo persistida na tabela operacional, cujo conteúdo representa o estado atual. As tabelas de auditoria mantêm os estados por revisão, resultando em dados históricos adicionais.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de importação faz UPDATE direto por SQL fora do Hibernate em uma tabela cuja entidade usa @Audited. O que se pode concluir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A alteração sempre aparece, pois Envers monitora consultas e comandos de qualquer conexão ao mesmo banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A alteração deve ser registrada duas vezes, em REVINFO e na tabela operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A alteração pode ficar fora do histórico gerado pelo fluxo instrumentado do Hibernate.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A alteração vira revisão ADD porque não passou pelo EntityManager.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A entidade deixa de ser consultável até ocorrer novo commit JPA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Envers integra-se ao mecanismo de persistência Hibernate e não é um log universal do banco. Uma mudança realizada por SQL externo não deve ser presumida como auditada automaticamente; sua cobertura exige mecanismo próprio ou integração explícita.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma consequência adequada de uma transação que altera uma entidade auditada e depois sofre rollback?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tentativa revertida não deve ser tratada como alteração histórica confirmada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Envers registra MOD antes do rollback e mantém a alteração como versão confirmada no histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Envers cria obrigatoriamente uma revisão DEL para qualquer rollback.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O histórico grava o estado não confirmado como se fosse uma transação separada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A revisão passa a ser global apenas depois que outro usuário consulta a entidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O histórico representa mudanças persistidas e confirmadas na transação. Uma transação revertida não deve ser interpretada como estado auditado confirmado, e rollback não é tipo ADD, MOD ou DEL.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um estudante afirma que Envers produz um snapshot de todas as tabelas em cada commit. Qual correção é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O histórico se limita ao escopo auditado e às entidades mapeadas pelo Envers.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O snapshot é integral, mas só contém colunas não chave das tabelas que usam Hibernate.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Envers copia o banco inteiro apenas quando ocorre uma exclusão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O snapshot integral ocorre se REVTYPE for configurado como ADD.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cópia global depende exclusivamente da anotação @RevisionTimestamp.",
+          "correct": false
+        }
+      ],
+      "explanation": "A auditoria é seletiva: abrange entidades e propriedades mapeadas para auditoria, e não uma cópia integral do banco. @RevisionTimestamp informa quando ocorreu uma revisão, não amplia seu escopo.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome de tabela de auditoria criado por padrão para uma tabela operacional chamada PEDIDO é qual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PEDIDO_AUD, com o sufixo padrão do Envers.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AUD_PEDIDO, com prefixo fixo e obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PEDIDO_REVINFO, junto à tabela global de revisão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "REV_PEDIDO, com o tipo da mudança no nome.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PEDIDO_HISTORY, nome reservado e não configurável.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sufixo padrão das tabelas auditadas é _AUD, então PEDIDO gera PEDIDO_AUD. Prefixo, sufixo ou tabela própria podem ser configurados; REVINFO é a tabela global de revisões.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação descreve os dados padrão registrados em REVINFO?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificador da revisão e instante temporal associado a ela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chave da entidade e tipo ADD, MOD ou DEL da linha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estado completo das tabelas e o comando SQL executado em cada entidade naquela revisão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nome da aplicação e usuário autenticado por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nome da migração e checksum do esquema de auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entidade de revisão padrão, armazenada em REVINFO, informa o número da revisão e o timestamp. Chave e tipo de alteração ficam nas tabelas de auditoria; o usuário pode ser incluído por extensão customizada.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na tabela de auditoria, o que normalmente identifica a operação registrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "REVTYPE, com valores correspondentes a ADD, MOD ou DEL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "REVINFO, que guarda ADD, MOD ou DEL como timestamp.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "REVEND, que diferencia inclusão, atualização e exclusão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "_AUD, que codifica o tipo da alteração no sufixo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@RevisionNumber, que armazena o nome da operação SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "REVTYPE é a coluna padrão que distingue adição, modificação e exclusão. REVINFO guarda metadados da revisão, enquanto REVEND é usado como fim de validade na estratégia correspondente.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como costuma ser composta a chave primária de uma tabela de auditoria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelo identificador original da entidade combinado com a revisão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pelo timestamp combinado com o usuário que abriu a sessão e com a origem da requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pelo nome da classe combinado com o texto do comando SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pelo tipo da revisão combinado com a coluna REVEND.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pelo identificador de REVINFO sem a chave da entidade original.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave da linha histórica combina a identidade original da instância e o número da revisão, permitindo no máximo uma versão daquele registro por revisão. REVINFO é referenciado como metadado, mas não substitui a chave original.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que expressa a coluna REV em uma linha de auditoria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número da revisão à qual a linha histórica está associada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de propriedades que foram modificadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão da aplicação que iniciou a sessão de persistência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número final do intervalo em qualquer estratégia de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O código numérico que distingue exclusão de inclusão.",
+          "correct": false
+        }
+      ],
+      "explanation": "REV referencia o número da revisão global daquela linha. A coluna de tipo é REVTYPE e o fim de validade, quando configurado, tem nome padrão REVEND.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade é excluída na revisão 18. Como deve ser interpretado o registro DEL em seu histórico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como marcador de exclusão na revisão 18, não como estado anterior completo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como cópia integral dos valores anteriores, com tipo de inclusão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como instrução para excluir também o registro de REVINFO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como confirmação de que a entidade não existiu em revisões passadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como atualização da linha operacional para restaurar os valores antigos.",
+          "correct": false
+        }
+      ],
+      "explanation": "DEL assinala que a instância foi removida naquela revisão. Na estratégia padrão, o registro de exclusão serve de marcador e pode não conservar todos os valores; o estado imediatamente anterior é consultado em revisão anterior.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer trocar o nome padrão da tabela histórica de uma entidade específica. Qual recurso atende a esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar @AuditTable à entidade com o nome configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar @RevisionTimestamp à chave primária da entidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar @RevisionNumber ao nome da tabela operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar @Audited somente à coluna que define o schema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar @AuditJoinTable sobre a entidade de revisão global.",
+          "correct": false
+        }
+      ],
+      "explanation": "@AuditTable configura nome, prefixo ou sufixo da tabela de auditoria para a entidade. As anotações de número e timestamp definem atributos da entidade de revisão, e @AuditJoinTable atende certos mapeamentos de associação.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade A auditada aponta para uma entidade de referência B que não terá histórico. Se a relação usar NOT_AUDITED, qual comportamento deve ser esperado ao ler A no passado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A relação pode apontar para o estado atual de B, sem reconstruir versões de B.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "B recebe uma tabela de auditoria automática mesmo sem ser selecionada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A leitura de A falha sempre que B não tiver REVINFO próprio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Envers copia B para a linha DEL da tabela histórica de A.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A associação fica nula em toda revisão anterior ao estado atual de B.",
+          "correct": false
+        }
+      ],
+      "explanation": "RelationTargetAuditMode.NOT_AUDITED permite manter relação com alvo não auditado, como uma tabela de referência estável. Ao consultar o histórico, o alvo relacionado é o atual; o modo não cria versões históricas de B.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade utiliza identificador composto e tem uma alteração auditada. Qual afirmação sobre a chave histórica é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identificação original, inclusive seus componentes, participa da identidade histórica com a revisão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Envers substitui qualquer chave composta por um timestamp exclusivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A revisão global elimina a necessidade de identificar a entidade original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave da auditoria passa a ser apenas o valor de REVTYPE.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O identificador composto só aparece em REVINFO, nunca na tabela histórica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela histórica mantém o identificador original — que pode ter vários componentes — junto à revisão. A revisão compartilhada não substitui a identificação da instância, e o tipo da alteração não é uma chave única.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que resultado deve ser esperado ao consultar uma entidade numa revisão anterior à sua criação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ausência de estado histórico, pois a entidade ainda não existia naquele ponto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma cópia da linha atual, pois revisões anteriores herdam o estado presente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um registro MOD criado para preencher a lacuna temporal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma exceção que reverte a transação de consulta e exclui a entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma linha DEL que antecipa a inclusão em revisão futura.",
+          "correct": false
+        }
+      ],
+      "explanation": "A consulta histórica retorna a versão aplicável ao ponto indicado. Se não havia entidade naquele momento, não existe estado a recuperar; o Envers não projeta o estado atual para o passado.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se obtém normalmente uma instância de AuditReader a partir do contexto JPA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Por meio de AuditReaderFactory associado ao contexto de persistência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Por meio de FlywayInfo associado à tabela operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Por meio de RevisionTimestamp instanciado como entidade auditada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Por meio de AuditTableFactory configurado no driver JDBC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Por meio de uma consulta SQL que converte REVTYPE em leitor.",
+          "correct": false
+        }
+      ],
+      "explanation": "AuditReaderFactory fornece o leitor associado ao contexto de persistência, como um EntityManager. As demais opções misturam classes inexistentes ou elementos com outras finalidades.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de parâmetros caracteriza a consulta find de uma versão histórica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Classe da entidade, identificador da instância e número da revisão histórica solicitada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Nome de tabela, usuário conectado e comando SQL que originou a alteração histórica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Timestamp da revisão, estratégia escolhida e sufixo da tabela histórica consultada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classe persistente, chave primária e nome do arquivo de migração do esquema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Número da revisão, estado atual do cache e endereço de rede do cliente que consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A consulta histórica identifica o tipo da entidade, sua chave e a revisão desejada. Nome da tabela e configuração da estratégia não substituem esses parâmetros de leitura.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente AuditReader de uma operação de recuperação de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AuditReader consulta uma versão sem alterar o estado corrente do banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AuditReader restaura todas as tabelas e substitui a versão atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AuditReader reaplica comandos SQL da revisão escolhida em ordem inversa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AuditReader apaga revisões posteriores antes de devolver a entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "AuditReader gera snapshot integral e o grava em REVINFO.",
+          "correct": false
+        }
+      ],
+      "explanation": "AuditReader é API de leitura do histórico. A consulta não restaura tabelas nem modifica a versão operacional, portanto não substitui backup ou procedimento de recuperação.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer descobrir em quais revisões uma entidade específica mudou. Qual recurso conceitual do leitor atende à necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar a lista de revisões associadas àquela entidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ler apenas REVTYPE da tabela operacional atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar um rollback para cada valor de REVEND encontrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consultar o timestamp de REVINFO sem informar a entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recriar as tabelas auditadas antes de cada consulta histórica.",
+          "correct": false
+        }
+      ],
+      "explanation": "AuditReader pode listar revisões associadas a um tipo e identificador, além de permitir consultas históricas. Ler somente o estado operacional ou timestamp global não responde quais revisões daquela entidade mudaram.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa guardar o usuário responsável por uma alteração auditada. O que é necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar campo à revisão customizada e preenchê-lo a partir do contexto da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ativar @Audited no campo de senha e inferir o usuário pelo identificador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o timestamp padrão, que já codifica a identidade autenticada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar REVTYPE por nome de login no mapeamento da entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ler o usuário corrente da chave primária da tabela REVINFO.",
+          "correct": false
+        }
+      ],
+      "explanation": "REVINFO padrão contém número e instante, não identidade de usuário. Uma entidade @RevisionEntity pode incluir esse dado e um listener ou serviço da aplicação deve preenchê-lo a partir do contexto autenticado.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao definir uma entidade de revisão customizada, quais atributos precisam ser identificados para o Envers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Número da revisão com @RevisionNumber e instante com @RevisionTimestamp.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Identificador do usuário com @Audited e tabela histórica com @AuditTable.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chave da entidade com @RevisionEntity e tipo com @RevisionListener.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sufixo da tabela com @RevisionNumber e schema com @RevisionTimestamp.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Chave composta com @RevisionType e comando SQL com @RevisionEntity.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entidade customizada precisa identificar o número da revisão e o timestamp usando @RevisionNumber e @RevisionTimestamp. Ela pode herdar o comportamento básico e incluir outros metadados, como usuário.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel de um RevisionListener no modelo de revisão customizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Preencher metadados adicionais quando uma revisão é criada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reverter automaticamente transações de leitura histórica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma tabela operacional para cada entidade auditada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o AuditReader por comandos de migração SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter cada revisão global em contador individual de classe.",
+          "correct": false
+        }
+      ],
+      "explanation": "RevisionListener é um ponto de extensão associado à entidade customizada de revisão, útil para preencher campos adicionais quando a revisão nasce. Ele não é mecanismo de consulta, migração ou rollback.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual restrição se aplica à entidade de revisão global customizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação mantém uma entidade global compatível com número e timestamp da revisão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada classe auditada deve declarar várias entidades globais de revisão próprias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A entidade customizada pode omitir o timestamp se guardar o usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A entidade de revisão precisa usar a chave da entidade de negócio auditada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação deve criar uma REVINFO distinta para cada propriedade auditada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo utiliza entidade global de revisão e a entidade customizada precisa preservar os atributos essenciais de número e timestamp. Várias entidades globais independentes não representam o mecanismo padrão do Envers.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição da DefaultAuditStrategy está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela registra a revisão inicial em que cada versão histórica passa a valer.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela registra somente o usuário e descarta o número da revisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela atualiza todas as linhas históricas antigas com a revisão final de validade sempre que uma nova versão é persistida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela grava um snapshot completo do banco em cada transação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela mantém exclusivamente uma linha atual sem histórico anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia padrão armazena a revisão inicial da versão. As consultas localizam a versão aplicável até a revisão pedida; o fechamento explícito de intervalo pertence à ValidityAuditStrategy.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que muda ao selecionar ValidityAuditStrategy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A versão ganha revisão inicial e revisão final de validade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As tabelas de auditoria deixam de armazenar os valores auditados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada leitura passa a criar uma nova revisão automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Envers substitui REVINFO por uma tabela de backup integral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As alterações deixam de ser vinculadas a transações confirmadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ValidityAuditStrategy registra o início e o fim do período de validade da linha histórica. As demais características básicas de auditoria continuam, e a leitura não passa a gerar revisões.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o nome padrão do campo que representa a revisão final na estratégia de validade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "REVEND, com possibilidade de configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "REVTYPE, reservado para o tipo da alteração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TIMESTAMP, que indica o início da revisão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ID_AUD, que referencia a entidade original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SETORDINAL, que fecha o intervalo de validade.",
+          "correct": false
+        }
+      ],
+      "explanation": "REVEND é o nome padrão do campo de revisão final na ValidityAuditStrategy. REVTYPE descreve inclusão, modificação ou exclusão; timestamp e identificador têm outros papéis.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao chegar uma nova versão da entidade, que efeito distingue a estratégia Validity da padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A linha precedente pode receber a revisão que encerra sua validade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A linha precedente é sempre apagada para reduzir o histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A nova versão substitui o número global de revisão pelo timestamp.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela operacional passa a armazenar apenas o estado anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A revisão é separada por propriedade e deixa de ser transacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na estratégia de validade, a versão anterior pode ser atualizada com a revisão final, fechando seu intervalo quando uma nova versão entra. A estratégia padrão não precisa atualizar as linhas históricas antigas.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência operacional deve ser ponderada ao escolher ValidityAuditStrategy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode haver leitura por intervalo mais direta, ao custo de escrita adicional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Elimina qualquer custo de armazenamento histórico em tabelas auxiliares.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acelera gravações porque nunca atualiza versões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativa consulta por revisão e permite somente leitura corrente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensa a criação da entidade de revisão para cada transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia de validade pode simplificar consultas de histórico por intervalo, mas precisa atualizar o fim da versão anterior. Isso acrescenta trabalho de gravação e não elimina tabelas ou armazenamento histórico.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O requisito é identificar se a propriedade telefone mudou em cada revisão, sem inferir isso comparando manualmente valores consecutivos. Qual recurso é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Habilitar modified flag para a propriedade auditada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar o tipo de revisão de MOD para REVEND.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Marcar o identificador com @RevisionTimestamp.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar @AuditTable para converter valores em booleanos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar NOT_AUDITED na propriedade telefone.",
+          "correct": false
+        }
+      ],
+      "explanation": "withModifiedFlag em @Audited pode criar uma coluna booleana para indicar se aquela propriedade mudou na revisão. REVEND é limite de validade e NOT_AUDITED desativa a auditoria do alvo de uma relação.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o sufixo padrão dos campos de modified flag?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "_MOD, usado para os indicadores booleanos de mudança por propriedade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "_AUD, usado em cada coluna de estado operacional corrente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "_REV, usado para o tipo de operação na tabela histórica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "_END, usado para a chave primária da revisão global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "_DEL, usado para toda propriedade que permaneceu sem alteração.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sufixo padrão de flags de modificação é _MOD. _AUD é o sufixo padrão da tabela de auditoria e REVEND é o campo de fim de validade na estratégia correspondente.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação usa scripts versionados para administrar o esquema do banco. Antes de habilitar uma entidade auditada, o que precisa ser assegurado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que as tabelas de auditoria e revisão estejam previstas na implantação do esquema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Que Envers desative os scripts de migração e crie tudo em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que todas as tabelas operacionais sejam renomeadas para REVINFO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a aplicação restaure um backup antes de cada leitura histórica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que a auditoria seja ativada somente com @RevisionNumber no banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "A dependência e as anotações descrevem auditoria, mas a implantação ainda precisa criar as estruturas necessárias por geração de esquema ou migração controlada. Não se deve supor que uma anotação fará DDL automático em produção.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe estima armazenamento para uso de Envers. Que característica deve entrar no cálculo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterações auditadas acumulam linhas históricas além dos dados correntes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tabela operacional é removida após cada revisão confirmada e recriada a partir do último histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "REVINFO guarda cópia integral dos valores de todas as entidades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A estratégia padrão comprime todas as revisões numa única linha atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As flags substituem os valores históricos e impedem crescimento das tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Envers armazena versões históricas nas tabelas de auditoria, além dos dados atuais nas tabelas operacionais. O volume cresce com as mudanças e deve ser considerado em capacidade e retenção.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A auditoria histórica do Envers pode ser usada como substituto direto de uma política de backup e recuperação integral do banco?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Envers consulta versões de entidades selecionadas, mas não restaura o banco inteiro, objetos não auditados ou dados perdidos. Backup e recuperação têm finalidade própria.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A revisão do Envers pode agrupar mudanças de entidades diferentes feitas pela mesma transação confirmada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O número de revisão é global e representa o conjunto de alterações auditadas confirmadas na transação, podendo relacionar diversas entidades.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação que apenas lê entidades auditadas sempre produz uma nova revisão no Envers.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Revisões correspondem a mudanças auditadas confirmadas; uma transação de leitura sem alteração auditada não precisa produzir revisão.",
+      "section": "1. Revisões e ativação da auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sufixo padrão das tabelas de auditoria do Envers é _AUD, embora o nome possa ser configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O padrão acrescenta _AUD ao nome da tabela original; configuração ou @AuditTable podem personalizar o nome da tabela histórica.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "REVTYPE informa o número global da revisão, enquanto REV aponta se houve inclusão, modificação ou exclusão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. REV identifica o número da revisão associada à linha histórica; REVTYPE indica o tipo da mudança e distingue ADD, MOD e DEL. As colunas cumprem papéis diferentes.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na leitura histórica de uma entidade excluída, o registro DEL deve ser interpretado como marcador da exclusão naquela revisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DEL indica que a entidade foi removida naquela revisão. Para recuperar os valores imediatamente anteriores, deve-se consultar a revisão precedente, pois o marcador de exclusão não equivale necessariamente a uma cópia completa.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de auditoria combina a identidade original da entidade com a revisão, permitindo manter versões distintas da mesma instância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A combinação da chave original e do número da revisão identifica a versão histórica correspondente, inclusive quando a chave original possui componentes compostos.",
+      "section": "2. Estrutura das tabelas e tipos de revisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "AuditReader.find consulta uma entidade em uma revisão e modifica a tabela operacional para que ela passe a refletir aquele estado antigo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. AuditReader é uma API de leitura histórica: devolve o estado correspondente à revisão sem restaurar nem alterar o estado corrente do banco.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A entidade de revisão padrão já registra automaticamente o usuário humano autenticado que realizou cada operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Por padrão há número e timestamp da revisão. Para obter usuário, a aplicação deve fornecer o valor em campo adicional da entidade customizada de revisão, por exemplo com listener.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade de revisão customizada identifica o número por @RevisionNumber e o instante por @RevisionTimestamp.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses marcadores indicam ao Envers os atributos essenciais de número e timestamp, além dos quais a entidade pode incluir metadados customizados.",
+      "section": "3. Leitura do histórico e metadados customizados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DefaultAuditStrategy guarda revisão inicial da versão; ValidityAuditStrategy também registra o limite final de validade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A estratégia padrão associa a versão à revisão inicial, enquanto a estratégia de validade registra início e fim e pode atualizar a linha anterior quando entra nova versão.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ValidityAuditStrategy pode facilitar consultas por intervalo, mas exige trabalho adicional de escrita ao fechar a validade da linha anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O limite final permite selecionar uma versão por intervalo de revisões, mas o Envers precisa atualizar o registro anterior ao inserir a nova versão, aumentando o custo de persistência.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O recurso withModifiedFlag cria indicadores que podem informar se uma propriedade foi alterada numa revisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os modified flags permitem identificar mudanças por propriedade, acrescentando colunas booleanas às tabelas de auditoria e, portanto, também ocupam espaço adicional.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de @Audited garante que as estruturas de auditoria serão criadas automaticamente em qualquer ambiente de produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A anotação seleciona o escopo, mas o esquema de produção precisa ser gerado ou migrado conforme o processo de implantação. Não se deve presumir DDL automático nesse ambiente.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O histórico do Envers deve ser considerado em planejamento de retenção e capacidade porque mudanças auditadas acrescentam dados às tabelas auxiliares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada versão auditada aumenta o armazenamento além das tabelas operacionais; políticas de retenção e capacidade precisam refletir o volume e o período histórico requerido.",
+      "section": "4. Estratégias, flags e limites operacionais",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Envers - Hibernate ORM",
+      "publisher": "Hibernate",
+      "reference": "Visão oficial do módulo, dependência, @Audited, revisões e AuditReader",
+      "url": "https://hibernate.org/orm/envers/",
+      "accessedAt": "2026-11-11"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hibernate ORM User Guide - Envers",
+      "publisher": "Hibernate",
+      "reference": "Tabelas de auditoria, REVINFO, entidade de revisão, estratégias, flags e consultas históricas",
+      "url": "https://docs.hibernate.org/orm/7.1/userguide/html_single/Hibernate_User_Guide.html",
+      "accessedAt": "2026-11-11"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AuditReader - Hibernate Javadocs",
+      "publisher": "Hibernate",
+      "reference": "API para recuperar estado de entidade em uma revisão e consultar histórico",
+      "url": "https://docs.hibernate.org/orm/7.3/javadocs/org/hibernate/envers/AuditReader.html",
+      "accessedAt": "2026-11-11"
+    }
+  ]
+}

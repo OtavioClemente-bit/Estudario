@@ -1,0 +1,1762 @@
+{
+  "id": "informatica.arquitetura-infraestrutura-ti",
+  "subject": "Informática",
+  "title": "Arquitetura de infraestrutura de TI",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura Infraestrutura de TI",
+    "Arquitetura de infraestrutura de TI",
+    "Infraestrutura de tecnologia da informação",
+    "Arquitetura de servidores e redes corporativas",
+    "Projeto de infraestrutura computacional",
+    "Infraestrutura física e lógica de TI",
+    "Arquitetura de datacenter e nuvem",
+    "Serviços de infraestrutura de tecnologia",
+    "Dimensionamento de infraestrutura de TI",
+    "Disponibilidade de infraestrutura de TI"
+  ],
+  "scope": {
+    "covers": "Arquitetura de infraestrutura de TI: requisitos de negócio e atributos de qualidade; camadas de computação, armazenamento, rede, instalações, virtualização e serviços; capacidade e escalabilidade; disponibilidade, redundância, balanceamento, recuperação de desastres, RTO e RPO; modelos de nuvem, responsabilidade compartilhada e desenho híbrido; segurança por segmentação, identidade, proteção de dados e observabilidade; padrões de implantação, documentação e decisões arquiteturais.",
+    "excludes": "Arquitetura de software em profundidade, configuração detalhada de produtos comerciais, comandos de administração de sistemas, topologias proprietárias de fabricantes e normas legais específicas de contratação pública."
+  },
+  "theoryTitle": "Como projetar infraestrutura de TI adequada ao serviço",
+  "chapters": [
+    {
+      "title": "1. Do requisito à arquitetura de infraestrutura",
+      "markdown": "### O problema que este assunto resolve\n\nArquitetura de infraestrutura descreve os recursos físicos e lógicos que permitem a um serviço de TI funcionar: processamento, memória, armazenamento, rede, instalações, plataformas de virtualização e serviços operacionais. Ela conecta a necessidade do negócio — por exemplo, atender usuários em horário integral — às escolhas concretas de capacidade, localização, redundância, proteção e operação. Não é apenas um desenho de servidores: inclui como os componentes dependem uns dos outros e como o serviço reage a crescimento, falha e mudança.\n\n> **Siglas e termos deste capítulo**\n> - **Requisito funcional**: o que o serviço precisa fazer, como receber solicitações e consultar dados.\n> - **Atributo de qualidade**: condição não funcional mensurável, como disponibilidade, latência, segurança ou custo.\n> - **SLA**: compromisso acordado sobre o nível do serviço, com métrica e período de medição.\n> - **Capacidade**: volume de trabalho que os recursos conseguem atender dentro dos limites definidos.\n> - **Dependência**: componente ou serviço sem o qual outra parte não consegue cumprir sua função.\n\n### Comece pelo serviço, não pelo equipamento\n\nUma arquitetura deve partir de quem usa o serviço, dos horários de operação, da quantidade e distribuição de usuários, dos dados tratados, das integrações e das consequências de uma interrupção. O requisito “rápido” precisa ser convertido em medida — como latência de resposta sob uma carga conhecida. “Disponível” precisa indicar janela de medição, percentual pretendido e quais funções precisam continuar. Requisitos vagos levam a excesso de compra ou a uma solução que falha justamente no pico.\n\nRegistre também restrições: orçamento, competências da equipe, sistemas legados, localidade dos dados, conectividade, dependência de fornecedor e prazo de implantação. Depois identifique cenários de falha e crescimento. Um portal público com picos sazonais pode precisar de capacidade elástica; um sistema local conectado a equipamentos industriais pode priorizar baixa latência e operação mesmo sem acesso externo.\n\n### Camadas e domínios\n\n| Domínio | Recursos típicos | Pergunta arquitetural |\n| --- | --- | --- |\n| Instalações | energia, refrigeração, espaço, controle físico | A sala suporta carga, calor e manutenção? |\n| Computação | CPU, memória, servidores físicos ou virtuais | Onde o processamento executa e como escala? |\n| Armazenamento | discos, volumes, objetos, cópias | Qual capacidade, desempenho e durabilidade são requeridos? |\n| Rede | enlaces, switches, roteadores, DNS, firewall | Como os componentes se comunicam e são isolados? |\n| Plataforma | sistema operacional, hipervisor, contêineres, middleware | Que camada entrega ambiente consistente para aplicações? |\n| Operação e segurança | identidade, monitoramento, backup, automação | Como detectar, controlar e recuperar problemas? |\n\nAs camadas formam uma cadeia de dependências. Um aplicativo pode estar saudável no servidor e indisponível porque DNS, autenticação, banco de dados ou enlace falhou. O desenho precisa mostrar tanto o caminho normal quanto os pontos únicos de falha.\n\n### Capacidade, crescimento e custo\n\nDimensionamento usa carga observada ou estimada: transações por segundo, usuários simultâneos, tamanho e crescimento dos dados, uso de CPU e memória, tráfego de rede e operações de leitura e gravação. O pico importa mais que a média. Reserva de capacidade evita saturação, mas reserva excessiva aumenta custo e pode esconder ineficiência. Acompanhe tendências e defina gatilhos de expansão antes de atingir limites.\n\nEscalabilidade vertical aumenta recursos de uma instância, como memória de um servidor; tem limite e pode exigir parada. Escalabilidade horizontal acrescenta instâncias e distribui trabalho; requer que a aplicação e os dados suportem distribuição. Elasticidade automatiza a expansão e a redução conforme a demanda, característica associada à computação em nuvem, mas exige limites, cotas e controle financeiro.\n\n### Como cai na prova\n\n- Um requisito de disponibilidade deve ser medido para o serviço e suas dependências, não inferido pela quantidade de máquinas.\n- O pico de carga e o crescimento de dados são entradas de dimensionamento; a média isolada pode subdimensionar.\n- Alta disponibilidade, escalabilidade, desempenho e continuidade se relacionam, mas representam propriedades diferentes."
+    },
+    {
+      "title": "2. Computação, armazenamento, rede e virtualização",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de conhecer a carga, é preciso escolher onde e como executar os componentes. Uma arquitetura combina recursos de computação, armazenamento e comunicação com uma camada que os administra. A decisão entre equipamento dedicado, máquina virtual, contêiner, serviço gerenciado ou nuvem muda isolamento, densidade, operação, portabilidade e responsabilidade da equipe.\n\n> **Siglas e termos deste capítulo**\n> - **CPU**: unidade que executa instruções; múltiplos núcleos permitem trabalho concorrente.\n> - **RAM**: memória volátil usada por processos em execução.\n> - **Hipervisor**: camada que cria e administra máquinas virtuais sobre hardware físico.\n> - **VM**: máquina virtual com sistema operacional convidado e recursos virtuais próprios.\n> - **Contêiner**: ambiente isolado que compartilha o kernel do sistema operacional hospedeiro.\n> - **IOPS**: operações de entrada e saída por segundo, métrica de desempenho de armazenamento.\n> - **DNS**: sistema que associa nomes de domínio a informações como endereços IP.\n\n### Computação: físico, virtual e contêiner\n\nServidor físico dedica recursos a um equipamento e pode ser adequado a cargas especiais, alto desempenho previsível ou exigências de isolamento. A virtualização permite executar várias VMs em um mesmo host, com sistemas operacionais convidados distintos. O hipervisor agenda CPU e memória virtuais, conecta interfaces virtuais à rede e apresenta discos virtuais. Consolidação melhora o uso médio do hardware, mas aumenta o impacto potencial de falha do host; por isso, agrupamentos e capacidade reserva são relevantes.\n\nContêineres empacotam aplicação e dependências em unidades menores, mas compartilham o kernel do host. Isso costuma acelerar implantação e densidade, sem equivaler a uma VM: não há um sistema operacional completo isolado para cada contêiner. Orquestração pode reagendar contêineres e ajustar réplicas, mas não corrige automaticamente dados persistentes, código defeituoso ou dependências externas.\n\n### Armazenamento: acesso e característica\n\n| Tipo | Acesso típico | Uso frequente |\n| --- | --- | --- |\n| Bloco | volume apresentado ao sistema como dispositivo | discos de VM e bancos que gerenciam seu sistema de arquivos |\n| Arquivo | diretórios e arquivos compartilhados | documentos, diretórios de equipe e conteúdo compartilhado |\n| Objeto | objetos identificados por chave e metadados via API | imagens, cópias, arquivos de grande escala e conteúdo estático |\n\nCapacidade, latência, vazão, IOPS, durabilidade, custo e política de retenção são dimensões distintas. RAID combina discos para desempenho e/ou tolerância a certas falhas, conforme o nível escolhido; não substitui backup, porque exclusão, corrupção lógica e ransomware podem atingir o conjunto redundante. Replicação mantém cópias em outro dispositivo ou local, mas pode propagar gravações erradas. Backup é uma cópia recuperável, com retenção e testes de restauração.\n\n### Rede como caminho e limite de confiança\n\nA rede conecta usuários, aplicações, dados e serviços externos. Uma arquitetura define endereçamento, sub-redes, rotas, nomes DNS, portas e protocolos, capacidade dos enlaces e pontos de controle. Segmentação separa zonas de confiança — por exemplo, acesso público, camada de aplicação, dados e administração — e regras de firewall permitem somente fluxos necessários. Um balanceador distribui solicitações entre destinos elegíveis; verificações de saúde retiram do conjunto um destino que não responde como esperado.\n\nA redundância de links e equipamentos reduz algumas falhas, desde que os caminhos sejam realmente independentes. Dois cabos que passam pelo mesmo duto não protegem contra o rompimento desse duto. DNS também é dependência: endereços e aplicações podem estar operantes, mas o usuário não alcançá-los se a resolução de nomes falhar.\n\n### Como cai na prova\n\n- VM inclui sistema operacional convidado; contêiner compartilha o kernel do host.\n- Redundância em RAID melhora tolerância a falhas de disco conforme a configuração, mas não recupera necessariamente dados apagados ou corrompidos.\n- Segmentação e firewall controlam comunicação entre zonas; balanceador distribui tráfego e pode verificar saúde dos destinos."
+    },
+    {
+      "title": "3. Disponibilidade, resiliência e recuperação",
+      "markdown": "### O problema que este assunto resolve\n\nFalhas de hardware, energia, software, rede, erro humano ou fornecedor podem interromper um serviço. Resiliência é a capacidade de continuar ou recuperar a função diante de perturbações. Alta disponibilidade reduz interrupções por falhas previstas no desenho; recuperação de desastres organiza a retomada após eventos de maior alcance. Nenhum desses resultados decorre apenas de comprar componentes redundantes: é preciso detectar falha, decidir o destino do tráfego, preservar ou recuperar dados e testar o procedimento.\n\n> **Siglas e termos deste capítulo**\n> - **HA**: alta disponibilidade; desenho para reduzir interrupções do serviço.\n> - **RTO**: tempo máximo aceitável para restaurar o serviço após interrupção.\n> - **RPO**: intervalo máximo de dados que a organização aceita perder, medido em relação ao evento.\n> - **Failover**: transferência de carga para componente ou local alternativo.\n> - **Failback**: retorno controlado ao ambiente primário após a recuperação.\n> - **Replicação síncrona**: confirma gravação considerando a cópia remota, com custo de latência e conectividade.\n> - **Replicação assíncrona**: replica depois da confirmação local, podendo haver defasagem e perda recente.\n\n### Elimine pontos únicos de falha e planeje dependências\n\nUma aplicação com duas instâncias pode continuar indisponível se ambas dependem do mesmo banco sem redundância, do mesmo switch ou de uma única identidade central. Analise o caminho de ponta a ponta: cliente, DNS, balanceador, aplicação, fila, banco, armazenamento, autenticação e saída de rede. Redundância precisa considerar domínios de falha independentes, como fonte de energia, rack, zona ou região.\n\nEm ativo-ativo, mais de uma instância atende tráfego ao mesmo tempo; isso pode distribuir carga e reduzir a capacidade ociosa, mas exige tratar consistência, sessões e conflitos. Em ativo-passivo, a instância secundária aguarda ou atende carga limitada até o failover; o desenho costuma ser mais simples, porém depende da detecção e da promoção. Em ambos, teste a comutação e evite que a cópia de segurança compartilhe todas as dependências do primário.\n\n### RTO, RPO, backup e replicação\n\nRTO e RPO são objetivos diferentes. Um RTO de poucas horas descreve o prazo pretendido para voltar a prestar o serviço; um RPO curto limita a quantidade de alterações recentes que se pode perder. Replicação contínua pode reduzir a defasagem, mas uma exclusão maliciosa também pode chegar à réplica. Backup com retenção separada permite voltar a um estado anterior, mas a restauração pode levar mais tempo. A estratégia combina os mecanismos de acordo com o impacto e os custos.\n\nUm plano de recuperação identifica responsáveis, ordem de inicialização, dependências, credenciais protegidas, cópias, localização alternativa, validação de dados e comunicação. Um backup sem ensaio de restauração não comprova que o RTO será atingido nem que os arquivos são utilizáveis. Exercícios devem registrar duração, falhas encontradas e ações corretivas.\n\n### Zonas e regiões na nuvem\n\nNa documentação Azure, uma região é uma área geográfica com datacenters; zonas de disponibilidade são grupos separados de datacenters dentro de uma região, com infraestrutura independente de energia, refrigeração e rede. Implantação zonal fixa um recurso em uma zona; sozinha, reduz pouco o risco de indisponibilidade da própria zona. Implantação redundante entre zonas distribui instâncias e pode permitir continuidade regional. Multi-região também protege contra falha regional, mas eleva custo e complexidade e requer decidir replicação, roteamento e residência dos dados.\n\n### Como cai na prova\n\n- RPO mede perda de dados tolerada; RTO mede tempo de recuperação pretendido.\n- Replicação não é sinônimo de backup: pode replicar corrupção ou exclusão.\n- Redundância só mitiga falha se as cópias não dependerem do mesmo domínio de falha e se failover for testado."
+    },
+    {
+      "title": "4. Nuvem, segurança e operação da arquitetura",
+      "markdown": "### O problema que este assunto resolve\n\nA infraestrutura pode ficar em instalações próprias, ser consumida de um provedor de nuvem ou combinar os dois ambientes. A escolha afeta velocidade de provisionamento, escala, custo, controle e divisão de responsabilidades. A definição do NIST descreve nuvem como acesso de rede sob demanda a um conjunto compartilhado de recursos configuráveis, que podem ser provisionados e liberados rapidamente com pouco esforço de gestão. Para classificar um serviço como nuvem segundo essa definição, considere as cinco características, os três modelos de serviço e os quatro modelos de implantação.\n\n> **Siglas e termos deste capítulo**\n> - **IaaS**: infraestrutura como serviço; cliente controla sistemas operacionais e aplicações sobre recursos fornecidos.\n> - **PaaS**: plataforma como serviço; provedor administra plataforma subjacente e cliente publica aplicações e dados.\n> - **SaaS**: software como serviço; cliente usa aplicação pronta e administra configurações limitadas.\n> - **NIST**: instituto norte-americano de padrões e tecnologia, autor de referências de computação em nuvem.\n> - **IAM**: gestão de identidades e acessos.\n> - **IaC**: infraestrutura como código; recursos e configurações descritos em arquivos versionáveis.\n> - **Observabilidade**: uso de métricas, logs e rastreamentos para entender o comportamento do sistema.\n\n### Características e modelos de nuvem\n\nAs cinco características essenciais do NIST são autosserviço sob demanda, amplo acesso pela rede, agrupamento de recursos, elasticidade rápida e serviço mensurado. Autosserviço permite provisionamento sem interação humana obrigatória a cada solicitação; agrupamento aloca recursos compartilhados a múltiplos consumidores; serviço mensurado monitora o uso. Os modelos de serviço são SaaS, PaaS e IaaS. Os modelos de implantação são nuvem privada, comunitária, pública e híbrida. “Híbrida” combina infraestruturas distintas que permanecem entidades próprias, mas são conectadas para permitir portabilidade de dados ou aplicações.\n\nEm IaaS, o cliente administra sistema operacional, aplicações e configurações de rede que controla; o provedor mantém a infraestrutura física. Em PaaS, o provedor assume também a plataforma de execução. Em SaaS, o provedor opera a aplicação, enquanto o cliente continua responsável por aspectos como contas, permissões e uso adequado dos dados. A fronteira exata varia por serviço: a arquitetura deve registrar responsabilidades concretas, não presumir que “nuvem” transfere toda a segurança ao fornecedor.\n\n### Segurança e operação desde o desenho\n\nUse identidade individual, autenticação forte para acessos administrativos e privilégio mínimo. Separe contas e redes de administração do tráfego comum; mantenha registros centralizados e sincronize horários para correlacionar eventos. Proteja dados em trânsito e em repouso conforme a sensibilidade, controle as chaves e documente quem pode acessá-las. Atualizações, inventário de ativos, configuração segura e resposta a incidentes integram a operação.\n\nMétricas ajudam a detectar saturação; logs registram eventos; rastreamentos acompanham uma solicitação entre serviços. Alertas precisam apontar sintomas acionáveis e ter responsáveis e procedimento de resposta. Infraestrutura como código torna alterações revisáveis e repetíveis, mas arquivos de estado, segredos e permissões do pipeline também precisam de proteção. Mudança automatizada sem revisão pode reproduzir rapidamente uma configuração insegura.\n\nO AWS Well-Architected Framework organiza orientações em seis pilares: excelência operacional, segurança, confiabilidade, eficiência de desempenho, otimização de custos e sustentabilidade. Eles são lentes de avaliação, não garantias automáticas. Uma decisão pode envolver trade-offs: alta redundância costuma custar mais; concentração reduz custo imediato, mas aumenta impacto de falha. Registre a decisão, as alternativas consideradas, as premissas e como verificar o resultado.\n\n### Como cai na prova\n\n- NIST define cinco características, três modelos de serviço e quatro modelos de implantação; confundir os grupos é erro comum.\n- IaaS, PaaS e SaaS transferem parcelas diferentes da administração, mas IAM e governança de dados continuam relevantes ao consumidor.\n- Métricas, logs e rastreamentos se complementam; infraestrutura como código ajuda repetibilidade, mas precisa de controle de acesso e revisão."
+    }
+  ],
+  "summary": "Arquitetura de infraestrutura de TI traduz requisitos do serviço em escolhas coordenadas de computação, armazenamento, rede, plataforma, segurança e operação. Dimensione a partir da carga e do pico; diferencie escala vertical, horizontal e elasticidade. Virtualização cria VMs com sistemas convidados, enquanto contêineres compartilham o kernel do host. RAID e replicação oferecem redundância, mas não substituem backup recuperável. Alta disponibilidade, continuidade e recuperação dependem de domínios independentes, failover ensaiado, RTO e RPO definidos. Segundo o NIST, nuvem reúne cinco características essenciais, três modelos de serviço (IaaS, PaaS, SaaS) e quatro modelos de implantação (privada, comunitária, pública, híbrida). Responsabilidades variam com o serviço, e segurança, observabilidade, custo e documentação precisam entrar no desenho.",
+  "flashcards": [
+    {
+      "front": "O que a arquitetura de infraestrutura de TI descreve?",
+      "back": "Os recursos físicos e lógicos, suas relações e decisões de capacidade, rede, armazenamento, segurança, disponibilidade e operação que sustentam serviços de TI."
+    },
+    {
+      "front": "Qual é a diferença entre requisito funcional e atributo de qualidade?",
+      "back": "O funcional descreve o que o sistema faz; atributo de qualidade descreve como deve fazê-lo, como latência, disponibilidade ou segurança."
+    },
+    {
+      "front": "Qual a diferença entre escala vertical e horizontal?",
+      "back": "Vertical aumenta recursos de uma instância; horizontal acrescenta instâncias e distribui trabalho."
+    },
+    {
+      "front": "O que caracteriza elasticidade?",
+      "back": "Ajuste rápido de recursos para cima ou para baixo em resposta à demanda, podendo ser automatizado."
+    },
+    {
+      "front": "O que faz um hipervisor?",
+      "back": "Cria e administra máquinas virtuais, alocando recursos virtuais sobre hardware físico."
+    },
+    {
+      "front": "Como VM e contêiner diferem quanto ao sistema operacional?",
+      "back": "A VM tem sistema operacional convidado; o contêiner compartilha o kernel do host."
+    },
+    {
+      "front": "Quando se usa armazenamento em bloco?",
+      "back": "Quando se precisa de volumes apresentados como dispositivos, por exemplo discos de VM ou de bancos de dados."
+    },
+    {
+      "front": "Que acesso caracteriza armazenamento de objetos?",
+      "back": "Objetos identificados por chaves e metadados, normalmente acessados por API."
+    },
+    {
+      "front": "Por que RAID não substitui backup?",
+      "back": "Pode tolerar certas falhas de disco, mas exclusões, corrupção lógica e ransomware podem atingir o conjunto redundante."
+    },
+    {
+      "front": "Qual é a função de um balanceador?",
+      "back": "Distribuir solicitações entre destinos e, conforme configurado, retirar destinos que falham nas verificações de saúde."
+    },
+    {
+      "front": "O que é segmentação de rede?",
+      "back": "Separar recursos em zonas e controlar os fluxos permitidos entre elas, reduzindo exposição lateral."
+    },
+    {
+      "front": "O que mede RTO?",
+      "back": "O tempo de recuperação pretendido após interrupção do serviço."
+    },
+    {
+      "front": "O que mede RPO?",
+      "back": "A quantidade de dados ou intervalo de alterações que se aceita perder após um evento."
+    },
+    {
+      "front": "Por que replicação não equivale a backup?",
+      "back": "A réplica pode receber imediatamente exclusões e corrupção; backup retido permite recuperar estado anterior."
+    },
+    {
+      "front": "O que é failover?",
+      "back": "Transferência de carga para componente ou local alternativo após falha do principal."
+    },
+    {
+      "front": "O que define uma zona de disponibilidade no contexto Azure?",
+      "back": "Grupo separado de datacenters dentro de uma região, com infraestrutura própria de energia, refrigeração e rede."
+    },
+    {
+      "front": "Quais são as cinco características essenciais da nuvem segundo o NIST?",
+      "back": "Autosserviço sob demanda, amplo acesso pela rede, agrupamento de recursos, elasticidade rápida e serviço mensurado."
+    },
+    {
+      "front": "Quais são os modelos de serviço de nuvem do NIST?",
+      "back": "SaaS, PaaS e IaaS."
+    },
+    {
+      "front": "Quais são os modelos de implantação de nuvem do NIST?",
+      "back": "Privada, comunitária, pública e híbrida."
+    },
+    {
+      "front": "O que continua sob responsabilidade do consumidor em SaaS?",
+      "back": "A gestão de usuários, permissões, configurações disponíveis e uso e governança apropriados dos dados."
+    },
+    {
+      "front": "Quais sinais compõem observabilidade?",
+      "back": "Métricas, logs e rastreamentos, que mostram medidas, eventos e percurso de solicitações."
+    },
+    {
+      "front": "Para que serve infraestrutura como código?",
+      "back": "Descrever e versionar recursos e configurações para revisão e implantação repetível."
+    }
+  ],
+  "tips": [
+    "Associe RTO a tempo para voltar e RPO a ponto ou quantidade de dados recuperáveis.",
+    "Antes de declarar alta disponibilidade, percorra dependências como DNS, identidade, rede, aplicação e banco.",
+    "Para armazenamento, separe tipo de acesso (bloco, arquivo, objeto) de desempenho, durabilidade e retenção.",
+    "RAID protege contra algumas falhas de disco; backup protege a possibilidade de voltar a dados anteriores.",
+    "Decore os grupos do NIST: cinco características, três modelos de serviço, quatro modelos de implantação.",
+    "Toda redundância precisa de domínio de falha distinto, roteamento de contingência e ensaio de failover."
+  ],
+  "traps": [
+    "A prova diz que duas VMs no mesmo host garantem continuidade do serviço. A concentração no mesmo host mantém um ponto comum de falha.",
+    "A prova chama contêiner de máquina virtual leve com kernel próprio. Contêineres compartilham o kernel do host.",
+    "A prova afirma que RAID substitui cópia de segurança. RAID não protege necessariamente contra exclusão, corrupção ou ransomware.",
+    "A prova troca RTO e RPO. RTO trata de duração até a recuperação; RPO trata da perda de dados tolerada.",
+    "A prova afirma que réplica remota sempre permite voltar antes de uma exclusão. A replicação pode propagar a exclusão.",
+    "A prova considera uma implantação numa única zona resiliente à falha dessa zona. Implantação zonal fixa o recurso; redundância entre zonas é outra decisão."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como transformar um pedido de sistema ‘rápido’ em requisito arquitetural verificável?",
+      "answer": "Definir medida de latência, carga e percentil ou janela de observação, além das condições de teste e dependências incluídas."
+    },
+    {
+      "question": "Por que dimensionar pela carga média pode falhar?",
+      "answer": "Picos simultâneos podem ultrapassar CPU, memória, I/O ou rede, mesmo quando a média parece baixa."
+    },
+    {
+      "question": "Explique uma diferença operacional entre máquina virtual e contêiner.",
+      "answer": "A VM inclui sistema operacional convidado administrado por hipervisor; contêiner compartilha kernel do host e isola principalmente processos e dependências."
+    },
+    {
+      "question": "Por que segmentar uma rede em zonas?",
+      "answer": "Para limitar comunicação aos fluxos necessários e reduzir o alcance de acessos indevidos ou comprometimentos laterais."
+    },
+    {
+      "question": "Dê um exemplo de falha comum que redundância local não resolveria.",
+      "answer": "Duas instâncias na mesma zona podem falhar juntas se a zona perder energia ou conectividade."
+    },
+    {
+      "question": "Diferencie RTO de RPO em um plano de recuperação.",
+      "answer": "RTO define o prazo para restabelecer o serviço; RPO define a perda de dados aceitável em relação ao momento da falha."
+    },
+    {
+      "question": "Por que backups precisam de teste de restauração?",
+      "answer": "Para comprovar que as cópias são legíveis, que os procedimentos funcionam e que o tempo de retorno atende ao objetivo."
+    },
+    {
+      "question": "Quais são os três modelos de serviço e o que muda entre eles?",
+      "answer": "IaaS entrega recursos sobre os quais o consumidor administra SO e aplicações; PaaS entrega também a plataforma; SaaS entrega a aplicação pronta."
+    },
+    {
+      "question": "Como observabilidade combina métricas, logs e rastreamentos?",
+      "answer": "Métricas quantificam comportamento, logs registram eventos e rastreamentos mostram o percurso de solicitações por componentes."
+    },
+    {
+      "question": "Que decisão adicional é necessária ao adotar arquitetura multi-região?",
+      "answer": "Definir replicação e consistência de dados, roteamento, failover, retorno, residência, testes e custos entre regiões."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre dimensões de escala",
+      "summary": "Escala vertical amplia uma instância; escala horizontal adiciona instâncias; elasticidade ajusta recursos à demanda. Nenhuma delas, isoladamente, garante disponibilidade."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre redundância e cópia recuperável",
+      "summary": "RAID e replicação dão redundância, mas podem refletir corrupção e exclusões. Backup retido e restauração testada dão caminho para recuperar estado anterior."
+    },
+    {
+      "key": "e3",
+      "title": "Inversão entre RTO e RPO",
+      "summary": "RTO é objetivo de tempo para recuperação; RPO é objetivo de perda de dados. Ambos dependem do impacto e da estratégia de continuidade."
+    },
+    {
+      "key": "e4",
+      "title": "Generalização de responsabilidade na nuvem",
+      "summary": "A parcela administrada pelo provedor cresce de IaaS para PaaS e SaaS, mas consumidor ainda administra identidades, permissões, configurações e dados conforme o serviço."
+    },
+    {
+      "key": "e5",
+      "title": "Redundância sem independência",
+      "summary": "Componentes duplicados que compartilham zona, energia, rede, identidade ou dados podem falhar juntos. Mapear domínios de falha e testar failover é parte do desenho."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa preparar a infraestrutura de um portal cuja procura cresce em campanhas e cai depois delas. Qual decisão atende melhor a essa variação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dimensionar todos os servidores pelo pico e mantê-los ligados o ano inteiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar capacidade ajustável à demanda, com limites e monitoramento de custos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazenar as solicitações excedentes em backup até a campanha terminar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar somente o espaço em disco, pois ele determina a quantidade de acessos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transferir a aplicação para um único servidor físico de maior memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Capacidade elástica pode acompanhar a demanda e ser reduzida quando o pico passa. Limites e monitoramento evitam expansão descontrolada. Um servidor maior é escala vertical e mantém limite de crescimento; disco e backup não resolvem a concorrência de acessos.",
+      "section": "1. Do requisito à arquitetura de infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação que precisa atender mais requisições simultâneas, qual opção representa escalabilidade horizontal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar instâncias e distribuir solicitações entre elas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a memória disponível para a instância de aplicação existente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o disco do servidor por outro com maior capacidade total.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elevar a frequência do processador sem alterar a quantidade de instâncias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover os arquivos de log para um volume de armazenamento de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escala horizontal acrescenta instâncias e distribui trabalho; aumentar memória ou processador de uma única instância é escala vertical. Disco maior e mudança de local dos logs não adicionam capacidade de processamento de solicitações.",
+      "section": "1. Do requisito à arquitetura de infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao converter o requisito ‘o sistema deve ser rápido’ em critério de arquitetura, qual medida é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir meta de latência para carga e caminho especificados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exigir que todos os servidores usem o mesmo fabricante de processador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar que a equipe considera rápida a interface em uma demonstração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar todos os volumes de armazenamento na mesma proporção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contar quantos equipamentos existem sem observar suas taxas de utilização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um atributo de qualidade precisa ser verificável: latência relacionada a carga e caminho permite teste e comparação. Marca de processador, impressão subjetiva, capacidade de disco e quantidade bruta de equipamentos não medem o tempo de resposta do serviço.",
+      "section": "1. Do requisito à arquitetura de infraestrutura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço tem média baixa de uso de CPU, mas fica lento no fechamento mensal. Qual abordagem de capacidade é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dimensionar pela média anual e ignorar as medições dos períodos de fechamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir a carga de pico e identificar o recurso que satura nesse período.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Reduzir a memória das instâncias para liberar mais espaço em disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o período de retenção de backup para reduzir o tempo de cálculo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar os registros de auditoria durante todo o mês de fechamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O dimensionamento deve considerar picos e localizar gargalos de CPU, memória, armazenamento, rede ou dependências. A média esconde a saturação temporária; retenção de backup e redução de memória não são soluções fundamentadas, e desligar auditoria cria risco sem provar ganho de capacidade.",
+      "section": "1. Do requisito à arquitetura de infraestrutura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto exige que usuários externos acessem um serviço continuamente, inclusive quando um componente falhar. Qual informação deve orientar o desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o número total de servidores adquiridos no início do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O objetivo de disponibilidade, as dependências e os domínios de falha do serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de estações de trabalho mantidas pela equipe de suporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A velocidade nominal do enlace interno, sem conhecer os caminhos alternativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O espaço livre no repositório de código-fonte do aplicativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Continuidade exige um objetivo mensurável e análise do caminho completo e das falhas que podem afetá-lo. Contar servidores ou medir um enlace isolado não mostra se DNS, identidade, dados, energia ou rotas também são pontos únicos de falha.",
+      "section": "1. Do requisito à arquitetura de infraestrutura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em virtualização de servidores, qual função pertence ao hipervisor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar VMs e alocar recursos do host.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar cópias externas dos arquivos apagados pela aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Resolver nomes DNS públicos para os endereços dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o sistema operacional convidado por código de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criptografar automaticamente todo tráfego entre regiões distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hipervisor provê e administra máquinas virtuais sobre o hardware, incluindo a alocação de recursos. Backup, DNS, lógica da aplicação e criptografia de tráfego são funções de outras camadas ou serviços.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente uma máquina virtual de um contêiner?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A VM usa sistema operacional convidado; o contêiner compartilha o kernel do host.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A VM não usa sistema operacional; o contêiner sempre contém um hipervisor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VM compartilha necessariamente os processos; o contêiner reserva hardware exclusivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VM e contêiner são sinônimos e têm sempre o mesmo isolamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contêineres só executam em servidores sem sistema operacional hospedeiro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma VM virtualiza um computador com sistema operacional convidado, enquanto contêineres isolam processos e dependências compartilhando o kernel do host. Eles não são sinônimos e não implicam hardware exclusivo ou ausência de sistema hospedeiro.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa disponibilizar um volume como dispositivo de bloco para uma máquina virtual. Qual serviço de armazenamento corresponde ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento em bloco, apresentado como volume à máquina virtual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento de objetos, acessado somente por pastas POSIX locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenamento de arquivos, apresentado sempre como memória RAM volátil.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Serviço DNS, que associa o volume ao nome público do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceador de carga, que converte solicitações em setores de disco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Armazenamento em bloco fornece volumes que o sistema pode tratar como dispositivos. Armazenamento de arquivos apresenta diretórios compartilhados, objetos usam chaves e APIs, e DNS e balanceamento não são tipos de armazenamento.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa RAID e afirma que já não precisa manter backups. Qual resposta técnica é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RAID tolera algumas falhas de disco, mas não substitui backup.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RAID mantém automaticamente versões históricas de todos os arquivos apagados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RAID impede que ransomware altere os dados nos discos espelhados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RAID é uma técnica de criptografia que protege contra erros de usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RAID transfere os dados para um local geograficamente independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "RAID oferece redundância contra falhas cobertas pelo nível configurado, mas não garante recuperação de exclusões, corrupção lógica, ransomware ou desastre do local. Backups separados e restauração testada atendem a necessidades distintas.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pública tem várias instâncias e precisa distribuir solicitações apenas entre destinos operacionais. Qual componente atende diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um balanceador que verifica a saúde e distribui o tráfego.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um hipervisor que traduz cada consulta HTTP em uma cópia de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um sistema de arquivos que altera a resolução de nomes dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um servidor DNS que monitora a integridade interna de cada processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um sistema RAID que seleciona qual instância recebe cada solicitação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O balanceador distribui tráfego e pode usar verificações de saúde para excluir destinos indisponíveis. DNS resolve nomes, hipervisor administra VMs e RAID protege certos arranjos de disco, sem realizar esse roteamento de aplicação.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual arquitetura reduz melhor a comunicação desnecessária entre a camada pública, os servidores de aplicação e o banco de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar zonas de rede e permitir somente os fluxos requeridos entre elas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conectar todos os componentes à mesma rede plana sem regras de tráfego.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir toda porta de entrada e bloquear somente conexões de saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar cópias de backup no mesmo segmento das interfaces públicas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar nomes DNS distintos como único mecanismo de controle de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segmentação separa zonas de confiança e regras entre elas restringem fluxos ao necessário. Rede plana amplia movimentação lateral; DNS não substitui autorização ou firewall, e posicionar cópias na zona pública aumenta exposição.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer manter cópia atualizada dos dados em outro local e também recuperar exclusões acidentais feitas no sistema principal. Qual desenho é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combinar replicação para continuidade e backups retidos com restauração testada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente espelhamento de discos no servidor de produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas uma réplica síncrona que aceite toda alteração do principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a retenção e manter sempre a cópia no estado mais recente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter cópias somente em memória para evitar atraso de gravação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação ajuda a manter outra cópia operacional, mas pode transmitir uma exclusão ou corrupção. Backups com retenção independente permitem recuperar estado anterior; testar restauração verifica que essa proteção funciona.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede redundante, dois enlaces passam pelo mesmo duto físico. Que risco permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O rompimento do duto pode interromper os dois enlaces ao mesmo tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os enlaces deixam de transmitir pacotes porque usam rotas independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A redundância impede que o DNS responda a consultas externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O balanceador passa a enviar dados diretamente ao armazenamento em bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O duto compartilhado garante isolamento contra falhas de energia.",
+          "correct": false
+        }
+      ],
+      "explanation": "A independência lógica não basta quando os cabos compartilham uma infraestrutura física: um dano comum pode cortar ambos. A análise deve mapear domínios de falha reais, como dutos, energia e equipamentos.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RTO representa o intervalo de dados que a organização aceita perder após uma interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RTO é o objetivo de tempo para restaurar o serviço. O intervalo ou volume de dados que se aceita perder é tratado pelo RPO.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pode ter duas instâncias e ainda depender de um único banco de dados, que se torna ponto único de falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A redundância na camada de aplicação não elimina a dependência compartilhada. Se o banco único falha e não há alternativa operacional, o serviço pode ficar indisponível.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Replicação assíncrona pode apresentar atraso entre a gravação confirmada no primário e a cópia no destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na replicação assíncrona, a confirmação local ocorre antes de a alteração necessariamente chegar ao destino. Essa defasagem pode implicar perda das alterações mais recentes em uma falha do primário.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O failback é a transferência inicial do tráfego do componente principal para o componente alternativo que assumiu após a falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa transferência para o alternativo é failover. Failback é o retorno planejado ao ambiente primário depois de recuperado e validado.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação em ativo-ativo permite que mais de uma instância processe solicitações ao mesmo tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em ativo-ativo múltiplas instâncias atendem carga simultaneamente. É necessário ainda tratar sessões, distribuição de tráfego e consistência dos dados compartilhados.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup diário comprova, por si só, que o sistema será restaurado dentro do RTO definido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A existência de arquivos de backup não comprova legibilidade, completude nem duração da restauração. Ensaios cronometrados e validação dos dados verificam se o procedimento atende ao RTO.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica pode receber também uma alteração lógica incorreta aplicada aos dados do sistema principal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A replicação mantém cópias de alterações, inclusive exclusões ou corrupção lógica, conforme o mecanismo. Um backup retido em ponto anterior pode oferecer recuperação contra esse cenário.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Distribuir duas instâncias por zonas diferentes pode reduzir o impacto da falha de uma zona, desde que tráfego e dados também estejam preparados para a contingência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Redundância entre zonas cria domínios separados, mas o serviço só continua se componentes de rede, roteamento e dados suportarem a falha e se o failover funcionar.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma região de nuvem e uma zona de disponibilidade são nomes intercambiáveis para o mesmo agrupamento geográfico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma região é uma área geográfica que contém datacenters; zonas são grupos separados de datacenters dentro de uma região. A distinção afeta o alcance de falhas e a arquitetura de implantação.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RPO e o RTO devem ser definidos considerando impacto do negócio, estratégia técnica e custo de recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Objetivos mais curtos geralmente exigem mecanismos de recuperação mais rápidos e menor defasagem de dados, o que pode aumentar custo e complexidade. A decisão deve refletir o impacto tolerável.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "De acordo com a definição do NIST, qual conjunto contém as cinco características essenciais da computação em nuvem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autosserviço sob demanda, amplo acesso à rede, agrupamento, elasticidade rápida e serviço mensurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Servidor dedicado, licença perpétua, instalação local, replicação síncrona e suporte presencial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Virtualização, código aberto, criptografia obrigatória, datacenter próprio e auditoria anual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Internet pública, pagamento mensal, backup diário, rede privada e autenticação biométrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alta disponibilidade, baixa latência, custo fixo, propriedade do hardware e ausência de equipe técnica.",
+          "correct": false
+        }
+      ],
+      "explanation": "O NIST enumera autosserviço sob demanda, amplo acesso pela rede, agrupamento de recursos, elasticidade rápida e serviço mensurado. Recursos como virtualização, criptografia e backup podem ser usados, mas não formam esse conjunto definidor.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa lista somente modelos de serviço de nuvem definidos pelo NIST?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IaaS, PaaS e SaaS, com níveis distintos de recursos administrados pelo provedor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Privada, comunitária e pública, que classificam onde a nuvem é implantada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Híbrida, pública e regional, que definem a localização dos datacenters.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VM, contêiner e bare metal, que definem modelos comerciais de plataforma.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativo-ativo, ativo-passivo e multi-região, que definem contratos de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os três modelos de serviço são IaaS, PaaS e SaaS. Privada, comunitária, pública e híbrida são modelos de implantação; VM, contêiner e bare metal são formas de execução, e ativo-ativo descreve uma estratégia de disponibilidade.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto corresponde aos modelos de implantação de nuvem do NIST?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Privada, comunitária, pública e híbrida, conforme organização e compartilhamento do ambiente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IaaS, PaaS, SaaS e banco como serviço, conforme a camada de software entregue.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bloco, arquivo, objeto e fita, conforme o método de acesso ao armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Zonal, regional, local e global, conforme a técnica de balanceamento escolhida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vertical, horizontal, elástica e distribuída, conforme o aumento da capacidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O NIST lista nuvem privada, comunitária, pública e híbrida como modelos de implantação. IaaS, PaaS e SaaS são modelos de serviço; as outras opções misturam armazenamento, localização ou escalabilidade.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um serviço IaaS, qual tarefa costuma permanecer sob administração do cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Administrar o sistema operacional convidado e as aplicações instaladas na instância.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir os discos físicos do datacenter mantido pelo provedor de nuvem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Controlar os sistemas de refrigeração e energia da instalação do provedor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fabricar os processadores usados nos servidores físicos que hospedam a instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Operar toda a infraestrutura física de rede do provedor em cada região.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em IaaS, o provedor administra a infraestrutura física, enquanto o consumidor normalmente administra o sistema operacional, aplicações e configurações de rede sob seu controle. O limite específico deve ser confirmado para o serviço contratado.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa utiliza um serviço SaaS. Qual controle continua sendo importante para o cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Administrar identidades, permissões e configurações de uso disponíveis no serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter o hipervisor que executa fisicamente a aplicação do fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o cabeamento dos datacenters onde o software está hospedado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Instalar atualizações do sistema operacional do servidor do provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gerenciar a refrigeração e a redundância elétrica das salas do fornecedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mesmo em SaaS, o cliente precisa administrar contas, permissões, configurações acessíveis e governança dos dados. A camada física, o hipervisor e o sistema operacional da aplicação são normalmente operados pelo provedor, conforme o contrato do serviço.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer conectar nuvem privada própria e nuvem pública, mantendo as duas infraestruturas como ambientes distintos. Qual modelo descreve esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nuvem híbrida, com ambientes distintos conectados para portabilidade ou integração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Nuvem comunitária, necessariamente restrita a uma única organização proprietária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nuvem privada, que por definição exige todos os recursos em provedor público.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SaaS, que significa combinar sistemas operacionais de dois datacenters.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escala vertical, que conecta ambientes separados por uma rede de longa distância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nuvem híbrida combina infraestruturas distintas que permanecem entidades próprias, mas são conectadas para permitir portabilidade ou integração. SaaS é modelo de serviço; escala vertical não descreve combinação de ambientes.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação ajuda a investigar uma solicitação que passa por vários serviços distribuídos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métricas, logs e rastreamentos correlacionados entre os componentes envolvidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente inventário de hardware, sem dados sobre eventos ou solicitações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas cópias de segurança completas armazenadas ao fim de cada mês.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente regras de firewall, sem medições de latência ou erros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma lista de endereços IP sem registros de horário ou identificadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas mostram tendências e valores, logs registram eventos e rastreamentos acompanham uma solicitação entre serviços. Correlacionar sinais por identificadores e horários acelera a localização de gargalos e falhas.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe versiona configurações de infraestrutura como código. Qual prática complementa melhor essa abordagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar alterações e proteger credenciais e permissões usadas pelo pipeline.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar senhas sem proteção nos arquivos para tornar a implantação repetível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que qualquer usuário execute mudanças diretamente em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar logs para impedir que configurações sejam associadas a responsáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter a configuração somente em uma estação, sem cópia nem controle de versão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Infraestrutura como código favorece repetibilidade e revisão, mas o pipeline pode alterar recursos sensíveis. Controle de acesso, proteção de segredos, revisão e trilha de auditoria evitam que automação reproduza mudanças inseguras sem controle.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção reúne pilares do AWS Well-Architected Framework?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Operação, segurança, confiabilidade, desempenho, custo e sustentabilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SaaS, PaaS, IaaS, nuvem híbrida, pública e comunitária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CPU, memória, armazenamento, DNS, firewall e balanceador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTO, RPO, replicação síncrona, backup, failover e failback.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Disponibilidade, inventário, virtualização, elasticidade, auditoria e licenciamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O framework organiza a avaliação em seis pilares: excelência operacional, segurança, confiabilidade, eficiência de desempenho, otimização de custos e sustentabilidade. As outras alternativas misturam modelos de nuvem, componentes ou práticas sem constituir o conjunto de pilares.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente híbrido precisa mover uma aplicação legada para a nuvem, mas manter o banco local por exigência de integração. Qual aspecto deve ser tratado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Planejar conectividade, latência, segurança e dependências entre os ambientes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Supor que a rede privada torna desnecessário autenticar os serviços remotos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o monitoramento local assim que a aplicação iniciar na nuvem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Considerar que uma nuvem híbrida transfere os dados locais ao provedor automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar apenas a memória do banco para compensar qualquer latência entre regiões.",
+          "correct": false
+        }
+      ],
+      "explanation": "A arquitetura híbrida cria dependências entre redes e serviços em ambientes distintos. Conectividade, latência, autenticação, monitoramento e modos de falha precisam ser definidos para que a aplicação alcance o banco com segurança e desempenho. A combinação híbrida não migra dados automaticamente nem elimina controles.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de arquivos de equipe precisa ser acessado por várias máquinas usando diretórios e nomes de arquivos. Qual tipo de armazenamento é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento de arquivos, com diretórios compartilhados entre clientes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento em bloco, sempre acessado somente por uma API de objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenamento de objetos, montado obrigatoriamente como disco local bruto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Serviço de DNS, que oferece pastas persistentes para usuários autorizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceador de carga, que mantém nomes de arquivos em memória volátil.",
+          "correct": false
+        }
+      ],
+      "explanation": "Armazenamento de arquivos apresenta uma hierarquia de diretórios e arquivos que pode ser compartilhada por clientes. Bloco apresenta volumes, objetos usam chaves e metadados via API, e DNS e balanceamento não fornecem esse tipo de persistência.",
+      "section": "2. Computação, armazenamento, rede e virtualização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer limitar o dano caso uma credencial de servidor de aplicação seja comprometida. Qual medida de arquitetura reduz a movimentação lateral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir fluxos por segmentos e conceder somente permissões necessárias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar a conta administrativa entre aplicações para simplificar auditorias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar servidores de aplicação e banco na rede pública sem filtros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover logs de autenticação para evitar registrar tentativas indevidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir qualquer conexão interna e bloquear somente tráfego externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segmentação limita os caminhos alcançáveis e o privilégio mínimo restringe as ações de cada identidade. Contas compartilhadas, ausência de filtros e remoção de logs enfraquecem atribuição, contenção e detecção de incidentes.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Autosserviço sob demanda permite que o consumidor provisione recursos sem interação humana obrigatória com cada provedor a cada solicitação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O NIST inclui autosserviço sob demanda entre as características essenciais da nuvem: o consumidor pode provisionar capacidades conforme necessário por meios automatizados.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Serviço mensurado significa que o uso de recursos pode ser monitorado, controlado e reportado em nível apropriado ao serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O NIST descreve medição automática do uso de recursos, como armazenamento, processamento, largura de banda ou contas ativas, oferecendo transparência ao provedor e ao consumidor.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PaaS, o consumidor geralmente implanta aplicações próprias sobre a plataforma oferecida, sem administrar toda a infraestrutura física subjacente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PaaS fornece plataforma para implantação de aplicações do consumidor; a administração da infraestrutura subjacente cabe ao provedor, enquanto o cliente ainda responde por suas aplicações e dados.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modelo híbrido do NIST exige que nuvem privada e pública sejam fundidas em uma única infraestrutura sem fronteiras entre elas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Nuvem híbrida combina duas ou mais infraestruturas distintas, que permanecem entidades únicas, conectadas para permitir portabilidade de dados ou aplicações. Não exige fusão sem fronteiras.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao migrar para SaaS, a organização deixa de precisar controlar quem pode acessar seus dados no serviço contratado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O provedor opera a aplicação, mas a organização ainda precisa gerir identidades, permissões e uso dos dados segundo os controles disponíveis e o modelo de responsabilidade do serviço.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separar credenciais administrativas das contas comuns reduz o risco de que uma conta de uso cotidiano tenha privilégios excessivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Contas administrativas separadas, privilégio mínimo e autenticação forte limitam o impacto de comprometimento de credenciais comuns e facilitam controles de acesso privilegiado.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Métricas, logs e rastreamentos fornecem sinais complementares para observar serviços distribuídos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Métricas quantificam comportamento, logs registram eventos e rastreamentos mostram o percurso de solicitações por componentes. Um sinal isolado pode não explicar a causa de um incidente.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Automatizar a implantação com infraestrutura como código elimina a necessidade de revisar permissões e segredos do pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Automação pode aplicar mudanças rapidamente, inclusive configurações inseguras. Credenciais, permissões, revisão de alterações e trilhas de auditoria precisam de proteção adequada.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os pilares do AWS Well-Architected Framework garantem, por si sós, que qualquer arquitetura avaliada será segura e disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os pilares são lentes e perguntas de avaliação para orientar decisões e melhorias. A aplicação depende de requisitos, desenho, implementação e operação; o framework não substitui controles nem garante resultados automaticamente.",
+      "section": "4. Nuvem, segurança e operação da arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A implantação de um recurso em uma zona específica, sem instâncias em outras zonas, já garante resiliência à indisponibilidade daquela zona.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A implantação zonal fixa o recurso em uma zona e pode reduzir latência entre componentes co-localizados, mas não cria redundância contra a falha dessa zona. É preciso distribuir instâncias, dados e tráfego conforme o requisito.",
+      "section": "3. Disponibilidade, resiliência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The NIST Definition of Cloud Computing (SP 800-145)",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Definição da nuvem, cinco características, modelos de serviço e modelos de implantação",
+      "url": "https://csrc.nist.gov/pubs/sp/800/145/final",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST Cloud Computing Reference Architecture (SP 500-292)",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Atores, componentes e taxonomia da arquitetura de computação em nuvem",
+      "url": "https://www.nist.gov/publications/nist-cloud-computing-reference-architecture",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using Availability Zones and Regions",
+      "publisher": "Microsoft Learn",
+      "reference": "Regiões, zonas, implantação zonal, redundância entre zonas e opções multi-região",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/high-availability/building-solutions-for-high-availability",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Reliability Pillar — AWS Well-Architected Framework",
+      "publisher": "Amazon Web Services",
+      "reference": "Princípios e práticas de arquitetura confiável, recuperação e gestão de falhas",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is AWS Well-Architected Framework?",
+      "publisher": "Amazon Web Services",
+      "reference": "Seis pilares: excelência operacional, segurança, confiabilidade, eficiência de desempenho, custo e sustentabilidade",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/userguide/waf.html",
+      "accessedAt": "2026-11-14"
+    }
+  ]
+}

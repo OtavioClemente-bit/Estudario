@@ -1,0 +1,1794 @@
+{
+  "id": "informatica.plataformas-jackrabbit-h2-minio-elasticsearch-kafka-rabbitmq",
+  "subject": "Informática",
+  "title": "Plataformas Jackrabbit, H2, MinIO, Elasticsearch, Kafka e RabbitMQ",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conhecimentos das plataformas Jackrabbit, H2, MinIO, Elasticsearch, Kafka e RabbitMQ",
+    "Apache Jackrabbit e repositório JCR",
+    "Plataforma de conteúdo Apache Jackrabbit",
+    "Banco de dados Java H2 em memória e servidor",
+    "Armazenamento de objetos MinIO compatível com S3",
+    "Busca distribuída com Elasticsearch e índices",
+    "Plataforma de eventos Apache Kafka e tópicos",
+    "Mensageria RabbitMQ com exchanges e filas",
+    "Jackrabbit Oak e Content Repository API",
+    "Elasticsearch mappings, documentos e shards",
+    "Apache Kafka produtores, consumidores e offsets",
+    "RabbitMQ confirmações e roteamento AMQP"
+  ],
+  "scope": {
+    "covers": "Conceitos e usos concretos de Apache Jackrabbit e Oak como repositórios hierárquicos compatíveis com JCR; nós, propriedades, sessões, workspaces e tipos; H2 como banco Java com modos embutido, servidor e memória; MinIO como armazenamento de objetos com buckets, chaves, API compatível com S3, versionamento e políticas; Elasticsearch como mecanismo distribuído de busca e análise com índices, documentos, mappings, shards, réplicas e consultas; Apache Kafka como plataforma distribuída de eventos com tópicos, partições, offsets, produtores, consumidores, grupos, retenção e replicação; RabbitMQ como broker de mensagens com exchanges, filas, bindings, routing keys, acknowledgements, confirmações do publicador, durabilidade e prefetch.",
+    "excludes": "Administração aprofundada de clusters, sintaxe integral das APIs, configuração de produção específica de versão, tuning de capacidade, contratos de licenciamento e comparação exaustiva de protocolos."
+  },
+  "theoryTitle": "Repositórios, bancos, objetos, busca e mensageria",
+  "chapters": [
+    {
+      "title": "1. Apache Jackrabbit, JCR e H2",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações que gerenciam páginas, documentos e ativos precisam guardar conteúdo que nem sempre cabe bem em tabelas rígidas. O Apache Jackrabbit implementa a API Java Content Repository (JCR): um repositório hierárquico que organiza conteúdo estruturado ou não estruturado e oferece busca textual, versionamento, transações e observação. Oak é uma implementação complementar do JCR dentro do projeto Jackrabbit, voltada a repositórios hierárquicos escaláveis.\n\n> **Siglas e termos deste capítulo**\n> - **JCR**: Java Content Repository, API padronizada de repositório de conteúdo para Java.\n> - **Repository**: ponto de entrada para autenticar e acessar conteúdo.\n> - **Workspace**: área lógica com uma árvore persistente de itens.\n> - **Node**: elemento da árvore de conteúdo.\n> - **Property**: valor associado a um nó.\n> - **Mixin**: tipo que acrescenta capacidades a um nó, como versionamento.\n> - **JDBC**: API Java de conexão a bancos relacionais.\n\nNo JCR, os itens são nós e propriedades. Cada nó tem um tipo primário, que define a estrutura permitida ou obrigatória; tipos mixin podem acrescentar propriedades e comportamentos. Uma sessão é obtida ao fazer login no repositório e fica vinculada ao workspace escolhido. A sessão representa o contexto de acesso e suas permissões; não é o próprio repositório nem um banco SQL.\n\nO H2 é um mecanismo de banco relacional escrito em Java, com suporte a SQL e JDBC. No modo embutido, a aplicação acessa o banco na mesma JVM; no modo servidor, clientes se conectam por TCP/IP a um processo servidor; no modo misto, o primeiro acesso pode abrir o banco localmente e também disponibilizar conexão remota. O modo em memória usa uma URL como `jdbc:h2:mem:teste`; por padrão, o conteúdo é descartado quando a última conexão fecha. Para testes em que várias conexões da mesma JVM devam compartilhar uma base nomeada, use o mesmo nome, como `jdbc:h2:mem:teste`.\n\n| Situação | Característica útil | Cuidado |\n| --- | --- | --- |\n| H2 embutido | A aplicação abre o banco localmente via JDBC | O arquivo não deve ser aberto simultaneamente por JVMs distintas nesse modo |\n| H2 servidor | Várias aplicações acessam um servidor por rede | Requer servidor e proteção apropriada da conexão |\n| H2 em memória | Inicialização rápida para testes e protótipos | Dados podem desaparecer ao fechar a última conexão |\n| Jackrabbit/JCR | Modelagem hierárquica de conteúdo e metadados | Não confundir nó/propriedade com tabela/coluna relacional |\n\n### Como cai na prova\n\n- Nó e propriedade formam a árvore JCR; tipos primários definem a estrutura e mixins adicionam capacidades.\n- H2 embutido e H2 servidor diferem pelo processo que hospeda o banco e pelo acesso remoto.\n- Banco H2 em memória é útil em testes, mas não equivale a armazenamento persistente em disco."
+    },
+    {
+      "title": "2. MinIO: armazenamento de objetos",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações precisam armazenar imagens, vídeos, planilhas, cópias de documentos e outros arquivos grandes sem modelá-los como linhas de um banco relacional. MinIO é uma plataforma de armazenamento de objetos que oferece uma API compatível com S3. Clientes criam, listam, leem e removem objetos por SDKs ou ferramentas compatíveis.\n\n> **Siglas e termos deste capítulo**\n> - **Objeto**: dados binários junto com metadados.\n> - **Bucket**: contêiner de nível superior que organiza objetos.\n> - **Chave (key)**: identificador do objeto dentro do bucket.\n> - **Prefixo**: trecho inicial da chave usado para organizar/listar objetos.\n> - **S3**: API de armazenamento de objetos popularizada pela Amazon e implementada de forma compatível por outros sistemas.\n> - **Versionamento**: manutenção de versões distintas de uma mesma chave.\n\nO endereço lógico de um objeto é formado pelo bucket e pela chave. Uma chave como `relatorios/2026/abril.pdf` pode parecer um caminho de diretórios, mas a organização é baseada em nome/prefixo: os prefixos intermediários podem ser inferidos pelo serviço. A aplicação não precisa criar pastas físicas antes de gravar cada objeto.\n\nBuckets podem receber políticas de acesso que permitem ou negam ações sobre recursos. A compatibilidade com a API S3 permite reutilizar clientes e bibliotecas dessa API, mas não significa que todos os detalhes operacionais de qualquer serviço S3 sejam idênticos em todas as versões e configurações.\n\nCom versionamento habilitado, uma gravação de uma chave já existente cria uma nova versão; a leitura comum retorna a versão mais recente, e versões anteriores podem ser recuperadas conforme permissões e API. Uma exclusão em bucket versionado pode criar um marcador de exclusão em vez de apagar imediatamente todas as versões. Versionamento ajuda a recuperar alterações, mas aumenta o armazenamento ocupado e não substitui política de retenção, cópia independente ou gestão de ciclo de vida.\n\n### Como cai na prova\n\n- Bucket agrupa objetos; chave identifica o objeto, e prefixos oferecem uma organização semelhante a diretórios.\n- MinIO expõe armazenamento de objetos por API compatível com S3, não um sistema de arquivos POSIX convencional.\n- Habilitar versionamento preserva versões sucessivas; não transforma toda exclusão em remoção física imediata."
+    },
+    {
+      "title": "3. Elasticsearch: busca distribuída e análise",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação pode precisar pesquisar texto livre, filtrar grandes conjuntos de documentos e agregar resultados. Elasticsearch distribui dados e operações de busca em um cluster. A unidade lógica consultada é o índice; nele ficam documentos JSON compostos por campos. O mecanismo deriva do Apache Lucene e distribui fisicamente cada índice em shards.\n\n> **Siglas e termos deste capítulo**\n> - **Índice**: coleção lógica de documentos consultada como conjunto.\n> - **Documento**: registro JSON com campos.\n> - **Mapping**: definição dos campos, seus tipos e como são indexados.\n> - **Shard primário**: partição principal que recebe a responsabilidade por cada documento.\n> - **Réplica**: cópia de um shard primário para redundância e capacidade de leitura.\n> - **Cluster / node**: conjunto de servidores Elasticsearch / servidor participante.\n> - **Inverted index**: estrutura que permite localizar termos e os documentos associados.\n\nCada documento pertence a um shard primário do índice. O roteamento padrão calcula a partição a partir do identificador do documento; réplicas mantêm cópias dos primários em outros nós, quando a topologia permite. Réplicas podem ajudar na tolerância a falhas e na distribuição de leituras. O número de shards primários é definido na criação do índice; o de réplicas pode ser ajustado posteriormente.\n\nMapping determina o tratamento dos campos. `text` é voltado à análise e busca de texto; `keyword` representa valores exatos, úteis para filtros, ordenação e agregações. Mapping dinâmico detecta campos novos automaticamente e facilita a entrada inicial de dados, mas a inferência pode escolher tipos inadequados. Mapping explícito dá controle sobre tipos e análise e costuma ser adequado para dados conhecidos em produção. Alterar o tipo de um campo já mapeado normalmente exige reindexar os documentos em outro índice.\n\nO Elasticsearch não é apenas um banco relacional com SQL: índices e documentos atendem busca e análise distribuídas, com trade-offs próprios de mapeamento, segmentação e atualização. Uma consulta pode combinar busca textual, filtros estruturados e agregações.\n\n| Conceito | Função |\n| --- | --- |\n| `text` | Analisar conteúdo para busca textual |\n| `keyword` | Comparar valor exato, ordenar ou agregar |\n| Shard primário | Distribuir e processar uma parte dos documentos |\n| Réplica | Copiar shard para resiliência e leituras |\n\n### Como cai na prova\n\n- Documento é JSON, mapping define campos, e índice é o destino lógico de gravação e pesquisa.\n- Réplica não substitui o primário: é uma cópia; o documento pertence a um primário.\n- Converter `text` em `keyword` ou mudar tipo existente geralmente exige reindexação."
+    },
+    {
+      "title": "4. Apache Kafka: eventos retidos e particionados",
+      "markdown": "### O problema que este assunto resolve\n\nSistemas independentes precisam publicar acontecimentos e permitir que vários consumidores os processem, inclusive em ritmos diferentes. Kafka é uma plataforma distribuída de streaming de eventos: produtores escrevem eventos em tópicos; consumidores leem esses registros; o cluster mantém os dados por uma política de retenção. Ler um evento não o remove automaticamente.\n\n> **Siglas e termos deste capítulo**\n> - **Evento/record**: registro com chave, valor, timestamp e cabeçalhos opcionais.\n> - **Producer**: cliente que publica eventos.\n> - **Consumer**: cliente que lê e processa eventos.\n> - **Topic**: fluxo nomeado de eventos.\n> - **Partition**: sequência ordenada e anexável que compõe um tópico.\n> - **Offset**: posição de um evento em uma partição.\n> - **Consumer group**: consumidores que compartilham a leitura de um tópico.\n> - **Broker**: servidor Kafka que armazena e atende eventos.\n\nCada partição é um log ordenado: os registros são acrescentados e recebem offsets sequenciais naquela partição. A ordem é garantida dentro da partição, não como uma ordem global entre todas as partições do tópico. Uma chave pode direcionar eventos relacionados à mesma partição, preservando sua ordem relativa ali.\n\nEm um grupo consumidor, uma partição é atribuída a no máximo um consumidor do grupo por vez; consumidores do mesmo grupo dividem as partições disponíveis. Se houver mais consumidores ativos do que partições, alguns ficam sem partição atribuída. Grupos diferentes podem ler o mesmo tópico de forma independente. O offset representa progresso de leitura e pode ser confirmado para permitir retomada; política e momento de confirmação influenciam reprocessamento ou perda lógica após falhas.\n\nKafka retém registros por configuração de tempo ou espaço, independentemente de já terem sido lidos. Replicação das partições entre brokers aumenta tolerância a falhas. Kafka se ajusta a fluxos duráveis de eventos e replay; uma fila de tarefas com remoção/ack individual tem semântica diferente.\n\n### Como cai na prova\n\n- Offset é posição dentro de uma partição e partições distintas não têm uma ordenação total comum.\n- Consumidores do mesmo grupo repartem partições; grupos diferentes acompanham o fluxo sem consumir os registros uns dos outros.\n- Retenção de Kafka não depende de o consumidor ter apagado ou reconhecido cada evento."
+    },
+    {
+      "title": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação pode enviar tarefas para processamento posterior sem conhecer diretamente o processo consumidor. RabbitMQ atua como broker: publicadores enviam mensagens a exchanges; exchanges as roteiam a filas segundo bindings e regras do tipo de exchange; consumidores recebem as mensagens das filas.\n\n> **Siglas e termos deste capítulo**\n> - **Broker**: servidor que recebe, roteia e entrega mensagens.\n> - **Exchange**: ponto de entrada que decide o roteamento.\n> - **Queue (fila)**: estrutura que mantém mensagens para consumidores.\n> - **Binding**: regra que liga exchange a fila (ou a outro exchange).\n> - **Routing key**: valor usado por regras de roteamento.\n> - **Ack**: confirmação do consumidor ao broker sobre uma entrega.\n> - **Publisher confirm**: confirmação do broker ao publicador de que assumiu a mensagem.\n> - **Prefetch**: limite de entregas não confirmadas simultaneamente ao consumidor.\n\nEm AMQP 0-9-1, o tipo da exchange define o roteamento: uma direct compara routing key com a chave do binding; uma fanout encaminha para todos os destinos ligados; uma topic interpreta padrões com curingas em segmentos da chave; uma headers usa cabeçalhos da mensagem. A exchange não é uma fila: a relação de destino é configurada por bindings. A exchange padrão tem comportamento especial e roteia diretamente pelo nome da fila.\n\nFila durável e mensagem persistente são propriedades distintas. A durabilidade da fila permite que sua definição sobreviva à reinicialização; a persistência da mensagem solicita que o conteúdo seja armazenado de modo persistente. Confirmações do publicador informam quando o broker aceitou responsabilidade, enquanto acknowledgements do consumidor informam que o processamento da entrega foi concluído. São sinais independentes.\n\nNo modo de confirmação manual, o consumidor confirma após concluir o trabalho; se rejeitar, pode solicitar requeue conforme o caso. Sem ack, uma falha pode levar à redelivery. O prefetch limita quantas entregas ficam pendentes por consumidor/canal e ajuda a evitar sobrecarga. A confirmação automática dá maior vazão em alguns cenários, mas reduz garantias se o consumidor falhar após receber e antes de processar.\n\n### Como cai na prova\n\n- Exchange roteia; fila armazena; binding conecta destino e regra.\n- Ack do consumidor e confirm do publicador protegem trechos distintos do fluxo.\n- Durabilidade da fila, persistência da mensagem e confirmação do publicador são mecanismos relacionados, mas não intercambiáveis."
+    }
+  ],
+  "summary": "Jackrabbit implementa JCR para conteúdo hierárquico; H2 é um banco Java com modos embutido, servidor e memória; MinIO armazena objetos em buckets com API compatível com S3; Elasticsearch pesquisa documentos JSON organizados em índices, mappings e shards; Kafka mantém eventos retidos em tópicos particionados com offsets e grupos consumidores; RabbitMQ encaminha mensagens por exchanges, bindings e filas, com confirmações distintas para publicadores e consumidores.",
+  "flashcards": [
+    {
+      "front": "O que implementa o Apache Jackrabbit?",
+      "back": "A API Java Content Repository (JCR), para repositórios hierárquicos de conteúdo."
+    },
+    {
+      "front": "O que distingue nó de propriedade em JCR?",
+      "back": "Nó é elemento da árvore; propriedade é um valor associado ao nó."
+    },
+    {
+      "front": "Para que serve um tipo primário de nó?",
+      "back": "Define a estrutura principal, incluindo filhos e propriedades permitidos ou exigidos."
+    },
+    {
+      "front": "O que um mixin acrescenta a um nó?",
+      "back": "Uma capacidade adicional, como propriedades de versionamento ou bloqueio."
+    },
+    {
+      "front": "A que fica vinculada uma sessão JCR?",
+      "back": "Ao workspace escolhido no login no repositório."
+    },
+    {
+      "front": "Que API Java o H2 oferece?",
+      "back": "JDBC, além de suporte a SQL."
+    },
+    {
+      "front": "Como funciona o H2 embutido?",
+      "back": "A aplicação abre e acessa o banco na mesma JVM."
+    },
+    {
+      "front": "Como funciona o modo servidor do H2?",
+      "back": "Um processo servidor hospeda o banco e clientes conectam-se remotamente por TCP/IP."
+    },
+    {
+      "front": "O que acontece com um H2 em memória ao fechar a última conexão?",
+      "back": "Por padrão, a base em memória é fechada e seu conteúdo se perde."
+    },
+    {
+      "front": "O que organiza objetos no MinIO?",
+      "back": "Buckets, identificados junto à chave de cada objeto."
+    },
+    {
+      "front": "O que é uma chave de objeto?",
+      "back": "O identificador do objeto dentro do bucket, que pode conter prefixos separados por barra."
+    },
+    {
+      "front": "Qual compatibilidade de API o MinIO oferece?",
+      "back": "Compatibilidade com a API S3 para operações de armazenamento de objetos."
+    },
+    {
+      "front": "O que uma nova gravação faz com chave versionada no MinIO?",
+      "back": "Cria uma versão nova e a torna a versão mais recente."
+    },
+    {
+      "front": "O versionamento de objetos substitui política de retenção?",
+      "back": "Não; é um recurso de recuperação que deve ser combinado com gestão de retenção e ciclo de vida."
+    },
+    {
+      "front": "Qual a unidade lógica de armazenamento do Elasticsearch?",
+      "back": "O índice, que contém documentos consultáveis."
+    },
+    {
+      "front": "O que define um mapping?",
+      "back": "Tipos e tratamento de campos dos documentos de um índice."
+    },
+    {
+      "front": "Quando usar text em vez de keyword?",
+      "back": "Text para busca textual analisada; keyword para valor exato, ordenação ou agregação."
+    },
+    {
+      "front": "O que é shard primário?",
+      "back": "A partição principal do índice à qual cada documento é atribuído."
+    },
+    {
+      "front": "O que uma réplica de shard oferece?",
+      "back": "Uma cópia redundante que pode melhorar disponibilidade e atender leituras."
+    },
+    {
+      "front": "O que é evento em Kafka?",
+      "back": "Um registro com chave e valor, podendo incluir timestamp e cabeçalhos."
+    },
+    {
+      "front": "O que é tópico Kafka?",
+      "back": "Um fluxo nomeado em que produtores publicam e consumidores leem eventos."
+    },
+    {
+      "front": "O que é offset?",
+      "back": "A posição sequencial de um registro dentro de uma partição."
+    },
+    {
+      "front": "Onde Kafka garante a ordem dos eventos?",
+      "back": "Dentro de cada partição, não globalmente entre todas as partições do tópico."
+    },
+    {
+      "front": "Como consumidores de um mesmo grupo dividem partições?",
+      "back": "Cada partição é atribuída a no máximo um consumidor do grupo por vez."
+    },
+    {
+      "front": "Kafka remove um evento quando lido?",
+      "back": "Não; os registros são mantidos conforme a política de retenção do tópico."
+    },
+    {
+      "front": "Qual o papel de uma exchange RabbitMQ?",
+      "back": "Receber publicações e encaminhá-las a destinos conforme regras de roteamento."
+    },
+    {
+      "front": "O que é binding?",
+      "back": "A ligação entre exchange e fila, com argumentos que definem critérios de roteamento."
+    },
+    {
+      "front": "O que faz uma exchange fanout?",
+      "back": "Encaminha cada mensagem às filas ligadas a ela, sem selecionar pelo texto da routing key."
+    },
+    {
+      "front": "O que confirma um consumer ack?",
+      "back": "Que o consumidor concluiu o tratamento da entrega, permitindo ao broker marcá-la para remoção."
+    },
+    {
+      "front": "O que confirma um publisher confirm?",
+      "back": "Que o broker aceitou responsabilidade pela mensagem publicada."
+    }
+  ],
+  "tips": [
+    "Associe Jackrabbit/JCR a repository, workspace, árvore de nós e propriedades.",
+    "Em H2, identifique primeiro onde o banco vive: mesma JVM, processo servidor ou memória volátil.",
+    "Para MinIO, pense em bucket mais chave do objeto; a barra na chave representa prefixo, não necessariamente diretório físico.",
+    "Em Elasticsearch, separe índice/documento/mapping da distribuição física em shards primários e réplicas.",
+    "Em Kafka, ordenação e offset são locais à partição; retenção continua mesmo depois da leitura.",
+    "Em RabbitMQ, siga o trajeto publicador → exchange → binding → fila → consumidor e diferencie as duas confirmações."
+  ],
+  "traps": [
+    "Tratar Jackrabbit como banco relacional com tabelas e colunas: o modelo JCR organiza conteúdo em nós e propriedades.",
+    "Supor que H2 em memória sempre persiste ao fechar conexões: por padrão, a última conexão encerrada fecha a base.",
+    "Confundir bucket MinIO com pasta local: o bucket é contêiner de objetos e a hierarquia aparente vem das chaves/prefixos.",
+    "Afirmar que réplica Elasticsearch recebe documento de forma independente: o documento pertence a um shard primário.",
+    "Afirmar que Kafka apaga evento assim que um consumidor lê: os registros seguem a política configurada de retenção.",
+    "Confundir publisher confirm com consumer ack: um trata da aceitação pelo broker e o outro do processamento pelo consumidor."
+  ],
+  "activeRecall": [
+    "Explique como Repository, Workspace, Session, Node e Property se relacionam no JCR.",
+    "Compare tipo primário e mixin e dê uma capacidade que um mixin pode acrescentar.",
+    "Descreva quando escolher H2 embutido, servidor ou em memória e a consequência de fechar a última conexão.",
+    "Explique por que uma chave MinIO pode parecer caminho de pastas sem representar diretórios físicos.",
+    "Mostre o que muda ao habilitar versionamento para uma chave de objeto que já existe.",
+    "Compare `text` e `keyword` e explique quando uma mudança de mapping pode exigir reindexação.",
+    "Desenhe a relação entre índice, documento, shard primário e réplica no Elasticsearch.",
+    "Explique como partições, offsets, consumer groups e retenção se relacionam em Kafka."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "JCR e modelo hierárquico",
+      "summary": "No JCR, nós organizam uma árvore e propriedades guardam valores; sessões acessam um workspace com permissões."
+    },
+    {
+      "key": "e2",
+      "title": "Modos do H2",
+      "summary": "O H2 embutido acessa localmente; o modo servidor atende clientes remotos; a base em memória perde dados ao fechar a última conexão."
+    },
+    {
+      "key": "e3",
+      "title": "Bucket, objeto e versão",
+      "summary": "Bucket e chave endereçam objeto; prefixos parecem pastas; versionamento mantém versões distintas e não substitui retenção."
+    },
+    {
+      "key": "e4",
+      "title": "Mapping e shards",
+      "summary": "Mapping descreve campos; documentos pertencem a shards primários e réplicas são cópias para redundância e leituras."
+    },
+    {
+      "key": "e5",
+      "title": "Mensageria e confirmações",
+      "summary": "Kafka retém eventos e controla offsets por partição; RabbitMQ separa confirmação do publicador e acknowledgement do consumidor."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No JCR, um workspace contém uma árvore persistente de nós e propriedades, acessada por sessões sujeitas às permissões do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Workspace representa a área lógica da árvore persistente de itens; uma sessão de login acessa o workspace e seus itens conforme os direitos concedidos.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição representa corretamente um nó e uma propriedade no modelo JCR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nó é uma tabela SQL, e a propriedade é uma linha armazenada nessa tabela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nó é item da árvore; propriedade é valor ligado a ele.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O nó é uma sessão autenticada, e a propriedade indica o workspace selecionado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nó é um arquivo físico obrigatório, e a propriedade é apenas seu nome no sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nó é uma consulta JCR, e a propriedade é o resultado imutável dessa consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modelo JCR, conteúdo é organizado hierarquicamente em nós com propriedades. Tabelas, sessões e arquivos físicos não definem essa relação conceitual.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação Java de testes, a equipe quer conexões JDBC rápidas e aceita que os dados desapareçam ao terminar a execução. Qual opção do H2 se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modo servidor em disco, porque ele descarta o arquivo ao encerrar cada conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modo embutido persistente, porque JDBC sempre cria banco temporário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modo em memória, apropriado a testes que não precisam persistir os dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Modo misto obrigatório, pois ele armazena os dados somente na memória do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modo remoto ODBC, porque banco em memória não pode usar conexões JDBC.",
+          "correct": false
+        }
+      ],
+      "explanation": "H2 oferece banco em memória para testes e protótipos quando não é necessária persistência. Os modos servidor, misto e em disco resolvem cenários diferentes.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão JCR permanece vinculada ao workspace especificado no login ao repositório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A sessão é criada após o login e está associada ao workspace escolhido, que representa a árvore persistente acessada naquele contexto.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa que processos em JVMs diferentes acessem simultaneamente a mesma base H2. Qual modo corresponde a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modo embutido exclusivo, com cada JVM abrindo o mesmo arquivo diretamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modo servidor, com clientes conectados ao processo H2 pela rede.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Modo em memória privado, que compartilha dados entre qualquer processo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modo JDBC local, que transmite dados aos demais processos pelo class loader.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modo de leitura somente, que transforma conexões locais em conexões remotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo servidor permite que vários clientes acessem o banco hospedado pelo servidor H2, inclusive a partir de outros processos. O modo embutido não é para abertura simultânea por JVMs distintas.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em H2, duas conexões na mesma JVM usando o mesmo nome de base em memória podem compartilhar essa base nomeada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma URL nomeada como `jdbc:h2:mem:teste` permite que conexões da mesma JVM e class loader acessem a mesma base; uma URL sem nome abre base privada.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que função é própria do tipo primário de nó JCR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir filhos e propriedades permitidos ou obrigatórios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Autenticar usuários no servidor TCP do H2 antes da criação de cada nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar todas as versões do repositório fora do workspace e sem propriedades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Determinar que todo nó seja uma cópia imutável de um arquivo externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o Repository e abrir automaticamente uma sessão sem credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tipo primário descreve a estrutura base do nó. Mixins podem adicionar capacidades durante o ciclo de vida, mas não substituem a definição estrutural principal.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao fechar a última conexão de uma base H2 em memória, o conteúdo é mantido em disco automaticamente para uma nova inicialização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Por padrão, fechar a última conexão fecha a base em memória e seu conteúdo é perdido. Configurações específicas podem mantê-la viva enquanto a JVM existir, mas isso não cria persistência em disco.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa adicionar comportamento de versionamento a determinados nós sem redefinir a estrutura primária inteira. Qual recurso JCR corresponde a essa extensão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar outra sessão com nome igual ao nó para forçar cópia automática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar ao nó um tipo mixin que represente a capacidade desejada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mover o nó para uma tabela relacional e registrar a versão como coluna.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o workspace por uma fila H2 com retenção indefinida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o identificador do repositório para que qualquer nó passe a ser versionável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mixins acrescentam capacidades a nós, como o suporte de versionamento. A estrutura primária continua atribuída ao nó e não é substituída por uma sessão ou tabela SQL.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jackrabbit oferece somente armazenamento de arquivos binários e não dispõe de busca textual, versionamento, transações nem observação de conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A descrição oficial do repositório JCR inclui conteúdo estruturado e não estruturado, busca textual, versionamento, transações e observação, entre outros recursos.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bucket MinIO contém objetos e a chave `imagens/2026/logo.png` serve como identificador com prefixos, sem exigir a criação de diretórios físicos intermediários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Buckets organizam objetos e a chave completa determina o nome lógico. Prefixos separados por barra permitem hierarquia aparente; o serviço infere os prefixos intermediários.",
+      "section": "2. MinIO: armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma aplicação aproveita a compatibilidade MinIO com a API S3?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usa SDKs compatíveis para criar, listar, ler e apagar objetos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Monta automaticamente cada bucket como disco local com semântica POSIX completa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte objetos em tabelas SQL e acessa cada chave por instruções JDBC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abandona buckets e envia todo conteúdo diretamente a uma exchange AMQP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executa consultas Lucene sem armazenar os binários no serviço de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "MinIO oferece API compatível com S3 para operações de armazenamento de objetos, permitindo o uso de SDKs compatíveis. Isso não o transforma em sistema de arquivos ou banco relacional.",
+      "section": "2. MinIO: armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um bucket versionado do MinIO, uma nova gravação de uma chave já existente cria uma versão nova, em vez de sobrescrever definitivamente a única cópia anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com versionamento habilitado, cada gravação gera uma versão identificada; a versão mais recente é retornada normalmente, enquanto versões anteriores podem ser recuperadas.",
+      "section": "2. MinIO: armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente identifica um objeto no contexto de armazenamento MinIO?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um shard primário associado obrigatoriamente a cada bucket.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A combinação do bucket que o contém com a chave do objeto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O nome da exchange que publicou os bytes ao armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O workspace JCR e a sessão que realizou a gravação original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O offset de uma partição global do cluster de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O objeto é endereçado dentro de um bucket por sua chave. Shards, exchanges, workspaces e offsets pertencem a outros modelos de plataforma.",
+      "section": "2. MinIO: armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer impedir acesso de leitura a determinado prefixo de um bucket para um grupo de usuários. Qual mecanismo MinIO deve orientar a configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mapping do índice que transforma os objetos em campos `keyword`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Offset de consumidor que invalida a próxima leitura no tópico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Política de acesso com permissões para ações e recursos do bucket.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tipo mixin de nó que controla a sessão remota de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publisher confirm que recusa downloads feitos por usuários externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "As políticas de acesso permitem conceder ou negar ações sobre recursos. Mapping, offset, mixin e confirmação de publicador não são mecanismos de autorização do MinIO.",
+      "section": "2. MinIO: armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o versionamento estiver habilitado, uma operação de exclusão em bucket MinIO necessariamente apaga de imediato todas as versões históricas do objeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em armazenamento versionado, a exclusão pode criar um marcador de exclusão; versões anteriores podem continuar armazenadas e ser recuperadas ou removidas conforme as operações e regras configuradas.",
+      "section": "2. MinIO: armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação envia documentos JSON a Elasticsearch para pesquisar campos de texto e filtrar por categorias exatas. Qual configuração de campos atende melhor a esses usos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Use `text` para conteúdo analisado e `keyword` para categorias exatas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Use `keyword` para texto analisado e `text` para categorias exatas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Use `object` nos dois campos, pois mappings não aceitam tipos escalares.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Use `shard` para texto e `replica` para categoria, pois são tipos de campo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Use `date` nos dois campos, já que todo documento JSON recebe timestamp.",
+          "correct": false
+        }
+      ],
+      "explanation": "`text` permite análise para busca de texto; `keyword` mantém valor exato, útil para filtros, ordenação e agregações. Shards são unidades físicas, não tipos de campo.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento de um índice Elasticsearch pertence a um shard primário; a réplica mantém uma cópia do shard para redundância e pode servir leituras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada documento fica associado a um shard primário. Réplicas são cópias dos primários e ajudam na resiliência e na capacidade de leitura.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente um mapping de Elasticsearch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Define os campos e como seus valores são indexados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Registra exclusivamente qual consumidor Kafka confirmou o último evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazena os binários originais de cada objeto dentro de buckets MinIO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Liga uma exchange RabbitMQ à fila que receberá toda publicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolhe o usuário que poderá abrir a sessão de um workspace JCR.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mapping define campos, tipos e aspectos de indexação dos documentos. As demais alternativas atribuem conceitos de outras plataformas.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um índice Elasticsearch, o número de réplicas pode ser ajustado depois da criação, enquanto o número de shards primários é definido na criação do índice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A configuração do índice permite alterar réplicas posteriormente; o total de shards primários é definido ao criar o índice e sua mudança exige outra estratégia, como reindexar.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um índice com mapping dinâmico, o Elasticsearch pode inferir tipos para campos novos. Qual risco decorre de depender apenas dessa inferência em produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A inferência pode escolher tratamento inadequado para o uso real do campo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo documento deixa de ser JSON e passa a ser gravado como tabela H2.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O índice perde automaticamente todos os shards primários existentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada campo novo é transformado numa partição Kafka de retenção curta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os valores exatos ficam sempre impossíveis de filtrar em qualquer consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mapping dinâmico facilita ingestão, mas a inferência automática pode não combinar com consultas, agregações ou formatos previstos. Mapping explícito oferece controle aos campos conhecidos.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alterar o tipo de um campo já mapeado no Elasticsearch normalmente pode ser feito sem reindexação, pois os documentos existentes são convertidos automaticamente na leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Na maioria dos casos não se altera o tipo de um campo já mapeado; a mudança costuma exigir novo índice com mapping adequado e reindexação dos documentos.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta deve preservar a ordem dos eventos de um mesmo cliente, sem exigir ordem global entre clientes. Como organizar a publicação Kafka?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar a mesma chave para direcionar eventos à mesma partição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar cada evento em uma partição diferente e comparar offsets globais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um consumer group por evento para ordenar todas as partições em conjunto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a retenção e usar o broker como fila de exclusão por consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir a mesma routing key a uma exchange fanout RabbitMQ no tópico Kafka.",
+          "correct": false
+        }
+      ],
+      "explanation": "Kafka garante ordem dentro de uma partição. Uma chave estável para os eventos do mesmo cliente permite encaminhá-los à mesma partição e preservar a ordem relativa deles.",
+      "section": "4. Apache Kafka: eventos retidos e particionados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Kafka mantém eventos de um tópico conforme a política de retenção configurada, mesmo que um consumidor já os tenha lido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A retenção é configurada para o tópico e não remove cada evento assim que um grupo o lê. Consumidores controlam sua posição por offsets.",
+      "section": "4. Apache Kafka: eventos retidos e particionados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que representa um offset Kafka?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posição sequencial de um registro em uma partição específica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A duração de retenção que apaga o tópico após cada leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de consumidores que podem compartilhar uma fila RabbitMQ.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O identificador global do bucket que contém o evento original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tipo de mapping usado para analisar palavras dentro de um documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Offset identifica a posição de um registro dentro de uma partição. Não é uma posição global única entre todas as partições nem uma configuração de retenção.",
+      "section": "4. Apache Kafka: eventos retidos e particionados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dentro de um consumer group Kafka, cada partição é atribuída a no máximo um consumidor do grupo ao mesmo tempo; grupos diferentes podem acompanhar o mesmo tópico independentemente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As partições distribuem trabalho entre consumidores de um grupo, com no máximo um membro do grupo lendo cada partição em um dado momento. Outro grupo mantém progresso próprio.",
+      "section": "4. Apache Kafka: eventos retidos e particionados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tópico tem três partições e cinco consumidores ativos no mesmo grupo. O que ocorre com a atribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os cinco consumidores recebem uma cópia completa de todas as partições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duas partições são fundidas até haver uma para cada consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No máximo três consumidores recebem partições; outros podem ficar sem atribuição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Kafka cria duas partições temporárias ao detectar consumidores excedentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O grupo deixa de poder ler o tópico enquanto não remover dois membros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma partição é atribuída a no máximo um consumidor do mesmo grupo. Com três partições, no máximo três membros podem consumir partições simultaneamente; os demais podem ficar ociosos.",
+      "section": "4. Apache Kafka: eventos retidos e particionados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Kafka garante uma ordem global total entre todos os registros de um tópico, mesmo quando ele possui várias partições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada partição é ordenada, mas partições diferentes não compartilham uma ordenação global total. Para eventos relacionados, usar uma mesma chave pode mantê-los numa partição.",
+      "section": "4. Apache Kafka: eventos retidos e particionados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve permitir replay de eventos antigos por um consumidor que reiniciou, sem apagar o progresso independente de outro grupo. Qual conceito Kafka viabiliza essa leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar ou reposicionar o offset do grupo enquanto os eventos ainda estiverem retidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar e recriar o binding de cada exchange associada ao tópico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o tópico em índice e trocar seus campos para tipo keyword.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encerrar todos os brokers e ler objetos diretamente do bucket MinIO.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confirmar automaticamente todas as entregas para removê-las da fila comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "O offset controla a posição de leitura e pode ser reposicionado para reprocessar registros ainda retidos. Grupos têm progresso próprio, de modo que a leitura de um grupo não apaga o fluxo para os outros.",
+      "section": "4. Apache Kafka: eventos retidos e particionados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em RabbitMQ, publicadores enviam mensagens a exchanges, que roteiam a filas por regras definidas em bindings.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A exchange é o ponto de roteamento, a fila mantém mensagens para entrega e o binding define a relação entre o destino e a exchange.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que tipo de exchange RabbitMQ encaminha cada mensagem a todos os destinos ligados, sem selecionar pelo conteúdo da routing key?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Direct, que exige igualdade exata entre routing key e binding key.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Topic, que interpreta curingas em segmentos da routing key.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Headers, que escolhe destinos com base nos cabeçalhos da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fanout, que distribui a mensagem a todas as filas vinculadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Default, que aplica sempre os padrões de curingas de uma exchange topic.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fanout encaminha a mensagem a todos os destinos vinculados, ignorando a seleção pelo valor da routing key. Direct, topic e headers aplicam critérios diferentes.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um binding liga uma exchange a uma fila e pode carregar critérios utilizados pelo tipo de exchange para decidir o roteamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O binding registra a relação entre origem e destino e pode incluir routing key ou argumentos, conforme a exchange e o protocolo usados.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor deve confirmar a mensagem somente depois de gravar o resultado do processamento. Qual efeito tem o ack manual nesse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Informa ao broker que o consumidor concluiu o processamento da entrega.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirma ao publicador que a exchange original nunca perdeu conexão de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cria uma nova versão persistente da fila antes de entregar a próxima mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reposiciona o offset de todas as partições Kafka para o próximo evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Altera o mapping Elasticsearch para rejeitar documentos duplicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Consumer acknowledgement é a confirmação do consumidor ao broker depois de processar a entrega. Se ocorrer falha antes do ack, a mensagem pode ser redeliverada conforme o estado e a configuração.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Publisher confirms e acknowledgements do consumidor são o mesmo sinal, enviado pelo consumidor para dizer ao publicador que a mensagem foi processada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Publisher confirm é enviado pelo broker ao publicador para confirmar aceitação; consumer ack vai do consumidor ao broker para confirmar o tratamento da entrega. São mecanismos ortogonais.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o prefetch contribui para o controle de carga de consumidores RabbitMQ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limita entregas pendentes de confirmação pelo consumidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumenta o número de shards primários disponíveis para a fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Define por quanto tempo Kafka retém registros sem leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte mensagens persistentes em objetos S3 sem intervenção do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garante que toda mensagem sem binding seja entregue a qualquer fila do broker.",
+          "correct": false
+        }
+      ],
+      "explanation": "O limite de prefetch restringe entregas não confirmadas simultâneas, evitando enviar mais trabalho do que o consumidor consegue processar. Ele não altera roteamento ou retenção Kafka.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Declarar uma fila como durável e publicar uma mensagem como persistente são configurações relacionadas, mas distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Durabilidade descreve a sobrevivência da definição da fila após reinício; persistência é uma propriedade da mensagem. Para segurança de publicação também importam confirmações do broker.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um publicador não quer perder silenciosamente uma mensagem que não encontrou fila de destino. Qual combinação dá suporte à detecção desse caso no AMQP 0-9-1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ativar `mandatory` e tratar a mensagem retornada sem rota.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ativar ack automático do consumidor antes que qualquer fila exista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar todos os destinos como shards réplica do mesmo índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar prefetch, pois esse parâmetro cria bindings ausentes automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar publisher confirms, para que a exchange recuse toda mensagem sem rota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com `mandatory` habilitado, uma mensagem não roteável é retornada ao publicador, que deve tratar o retorno. Sem essa propriedade, a mensagem pode ser descartada ou encaminhada a uma alternate exchange se houver uma configurada.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exchange RabbitMQ funciona como uma fila que conserva por padrão cada mensagem até que todos os consumidores a confirmem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exchange recebe publicações e aplica regras para encaminhar a destinos; a fila é que armazena mensagens para consumo. Confirmações são tratadas entre consumidores, broker e publicadores conforme seus mecanismos próprios.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem persistente foi publicada para uma fila durável e o publicador precisa saber se o broker assumiu responsabilidade por ela. Qual recurso RabbitMQ completa essa confirmação do lado da publicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publisher confirms, que notificam o publicador sobre a aceitação pelo broker.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Consumer acknowledgements, que o próprio publicador envia ao seu socket.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Prefetch, que confirma todos os eventos antes da gravação no destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Topic exchange, que armazena a mensagem em todas as filas futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Offset Kafka, que registra a posição da mensagem no journal RabbitMQ.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publisher confirms comunicam ao publicador que o broker aceitou responsabilidade pela publicação. A durabilidade da fila e a persistência da mensagem não substituem essa confirmação.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em exchange do tipo direct, o broker compara a routing key da mensagem com a chave de binding para determinar o destino correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma direct exchange roteia por correspondência exata entre routing key e binding key. Uma topic exchange usa padrões com curingas; fanout envia a todos os destinos vinculados.",
+      "section": "5. RabbitMQ: filas, exchanges e entrega confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação H2 usa o modo misto automático. Qual comportamento esse modo combina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A primeira aplicação abre localmente o banco e disponibiliza um servidor para outros processos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O banco fica somente em memória e replica seus dados para um cluster Kafka.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada cliente abre uma cópia privada em disco e mescla as alterações ao fechar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor remoto converte comandos JDBC em propriedades de nós JCR.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A primeira conexão fecha o banco e transfere os arquivos para o cliente remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modo misto, a primeira aplicação conecta-se localmente em modo embutido e inicia também um servidor, permitindo que outros processos acessem a mesma base. Não é suportado para bancos em memória no modo automático.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Oak é uma implementação complementar do JCR no projeto Apache Jackrabbit, orientada a repositórios hierárquicos escaláveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O projeto descreve Oak como implementação complementar do JCR voltada a repositórios hierárquicos escaláveis e de bom desempenho.",
+      "section": "1. Apache Jackrabbit, JCR e H2",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação já grava objetos no MinIO com cliente compatível com S3 e precisa expor buckets como subdomínios. Que aspecto de configuração deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar o domínio do serviço e DNS/TLS para cobrir os nomes de bucket como subdomínios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter cada bucket em índice Elasticsearch e trocar o DNS por um mapping explícito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir um offset Kafka permanente para que o nome do bucket seja reconhecido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar ack manual em cada objeto para que o broker reconheça os subdomínios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar diretórios físicos no sistema operacional e remover a chave dos objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "No acesso virtual-host, o bucket aparece no subdomínio. A configuração do domínio do MinIO, resolução DNS e certificado TLS precisa contemplar esses nomes; isso não altera o modelo bucket/chave.",
+      "section": "2. MinIO: armazenamento de objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para evitar que dados novos recebam tipos inadequados por inferência, uma equipe define previamente tipos e análise dos campos conhecidos no Elasticsearch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Mapping explícito dá controle sobre tipos, formatos e análise dos campos, sendo adequado quando os dados e seus usos já são conhecidos.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa trocar o índice Elasticsearch de uma geração para outra sem obrigar clientes a conhecer o nome físico novo. Qual recurso pode desacoplar o nome consultado do índice concreto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um alias, que aponta clientes para o índice físico configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um consumer group, que substitui o nome do índice durante cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma fila durável, que armazena referências a índices depois de reiniciar o cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma propriedade JCR, que roteia automaticamente consultas entre shards.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma chave de objeto MinIO, que converte a consulta em requisição de reindexação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aliases desacoplam as consultas do nome físico do índice e podem ser atualizados para apontar para uma nova geração. Consumer groups, filas e chaves de objeto pertencem a outras plataformas.",
+      "section": "3. Elasticsearch: busca distribuída e análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Jackrabbit — Welcome and JCR",
+      "publisher": "Apache Software Foundation",
+      "reference": "Implementação JCR e capacidades de repositório hierárquico",
+      "url": "https://jackrabbit.apache.org/jcr/",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Jackrabbit — Node Types",
+      "publisher": "Apache Software Foundation",
+      "reference": "Nós, tipos primários, mixins e restrições estruturais",
+      "url": "https://jackrabbit.apache.org/jcr/node-types.html",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jackrabbit Oak — Overview",
+      "publisher": "Apache Software Foundation",
+      "reference": "Oak como implementação escalável e hierárquica de repositório JCR",
+      "url": "https://jackrabbit.apache.org/oak/docs/",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "H2 Database Engine — Features",
+      "publisher": "H2 Database Engine",
+      "reference": "Modos embutido, servidor, misto e em memória; JDBC e URLs de conexão",
+      "url": "https://h2database.com/html/features.html",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MinIO AIStor — Objects and Versioning",
+      "publisher": "MinIO",
+      "reference": "Objetos, buckets, chaves, prefixos e comportamento de versionamento",
+      "url": "https://docs.min.io/aistor/administration/objects-and-versioning/",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MinIO — Bucket and Object Versioning",
+      "publisher": "MinIO",
+      "reference": "Versões de objetos e recuperação de versões anteriores",
+      "url": "https://min.io/product/object-versioning-bucket-versioning",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elasticsearch Index Fundamentals",
+      "publisher": "Elastic",
+      "reference": "Índices, documentos, mappings, shards primários e réplicas",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/index-basics",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mapping in Elasticsearch",
+      "publisher": "Elastic",
+      "reference": "Mappings explícitos e dinâmicos, tipos de campo e alterações",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/mapping",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Kafka Introduction",
+      "publisher": "Apache Software Foundation",
+      "reference": "Eventos, produtores, consumidores, tópicos e retenção",
+      "url": "https://kafka.apache.org/intro/",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Kafka Documentation — Topic Concepts",
+      "publisher": "Apache Software Foundation",
+      "reference": "Partições, logs ordenados, offsets e grupos consumidores",
+      "url": "https://kafka.apache.org/documentation/",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RabbitMQ — Exchanges",
+      "publisher": "Broadcom / RabbitMQ",
+      "reference": "Exchanges, bindings e regras de roteamento",
+      "url": "https://www.rabbitmq.com/docs/exchanges",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RabbitMQ — Consumer Acknowledgements and Publisher Confirms",
+      "publisher": "Broadcom / RabbitMQ",
+      "reference": "Acknowledgements, confirms, prefetch e segurança de entrega",
+      "url": "https://www.rabbitmq.com/docs/confirms",
+      "accessedAt": "2026-11-10"
+    }
+  ]
+}

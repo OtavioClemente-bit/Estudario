@@ -1,0 +1,1964 @@
+{
+  "id": "engenharia-seguranca-processos.confiabilidade-sistemas-instrumentados-seguranca",
+  "subject": "Engenharia de segurança de processos",
+  "title": "Confiabilidade de sistemas instrumentados de segurança",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Confiabilidade de sistemas instrumentados de segurança",
+    "Sistemas instrumentados de segurança e SIL",
+    "Confiabilidade de sistemas de segurança de processos",
+    "Probabilidade de falha sob demanda em SIS",
+    "Níveis de integridade de segurança SIL",
+    "Taxas de falha em sistemas instrumentados",
+    "MTTF e MTTR em sistemas de segurança",
+    "Lógicas de votação para sensores de segurança",
+    "Função instrumentada de segurança de processo",
+    "Iniciador lógica e elemento final de segurança"
+  ],
+  "scope": {
+    "covers": "Confiabilidade de sistemas instrumentados de segurança no setor de processos; função instrumentada de segurança formada por iniciador/sensor, solucionador lógico e elemento final; modos de demanda; taxas de falha perigosas e seguras, detectadas e não detectadas; PFDavg e PFH; SIL; MTTF, MTTR, disponibilidade e tempo de reparo; teste de prova, diagnóstico, redundância, votação 1oo1, 1oo2, 2oo2 e 2oo3; independência e falha de causa comum; leitura conceitual de modelos simples e limitações da quantificação.",
+    "excludes": "Dimensionamento completo de uma SIF real, certificação de equipamentos, cálculos detalhados de IEC 61508/61511, análise de modos e efeitos de falha, SIL de aplicações específicas, configuração de produtos e normas nacionais além do conteúdo consultado."
+  },
+  "theoryTitle": "Como estimar a confiabilidade de uma função instrumentada de segurança",
+  "chapters": [
+    {
+      "title": "1. A função de segurança e seu caminho completo",
+      "markdown": "### O problema que este assunto resolve\n\nEm um processo perigoso, uma variável pode ultrapassar o limite seguro: pressão sobe, nível cai ou temperatura dispara. A função instrumentada de segurança (SIF) detecta a condição e leva o processo a um estado seguro, como fechar uma válvula de alimentação ou desligar um queimador. A SIF é o desempenho de segurança requerido para um cenário; o sistema instrumentado de segurança (SIS) é o conjunto de equipamentos que implementa uma ou mais SIFs.\n\nUma SIF percorre o caminho completo: **iniciador ou sensor** mede a variável e percebe a condição; **solucionador lógico** avalia o sinal e decide se deve atuar; **elemento final** executa a ação física, por exemplo uma válvula de desligamento e seu atuador. A cadeia pode incluir transmissores, cabos, alimentação elétrica ou pneumática, relés, comunicação e interfaces. Se uma utilidade necessária falhar, ela também pode impedir a função. Avaliar só o controlador deixa de fora partes que podem dominar a probabilidade de falha.\n\n> **Siglas e termos deste capítulo**\n> - **SIS**: safety instrumented system, sistema instrumentado de segurança.\n> - **SIF**: safety instrumented function, função instrumentada de segurança específica.\n> - **Iniciador**: sensor e conexão ao processo que detectam a condição que exige ação.\n> - **Solucionador lógico**: unidade que recebe entradas, executa a lógica de segurança e comanda saídas.\n> - **Elemento final**: válvula, motor ou outro dispositivo que altera fisicamente o processo.\n> - **Estado seguro**: condição definida na especificação da função para evitar ou limitar o perigo.\n\n### Da demanda à ação\n\nA análise começa definindo o evento perigoso, a condição que o detecta, a ação exigida e o tempo máximo para executá-la. Em um exemplo, um transmissor de pressão detecta sobrepressão, o solucionador compara a medida com o ponto de disparo e uma válvula fecha a entrada. O ponto de disparo, o sentido de atuação, o tempo de resposta e a posição segura precisam corresponder ao processo real. Uma válvula que falha mecanicamente fechada pode ser segura para um cenário e perigosa para outro.\n\nA confiabilidade total é limitada pelos componentes em série: para a função ter êxito, sensor, lógica e elemento final precisam cumprir suas partes. Como aproximação didática, se falhas perigosas independentes forem raras e os blocos forem necessários em série, a probabilidade de falha da função pode ser aproximada pela soma das probabilidades dos blocos. O cálculo real requer modelo apropriado, modos de falha, diagnósticos, arquitetura e causas comuns; a soma não é uma licença para ignorar dependências.\n\n| Parte da SIF | Pergunta de confiabilidade | Exemplo de falha perigosa |\n| --- | --- | --- |\n| Iniciador | A condição será detectada? | Sensor preso em valor normal durante sobrepressão |\n| Lógica | A decisão e a saída serão corretas? | Saída não comanda o trip requerido |\n| Elemento final | A ação física ocorrerá? | Válvula não fecha quando recebe o comando |\n| Interfaces e utilidades | O caminho permanece disponível? | Perda de ar impede o movimento da válvula |\n\n### Separar prevenção, controle e proteção\n\nO sistema básico de controle regula a operação normal; o SIS atua como camada de proteção quando a condição perigosa exige uma resposta independente. A separação reduz a possibilidade de uma falha do controle básico também incapacitar a proteção. Uma barreira só oferece crédito de redução de risco se sua função, independência, desempenho e manutenção estiverem demonstrados. Alarmes e ação humana podem ser camadas de proteção, mas exigem considerar tempo disponível, apresentação do alarme, procedimento, treinamento e probabilidade de erro humano.\n\n### Como cai na prova\n\n- Se a questão pede o que compõe uma SIF típica, siga o sinal desde sensor até lógica e elemento final.\n- Uma válvula que não atua é falha da função mesmo que o sensor e o controlador estejam perfeitos.\n- A IEC 61511 aborda o SIS no setor de processos e a IEC 61508 é a referência geral de segurança funcional; o SIL necessário decorre do risco e da redução atribuída à SIF, não do nome do equipamento."
+    },
+    {
+      "title": "2. Taxas de falha, demanda e métricas",
+      "markdown": "### O problema que este assunto resolve\n\nUma taxa de falha descreve a frequência com que falhas ocorrem ao longo do tempo, usualmente em falhas por hora. Para sistemas de proteção é crucial separar falha **segura**, que conduz ou mantém o processo em estado seguro, de falha **perigosa**, que impede a ação de segurança quando solicitada. Também se separa falha perigosa detectada por diagnóstico da não detectada, que pode permanecer oculta até uma demanda ou um teste. Símbolos como λD e λS representam taxas perigosas e seguras; λDU costuma indicar perigosa não detectada e λDD, perigosa detectada. A notação deve ser conferida na fonte e no modelo usados.\n\n> **Siglas e termos deste capítulo**\n> - **λ (lambda)**: taxa de falha, com unidade inversa de tempo, por exemplo h⁻¹.\n> - **DU / DD**: perigosa não detectada / perigosa detectada por diagnóstico.\n> - **PFD**: probabilidade de falha quando há demanda.\n> - **PFDavg**: probabilidade média de falha sob demanda no intervalo considerado.\n> - **PFH**: frequência média de falhas perigosas por hora, usada para alta demanda ou modo contínuo.\n> - **Demanda**: ocasião em que a SIF deve atuar para proteger o processo.\n\n### Baixa demanda e alta demanda\n\nEm modo de baixa demanda, a função é solicitada ocasionalmente; a orientação britânica consultada usa como referência uma frequência não superior a uma demanda por ano. A métrica associada é PFDavg: a chance média de a função estar incapaz quando a demanda chega. Em modo de alta demanda ou contínuo, as solicitações são frequentes ou a função precisa agir continuamente para evitar estado inseguro; usa-se PFH, uma frequência de falha perigosa por hora. Não se deve trocar PFDavg e PFH sem verificar o modo de operação e os critérios da norma aplicável.\n\nPara uma taxa constante λ e componente não reparado, a confiabilidade durante um intervalo t pode ser representada conceitualmente por R(t)=e^(−λt). Para pequenos λt, a probabilidade de falha é aproximadamente λt. Esta conta simplificada pressupõe taxa constante, comportamento independente e ausência de reparo no intervalo. Ela não modela por si só teste de prova, diagnósticos, redundância, reparos ou causa comum.\n\n### Falhas perigosas ocultas e prova periódica\n\nUm defeito perigoso não detectado pode se acumular entre testes. Em um modelo elementar 1oo1 com taxa perigosa não detectada pequena e teste perfeito a cada T, a PFDavg aproximada é λDU·T/2. A ideia do fator metade: a falha pode surgir em qualquer momento entre dois testes e, em média, fica oculta por metade do intervalo. Teste imperfeito, cobertura incompleta, indisponibilidade durante teste, reparo, causas comuns e taxas variáveis exigem fórmulas mais completas. Diminuir o intervalo tende a reduzir a exposição a falhas ocultas, mas requer procedimentos seguros e testes capazes de revelar os modos perigosos relevantes.\n\n| Métrica | Leitura | Situação típica |\n| --- | --- | --- |\n| λDU | taxa de falhas perigosas não reveladas automaticamente | componente em baixa demanda aguardando teste |\n| PFDavg | chance média de não atuar quando solicitado | função em baixa demanda |\n| PFH | frequência de falha perigosa por hora | função em alta demanda ou contínua |\n| Cobertura diagnóstica | parcela de falhas detectada automaticamente | subsistema com diagnóstico online |\n\n### Como cai na prova\n\n- PFDavg é uma probabilidade por demanda, não uma taxa por hora.\n- Diagnóstico pode revelar uma falha e permitir reparo; isso não torna o componente infalível.\n- O intervalo de teste e a eficácia do teste influenciam a falha perigosa oculta média.\n- Uma conta λT/2 é aproximação de modelo simples, não valor universal de qualquer SIS."
+    },
+    {
+      "title": "3. SIL, integridade e verificação",
+      "markdown": "### O problema que este assunto resolve\n\nO nível de integridade de segurança (SIL) expressa a faixa de desempenho de integridade requerida para uma função de segurança. Em baixa demanda, a classificação quantitativa usa faixas de PFDavg; em alta demanda e modo contínuo, usa faixas de PFH. Quanto maior o SIL, menor deve ser a probabilidade ou frequência de falha perigosa e maior a redução de risco atribuída à função. IEC 61508 define o quadro geral e IEC 61511 adapta requisitos ao setor de processos. A IEC 61511 estabelece SIL 1 a SIL 4 como níveis aplicáveis a SIFs e não escolhe, sozinha, qual nível uma aplicação específica precisa.\n\n> **Siglas e termos deste capítulo**\n> - **SIL**: safety integrity level, nível de integridade de segurança.\n> - **Integridade de segurança**: probabilidade de a função executar satisfatoriamente sua tarefa sob condições declaradas quando requisitada.\n> - **HFT**: hardware fault tolerance, capacidade arquitetural de tolerar falhas de hardware.\n> - **Capacidade sistemática**: evidência de medidas contra falhas sistemáticas de projeto, software, instalação e operação.\n> - **Verificação**: demonstração por análise de que o projeto satisfaz requisitos especificados.\n\n### Faixas quantitativas de referência\n\nPara operação em baixa demanda, as faixas tradicionalmente associadas à IEC 61508/61511 são: SIL 1: PFDavg de 10⁻² até menos de 10⁻¹; SIL 2: 10⁻³ até menos de 10⁻²; SIL 3: 10⁻⁴ até menos de 10⁻³; SIL 4: 10⁻⁵ até menos de 10⁻⁴. Cada avanço de nível corresponde a uma ordem de grandeza de redução no limite superior da PFDavg. Essas faixas são probabilidades adimensionais por demanda. Para modo de alta demanda/contínuo, a tabela correspondente é de PFH por hora e não se deve copiar os limites de PFDavg.\n\nUm resultado numérico dentro da faixa não basta para afirmar que uma SIF alcança o SIL. A avaliação inclui restrições arquiteturais e tolerância a falhas de hardware, capacidade sistemática, adequação dos dispositivos, especificação funcional, independência, teste e condições declaradas. O SIL é atribuído à função de segurança, não automaticamente a um componente isolado. Certificação de um sensor ou controlador pode ser evidência útil, mas não prova a integridade do conjunto da SIF instalada.\n\n| SIL em baixa demanda | Faixa típica de PFDavg | Interpretação resumida |\n| --- | --- | --- |\n| 1 | ≥10⁻² e <10⁻¹ | maior probabilidade admitida entre os níveis listados |\n| 2 | ≥10⁻³ e <10⁻² | redução maior que SIL 1 |\n| 3 | ≥10⁻⁴ e <10⁻³ | redução maior que SIL 2 |\n| 4 | ≥10⁻⁵ e <10⁻⁴ | maior integridade quantitativa da escala |\n\n### SIL requerido vem da análise de risco\n\nA análise de perigos estima o risco do cenário e define a redução adicional necessária após considerar outras camadas independentes. Métodos como matriz de risco ou alocação por camadas podem apoiar a decisão; o resultado deve ser registrado na especificação de requisitos da SIF. Não se escolhe SIL por preferência, por marca do equipamento ou por regra geral de que toda planta exige SIL 3. A IEC 61511 exige estabelecer requisitos funcionais e de integridade para cada SIF e cobrir o ciclo de vida, da análise à operação, manutenção, modificação e descomissionamento.\n\n### Como cai na prova\n\n- SIL crescente implica faixa de PFDavg menor em baixa demanda.\n- Não misture as faixas de PFDavg com PFH nem classifique componente como se fosse a função inteira.\n- Um cálculo probabilístico é apenas uma parte: restrições de arquitetura e falhas sistemáticas também limitam o SIL demonstrável."
+    },
+    {
+      "title": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "markdown": "### O problema que este assunto resolve\n\nMTTF é o tempo médio até a falha de um item reparável ou não reparável conforme a definição adotada; em modelos exponenciais de taxa constante para item não reparável, MTTF≈1/λ. Essa igualdade não deve ser usada sem declarar o modelo e qual modo de falha está sendo medido. MTTF não é garantia de vida útil nem indica quando uma unidade específica falhará. Para componentes reparáveis, algumas fontes preferem MTBF (tempo médio entre falhas) para ciclos de operação e reparo.\n\n> **Siglas e termos deste capítulo**\n> - **MTTF**: mean time to failure, tempo médio até falha.\n> - **MTTR**: mean time to repair/restore, tempo médio para reparar ou restaurar. A definição deve ser explicitada.\n> - **MTBF**: mean time between failures, tempo médio entre falhas em item reparável.\n> - **Disponibilidade**: fração do tempo em que o sistema está apto a cumprir sua função.\n> - **Teste de prova**: teste periódico planejado para revelar falhas perigosas que o diagnóstico normal não detecta.\n\n### Reparo não apaga o risco da falha\n\nEm uma aproximação de reparo, disponibilidade estacionária pode ser expressa como A≈MTBF/(MTBF+MTTR), quando as hipóteses de um único ciclo de falha e reparo são adequadas. MTTR curto reduz o tempo indisponível depois que uma falha é detectada. Em subsistema redundante, o reparo rápido também pode reduzir o tempo em estado degradado, durante o qual uma segunda falha pode derrubar a função. Porém, uma média de reparo baixa não corrige falhas sistemáticas, não substitui teste de prova e não garante que a falha será detectada.\n\nO plano de manutenção precisa combinar alarmes de diagnóstico, resposta a falhas, peças sobressalentes compatíveis, pessoal competente, controle de bypass/override, restrições operacionais e teste após manutenção. Durante um bypass autorizado, a proteção fica degradada; o risco deve ser controlado pelo procedimento e a proteção restaurada e confirmada. HSE ressalta que critérios de sucesso/falha e execução segura devem constar no procedimento de teste.\n\n| Ação | Falha que procura tratar | Efeito esperado |\n| --- | --- | --- |\n| Diagnóstico online | defeito observável durante operação | reduz tempo até detecção, permite ação de manutenção |\n| Teste de prova | falha perigosa oculta | revela modos que diagnóstico não detecta |\n| Reparo após alarme | falha identificada | restaura disponibilidade, se feito e verificado corretamente |\n| Teste pós-manutenção | erro de intervenção ou componente ainda defeituoso | confirma a função antes de devolver ao serviço |\n\n### O teste deve cobrir o caminho\n\nUm teste apenas do controlador não demonstra que o sensor responde ao processo nem que a válvula fecha. Testes de ponta a ponta verificam, em intervalos definidos, as entradas, a lógica, as saídas e o movimento/estado do elemento final, respeitando segurança operacional. Se não for possível testar em condição real de trip, devem existir métodos adequados para revelar falhas que só apareceriam nessa condição. Registrar resultados, falhas encontradas, cobertura e reparos permite comparar desempenho real com as premissas do cálculo.\n\n### Como cai na prova\n\n- MTTF e MTTR medem aspectos diferentes: tempo até falha e tempo de reparo/restauração.\n- Reduzir MTTR melhora disponibilidade em modelo reparável, mas não substitui proof test.\n- O teste de prova precisa alcançar todos os elementos necessários da SIF e seguir critérios documentados."
+    },
+    {
+      "title": "5. Redundância, votação e causa comum",
+      "markdown": "### O problema que este assunto resolve\n\nVotação combina canais redundantes para tolerar defeito ou reduzir disparos espúrios. A notação **MooN** significa que M de N canais precisam concordar para a saída atuar. Em **1oo1**, um canal único deve atuar: arquitetura simples, sem redundância. Em **1oo2**, qualquer um de dois canais pode solicitar o trip; basta um detectar para atuar. Isso aumenta tolerância a falha perigosa independente de um canal, mas pode elevar disparos espúrios se um canal falhar para trip. Em **2oo2**, os dois canais precisam pedir trip; pode reduzir disparo espúrio, mas uma falha que esconda a condição em qualquer canal pode bloquear atuação. Em **2oo3**, dois de três canais votam; tolera um canal discordante sem perder a decisão, se as hipóteses de independência e diagnóstico forem válidas.\n\n> **Siglas e termos deste capítulo**\n> - **MooN**: M canais concordantes entre N canais instalados.\n> - **1oo2**: um de dois sinais basta para trip.\n> - **2oo2**: ambos os dois sinais são necessários.\n> - **2oo3**: dois de três sinais são necessários.\n> - **Falha de causa comum**: um evento ou condição afeta simultaneamente canais redundantes.\n> - **Diversidade**: uso de meios diferentes para reduzir suscetibilidade a falhas compartilhadas.\n\n### A votação muda os dois lados do risco\n\nAumentar redundância pode melhorar disponibilidade de segurança, mas também aumenta complexidade, interfaces e exposição a defeitos compartilhados. A escolha não se resume a “mais sensores é sempre mais seguro”. 1oo2 é sensível a falhas perigosas independentes de um canal, mas um canal que dispara indevidamente pode interromper o processo. 2oo2 exige os dois canais, podendo manter a operação quando um sensor falha em pedir trip, exatamente quando a segurança poderia ser necessária. 2oo3 faz votação majoritária: um canal discrepante não domina a decisão, ao custo de mais componentes e necessidade de tratar diagnóstico, manutenção e causa comum.\n\nModelos elementares mostram a lógica. Se cada canal tem probabilidade q de falhar perigosamente e as falhas são independentes, em uma arquitetura 1oo2 que requer ao menos um canal para atuar, a função falha quando ambos falham: PFD≈q². Para 2oo2, a função falha perigosamente quando pelo menos um canal deixa de pedir trip, cuja probabilidade é 1−(1−q)². Para 2oo3, o perigo de falha por votação ocorre quando dois ou mais canais falham; o termo independente correspondente é 3q²(1−q)+q³. Esses exemplos ignoram diagnóstico, teste, dependência, estado comum e indisponibilidade de elementos finais.\n\n### Causa comum e independência\n\nSe três transmissores compartilham tomada de impulso obstruída, alimentação, ambiente, cabo, configuração ou erro de manutenção, podem falhar juntos. A redundância nominal não protege contra esse modo. Separação física, utilidades independentes, diversidade tecnológica, rotas distintas, procedimentos de manutenção e análise de fatores ambientais reduzem vulnerabilidades compartilhadas. A diversidade ajuda especialmente contra falhas comuns e sistemáticas; não é um substituto para quantificar falhas aleatórias independentes. O elemento final também deve ser avaliado: três sensores podem votar corretamente, mas uma única válvula emperrada ainda pode impedir a ação.\n\n### Como cai na prova\n\n- Leia MooN literalmente antes de inferir se basta um canal ou se é necessária maioria.\n- Considere falhas perigosas e espúrias: a lógica pode melhorar uma e piorar a outra.\n- Não eleve SIL apenas contando canais; inclua causa comum, teste, diagnóstico, restrição arquitetural e elemento final."
+    }
+  ],
+  "summary": "Uma SIF é o caminho de segurança que detecta uma condição perigosa, decide a resposta e altera o processo para um estado seguro. Seu desempenho depende de sensor/iniciador, solucionador lógico, elemento final, interfaces e utilidades. Falhas seguras tendem a levar ao estado seguro; perigosas podem impedir a ação. Falhas perigosas detectadas podem gerar alarme e reparo; não detectadas ficam ocultas até demanda ou teste. Para baixa demanda usa-se PFDavg; para alta demanda/contínua, PFH. Taxa de falha é expressa por tempo, enquanto PFD é probabilidade por demanda. Em modelo simples 1oo1 com falha perigosa não detectada de taxa λDU e teste perfeito a cada T, PFDavg≈λDU·T/2. SIL relaciona o desempenho da função com faixas de probabilidade/frequência de falha perigosa; em baixa demanda, SIL 1 a 4 correspondem a faixas decrescentes de PFDavg. O SIL requerido nasce da análise de risco e precisa ser demonstrado por cálculo, arquitetura, capacidade sistemática, independência e ciclo de vida; certificado isolado não garante SIL do conjunto. MTTF mede tempo médio até falha e MTTR tempo médio de reparo/restauração; menor MTTR pode aumentar disponibilidade, mas não elimina a necessidade de diagnóstico e teste de prova. Em votação MooN, 1oo2 atua com qualquer canal, 2oo2 exige ambos e 2oo3 usa maioria. Redundância pode reduzir falha independente ou disparo espúrio conforme a lógica, mas falha comum, utilidades compartilhadas, manutenção e elemento final único podem limitar o ganho. A IEC 61511 organiza requisitos de SIS no setor de processos ao longo do ciclo de vida; a IEC 61508 é referência geral de segurança funcional.",
+  "flashcards": [
+    {
+      "front": "Qual é a sequência básica de uma SIF?",
+      "back": "Iniciador/sensor detecta a condição, solucionador lógico decide e elemento final executa a ação física."
+    },
+    {
+      "front": "SIS e SIF significam a mesma coisa?",
+      "back": "Não. SIS é o sistema que implementa uma ou mais funções; SIF é uma função de segurança específica."
+    },
+    {
+      "front": "O que é falha perigosa?",
+      "back": "Falha que pode impedir que a função cumpra a ação de segurança quando solicitada."
+    },
+    {
+      "front": "O que significa λDU?",
+      "back": "Taxa de falhas perigosas não detectadas automaticamente, segundo a notação usada no modelo."
+    },
+    {
+      "front": "Qual métrica caracteriza baixa demanda?",
+      "back": "PFDavg, probabilidade média de falhar quando a função é demandada."
+    },
+    {
+      "front": "Qual métrica é usada para alta demanda ou modo contínuo?",
+      "back": "PFH, frequência média de falha perigosa por hora."
+    },
+    {
+      "front": "PFDavg é taxa por hora?",
+      "back": "Não. É probabilidade média por demanda; taxa por hora tem unidade de tempo inversa."
+    },
+    {
+      "front": "Qual aproximação elementar liga λDU e intervalo de teste T?",
+      "back": "Para 1oo1, taxa pequena e teste perfeito, PFDavg≈λDU·T/2."
+    },
+    {
+      "front": "O que significa SIL?",
+      "back": "Safety Integrity Level, nível de integridade de segurança requerido para uma função."
+    },
+    {
+      "front": "Quem define o SIL requerido para uma aplicação?",
+      "back": "A análise de perigos e riscos determina a redução necessária; a norma não escolhe o SIL de cada aplicação."
+    },
+    {
+      "front": "Qual a faixa PFDavg de SIL 1 em baixa demanda?",
+      "back": "De 10⁻² inclusive até menos de 10⁻¹."
+    },
+    {
+      "front": "Como MTTF se relaciona com taxa constante?",
+      "back": "No modelo exponencial não reparável, MTTF≈1/λ; a hipótese deve ser explícita."
+    },
+    {
+      "front": "O que representa MTTR?",
+      "back": "Tempo médio para reparar ou restaurar, conforme a definição operacional adotada."
+    },
+    {
+      "front": "O que reduz o MTTR?",
+      "back": "Detecção rápida, procedimento de resposta, competência e peças sobressalentes adequadas podem encurtar o reparo."
+    },
+    {
+      "front": "Para que serve o teste de prova?",
+      "back": "Revelar falhas perigosas ocultas que o diagnóstico normal não detecta."
+    },
+    {
+      "front": "O que significa 1oo2?",
+      "back": "Uma saída de dois canais; qualquer um dos dois pode solicitar a ação de segurança."
+    },
+    {
+      "front": "Qual vulnerabilidade tem 2oo2?",
+      "back": "Se um canal falhar sem solicitar trip, a condição de segurança pode não ser reconhecida porque ambos são exigidos."
+    },
+    {
+      "front": "Como funciona 2oo3?",
+      "back": "Dois de três canais precisam concordar para produzir a decisão de trip."
+    },
+    {
+      "front": "O que é falha de causa comum?",
+      "back": "Um fator compartilhado que faz canais redundantes falharem juntos, como utilidade ou ambiente comum."
+    },
+    {
+      "front": "Por que testar de ponta a ponta?",
+      "back": "Para verificar o sensor, a lógica, as interfaces e a atuação do elemento final, e não só o controlador."
+    }
+  ],
+  "tips": [
+    "Percorra sempre sensor → lógica → elemento final; inclua interfaces e utilidades necessárias.",
+    "Memorize o par de modos: baixa demanda usa PFDavg; alta/contínua usa PFH.",
+    "Diferencie falha perigosa detectada (diagnóstico) de perigosa não detectada (teste de prova).",
+    "MTTF é tempo até falha; MTTR é tempo para reparar ou restaurar.",
+    "Decodifique MooN: M canais entre N devem votar pela ação.",
+    "Trate SIL como propriedade requerida da SIF e verifique também arquitetura, capacidade sistemática e causa comum."
+  ],
+  "traps": [
+    "PFDavg não é taxa por hora; é uma probabilidade média de falha por demanda.",
+    "Um sensor certificado não certifica automaticamente a SIF completa, incluindo válvula e instalação.",
+    "Mais canais não significam sempre maior segurança: lógica de votação afeta falha perigosa e disparo espúrio.",
+    "Redundância com alimentação, conexão ao processo ou manutenção compartilhada ainda pode falhar por causa comum.",
+    "MTTR menor melhora disponibilidade em certas hipóteses, mas não substitui prova periódica nem previne falha sistemática.",
+    "A aproximação λDU·T/2 depende de hipóteses; não é fórmula universal para todo arranjo."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a sequência de uma SIF para sobrepressão.",
+      "answer": "O sensor mede pressão e detecta o limite; a lógica decide pelo trip; o elemento final, como válvula de bloqueio, atua para levar o processo ao estado seguro."
+    },
+    {
+      "question": "Como distinguir λDU, PFDavg e PFH?",
+      "answer": "λDU é taxa de falha perigosa não detectada; PFDavg é probabilidade média de falha sob demanda em baixa demanda; PFH é frequência de falha perigosa por hora em alta demanda/contínuo."
+    },
+    {
+      "question": "Por que o intervalo de prova afeta a PFDavg?",
+      "answer": "Falhas perigosas ocultas podem permanecer até o teste; encurtar o intervalo reduz em média o tempo em que ficam latentes, sob as hipóteses do modelo."
+    },
+    {
+      "question": "Por que o resultado PFDavg sozinho não comprova SIL?",
+      "answer": "Também devem ser satisfeitas restrições arquiteturais, capacidade sistemática, adequação dos componentes, independência e requisitos de ciclo de vida."
+    },
+    {
+      "question": "Compare 1oo2, 2oo2 e 2oo3.",
+      "answer": "1oo2 atua se um de dois canais solicitar; 2oo2 exige ambos; 2oo3 decide por maioria entre três. Cada escolha troca disponibilidade de segurança e propensão a disparo espúrio."
+    },
+    {
+      "question": "Como MTTF e MTTR influenciam disponibilidade?",
+      "answer": "MTTF/MTBF caracteriza o tempo entre falhas e MTTR o tempo para restaurar. Em modelo reparável simples, maior tempo entre falhas e menor reparo aumentam disponibilidade."
+    },
+    {
+      "question": "Cite fatores que produzem falha comum em sensores redundantes.",
+      "answer": "Conexão de processo obstruída compartilhada, energia ou ar comuns, rota de cabo comum, ambiente, configuração ou procedimento de manutenção compartilhado."
+    },
+    {
+      "question": "O que um teste de prova de ponta a ponta precisa verificar?",
+      "answer": "Que a condição de entrada seja detectada, a lógica gere a saída exigida e o elemento final execute a ação, registrando critérios, resultados e defeitos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir taxa de falha com probabilidade por demanda",
+      "summary": "Taxa λ tem dimensão de inverso do tempo; PFDavg é uma probabilidade associada à demanda em baixa demanda. PFH expressa frequência de falha perigosa por hora para alta demanda/contínua. Converter uma métrica em outra exige modelo e modo de operação declarados."
+    },
+    {
+      "key": "e2",
+      "title": "Atribuir SIL a um componente isolado",
+      "summary": "O SIL se aplica à SIF requerida e ao conjunto que deve executar a função. O resultado depende da cadeia sensor-lógica-elemento final, arquitetura, dados de falha, teste, diagnóstico, causa comum e medidas contra falhas sistemáticas."
+    },
+    {
+      "key": "e3",
+      "title": "Interpretar MTTF e MTTR como equivalentes",
+      "summary": "MTTF estima tempo médio até falha; MTTR estima duração média de reparo/restauração. Um valor baixo de MTTR pode melhorar disponibilidade depois da detecção, mas não evita falha nem descobre defeitos ocultos sem teste."
+    },
+    {
+      "key": "e4",
+      "title": "Supor que votação redundante elimina falhas",
+      "summary": "Votação altera o comportamento diante de falhas independentes e disparos espúrios. Causa comum, elemento final compartilhado, utilidades, conexões e manutenção podem afetar todos os canais, reduzindo o ganho real."
+    },
+    {
+      "key": "e5",
+      "title": "Tratar a aproximação de PFD como cálculo universal",
+      "summary": "A aproximação λDU·T/2 descreve apenas um modelo simples de canal 1oo1 com taxa pequena e prova perfeita. Diagnóstico, cobertura incompleta, reparo, downtime, arquitetura e dependências requerem modelo mais completo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma proteção de sobrepressão, o transmissor detecta o limite, o solucionador lógico processa o sinal e uma válvula fecha a alimentação. Qual descrição identifica corretamente essa cadeia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O transmissor é o elemento final; a válvula mede a pressão e a lógica só registra o evento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O transmissor é iniciador, a lógica decide e a válvula é elemento final que atua no processo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A lógica é o iniciador porque mede diretamente a pressão, enquanto a válvula calcula o SIL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A válvula é iniciadora, pois todo dispositivo que toca o processo detecta a demanda de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O conjunto constitui apenas controle básico, pois uma válvula não pode integrar uma SIF.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sensor ou transmissor detecta a variável, o solucionador lógico avalia a condição e comanda a saída, e a válvula executa a ação física. Identificar cada papel é essencial para contabilizar a confiabilidade do caminho completo.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SIF possui sensor e lógica funcionais, mas a válvula de desligamento emperra e não fecha quando recebe o comando. O que se conclui sobre a função demandada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função teve êxito, pois os componentes eletrônicos detectaram e processaram corretamente o evento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A falha não afeta a PFD, pois válvulas ficam fora do sistema instrumentado de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A falha é perigosa: o elemento final não executou a ação requerida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A função só falha se o transmissor também tiver apresentado uma leitura incorreta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A função é considerada disponível até que a lógica registre uma falha eletrônica interna.",
+          "correct": false
+        }
+      ],
+      "explanation": "A SIF é uma função de ponta a ponta. A detecção e a decisão corretas não bastam se a ação final não acontece; a válvula e seu atuador fazem parte da confiabilidade da proteção.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença fundamental entre o SIS e uma SIF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SIS é o conjunto; SIF, a função específica realizada pelo SIS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SIS é sempre um sensor único; SIF é exclusivamente o software que configura esse sensor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SIS significa sistema de controle normal; SIF designa somente uma válvula de processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SIS e SIF são níveis SIL alternativos, definidos pela quantidade de operadores na planta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SIF reúne toda a planta; SIS é apenas o relatório que documenta as falhas observadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sistema instrumentado de segurança pode implementar várias funções instrumentadas. Cada SIF tem requisitos próprios de detecção, lógica, ação e integridade para um cenário de risco definido.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma bomba de ar fornece a energia necessária ao atuador pneumático da válvula de trip. Como essa bomba deve ser tratada na análise da SIF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como equipamento sem relação com segurança, já que não recebe diretamente o sinal do sensor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como dependência da função, pois sua falha pode impedir a ação final.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como iniciador adicional, porque todo suprimento de ar mede a variável de processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como redundância automática, mesmo que exista uma única fonte de ar compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como substituto do teste de prova, pois a pressão do ar demonstra a função completa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A IEC 61511 considera os dispositivos necessários para executar a SIF, do sensor ao elemento final; utilidades essenciais também afetam a capacidade de cumprir a função. Uma fonte comum pode ainda criar dependência entre canais.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor a separação entre controle básico de processo e SIS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O controle básico deve comandar todo trip para evitar que exista uma camada independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O SIS regula continuamente a produção, enquanto o controle básico fica reservado a emergências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos podem compartilhar toda a lógica e energia sem considerar falhas compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O controle regula o processo; o SIS executa a proteção com independência adequada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A independência é desnecessária se o alarme visual estiver conectado ao mesmo controlador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle básico busca conduzir o processo em condições normais; o SIS atua quando a proteção requerida precisa levar o processo ao estado seguro. Compartilhamentos devem ser analisados porque podem criar falha comum e comprometer ambas as camadas.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma SIF, uma conexão de impulso obstruída faz o transmissor continuar indicando pressão normal durante uma sobrepressão real. Como classificar o efeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha segura, porque qualquer obstrução impede a válvula de abrir durante a operação normal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha perigosa, pois a condição que deveria iniciar a ação pode permanecer sem detecção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Falha espúria, pois o sistema gera trip sem que haja uma condição de processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Falha de reparo, pois o evento só pode ser classificado depois de medir o MTTR.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Falha sistemática de software, pois conexões de processo são parte do solucionador lógico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A obstrução impede a detecção da condição perigosa e pode deixar a função incapaz de atuar sob demanda. O modo concreto de falha depende do processo, mas nesse cenário o efeito é perigoso.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um conjunto reparável, qual é a interpretação apropriada de MTTR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tempo médio que o item permanece em reparo ou restauração, segundo a definição adotada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A probabilidade de o item falhar perigosamente em cada demanda de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A taxa de falha segura do sistema quando ele opera sem qualquer manutenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tempo máximo de prova que garante a integridade SIL 4 de qualquer válvula.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número médio de canais necessários para uma votação majoritária de sensores.",
+          "correct": false
+        }
+      ],
+      "explanation": "MTTR é uma medida de tempo de reparo ou restauração. Não representa probabilidade de falha, taxa de falha ou SIL; sua definição deve esclarecer quais etapas do restabelecimento estão incluídas.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma válvula leva, em média, mais tempo para ser restaurada após uma falha detectada. Mantidas as demais condições de um modelo reparável, qual efeito é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A PFD torna-se zero, pois o reparo longo impede que uma falha ocorra novamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A disponibilidade tende a cair porque o equipamento passa mais tempo indisponível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O MTTF aumenta necessariamente na mesma proporção do tempo de reparo observado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SIL requerido diminui automaticamente, sem análise do cenário de risco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa perigosa não detectada desaparece, mesmo sem prova periódica ou diagnóstico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em aproximação simples, disponibilidade depende do tempo entre falhas e do tempo de reparo; aumentar o MTTR prolonga a indisponibilidade. O reparo longo também pode manter redundância em estado degradado por mais tempo.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função instrumentada é solicitada apenas ocasionalmente. Qual medida expressa a chance média de ela falhar quando uma solicitação ocorre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MTTR, registrado em horas necessárias para restaurar o equipamento após o defeito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MTTF, contado como o intervalo médio até a próxima falha de qualquer natureza.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PFDavg, probabilidade média de falha da função sob demanda.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "PFH, que mede a probabilidade acumulada por demanda em qualquer modo operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HFT, valor em horas que descreve a frequência de solicitações ao sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para modo de baixa demanda usa-se PFDavg. Ela representa a probabilidade média de a função não estar apta a cumprir sua tarefa quando demandada, não o tempo de reparo nem a taxa horária.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de proteção precisa atuar continuamente ou recebe solicitações frequentes. Qual métrica é tipicamente associada a esse modo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PFDavg, sempre expressa como falhas perigosas acumuladas por hora de operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MTTF, que mede diretamente a redução de risco proporcionada por uma SIF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MTTR, que representa a probabilidade de a lógica responder corretamente à demanda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PFH, frequência média de falhas perigosas por hora para alta demanda ou modo contínuo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "PFD, que substitui qualquer análise da frequência de falha de um sistema contínuo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em alta demanda ou modo contínuo, a métrica típica é PFH. PFDavg corresponde à avaliação de probabilidade por demanda em baixa demanda; não se deve trocar as métricas sem observar o modo de operação.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo elementar de canal 1oo1, λDU é pequeno e o teste de prova perfeito ocorre a cada T. Qual aproximação representa a PFDavg?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "λDU dividido por T, pois testes mais frequentes ampliam o tempo médio com falha oculta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "λDU multiplicado por T dividido por dois, sob as hipóteses simplificadas descritas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "T dividido por λDU, pois a probabilidade cresce quando a taxa de falha diminui.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O quadrado de λDU, independente do intervalo de teste e da arquitetura escolhida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A unidade de λDU somada à unidade de T, sem considerar a exposição a falha latente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com taxa pequena, prova perfeita e falha oculta uniformemente distribuída entre testes, o tempo médio latente é aproximadamente T/2; multiplicá-lo por λDU resulta em λDU·T/2. A expressão não inclui cobertura imperfeita, reparo, dependência nem outros efeitos.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas falhas perigosas independentes têm probabilidades pequenas q em um arranjo 1oo2 que precisa de ao menos um canal funcional para trip. Qual situação impede a atuação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um canal falha perigosamente, mas o outro continua capaz de detectar e solicitar o trip.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos falham perigosamente (q² no modelo independente).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um canal detecta a demanda e o segundo canal permanece em condição funcional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os dois canais concordam sobre a condição perigosa e enviam o comando ao elemento final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um canal é retirado para prova enquanto o outro está confirmado funcional e disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na lógica 1oo2, qualquer canal funcional pode requisitar a ação; a falha perigosa independente da função requer ambos incapazes. O resultado q² depende de independência e não inclui causa comum, teste ou outros elementos da SIF.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura 2oo2, os dois canais precisam indicar a condição de trip. Qual vulnerabilidade perigosa decorre dessa regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um canal que deixe de detectar a demanda pode impedir a votação, mesmo que o outro solicite o trip.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qualquer canal discrepante sempre inicia trip, ainda que o segundo indique operação normal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arranjo tolera qualquer quantidade de falhas simultâneas sem degradar a função.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A votação elimina disparos espúrios e também qualquer falha de causa comum entre canais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A função não pode atuar porque duas entradas são incompatíveis com uma lógica de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como a saída depende dos dois votos, um canal que falhe sem pedir o trip pode bloquear a atuação. O arranjo pode reduzir certos disparos espúrios, mas a decisão exige equilibrar essa característica com a vulnerabilidade a falhas perigosas.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado corresponde ao princípio lógico de uma votação 2oo3?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os três canais precisam indicar trip antes que a lógica produza uma saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um canal entre três é suficiente e os outros dois são usados apenas para registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dois canais concordantes entre os três determinam a decisão da votação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dois canais precisam indicar normal e o terceiro deve estar fora de serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A votação seleciona automaticamente o canal de maior SIL, sem comparar os sinais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A notação 2oo3 significa dois de três. Em votação majoritária, um canal discrepante pode não inverter a decisão; os benefícios dependem das hipóteses de independência e do tratamento de falhas e diagnósticos.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois canais redundantes compartilham a mesma linha de impulso, que pode obstruir e fazer ambos indicarem pressão normal. Qual fator limita o ganho da redundância?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diversidade de lógica, que impede qualquer sensor de medir a variável de processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A votação majoritária, que converte automaticamente toda falha compartilhada em falha segura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A alta disponibilidade, que obriga os canais a compartilhar sempre uma utilidade única.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A falha de causa comum, pois uma condição compartilhada pode afetar ambos os canais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O tempo médio de reparo, que mede diretamente a independência entre as conexões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falhas de causa comum afetam mais de um canal por compartilhamento físico, ambiental, funcional ou de manutenção. Separação e diversidade podem reduzir certas dependências, mas a causa comum deve ser considerada no modelo.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ficha informa MTTF de um componente com taxa de falha constante e modelo exponencial não reparável. Qual relação aproximada pode ser usada nesse modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MTTF aproximadamente igual ao inverso da taxa λ, sob as hipóteses declaradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MTTF igual à probabilidade de falha por demanda, sem relação com a taxa observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MTTF igual ao tempo médio de reparo, mesmo quando o componente não é reparável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MTTF igual ao intervalo de proof test, pois ambos expressam a mesma duração física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MTTF igual ao SIL numérico multiplicado pela taxa de falha perigosa detectada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para taxa constante no modelo exponencial não reparável, o tempo médio até falha é 1/λ. A relação não transforma MTTF em garantia de vida útil nem se aplica automaticamente a distribuições ou definições distintas.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a equipe programa testes de prova para uma válvula de segurança que possui diagnóstico eletrônico, mas ainda apresenta modos de falha não detectados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o teste aumenta a taxa de falha até que a válvula passe a atuar em toda demanda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque o teste revela falhas perigosas ocultas que o diagnóstico online não consegue identificar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque o teste substitui o cálculo SIL e comprova por si só todos os requisitos do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque o diagnóstico eletrônico mede MTTR sem qualquer necessidade de inspeção ou reparo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque a prova periódica elimina a possibilidade de falha de causa comum entre equipamentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diagnóstico online encontra as falhas que são observáveis por seus mecanismos. O teste de prova procura revelar modos perigosos ainda ocultos e deve ter cobertura e procedimentos adequados; ambos contribuem para a integridade.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe testa apenas a saída elétrica do solucionador lógico e registra a SIF como integralmente aprovada. Qual aspecto técnico está faltando nessa conclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A confirmação de que o programa de controle básico consegue manter a produção em regime normal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A comparação do MTTR com a duração de cada turno de operação da fábrica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A verificação do percurso completo, incluindo sensor, interfaces e atuação do elemento final.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A demonstração de que cada canal de medição tem o mesmo fabricante e a mesma revisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A inclusão de todos os alarmes de operação normal na mesma votação do trip.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste da saída lógica não demonstra a resposta do sensor, a continuidade das interfaces, nem o movimento real do elemento final. Teste ponta a ponta, ou uma combinação documentada de testes que cubra a função, sustenta a avaliação da SIF.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise de risco identificou que o cenário exige redução adicional além das demais camadas independentes. Como deve ser estabelecido o SIL requerido da SIF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolhendo o nível mais alto disponível, sem documentar a frequência ou consequência do cenário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiando o SIL marcado no controlador, ainda que ele não corresponda à função inteira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usando o mesmo SIL para todas as funções da unidade, pois os riscos são necessariamente iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Derivando o requisito da análise de perigos e riscos e da redução atribuída à função.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Selecionando o nível pela quantidade de canais instalados, sem verificar risco residual.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SIL necessário depende do risco do cenário e da parcela de redução alocada à SIF após considerar outras medidas. A IEC 61511 fornece um processo de estabelecimento de requisitos, mas não prescreve um nível universal para cada aplicação.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em baixa demanda, qual intervalo típico de PFDavg corresponde a SIL 2?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "De 10⁻⁵ inclusive até menos de 10⁻⁴.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "De 10⁻⁴ inclusive até menos de 10⁻³.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "De 10⁻³ inclusive até menos de 10⁻².",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "De 10⁻² inclusive até menos de 10⁻¹.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "De 10⁻¹ inclusive até menos de 1.",
+          "correct": false
+        }
+      ],
+      "explanation": "As faixas de baixa demanda diminuem em uma ordem de grandeza a cada nível de SIL. SIL 2 corresponde a PFDavg desde 10⁻³ até abaixo de 10⁻²; não são taxas por hora.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fabricante fornece certificado SIL para um solucionador lógico. O que esse documento, isoladamente, permite concluir sobre a SIF instalada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que a função completa alcança o SIL de projeto mesmo com válvula e sensor sem dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que todos os requisitos de ciclo de vida foram cumpridos pela equipe da planta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que falhas sistemáticas de configuração não precisam ser analisadas na aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a SIF não necessita de testes de prova se o componente tiver diagnóstico interno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que há evidência útil do subsistema, mas o desempenho da SIF inteira ainda precisa ser demonstrado.",
+          "correct": true
+        }
+      ],
+      "explanation": "A integridade da função depende da cadeia completa e de requisitos de arquitetura, aplicação, configuração, independência, instalação, teste e manutenção. A certificação de um subsistema é evidência sobre esse subsistema, não prova automática da SIF instalada.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe substituiu um atuador durante uma manutenção. Qual prática ajuda a confirmar que a proteção voltou a cumprir sua função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar o controle básico e presumir que a válvula obedece à antiga calibração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Realizar a verificação pós-manutenção prevista e testar a ação de segurança afetada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Atualizar o MTTF cadastrado sem verificar a montagem nem o curso da válvula.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retirar o alarme de falha para impedir que a lógica detecte a intervenção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o intervalo de prova para compensar o tempo em que a função ficou isolada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Depois de manutenção, montagem, calibração ou substituição podem introduzir falhas ou erros. Procedimentos de reinstalação e prova confirmam a resposta do equipamento antes de devolver a proteção ao serviço.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SIF depende de energia elétrica, ar de instrumentos e água de resfriamento para executar o trip. Qual tratamento é adequado na análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir as utilidades, pois a análise de confiabilidade termina na saída do controlador lógico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar apenas energia elétrica, já que as demais utilidades não podem causar perda funcional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Considerar as utilidades necessárias e sua confiabilidade como parte das dependências da função.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Classificar toda utilidade como elemento iniciador, ainda que não detecte nenhuma variável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Supor disponibilidade perfeita sempre que a utilidade for fornecida por uma empresa externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se uma utilidade é necessária para o sistema cumprir a função, sua perda pode impedir o estado seguro e precisa ser considerada. Redundância, reservas e monitoramento podem ser medidas, mas sua capacidade deve ser verificada.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SIF foi calculada em faixa SIL 2 de PFDavg, mas a análise de arquitetura mostra que a tolerância a falhas de hardware exigida não é atendida. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A SIF alcança SIL 2, porque a métrica probabilística substitui qualquer requisito arquitetural.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O PFDavg sozinho não comprova SIL; todas as restrições também devem ser atendidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A tolerância pode ser ignorada se a função tiver um elemento final com certificado válido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SIL deve ser aumentado para compensar qualquer falha arquitetural sem alterar o projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A verificação se limita ao software, pois falhas de hardware não integram uma SIF.",
+          "correct": false
+        }
+      ],
+      "explanation": "A demonstração de SIL combina métrica probabilística com restrições arquiteturais e medidas de capacidade sistemática. Um resultado PFDavg favorável não sana a falha de um requisito independente de arquitetura.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SIF de baixa demanda permanece em serviço durante um intervalo de prova maior, sem mudanças em taxa de falha, diagnóstico ou cobertura. Qual tendência conceitual se espera para falhas perigosas ocultas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A PFDavg tende a subir, pois defeitos ocultos podem permanecer por mais tempo antes do teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A PFDavg tende a zero, pois um teste mais distante reduz o número de intervenções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O PFH passa a ser a única métrica possível, mesmo que o modo continue de baixa demanda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O MTTF se transforma em MTTR automaticamente quando o intervalo de prova aumenta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A causa comum é eliminada, pois sensores têm mais tempo para recuperar a calibração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com maior intervalo, uma falha perigosa não detectada pode permanecer latente por mais tempo, elevando a probabilidade média de indisponibilidade sob demanda. O efeito quantitativo depende do modelo e da eficácia dos testes.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe reduz o MTTR de um canal redundante após instalar peças sobressalentes e agilizar a resposta ao diagnóstico. Qual benefício é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A taxa de falha perigosa por hora passa a ser nula para todos os modos do canal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema pode passar menos tempo degradado após uma falha detectada, se o reparo for eficaz.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O intervalo de prova deixa de influenciar falhas perigosas não detectadas em qualquer arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função recebe automaticamente um SIL superior sem nova análise nem verificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A probabilidade de causa comum desaparece quando existem sobressalentes no almoxarifado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restauração mais rápida pode reduzir o período em que o subsistema redundante opera degradado. Isso não elimina as falhas, não corrige defeitos sistemáticos e não substitui teste de prova ou demonstração do SIL.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SIF exige SIL 3, mas há evidência apenas de que o solucionador lógico atende a esse nível em determinada configuração. Que evidência adicional é necessária para avaliar a função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas o número de operadores treinados em cada turno, sem dados de sensores ou válvulas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a quantidade de alarmes disponíveis, pois eles determinam a PFDavg do controlador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dados e verificação de sensor, elemento final, arquitetura, aplicação, teste e condições de uso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma confirmação do fornecedor de que todos os produtos da linha são intercambiáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um valor de MTTF do software, sem examinar hardware ou configuração de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função completa deve satisfazer os requisitos de integridade e arquitetura. Isso requer dados e premissas dos subsistemas, falhas comuns, diagnóstico, teste, configuração e condições operacionais; um único solucionador não representa toda a cadeia.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lógica 1oo2 recebe sinais independentes de dois sensores: qualquer um pode solicitar trip. Qual propriedade principal a configuração oferece diante de uma falha perigosa independente isolada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode manter a capacidade de trip por meio do canal restante, embora possa haver mais trip espúrio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Impede qualquer trip espúrio, mesmo que um canal falhe indicando uma condição perigosa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exige que os dois canais falhem ao mesmo tempo para iniciar uma ação de segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elimina a necessidade de avaliar a válvula final porque os sensores são redundantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garante SIL 4 sem cálculo, prova periódica ou demonstração de independência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em 1oo2, qualquer canal pode demandar a ação; uma falha perigosa independente de um canal não necessariamente impede o outro de atuar. Um canal que gere demanda espúria pode, porém, causar parada indevida. Não há SIL automático pela topologia.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em baixa demanda, a função tem PFDavg calculada dentro da faixa de SIL 1. Qual interpretação da classificação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função tem probabilidade de falha por demanda dentro da faixa quantitativa correspondente a SIL 1.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A função falha exatamente uma vez a cada dez demandas, em qualquer instalação e período.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O resultado comprova automaticamente tolerância arquitetural, software e ciclo de vida adequados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função tem taxa de falha constante por hora igual ao número SIL indicado no certificado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O resultado dispensa definir as condições de operação e o intervalo de prova adotado.",
+          "correct": false
+        }
+      ],
+      "explanation": "SIL 1 em baixa demanda corresponde a uma faixa de PFDavg, não a uma previsão determinística de quando ocorrerá uma falha. A integridade ainda depende das demais restrições e das condições que fundamentam o cálculo.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um 2oo3 com canais independentes de igual probabilidade perigosa q, qual situação de votação representa falha perigosa da função nesse modelo simplificado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um canal falha e os outros dois continuam saudáveis e podem formar a maioria de trip.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dois ou mais canais falham perigosamente, impedindo uma maioria confiável para a demanda.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um canal discorda, mas os outros dois identificam corretamente a condição que exige trip.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os três canais respondem corretamente, enviando a decisão ao elemento final compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um canal é reparado rapidamente enquanto os demais permanecem disponíveis e diagnosticados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A maioria de dois permanece disponível se apenas um canal falhar. No modelo independente, a falha perigosa da votação ocorre quando dois ou três canais falham; a probabilidade elementar é 3q²(1−q)+q³. Causa comum e elementos compartilhados ficam fora dessa conta.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de prova detecta que a válvula não percorreu todo o curso previsto. Como esse achado deve ser tratado na avaliação da SIF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como evidência de falha relevante, investigada, reparada e registrada antes de confirmar a proteção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como evidência sem relação com segurança, pois a saída elétrica da lógica já foi aprovada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como prova de que a taxa λDU da válvula é zero depois de qualquer manutenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como motivo para ignorar o teste completo e ampliar o intervalo de inspeção seguinte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como falha segura por definição, mesmo que o processo dependa do fechamento integral.",
+          "correct": false
+        }
+      ],
+      "explanation": "O elemento final pode não realizar a ação exigida apesar do comando lógico correto. O achado deve ser avaliado contra critérios de sucesso, corrigido e documentado; depois da intervenção, a função afetada precisa ser confirmada antes do retorno ao serviço.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente taxa de falha e PFDavg?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Taxa de falha é frequência por tempo; PFDavg é probabilidade média de falhar sob demanda.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Taxa de falha é medida em demandas; PFDavg é sempre medida em horas inversas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As duas são idênticas e podem ser substituídas sem declarar o modo operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PFDavg mede tempo de reparo; taxa de falha mede duração de diagnóstico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Taxa de falha só se aplica a sensores; PFDavg é usada apenas para válvulas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa λ tem unidade inversa do tempo e conta a frequência de eventos de falha segundo o modelo. PFDavg é uma probabilidade média de não executar a função quando solicitada, com uso típico em baixa demanda.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A causa comum é uma questão relevante quando canais redundantes compartilham componentes ou condições. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma condição compartilhada pode derrubar canais ao mesmo tempo, reduzindo o benefício previsto por um modelo que presume falhas independentes. A análise considera utilidades, ambiente, conexões, rotas e práticas de manutenção comuns.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PFDavg expressa uma taxa de falha perigosa por hora e, por isso, é a métrica típica de modo contínuo. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. PFDavg é probabilidade média de falha sob demanda e se aplica tipicamente a baixa demanda. Para alta demanda ou modo contínuo, a métrica típica é PFH, uma frequência de falha perigosa por hora.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MTTF e MTTR descrevem o mesmo período, pois ambos medem quantas horas o equipamento opera antes de ser reparado. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. MTTF é o tempo médio até a falha; MTTR é o tempo médio de reparo ou restauração. São medidas diferentes, e qualquer relação matemática exige hipóteses sobre reparabilidade e distribuição de falhas.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O certificado SIL de um solucionador lógico demonstra por si só que a SIF inteira, com sensores e válvula final, atende ao SIL requerido. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A SIF completa precisa ser verificada, incluindo sensor, lógica, elemento final, arquitetura, configuração, teste, independência e condições de uso. A evidência de um subsistema não representa automaticamente a função inteira.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma votação 1oo2, qualquer um dos dois canais pode demandar a ação, embora uma falha de canal possa elevar a chance de trip espúrio. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. 1oo2 solicita a saída quando pelo menos um canal detecta a condição. Isso pode conservar a capacidade de trip diante de uma falha perigosa isolada, mas uma indicação espúria de um canal também pode provocar atuação indevida.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em modo de baixa demanda, o aumento do intervalo entre testes tende a reduzir o tempo em que uma falha perigosa não detectada permanece oculta. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um intervalo maior pode permitir que a falha perigosa oculta permaneça latente por mais tempo. O efeito depende da eficácia do teste e das demais hipóteses do cálculo, mas a tendência elementar é de aumento da exposição.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A IEC 61511 trata sistemas instrumentados de segurança para o setor de processos e aborda fases do ciclo de vida, da especificação à operação e manutenção. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A descrição oficial da IEC apresenta a série 61511 como padrão de SIS para processos, com requisitos e orientação para especificação, projeto, instalação, operação e manutenção, cobrindo fases do ciclo de vida da segurança.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Redundância de sensores elimina a necessidade de analisar utilidades compartilhadas, ambiente e conexões comuns entre canais. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Utilidades, ambiente e conexões comuns podem gerar falhas de causa comum que afetam canais redundantes simultaneamente. A independência precisa ser demonstrada e essas dependências entram na análise.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste de prova deve ter critérios documentados de sucesso e falha e ser executado com procedimento que considere a segurança operacional. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A orientação do HSE recomenda procedimentos que indiquem critérios de aprovação e reprovação e expliquem como realizar o teste em segurança, incluindo restrições operacionais e competência das pessoas envolvidas.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aproximação de disponibilidade reparável, reduzir MTTR pode diminuir o período em que o equipamento permanece indisponível após falha detectada. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com as hipóteses usuais do modelo reparável, o tempo de restauração compõe o período indisponível. Reduzir MTTR pode aumentar disponibilidade, sem eliminar falhas nem substituir teste e controle de falhas ocultas.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SIL 4 é o menor nível da escala de integridade definida para SIFs sob a IEC 61511, seguido por níveis progressivamente mais exigentes. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SIL 1 é o menor nível da escala aplicável e SIL 4 o mais alto. Em baixa demanda, níveis maiores correspondem a faixas menores de PFDavg e, portanto, a maior redução de risco atribuída à função.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A notação 2oo3 significa que dois dos três canais devem concordar para que a lógica produza a decisão de trip. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MooN significa M de N canais. Em 2oo3, uma maioria de dois determina a saída; um canal discordante não necessariamente impede a decisão, embora falhas comuns e elemento final ainda precisem ser analisados.",
+      "section": "5. Redundância, votação e causa comum",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diagnóstico online detecta necessariamente todo modo de falha perigosa, tornando inúteis os testes de prova periódicos. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Diagnóstico tem cobertura limitada e pode não revelar falhas que só aparecem durante a demanda ou o curso funcional completo. Testes de prova são usados para detectar modos perigosos ocultos e sua eficácia precisa ser considerada.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo simplificado 1oo1, λDU·T/2 pode aproximar PFDavg quando a taxa é pequena e a prova é perfeita, mas a expressão não contempla todas as configurações reais. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A expressão resulta de taxa pequena e tempo médio de falha latente de T/2 entre testes perfeitos. Diagnóstico, cobertura imperfeita, reparo, downtime, arquitetura e causas comuns pedem modelos adicionais.",
+      "section": "2. Taxas de falha, demanda e métricas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A SIF pode ser considerada confiável mesmo que a válvula não execute a ação física, desde que o sensor e o solucionador lógico funcionem corretamente. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A função inclui o percurso até o elemento final. Uma válvula que não executa a ação requerida torna a função incapaz de atingir o estado seguro, ainda que a detecção e a lógica estejam corretas.",
+      "section": "1. A função de segurança e seu caminho completo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As faixas SIL de baixa demanda são faixas de PFDavg, enquanto uma avaliação de alta demanda ou contínua usa a métrica de PFH. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modo operacional determina a métrica de integridade quantitativa. A comparação com faixas SIL precisa usar a tabela correspondente ao modo, sem misturar probabilidade por demanda e frequência por hora.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função classificada como SIL 2 deve receber esse nível somente porque o número de seus sensores redundantes é maior que o de uma SIF SIL 1. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O SIL necessário decorre da análise de perigos e riscos e da redução alocada à função. O número de sensores não define o SIL nem demonstra desempenho; arquitetura, falhas comuns, componentes, teste e medidas sistemáticas também contam.",
+      "section": "3. SIL, integridade e verificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma manutenção deixa um canal redundante fora de serviço, o período em estado degradado pode elevar a exposição a uma falha adicional antes da restauração. ",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um arranjo redundante pode tolerar uma falha, mas durante reparo ou bypass pode ter menor tolerância a uma falha subsequente. O planejamento de manutenção deve considerar restrições operacionais, duração e medidas compensatórias.",
+      "section": "4. MTTF, MTTR, disponibilidade e manutenção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "IEC 61511-1:2016 — Functional safety: Safety instrumented systems for the process industry sector",
+      "publisher": "International Electrotechnical Commission (IEC)",
+      "reference": "Escopo, cadeia da SIF do sensor ao elemento final, análise de perigos e riscos, SIL, métricas quantitativas, tolerância de hardware e ciclo de vida; prévia oficial consultada.",
+      "url": "https://webstore.iec.ch/en/iec_catalog/product/preview/?id=L3B1Yi9wZGYvcHJldmlldy9pbmZvX2llYzYxNTExLTF7ZWQyLjB9Yi5wZGY%3D",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Control systems — Safety related systems and proof testing",
+      "publisher": "Health and Safety Executive (HSE), Reino Unido",
+      "reference": "Modos de demanda, uso de PFD em baixa demanda e taxa horária em alta/contínua, integridade, votação 2oo3, dependências, prova e reparo.",
+      "url": "https://www.hse.gov.uk/comah/sragtech/techmeascontsyst.htm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IEC 61511-2:2016 — Guidelines for the application of IEC 61511-1:2016",
+      "publisher": "International Electrotechnical Commission (IEC)",
+      "reference": "Orientação de aplicação para especificação, projeto, instalação, operação e manutenção de SIFs e SIS relacionados.",
+      "url": "https://webstore.iec.ch/en/publication/25510",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

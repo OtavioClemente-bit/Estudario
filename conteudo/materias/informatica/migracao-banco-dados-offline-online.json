@@ -1,0 +1,2789 @@
+{
+  "id": "informatica.migracao-banco-dados-offline-online",
+  "subject": "Informática",
+  "title": "Estratégias de migração offline ou online de banco de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Estratégias de migração offline ou online",
+    "Migração offline de banco de dados",
+    "Migração online de banco de dados",
+    "Migração de banco com indisponibilidade planejada",
+    "Migração contínua com replicação de dados",
+    "Migração de banco com captura de alterações",
+    "Migração de banco com carga inicial e CDC",
+    "Corte de aplicação para banco migrado",
+    "Migração de banco com tempo mínimo de parada",
+    "Planejamento de migração entre bancos de dados"
+  ],
+  "scope": {
+    "covers": "Critérios para escolher migração offline ou online de banco de dados; interrupção de gravações e consistência por cópia única; carga inicial e replicação contínua de alterações; captura de mudanças, sincronização, validação, corte de clientes, drenagem de alterações pendentes, monitoramento, testes, riscos, janela de manutenção e plano de retorno.",
+    "excludes": "Comandos específicos de ferramentas e provedores, sintaxe de configuração de CDC, conversão detalhada de esquemas, modelagem de dados, backup como disciplina isolada e migração de aplicações sem banco de dados."
+  },
+  "theoryTitle": "Como escolher e executar a estratégia de migração",
+  "chapters": [
+    {
+      "title": "1. O que muda entre migração offline e online",
+      "markdown": "### O problema que este assunto resolve\n\nUma migração transfere um conjunto de dados de um banco de origem para um banco de destino e, ao final, direciona os clientes para o destino. A estratégia depende sobretudo de quanto tempo a aplicação pode ficar sem processar operações e de quanto risco operacional a equipe consegue administrar.\n\nNa **migração offline**, interrompe-se o uso que altera a origem antes da cópia final. A aplicação fica indisponível durante o período necessário para copiar, restaurar, conferir e concluir o corte. Como a origem não muda durante a transferência, não é preciso perseguir gravações concorrentes. Exportação e importação ou backup e restauração são formas comuns de executar esse fluxo quando compatíveis com o cenário.\n\nNa **migração online**, a origem continua atendendo durante a maior parte da transferência. Faz-se uma carga inicial e, em paralelo ou depois dela, replicam-se as alterações feitas na origem. Quando origem e destino estão sincronizados, interrompem-se ou drenam-se as gravações, confirma-se o estado final e troca-se a conexão da aplicação. O corte ainda pode causar uma pausa; “online” significa indisponibilidade reduzida, não garantia de zero interrupção.\n\n> **Siglas e termos deste capítulo**\n> - **Origem**: banco que atende a aplicação antes do corte.\n> - **Destino**: banco que receberá os dados e atenderá depois do corte.\n> - **Corte (cutover)**: troca planejada do acesso dos clientes da origem para o destino.\n> - **Janela de manutenção**: período reservado para indisponibilidade ou atividades de corte.\n> - **SLO**: objetivo de nível de serviço que ajuda a medir disponibilidade e desempenho esperados.\n\n| Critério | Offline | Online |\n| --- | --- | --- |\n| Escritas na origem durante a cópia | Interrompidas antes da cópia que define o estado final | Podem continuar durante carga inicial e replicação |\n| Parada percebida pela aplicação | Abrange a migração e as verificações previstas | Concentra-se principalmente no corte e na drenagem final |\n| Complexidade operacional | Menos etapas de sincronização | Maior: carga, captura, acompanhamento e corte coordenado |\n| Adequação típica | Janela suficiente e prioridade à simplicidade | Continuidade importante e tolerância pequena à parada |\n\n### Como cai na prova\n\nA distinção não é “com backup” versus “sem backup”: é o tratamento das mudanças na origem durante a cópia. Se a origem fica sem novas gravações, a estratégia pode ser offline. Se atende enquanto o destino recebe a carga inicial e mudanças posteriores, é online. A equipe deve estimar o tempo da cópia e dos testes e compará-lo com a indisponibilidade aceitável, sem confundir operação contínua com ausência absoluta de pausa."
+    },
+    {
+      "title": "2. Fluxo offline: congelar, copiar e trocar",
+      "markdown": "### O problema que este assunto resolve\n\nO fluxo offline é direto quando o negócio aceita uma parada planejada. Primeiro se define o escopo, prepara-se o destino e ensaia-se a duração em ambiente representativo. No início da janela, bloqueiam-se novas gravações na origem; pode ser necessário suspender processos em lote, integrações e tarefas agendadas, além de colocar a aplicação em modo de manutenção.\n\nCom a origem sem alterações, a equipe executa a exportação/importação ou o backup/restauração e prepara os objetos exigidos pela aplicação. Depois compara resultados relevantes, valida integridade, permissões, conectividade e comportamento da aplicação no destino. Só então altera a configuração, o nome de serviço ou outro mecanismo que direciona os clientes ao destino. O acompanhamento após o corte verifica erros, latência e operações essenciais.\n\n> **Siglas e termos deste capítulo**\n> - **Quiescer**: deixar de aceitar mudanças que alterem os dados, preservando um ponto estável para a transferência.\n> - **Backup e restauração**: copiar uma imagem recuperável e restaurá-la no ambiente de destino.\n> - **Exportação e importação**: extrair dados em formato lógico e carregá-los no destino.\n> - **Reconciliação**: comparar contagens, totais ou amostras para encontrar diferenças relevantes.\n\nUma falha antes do corte costuma permitir corrigir ou repetir a transferência mantendo a origem como fonte de verdade. Depois que usuários gravam no destino, voltar à origem exige tratar essas novas alterações; simplesmente apontar a aplicação para trás pode perder dados. Por isso, a decisão de liberar gravações no destino deve fazer parte do plano de retorno.\n\n### Como cai na prova\n\nA vantagem do offline é a simplicidade relativa: não há fluxo contínuo de alterações para manter o destino atualizado enquanto a cópia ocorre. O custo é o tempo de indisponibilidade, que começa quando a aplicação deixa de operar normalmente e termina após corte e verificações necessárias. A estimativa precisa considerar cópia, restauração, validação e contingências, não apenas o tempo de transferência do arquivo."
+    },
+    {
+      "title": "3. Fluxo online: carga inicial e alterações contínuas",
+      "markdown": "### O problema que este assunto resolve\n\nQuando a parada integral seria longa demais, a migração online separa a transferência do conjunto existente da sincronização das mudanças que ocorrem durante a transferência. A **carga inicial** copia os dados selecionados em um ponto consistente. Como os clientes podem continuar gravando na origem, o mecanismo de migração também captura as alterações posteriores — por exemplo, a partir de registros de transação — e as aplica ao destino. Essa captura costuma ser chamada de **CDC** (*change data capture*).\n\nA equipe monitora atraso de replicação, erros, capacidade e recursos consumidos na origem e no destino. Uma carga inicial concluída não significa que os bancos estão iguais: alterações podem ter ocorrido enquanto tabelas eram copiadas. O destino só está pronto para corte quando o fluxo de mudanças alcança a origem e as verificações de consistência são satisfatórias.\n\n> **Siglas e termos deste capítulo**\n> - **CDC**: captura e entrega de alterações feitas na origem, frequentemente usando logs de transação.\n> - **Carga inicial (full load)**: cópia inicial do conjunto de dados escolhido.\n> - **Atraso de replicação (lag)**: diferença temporal ou quantidade de alterações ainda não aplicadas no destino.\n> - **Ponto consistente**: estado que representa um conjunto coerente de dados, sem combinar momentos incompatíveis.\n\nPré-requisitos variam por mecanismo: pode haver exigência de chaves para identificar linhas, retenção suficiente dos logs, permissões de leitura e conectividade entre ambientes. A migração deve ser ensaiada com o volume, padrão de gravação e configuração do destino esperados. Se o volume de alterações superar de forma persistente a capacidade de aplicá-las, o atraso pode crescer e inviabilizar o corte na janela planejada.\n\n### Como cai na prova\n\nA sequência típica é preparar esquema e conectividade, iniciar captura, fazer carga inicial, aplicar continuamente as mudanças acumuladas, verificar sincronização, interromper ou direcionar escritas de modo controlado, drenar o restante e efetuar o corte. O detalhe exato depende da tecnologia; CDC é um mecanismo, não sinônimo de migração completa nem prova automática de que todos os dados estão corretos."
+    },
+    {
+      "title": "4. Corte, validação e retorno seguro",
+      "markdown": "### O problema que este assunto resolve\n\nO corte é uma transição de estado, não apenas a troca de uma string de conexão. Para impedir gravações concorrentes e divergentes, a equipe define quando parar ou redirecionar escritas na origem, encerra conexões antigas com cuidado e espera que as últimas alterações cheguem ao destino. Essa aplicação das mudanças restantes é chamada de drenagem. Em seguida, confirma-se a consistência e direcionam-se clientes ao destino.\n\nA validação combina evidências adequadas ao risco: contagem de registros, totais de negócio, comparação de amostras, integridade referencial, aplicação de consultas críticas e métricas de desempenho. Contagens iguais, sozinhas, não demonstram que cada valor está correto. Após o corte, observam-se erros e indicadores do serviço e mantém-se a origem protegida conforme a política definida.\n\n> **Siglas e termos deste capítulo**\n> - **Drenagem (drain)**: aplicação das alterações ainda pendentes antes de considerar a sincronização concluída.\n> - **Reconciliação de dados**: verificação de completude e consistência entre origem e destino.\n> - **Retorno (fallback/rollback operacional)**: caminho planejado para voltar ao ambiente anterior se critérios de sucesso falharem.\n> - **Ponto de decisão**: marco em que responsáveis autorizam seguir com o corte ou abortá-lo.\n\nO retorno depende do momento. Antes de permitir gravações no destino, pode bastar redirecionar clientes à origem, se ela permaneceu íntegra. Depois de novas gravações no destino, é necessário preservar ou replicar essas mudanças de volta antes de reabrir a origem; caso contrário, há risco de perda. Manter bancos sincronizados nos dois sentidos exige projeto e testes próprios, não surge automaticamente por conservar o banco antigo.\n\n### Como cai na prova\n\nUma migração bem planejada documenta critérios de entrada e saída, responsáveis, ordem de operações, checagens, comunicação, monitoramento e condição de abortar. O plano deve considerar compatibilidade de esquema, credenciais, rede, capacidade e processos que escrevem dados. Quanto mais próximo do corte, menor deve ser a diferença pendente e mais claras devem estar as evidências que autorizam a troca."
+    }
+  ],
+  "summary": "A estratégia offline interrompe gravações na origem antes da transferência e mantém a aplicação parada durante cópia, validação e corte; é mais simples, mas exige janela de indisponibilidade suficiente. A online mantém a origem atendendo durante a carga inicial e replica mudanças posteriores, geralmente por CDC; reduz a parada ao corte, mas exige mais preparação, recursos, monitoramento e validação. Em ambos os casos, prepare destino, ensaie, verifique consistência e teste a aplicação. No corte online, pare ou controle escritas, drene alterações pendentes, confirme sincronização e redirecione clientes. Zero downtime não é garantido. Retorno após gravações no destino requer preservar ou transportar essas novas alterações, e não apenas trocar a conexão de volta.",
+  "flashcards": [
+    {
+      "front": "Qual é o critério central que diferencia offline de online?",
+      "back": "Se a origem recebe alterações enquanto a cópia ocorre: offline interrompe gravações; online mantém a origem atendendo e sincroniza alterações posteriores."
+    },
+    {
+      "front": "Quando começa a indisponibilidade no fluxo offline?",
+      "back": "Quando a aplicação deixa de operar normalmente para viabilizar a migração; inclui cópia e verificações previstas até o corte."
+    },
+    {
+      "front": "Quais são as duas etapas de dados mais comuns no fluxo online?",
+      "back": "Carga inicial do conjunto existente e replicação contínua das alterações feitas depois na origem."
+    },
+    {
+      "front": "O que significa CDC?",
+      "back": "Captura e entrega de mudanças feitas na origem, frequentemente detectadas nos registros de transação."
+    },
+    {
+      "front": "Carga inicial concluída significa bancos sincronizados?",
+      "back": "Não. Gravações concorrentes durante a cópia ainda precisam ser capturadas e aplicadas."
+    },
+    {
+      "front": "O que é atraso de replicação?",
+      "back": "Mudanças ainda pendentes ou defasagem entre o momento da origem e o estado aplicado no destino."
+    },
+    {
+      "front": "O que é drenagem no corte?",
+      "back": "Aplicar no destino as alterações finais que ainda estavam pendentes antes da troca de clientes."
+    },
+    {
+      "front": "Migração online garante zero indisponibilidade?",
+      "back": "Não. Busca reduzir a pausa, mas o corte e a reconexão podem causar interrupção breve."
+    },
+    {
+      "front": "Qual vantagem operacional típica tem o offline?",
+      "back": "Menos etapas e menor complexidade de sincronização, pois a origem fica sem novas gravações durante a cópia final."
+    },
+    {
+      "front": "Qual custo típico tem o offline?",
+      "back": "A aplicação fica indisponível por mais tempo, potencialmente durante toda a cópia e validação."
+    },
+    {
+      "front": "O que precisa ocorrer antes de liberar gravações no destino?",
+      "back": "Validar dados e aplicação, concluir o corte e assegurar que os clientes escrevem no destino correto."
+    },
+    {
+      "front": "Por que monitorar o lag durante uma migração online?",
+      "back": "Para saber se o destino acompanha a origem e se a diferença pode ser drenada na janela do corte."
+    },
+    {
+      "front": "Que risco existe ao voltar à origem depois de gravar no destino?",
+      "back": "As novas alterações do destino podem não existir na origem e serem perdidas ou sobrescritas."
+    },
+    {
+      "front": "Uma contagem igual de linhas prova equivalência?",
+      "back": "Não. Valores, relações e alterações individuais também podem divergir."
+    },
+    {
+      "front": "O que é uma janela de manutenção?",
+      "back": "Período acordado para a indisponibilidade planejada e atividades que dependem dela."
+    },
+    {
+      "front": "Por que ensaiar a migração com volume representativo?",
+      "back": "Para estimar duração, validar etapas e detectar limites de desempenho antes da janela real."
+    },
+    {
+      "front": "O que pode tornar inviável o corte online?",
+      "back": "A taxa de mudanças pode exceder a capacidade de captura e aplicação, fazendo o atraso crescer."
+    },
+    {
+      "front": "O que é o ponto consistente da carga inicial?",
+      "back": "Uma visão coerente dos dados que evita copiar partes de momentos incompatíveis."
+    },
+    {
+      "front": "O que significa quiescer a origem?",
+      "back": "Impedir mudanças durante a transferência que depende de uma origem estável."
+    },
+    {
+      "front": "O que deve conter um plano de retorno?",
+      "back": "Critérios para abortar, destino de novas gravações, responsáveis e passos testados para restaurar o serviço."
+    }
+  ],
+  "tips": [
+    "Associe offline a pausa antes da cópia e online a carga inicial mais sincronização de mudanças.",
+    "Calcule a indisponibilidade incluindo validação, corte e contingência, não só a transferência dos dados.",
+    "Trate a carga inicial e o CDC como etapas complementares; a carga não captura sozinha as gravações concorrentes.",
+    "No corte online, confirme que o atraso foi drenado e que a origem não continuará recebendo escritas divergentes.",
+    "Escolha verificações de dados que correspondam ao risco; contagem de linhas isolada é evidência fraca.",
+    "Defina antecipadamente como preservar alterações feitas no destino caso seja necessário voltar à origem."
+  ],
+  "traps": [
+    "Chamar migração online de migração sem nenhuma parada: a troca e reconexão podem interromper brevemente o serviço.",
+    "Supor que a carga inicial representa os dados atuais: alterações posteriores ainda podem estar pendentes.",
+    "Achar que cópia offline pode ocorrer com gravações liberadas sem mecanismo de sincronização: atualizações podem ficar de fora.",
+    "Confundir banco antigo preservado com retorno seguro: gravações feitas no destino podem não estar na origem.",
+    "Entender CDC como validação: capturar mudanças não comprova que o conjunto migrado está completo e correto.",
+    "Planejar a janela pelo tamanho do backup: restauração, testes e autorização do corte também consomem tempo."
+  ],
+  "activeRecall": [
+    "Explique por que o fluxo offline precisa controlar as gravações antes da cópia final.",
+    "Descreva carga inicial, CDC e o que falta entre o fim da carga e o corte.",
+    "Compare custo de indisponibilidade e complexidade operacional nas duas estratégias.",
+    "Que indicadores mostram que uma replicação está atrasada ou sobrecarregando a origem?",
+    "Proponha checagens que testem contagem, conteúdo, integridade e comportamento da aplicação.",
+    "Explique por que a drenagem ocorre depois de interromper ou controlar as gravações.",
+    "Que riscos de consistência surgem se origem e destino aceitarem escritas sem coordenação?",
+    "Como o plano de retorno muda se já houve gravações no destino?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Online não significa parada zero",
+      "summary": "A transferência acontece com a origem operando, mas a troca de conexões e a drenagem ainda podem exigir uma pausa curta."
+    },
+    {
+      "key": "e2",
+      "title": "Carga inicial não captura mudanças futuras",
+      "summary": "As gravações feitas enquanto os dados são copiados precisam de captura e aplicação separadas para sincronizar o destino."
+    },
+    {
+      "key": "e3",
+      "title": "Preservar a origem não basta para voltar",
+      "summary": "Após escritas no destino, voltar exige transportar ou reconciliar essas alterações para não perder dados."
+    },
+    {
+      "key": "e4",
+      "title": "Replicação não substitui validação",
+      "summary": "Mesmo com fluxo sem atraso aparente, verificações de completude, consistência e funcionamento continuam necessárias."
+    },
+    {
+      "key": "e5",
+      "title": "Janela inclui mais que cópia",
+      "summary": "Cópia, restauração, checagens, decisão, reconexão e contingência compõem a indisponibilidade planejada."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe interrompe as gravações, copia o banco e só depois redireciona a aplicação. Como se classifica essa estratégia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Online, pois o destino é preparado antes de apontar os clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Offline, pois a origem não recebe mudanças durante a cópia final.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "CDC, pois qualquer transferência única replica o log continuamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativa-ativa, pois origem e destino participam do mesmo corte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuída, pois os clientes passam a usar outro endereço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia é offline porque as gravações na origem são interrompidas antes da transferência que estabelece o estado final. Preparar o destino antecipadamente não transforma uma cópia única em migração online.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição caracteriza o fluxo online de migração de banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação fica parada até a carga inteira ser concluída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O banco de destino aceita todas as gravações desde o começo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A origem atende enquanto mudanças seguem para o destino.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os clientes consultam os dois bancos sem coordenação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cópia ocorre sem preparar o esquema de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "No fluxo online, a origem segue atendendo durante a transferência principal e as alterações posteriores são replicadas para o destino. O destino não deve receber gravações concorrentes sem uma estratégia explícita de coordenação.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma migração chamada online ainda pode causar uma breve interrupção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque clientes precisam trocar conexões e concluir o corte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque a carga inicial sempre bloqueia toda leitura da origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o CDC remove temporariamente as tabelas do destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a origem deixa de existir ao iniciar a replicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque toda migração online exige restaurar backup offline.",
+          "correct": false
+        }
+      ],
+      "explanation": "O corte exige parar ou controlar as escritas, drenar mudanças e reconectar clientes. A sincronização reduz o tempo dessa etapa, mas não elimina necessariamente a pausa.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma vantagem típica da migração offline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Menos etapas para acompanhar alterações concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Continuidade garantida sem qualquer parada de serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sincronização automática de gravações nos dois sentidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ausência de necessidade de conferir os dados copiados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desempenho idêntico em qualquer volume ou ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com a origem sem gravações, não é necessário capturar e aplicar alterações concorrentes durante a cópia. Isso simplifica o fluxo, mas cobra maior indisponibilidade e não dispensa validação.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização aceita uma janela de manutenção longa e prioriza simplicidade de execução. Qual estratégia tende a se adequar melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Migração online com captura contínua e corte controlado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Migração offline com origem estável durante a cópia.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Migração ativa-ativa com escrita simultânea irrestrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação sem data de término e sem troca de clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Migração parcial sem definir quais dados serão transferidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a janela comporta cópia e verificações, o fluxo offline costuma ser mais simples porque não precisa sincronizar alterações ocorridas durante a transferência. A equipe ainda precisa testar a duração real.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de escolher uma estratégia, qual comparação deve orientar a decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tempo estimado de indisponibilidade e tolerância do negócio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quantidade de telas da aplicação e tamanho do repositório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nome comercial do banco e linguagem do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número de desenvolvedores sem considerar o volume transferido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Preferência por uma ferramenta antes de avaliar os requisitos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estimativa de cópia, restauração, verificações e corte deve ser comparada com a indisponibilidade que o negócio aceita. Se a janela for insuficiente, deve-se planejar sincronização online ou rever o escopo e o cronograma.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo offline, em que momento a equipe deve impedir novas gravações na origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Antes da cópia que definirá o estado final transferido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente depois que a aplicação já grava no destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Após concluir a validação, para aceitar mudanças finais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Durante a replicação bidirecional entre os ambientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Depois de apagar a origem e desligar seus clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem deve estar estável para que as alterações feitas após a cópia não fiquem ausentes do destino. Por isso, processos em lote e integrações que escrevem também precisam ser considerados.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia online terminou, mas ainda há alterações pendentes na fila de replicação. O que isso indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A carga inicial concluiu, mas a sincronização ainda não.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O banco de destino está comprovadamente completo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A origem já pode ser removida sem outras verificações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O corte deve ocorrer antes que os eventos sejam aplicados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O processo virou offline ao terminar a cópia das tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A carga inicial transfere o conjunto existente; eventos pendentes representam mudanças posteriores que ainda não chegaram ao destino. O corte deve aguardar a drenagem e as checagens definidas.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual atividade pertence à validação antes de liberar o sistema no destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir dados e executar operações críticas da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar a origem antes de testar a nova conexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar alertas para evitar ruído durante o corte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aceitar qualquer atraso sem verificar sua tendência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar somente os nomes dos servidores envolvidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "É necessário verificar que os dados esperados chegaram e que a aplicação se conecta e executa operações importantes no destino. Testes e checagens devem anteceder a liberação ampla de tráfego.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na migração online, o que representa o lag de replicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tempo ou volume de mudanças ainda não aplicado no destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A duração desde a criação do esquema de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de conexões abertas pelos usuários finais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença entre nomes dos bancos de origem e destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tempo necessário para apagar o backup inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lag expressa a defasagem das mudanças entre origem e destino. Um atraso alto ou crescente pode impedir que a equipe drene as últimas alterações dentro da janela prevista.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara contagens de linhas e encontra o mesmo total nos dois bancos. Qual conclusão é válida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A contagem é uma evidência útil, mas não prova equivalência completa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os valores e relacionamentos estão necessariamente corretos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A aplicação já pode ser liberada sem outros testes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O mecanismo CDC aplicou todos os eventos na ordem correta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A origem não recebeu alterações durante a migração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contagens iguais podem ocultar valores diferentes, registros duplicados compensados por ausências ou problemas em relações. A validação deve usar indicadores adicionais proporcionais ao risco.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de iniciar as gravações no destino, a equipe decide voltar à origem. Qual é o risco principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As mudanças novas podem não existir na origem e se perder.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A origem sempre recebe automaticamente as escritas do destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A troca de conexão apaga os dados históricos da origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O atraso de replicação passa a ser irrelevante para o corte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O destino transfere suas mudanças ao backup sem configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a aplicação já gravou no destino, a origem pode estar desatualizada. Um retorno seguro precisa preservar, reconciliar ou replicar as novas mudanças antes de redirecionar os clientes.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um ensaio deve usar volume e padrão de gravações próximos dos reais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para estimar a duração e identificar limites antes do corte real.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para dispensar validação porque o ambiente de teste é igual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para assegurar que a ferramenta não precisará de permissões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para que a origem possa continuar recebendo escritas no offline.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para eliminar a necessidade de plano de retorno operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Volume, taxa de mudanças, capacidade e rede afetam duração e atraso. Um ensaio representativo evidencia limites e permite ajustar a janela e os recursos, sem substituir a validação da execução real.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: na migração offline, deixar gravações ativas na origem durante uma cópia única pode fazer o destino não refletir as mudanças ocorridas após a leitura dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem captura posterior de mudanças, atualizações ocorridas durante a cópia podem não chegar ao destino. O fluxo offline evita esse problema ao estabilizar a origem antes da transferência final.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o termo online garante que usuários nunca percebam qualquer pausa durante o corte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A migração online reduz a indisponibilidade ao transferir dados enquanto a origem opera, mas o corte pode exigir drenagem, troca de conexões e breve interrupção.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: na estratégia offline, a aplicação pode permanecer indisponível durante a cópia e a conferência do destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como a origem é estabilizada antes da cópia final, a indisponibilidade costuma abranger a transferência, as verificações e o corte até a aplicação voltar a operar.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: em uma migração online, a carga inicial basta para manter o destino atualizado mesmo que a origem continue recebendo gravações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A carga inicial copia o conjunto existente em um ponto; mudanças feitas depois precisam ser capturadas e aplicadas por replicação ou mecanismo equivalente.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma contagem de registros igual nos dois bancos é uma verificação útil, mas não prova sozinha que todos os valores foram migrados corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A contagem ajuda a detectar diferenças de volume, mas não revela necessariamente valores trocados, relações quebradas, duplicações compensadas ou dados incompletos.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um plano de retorno pode simplesmente apontar a aplicação à origem depois que o destino já recebeu novas gravações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As gravações posteriores ao corte podem existir só no destino. O plano precisa transferi-las ou reconciliá-las antes do retorno para evitar perda ou inconsistência.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: comparar o tempo estimado de migração com a janela de manutenção ajuda a decidir entre um fluxo offline e um online.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se cópia, verificações e corte cabem na indisponibilidade aceita, a alternativa offline pode ser adequada. Caso contrário, deve-se avaliar sincronização online, riscos e dependências.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: se a captura de alterações fica atrasada e o atraso cresce, o corte pode não caber na janela planejada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A equipe precisa avaliar se o destino consegue acompanhar a taxa de mudanças. Um atraso crescente aumenta o volume a drenar e pode inviabilizar a troca no período reservado.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: encerrar conexões antigas com cuidado durante o corte ajuda a evitar cancelamento desnecessário de transações em andamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma transição coordenada considera conexões e transações existentes, evitando interrompê-las abruptamente quando for possível encerrá-las de forma controlada.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma migração online costuma ter mais etapas de coordenação do que uma cópia offline simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Além da carga, o fluxo online precisa capturar mudanças, acompanhar atraso, sincronizar, validar e coordenar o corte, o que eleva a complexidade operacional.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: definir quais dados entram no escopo e verificar a completude desse conjunto são partes do planejamento da migração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A validação só pode confirmar completude em relação ao conjunto que se decidiu transferir. Escopo claro evita confundir uma migração parcial intencional com dados omitidos por falha.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: manter a origem disponível após o corte cria, por si só, uma cópia atualizada de todas as gravações feitas no destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Disponibilidade da origem não implica sincronização reversa. Para voltar sem perder alterações, é preciso planejar e testar como as escritas do destino serão levadas de volta.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa melhor uma migração offline controlada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bloquear escritas, copiar, conferir e então trocar os clientes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar com escritas abertas, cortar e ignorar as mudanças finais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cortar primeiro, restaurar depois e validar quando houver tráfego.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a origem, iniciar CDC e estimar o volume posteriormente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Liberar gravação nos dois bancos e comparar só ao encerrar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na estratégia offline, primeiro se estabiliza a origem, depois se transfere e valida o destino e, após os critérios de aceite, faz-se o corte. Gravações abertas durante uma cópia sem captura podem deixar o destino defasado.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após a carga inicial online, por que a equipe mantém a captura de alterações ativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para aplicar ao destino as mudanças posteriores feitas na origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para substituir a validação por uma cópia de segurança nova.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para permitir que os dois bancos aceitem gravações sem regras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para reescrever automaticamente o esquema de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para interromper consultas dos clientes à origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como a origem continua recebendo gravações, eventos posteriores ao ponto da carga precisam ser enviados e aplicados no destino. A captura mantém os ambientes convergindo antes do corte.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma migração online, a taxa de gravações de origem supera a capacidade de aplicação no destino. Qual resposta é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Investigar capacidade e taxa de captura antes de autorizar o corte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cortar imediatamente, pois o atraso será corrigido pelos clientes após a troca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Parar a validação e considerar a carga inicial como atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar os eventos pendentes para reduzir o lag observado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Abrir gravações simultâneas no destino sem reconciliação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o mecanismo não acompanha a origem, a defasagem cresce e mais alterações precisarão ser drenadas. É preciso investigar recursos, throughput, configuração e viabilidade da janela antes de seguir.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual plano reduz o risco de perder mudanças se houver retorno após o corte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Planejar e testar como levar escritas do destino à origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter a origem ligada, sem acompanhar quais dados mudaram.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar logs antes de trocar os clientes de ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Redirecionar a aplicação e assumir que o dado será idêntico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a cópia inicial como substituta das novas transações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Depois de o destino receber gravações, uma volta segura requer transferir ou reconciliar essas alterações na origem. O fluxo reverso precisa ser projetado e testado, pois não decorre automaticamente da migração inicial.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração tem janela curta, mas o destino não foi testado com consultas reais. Qual decisão atende melhor ao controle de risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar previamente as operações críticas e definir aceite do corte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Omitir o ensaio, pois uma janela curta impede testes prévios fora de produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cortar e usar a produção como primeiro teste de compatibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar somente o endereço de rede do banco de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deixar o critério de sucesso para definir após o corte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes antecipados reduzem a duração do trabalho durante a janela e revelam incompatibilidades antes da mudança real. Um critério de aceite claro permite decidir com evidências se o corte deve continuar.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que interromper ou controlar as escritas antes de drenar alterações finais no corte online?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para estabelecer um limite final e evitar novas mudanças concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para forçar o destino a recriar a carga inicial automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para impedir que clientes leiam dados durante a validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para remover a necessidade de monitorar o atraso acumulado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para permitir que os bancos sejam editados sem sincronização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controlar as escritas define um ponto final para a origem e evita que novas transações continuem sendo produzidas enquanto a equipe verifica a drenagem e troca os clientes.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de checagens oferece evidência mais forte antes de liberar o destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contagens, reconciliações selecionadas e testes funcionais críticos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Nomes dos esquemas e confirmação de que o servidor responde às conexões externas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma amostra visual e a remoção da origem antiga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tamanho do backup e número de conexões abertas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conclusão da carga sem checagens de integridade adicionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contagens identificam divergências de volume, reconciliações ajudam a conferir conteúdo e testes funcionais mostram se a aplicação opera no destino. Nenhuma evidência isolada cobre todas as dimensões.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a consequência de incluir tarefas em lote e integrações no plano de suspensão de gravações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evita que escritores fora da aplicação alterem a origem durante a cópia.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garante que o destino replique alterações sem mecanismo configurado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui testes de compatibilidade do esquema migrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduz o volume armazenado sem alterar a origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permite manter duas fontes de gravação sem reconciliação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Processos agendados e integrações também podem alterar os dados. Se forem esquecidos, a origem não estará realmente quiescida e mudanças poderão não ser refletidas na cópia offline.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe considera fazer a migração online, mas não confirmou permissões nem conectividade para ler os logs da origem. Qual providência deve anteceder a execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar os pré-requisitos do mecanismo e ensaiar a captura.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que a carga inicial também lê logs futuros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Começar a cópia e solicitar acesso aos logs somente depois do corte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter escritas no destino para compensar a falta de logs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar o CDC, pois a origem permanece ativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo online depende de capturar as mudanças feitas enquanto a origem opera. A equipe precisa confirmar permissões, retenção dos logs, conectividade e requisitos do mecanismo antes de iniciar a transferência.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual momento o destino deve ser considerado pronto para o corte online?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Após carga, drenagem, verificações e critérios de sincronização atendidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assim que a primeira tabela terminar de copiar seus registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando a aplicação conseguir abrir conexão, antes da checagem dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando o atraso parar de ser monitorado pela equipe responsável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando o backup inicial for removido do ambiente de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O corte depende de o conjunto inicial estar completo, as alterações posteriores terem sido aplicadas, a drenagem alcançar o limite estabelecido e as verificações satisfazerem os critérios acordados. Conexão disponível, isoladamente, não demonstra prontidão.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração online apresenta erro durante a carga inicial, antes de qualquer cliente usar o destino. Qual abordagem de recuperação é coerente com o plano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a origem como fonte de verdade, corrigir e reiniciar ou retomar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Direcionar gravações ao destino incompleto para reduzir o atraso da origem ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o histórico da origem e encerrar o processo de captura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cortar os clientes imediatamente para validar o erro em produção com dados reais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descartar as mudanças da origem e usar apenas as tabelas copiadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Antes do corte, a origem ainda atende e pode permanecer como fonte de verdade. A equipe pode interromper a tentativa, corrigir a causa e reiniciar ou retomar de forma consistente conforme o mecanismo e o procedimento testado.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mede a cópia em 40 minutos, mas não inclui restauração, validação e troca de conexões na estimativa da janela. Qual falha de planejamento ocorreu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A estimativa excluiu etapas que também podem prolongar a indisponibilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A estratégia tornou-se online por usar várias etapas de transferência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A validação deve acontecer depois que a origem for eliminada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A troca de conexões não faz parte do corte de clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A restauração não influencia o período de parada planejada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A janela precisa contemplar as atividades que impedem o uso normal: transferência, restauração, checagens, decisão e corte, além de margem para contingências. Medir só a cópia subestima a indisponibilidade.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O destino tem a mesma contagem de registros, mas consultas de negócio retornam totais financeiros diferentes. Como interpretar a evidência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A validação falhou em conteúdo relevante, apesar da contagem coincidir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A equivalência está comprovada porque os totais de linhas coincidem em cada tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O corte deve avançar e a diferença será corrigida pelo CDC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O total financeiro é irrelevante quando o banco foi restaurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As conexões de origem precisam ser reabertas sem reconciliar dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O total de negócio divergente evidencia que o conteúdo não está equivalente conforme uma regra importante, mesmo com a mesma quantidade de linhas. A equipe deve investigar antes de liberar o destino.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante o ensaio, a migração online mantém atraso baixo apenas porque o volume de gravações é muito menor que o de produção. Que conclusão é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir o ensaio com carga representativa e avaliar capacidade e janela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Considerar o atraso irrelevante porque a carga inicial terminou em ambiente de teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar gravações no destino antes da replicação de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar a captura para impedir que o atraso aumente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autorizar o corte sem estimar drenagem sob carga real.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa de mudanças influencia o ritmo de acúmulo e aplicação dos eventos. Um ensaio subdimensionado não demonstra que o mecanismo acompanhará produção; é preciso usar carga representativa ou extrapolação fundamentada e validar a capacidade.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de esquema é feita na origem durante a sincronização e o processo de captura não foi projetado para tratá-la. Qual risco deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mudança pode interromper ou tornar incorreta a aplicação de eventos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A mudança será traduzida automaticamente em qualquer destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O corte fica seguro porque mudanças estruturais não afetam dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A carga inicial reinicia sem impacto e incorpora toda alteração futura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A validação deixa de ser necessária após modificar o esquema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudanças de esquema durante a migração podem afetar a interpretação e aplicação de eventos, sobretudo se o mecanismo ou o destino não estiverem preparados. O plano deve controlar essas mudanças e testar seus efeitos.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação foi redirecionada para o destino, mas alguns clientes ainda mantêm conexões persistentes à origem. Qual problema operacional pode surgir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escritas podem continuar na origem e criar estados divergentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O destino bloqueia automaticamente as sessões antigas da origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A replicação reverte qualquer alteração que chegue à origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A origem passa a ser somente leitura sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A simples troca de endereço encerra todas as transações existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conexões persistentes podem seguir usando a origem após o corte planejado. A equipe deve confirmar o encerramento ou bloqueio controlado dessas sessões e monitorar para impedir escritores residuais.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que aceitar escritas simultâneas na origem e no destino sem desenho específico é perigoso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As alterações podem colidir e produzir estados sem uma ordem coerente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os bancos passam a compartilhar automaticamente a mesma transação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A carga inicial identifica sozinha qual gravação deve prevalecer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A comparação de contagens corrige conflitos de conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A origem sempre recebe as mudanças do destino em tempo real.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem coordenação, uma mesma entidade pode sofrer mudanças incompatíveis nos dois lados e gerar conflito, duplicidade ou perda. Escrita bidirecional requer semântica, resolução de conflitos e testes próprios.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O volume inicial é grande, mas o negócio tolera parada breve. Qual desenho pode reduzir a transferência dentro da janela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar previamente e sincronizar mudanças, cortando após convergência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Esperar a janela e então copiar tudo sem estimar duração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deixar a origem gravável e cortar após a carga sem captura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas uma contagem e omitir o acompanhamento de atraso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Direcionar metade dos clientes a cada banco sem estratégia de escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia online antecipa a cópia do volume e acompanha alterações enquanto a origem permanece ativa. A janela concentra-se em sincronização final, validação e troca, embora exija mais preparação e controle.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe descobriu que a retenção de logs da origem é menor que o tempo previsto para a carga online. Qual é a preocupação central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eventos necessários podem desaparecer antes de serem capturados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O destino terá automaticamente uma cópia integral do log antigo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A retenção curta reduz a necessidade de acompanhar o lag.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A carga inicial recompõe transações que já não estão disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O corte pode ocorrer antes de concluir a carga inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se os registros necessários forem descartados antes de a captura processá-los, mudanças ocorridas durante a carga podem não ser recuperáveis pelo fluxo incremental. Retenção e duração devem ser dimensionadas e testadas.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual critério deve fazer a equipe abortar ou adiar um corte planejado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dados não reconciliados ou requisito de sincronização ainda não atendido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Destino testado e métricas dentro dos limites estabelecidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Responsáveis identificados e sequência de operação aprovada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conexões novas verificadas em teste antes da janela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Plano de comunicação preparado para usuários afetados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a consistência ou sincronização não atende ao critério de aceite, trocar os clientes pode expor dados incorretos ou incompletos. O plano deve prever adiamento e manter a origem como fonte segura até resolver o problema.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação compara corretamente a carga de trabalho dos dois fluxos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Online reduz a parada, mas adiciona sincronização e monitoração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Offline reduz a parada porque não existe etapa de validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Online elimina os requisitos de rede entre origem e destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Offline sempre exige replicação contínua após a cópia inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os dois fluxos têm o mesmo número de etapas operacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo online costuma diminuir a indisponibilidade ao transferir dados antes do corte, mas exige carga inicial, captura, aplicação das mudanças, acompanhamento e coordenação. Offline tende a ser mais simples, com parada maior.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação crítica depende de uma integração que grava diretamente no banco, sem passar pela aplicação principal. Como incluí-la no plano offline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificar e suspender ou coordenar também esse escritor na janela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorá-la, pois somente a interface da aplicação altera dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deixá-la ativa e confiar que a exportação verá as novas linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apontá-la ao destino antes de copiar o restante dos dados do banco de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar contagem total para recuperar mudanças omitidas automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Todo escritor precisa ser identificado. Uma integração direta ainda pode modificar a origem durante a cópia e deixar diferenças não capturadas; a equipe deve suspendê-la ou incluí-la numa coordenação explícita.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco destino responde normalmente, mas a aplicação apresenta falhas em consultas essenciais após a troca. O que isso demonstra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disponibilidade de conexão não substitui testes funcionais no destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A migração está validada porque o servidor aceita conexões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As falhas devem ser ignoradas se a carga inicial terminou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A origem deve ser apagada para corrigir consultas incompatíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A captura incremental também testa a lógica das consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conectividade comprova apenas que uma sessão pode ser aberta. Consultas críticas, permissões, compatibilidade e desempenho precisam ser testados com a aplicação antes de considerar o corte bem-sucedido.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: no fluxo online, a carga inicial e a replicação contínua resolvem problemas diferentes e são normalmente complementares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A carga inicial transfere o conjunto existente; a replicação leva mudanças feitas depois na origem. Ambas são necessárias para convergir quando há gravações durante a cópia.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a equipe deve considerar o impacto da migração online sobre CPU, armazenamento e desempenho da origem quando a operação se prolonga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A leitura da carga, a captura de eventos e a transferência podem consumir recursos. Monitorar a origem ajuda a detectar efeitos sobre o serviço que continua ativo.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma janela offline deve reservar tempo para testes e decisão de corte, além da transferência de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A transferência não é a única atividade que mantém a aplicação parada. Conferência, testes, aprovação, troca de conexões e contingência também podem estender a janela.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: se o atraso de replicação está baixo, a equipe pode dispensar as verificações de conteúdo e funcionamento definidas no plano.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Lag baixo indica que as mudanças parecem próximas de sincronizar, mas não prova completude, conteúdo correto, integridade nem funcionamento da aplicação no destino.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o plano de retorno deve tratar explicitamente as gravações realizadas no destino após o corte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A origem pode ficar desatualizada após o corte. O plano deve especificar como capturar, replicar ou reconciliar as novas alterações antes de qualquer retorno.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: em uma migração online, manter clientes de teste somente em leitura no destino durante a cópia pode permitir validar o destino antes da troca ampla.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Clientes de teste somente leitura podem exercitar o destino sem criar alterações concorrentes, antecipando verificações funcionais antes do corte geral.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: se a origem e o destino usam a mesma tecnologia de banco, a validação da migração pode ser ignorada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mesmo em migração homogênea podem ocorrer omissões, falhas de transferência, configuração diferente ou problemas de aplicação. Semelhança tecnológica não prova equivalência dos dados.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: se o negócio não consegue estabelecer uma janela longa aceitável, a equipe deve avaliar um fluxo que sincronize alterações antes do corte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando a indisponibilidade da cópia offline é excessiva ou incerta, a migração online pode reduzir o período de parada por antecipar carga e sincronização. Ela exige avaliação de complexidade e pré-requisitos.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: registrar critérios de abortar e responsáveis pela decisão ajuda a controlar o corte quando uma verificação falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Critérios e autoridade definidos antes da janela evitam decisões improvisadas diante de dados divergentes, atraso excessivo ou falha funcional.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: executar migração para o destino e depois voltar à origem sem transferir alterações reversas pode causar perda de dados após escritas no destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma migração inicial normalmente leva dados em uma direção. Se usuários modificam o destino, a origem não recebe essas alterações sem processo reverso ou reconciliação planejada.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma migração online fica necessariamente mais barata e menos complexa porque reduz a duração da parada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Reduzir indisponibilidade costuma exigir mais recursos, configuração, captura de mudanças e monitoração. Menor parada não implica menor custo nem menor complexidade operacional.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: no corte online, drenar as últimas mudanças antes de direcionar os clientes ajuda a manter a ordem e a consistência do conjunto migrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A drenagem leva ao destino as mudanças finais produzidas na origem antes da troca. Sem essa etapa, clientes podem observar estado desatualizado ou uma sequência incompleta de operações.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: capturar mudanças da origem e aplicá-las no destino comprova que todos os dados selecionados foram transferidos uma única vez e sem divergências.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O mecanismo de captura é parte da transferência, mas falhas, filtros, transformação e problemas de aplicação podem produzir lacunas ou divergências. Verificações independentes continuam necessárias.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um plano de migração deve deixar claro qual ambiente é a fonte de verdade antes e depois do corte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Identificar a fonte de verdade orienta a direção da captura, o controle de gravações e a recuperação. Ambiguidade sobre onde gravar favorece divergências entre os bancos.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: é adequado remover a origem imediatamente após o corte, mesmo antes de avaliar estabilidade e atender às condições de retorno definidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O tratamento da origem após o corte deve seguir a política de retenção e retorno. Removê-la antes de confirmar estabilidade pode eliminar uma opção de recuperação, embora sua simples manutenção também não garanta retorno sem perda.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao preparar uma migração offline, qual estimativa representa melhor a parada esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cópia, restauração, testes, decisão e troca de conexões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o tempo de exportar os dados da origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A duração média do login dos usuários no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O período de retenção do backup depois do corte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A latência entre clientes sem considerar a restauração.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aplicação permanece indisponível durante as etapas necessárias até o serviço operar no destino. A estimativa deve incluir cópia, restauração, validação, decisão e corte, além de contingência apropriada.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual requisito operacional pode ser necessário para uma ferramenta capturar alterações por logs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso e retenção suficientes para ler os registros de mudanças.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permissão para usuários editarem os dados no destino desde o início.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativação permanente de toda gravação na origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exclusão dos logs assim que a carga inicial iniciar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conexão de clientes somente ao servidor de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "A captura baseada em logs depende de permissões, conectividade e disponibilidade dos registros pelo período necessário. Requisitos concretos variam conforme banco e ferramenta e precisam ser confirmados no ensaio.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe falhas de autenticação no destino, embora as tabelas pareçam completas. Que verificação faltou priorizar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar credenciais e permissões usadas pela aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repetir a contagem de linhas sem testar o cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a retenção dos logs da origem após o corte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar as sessões antigas antes de configurar acessos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o plano de retorno para reduzir decisões.",
+          "correct": false
+        }
+      ],
+      "explanation": "A migração de dados não garante que contas, permissões e configurações de autenticação estejam prontas. Testes funcionais com os mesmos perfis da aplicação devem fazer parte da aceitação do destino.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sincronização está quase completa, mas os responsáveis ainda não aprovaram os critérios de aceite. Qual conduta é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aguardar decisão formal baseada nas verificações acordadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cortar agora, pois um atraso pequeno prova consistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Liberar gravações nos dois bancos até chegar uma resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover a origem e deixar a aplicação decidir o destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar aprovação porque o transporte de dados terminou.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prontidão envolve mais que atraso baixo: verificações de conteúdo e aplicação e a autorização prevista também precisam estar atendidas. Sem aceite, a equipe não deve improvisar uma troca que pode afetar o serviço.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição favorece o uso de uma migração offline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há janela suficiente e simplicidade tem prioridade operacional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A aplicação precisa atender sem qualquer pausa percebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A origem deve receber escritas durante toda a transferência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A equipe não consegue suspender escritores concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O destino exige sincronização bidirecional permanente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a organização aceita uma janela planejada suficiente e prefere um processo com menos componentes de sincronização, a abordagem offline pode ser adequada. O tempo precisa ser validado por ensaio e incluir todas as etapas críticas.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um atraso baixo na replicação indica proximidade entre origem e destino, mas não substitui outras checagens de consistência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O lag mede defasagem de alterações, não verifica sozinho valores, filtros, integridade ou funcionamento da aplicação. A equipe deve combinar essa métrica com outras evidências.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o plano offline deve considerar escritores indiretos, como cargas agendadas e integrações que acessam o banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Suspender apenas a interface principal pode deixar tarefas e integrações gravando na origem. Todos os escritores devem ser identificados e controlados para manter a cópia coerente.",
+      "section": "2. Fluxo offline: congelar, copiar e trocar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: depois do corte, a origem continua sendo a fonte de verdade mesmo que os clientes gravem somente no destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se os clientes passaram a gravar apenas no destino, ele contém as mudanças atuais. A origem pode ficar desatualizada, e qualquer retorno precisa considerar as escritas feitas desde o corte.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: testar a aplicação no destino antes da janela não ajuda a reduzir diagnóstico durante o corte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Testes prévios de conectividade, permissões e operações críticas revelam problemas antes da indisponibilidade planejada, reduzindo incertezas no momento do corte.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa escolher como copiar um banco grande cuja janela de parada é curta. Que comparação deve fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Esforço de sincronização versus parada que o negócio aceita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tamanho do esquema versus quantidade de telas do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Número de usuários versus nome do servidor de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Custo do backup sem considerar o tempo de restauração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Preferência do fornecedor sem testar volume e desempenho.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escolha equilibra a indisponibilidade tolerável com a complexidade, os recursos e os riscos de sincronização online. O volume e o ensaio ajudam a estimar se uma estratégia offline cabe na janela.",
+      "section": "1. O que muda entre migração offline e online",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No corte, a origem ainda mostra eventos pendentes de aplicação no destino. Qual é a prioridade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Drenar os eventos e reavaliar os critérios de sincronização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar as conexões e deixar a fila para depois, com a origem ainda ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir escrita nos dois bancos para reduzir a fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a fila e repetir apenas a verificação de conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a origem, pois os eventos já foram registrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os eventos representam alterações ainda não aplicadas. A equipe deve permitir a drenagem, confirmar que o destino alcançou o estado requerido e só então prosseguir com a troca dos clientes.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma mudança de dados ocorrida durante a carga inicial pode exigir um ponto consistente de leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para evitar misturar registros lidos em estados incompatíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para impedir que a aplicação consulte a origem durante a migração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para substituir a captura de alterações após a carga inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para assegurar que o destino receba gravações dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para evitar que a equipe compare origem e destino no corte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma visão consistente evita que partes relacionadas sejam lidas em momentos diferentes e formem um conjunto incoerente. As mudanças posteriores ainda precisam ser capturadas para alcançar o estado atual.",
+      "section": "3. Fluxo online: carga inicial e alterações contínuas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após o corte, qual decisão deve ser tomada antes de desativar definitivamente o banco de origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar estabilidade e atender à política de retenção e retorno.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter todas as credenciais antigas em uso sem monitoramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Supor que conexões antigas nunca alcançarão a origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar a origem antes de conferir gravações recentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar os critérios de retorno após a troca.",
+          "correct": false
+        }
+      ],
+      "explanation": "A remoção da origem deve respeitar a retenção, a estabilidade observada e o plano de retorno. Mesmo preservada, a origem não contém necessariamente as escritas feitas no destino após o corte.",
+      "section": "4. Corte, validação e retorno seguro",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Migration approach — Replatform options for Oracle Database on AWS",
+      "publisher": "Amazon Web Services",
+      "reference": "Diferenças entre fluxos offline e online; origem em operação, propagação de mudanças, validação, corte e trade-offs de esforço e custo.",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/replatform-oracle-database-options/method.html",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Migration Service in Azure Database for PostgreSQL flexible server",
+      "publisher": "Microsoft Learn",
+      "reference": "Definição dos fluxos offline e online, carga inicial, replicação, corte, vantagens, limitações e impacto de recursos.",
+      "url": "https://learn.microsoft.com/en-us/azure/postgresql/migrate/migration-service/overview-migration-service-postgresql",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Database migration: Concepts and principles (Part 1)",
+      "publisher": "Google Cloud Architecture Center",
+      "reference": "Tolerância a indisponibilidade, corte de clientes, drenagem, consistência, exportação/importação e backup/restauração.",
+      "url": "https://cloud.google.com/architecture/database-migration-concepts-principles-part-1",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Database migration: Concepts and principles (Part 2)",
+      "publisher": "Google Cloud Architecture Center",
+      "reference": "Fases da migração online, carga inicial, alterações contínuas, validação, falhas e processos de retorno.",
+      "url": "https://cloud.google.com/architecture/database-migration-concepts-principles-part-2",
+      "accessedAt": "2026-11-14"
+    }
+  ]
+}

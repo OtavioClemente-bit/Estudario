@@ -1,0 +1,1929 @@
+{
+  "id": "informatica.automacao-powershell-bash-puppet",
+  "subject": "Informática",
+  "title": "Scripts e automação com PowerShell, Bash e Puppet",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Scripts e automação com PowerShell, Bash e Puppet",
+    "Automação de tarefas com PowerShell",
+    "Programação de scripts PowerShell",
+    "Shell scripting com Bash no Linux",
+    "Automação de rotinas administrativas em Bash",
+    "Gerenciamento de configuração com Puppet",
+    "Manifestos Puppet e recursos declarativos",
+    "Bash para tarefas repetitivas de sistemas"
+  ],
+  "scope": {
+    "covers": "Fundamentos de scripts e automação; PowerShell: arquivos .ps1, variáveis, parâmetros, funções, pipeline de objetos, cmdlets, tratamento de erros e política de execução; Bash: shebang, variáveis, parâmetros posicionais, expansão, citação, condicionais, laços, códigos de saída, pipelines e redirecionamento; Puppet: linguagem declarativa, recursos, atributos, manifestos, módulos, classes, facts, catálogo, agente e servidor, relações, idempotência e aplicação de configuração; comparação de usos, segurança e práticas de manutenção.",
+    "excludes": "Administração aprofundada de sistemas operacionais, desenvolvimento de módulos complexos, sintaxe integral de cada linguagem, configuração detalhada de infraestrutura em nuvem e ferramentas de orquestração não citadas no escopo."
+  },
+  "theoryTitle": "Automatizar tarefas e manter configurações previsíveis",
+  "chapters": [
+    {
+      "title": "1. Scripts, automação e escolha da ferramenta",
+      "markdown": "### O problema que este assunto resolve\n\nRepetir manualmente a mesma sequência de comandos gera diferenças, esquecimentos e trabalho desnecessário. Um **script** guarda comandos e decisões numa sequência executável; a automação usa essa sequência para fazer tarefas repetíveis de forma previsível, como coletar informações, processar arquivos, instalar componentes ou verificar configurações.\n\n> **Siglas e termos deste capítulo**\n> - **Script**: arquivo de texto com instruções executadas por um interpretador.\n> - **Shell**: interface que interpreta comandos e pode oferecer uma linguagem de script.\n> - **Configuração desejada**: estado que se quer manter num sistema.\n> - **Idempotência**: repetir uma operação produz o mesmo estado final, sem duplicar efeitos indevidos.\n> - **Pipeline**: encadeamento em que a saída de uma etapa alimenta outra.\n\n| Ferramenta | Foco típico | Modelo de trabalho |\n| --- | --- | --- |\n| **PowerShell** | Administração em Windows e também em outros sistemas | Comandos e objetos .NET passam pelo pipeline |\n| **Bash** | Automação em sistemas Unix e Linux | Comandos de processos trocam texto por entrada, saída e erro |\n| **Puppet** | Configuração consistente de nós | Declara recursos e estado desejado; compila catálogo |\n\nUm script imperativo descreve passos: “verifique, depois crie, depois altere”. Um manifesto Puppet descreve recursos e propriedades que devem estar presentes; o Puppet determina ações para aproximar o nó desse estado. Os modelos podem coexistir: scripts fazem tarefas procedurais e uma ferramenta declarativa mantém configurações.\n\n### Planejar antes de executar\n\nUma rotina confiável recebe entradas claras, valida parâmetros, limita os alvos, registra resultados úteis e informa sucesso ou falha por código de saída ou exceção. O princípio do menor privilégio importa: executar como administrador/root aumenta o impacto de erro e de entrada maliciosa. Teste primeiro em arquivo, máquina ou ambiente descartável quando a ação puder apagar dados, reiniciar serviços ou mudar permissões.\n\nEvite senhas e tokens escritos no corpo do script ou exibidos em logs. Separe configuração de código, proteja credenciais por mecanismo apropriado ao ambiente e revise caminhos e nomes construídos a partir de dados externos. Um script repetível deve tratar corretamente condições como arquivo já existente ou pacote já instalado.\n\n### Como cai na prova\n\n- PowerShell costuma transportar objetos estruturados; Bash normalmente conecta processos por fluxos de texto.\n- Puppet descreve recursos e compila um catálogo para um nó específico.\n- Automação confiável valida entradas, sinaliza falha e controla privilégios; executar sem supervisão não torna uma rotina segura por si só."
+    },
+    {
+      "title": "2. PowerShell: cmdlets, objetos e scripts",
+      "markdown": "### O problema que este assunto resolve\n\nPowerShell combina shell e linguagem de script. Um cmdlet normalmente segue o padrão **Verbo-Substantivo**, como `Get-Process` ou `Set-Location`. `Get-Command` ajuda a localizar comandos; `Get-Help` consulta ajuda; `Get-Member` revela propriedades e métodos dos objetos recebidos.\n\n> **Siglas e termos deste capítulo**\n> - **Cmdlet**: comando nativo do PowerShell, em geral com nome Verbo-Substantivo.\n> - **Pipeline**: operador `|` que envia objetos de um comando ao próximo.\n> - **Script block**: conjunto de instruções entre chaves, executável como unidade.\n> - **PowerShell provider**: interface que expõe dados como unidades navegáveis, por exemplo sistema de arquivos ou registro no Windows.\n\nNo pipeline do PowerShell, `Get-Process | Where-Object { $_.CPU -gt 10 }` filtra objetos de processo. `$_` representa o objeto atual no bloco. `Select-Object` escolhe propriedades ou cria projeções; `Sort-Object` ordena objetos. `ForEach-Object` executa um bloco para cada objeto recebido. Como são objetos, as propriedades permanecem identificadas, em vez de depender apenas de dividir texto em colunas.\n\nVariáveis começam com `$`, como `$nome`. Arrays podem reunir valores; tabelas hash armazenam pares chave-valor. Parâmetros de script podem ser declarados no bloco `param(...)`, permitindo entradas nomeadas e validação. Funções encapsulam comportamento reutilizável. Um arquivo de script PowerShell costuma usar extensão `.ps1`; comentários começam com `#`, e a ajuda baseada em comentários pode documentar parâmetros e uso.\n\n### Erros e execução\n\nPowerShell distingue erros terminantes e não terminantes. `try`, `catch` e `finally` tratam erros terminantes; `-ErrorAction Stop` pode fazer um erro não terminante ser tratado como terminante no contexto adequado. `$Error` mantém informação de erros recentes; `$LASTEXITCODE` registra o código de saída de um programa nativo externo, enquanto `$?` indica se a operação anterior teve êxito.\n\nA política de execução controla condições de carregamento de scripts no Windows; ela não é uma fronteira de segurança e não impede alguém determinado a executar conteúdo por outros meios. As políticas têm escopos e precedência, e políticas impostas por Group Policy podem prevalecer. Não se deve recomendar reduzir indiscriminadamente as proteções: verifique a política e siga a governança do ambiente.\n\n### Como cai na prova\n\n- `Get-Member` inspeciona membros dos objetos, não altera a configuração do sistema.\n- `$_` representa o item corrente em blocos usados por cmdlets como `Where-Object`.\n- `try/catch` não captura automaticamente qualquer mensagem não terminante; conheça a preferência de erro e promova quando necessário.\n- Política de execução é uma proteção operacional, não uma barreira de segurança inviolável."
+    },
+    {
+      "title": "3. Bash: comandos, expansão e controle de fluxo",
+      "markdown": "### O problema que este assunto resolve\n\nBash é um interpretador de comandos e também oferece variáveis, funções, condicionais, laços e outros recursos de linguagem. Um script pode começar com `#!/usr/bin/env bash`, que indica como localizar Bash ao ser executado pelo sistema; o arquivo também precisa de permissão de execução quando invocado diretamente. Pode-se chamá-lo explicitamente com `bash arquivo.sh`.\n\n> **Siglas e termos deste capítulo**\n> - **Shebang**: primeira linha `#!...`, usada pelo sistema para escolher o interpretador ao executar o arquivo.\n> - **STDIN/STDOUT/STDERR**: entrada padrão, saída padrão e saída de erro padrão.\n> - **Status de saída**: número retornado pelo comando; zero indica sucesso por convenção, valor diferente de zero indica condição de falha ou resultado especial.\n> - **Expansão**: substituição de variáveis, comandos, padrões e outras construções antes da execução.\n\n`$1`, `$2` e demais parâmetros posicionais recebem argumentos; `$#` informa sua quantidade; `\"$@\"` preserva cada argumento como unidade separada quando citado. `$?` contém o status do comando anterior. `if`, `case`, `for`, `while` e funções compõem o fluxo de controle. Em testes, `[[ ... ]]` é uma construção própria do Bash; `[ ... ]` é comando de teste com regras de argumentos.\n\n### Citação evita divisão e expansão indesejadas\n\nAspas simples preservam literalmente os caracteres entre elas; não permitem uma aspa simples dentro do mesmo par. Aspas duplas preservam a maioria dos caracteres especiais, mas ainda permitem expansão de `$` e substituição de comando com crase. Uma expansão sem aspas pode sofrer divisão em palavras e expansão de nomes de arquivo. Por isso, para um caminho possivelmente contendo espaços, prefira `\"$arquivo\"`, e para percorrer argumentos prefira `for item in \"$@\"`.\n\nA substituição `$(comando)` captura a saída padrão do comando, removendo quebras de linha finais. Redirecionamentos direcionam fluxos: `>` sobrescreve arquivo, `>>` acrescenta, `<` fornece entrada, `2>` redireciona erros; `2>&1` combina erro com o destino atual da saída padrão. Um pipeline `a | b` liga a saída padrão de `a` à entrada padrão de `b`. Por padrão o status de pipeline é o do último comando; `set -o pipefail` faz o pipeline refletir falha de um comando que não seja o último.\n\n### Falhas e repetição\n\n`set -e` pode encerrar o script em alguns erros, mas tem exceções contextuais e não substitui a compreensão dos status. Verifique retornos quando importarem. Um `trap` associa uma ação a sinais ou eventos de shell, útil, por exemplo, para remover arquivos temporários ao sair. Use `mktemp` para temporários exclusivos e trate os caminhos com cuidado. Não construa comandos com `eval` a partir de texto externo: ele interpreta novamente o conteúdo como código.\n\n### Como cai na prova\n\n- Em Bash, saída de comando é texto em fluxos; não é objeto estruturado como no pipeline do PowerShell.\n- `\"$@\"` preserva os argumentos individualmente; `$*` citado os reúne numa única palavra.\n- `>` sobrescreve, `>>` acrescenta, e `2>` trata a saída de erro.\n- `pipefail` ajuda a detectar falha em etapas anteriores do pipeline."
+    },
+    {
+      "title": "4. Puppet: recursos, catálogos e estado desejado",
+      "markdown": "### O problema que este assunto resolve\n\nEm muitos servidores é necessário manter usuários, pacotes, arquivos e serviços em uma configuração uniforme. Puppet usa linguagem declarativa: um manifesto declara recursos e seus atributos, por exemplo um pacote instalado, um arquivo com conteúdo definido ou um serviço em execução. O agente recebe um catálogo compilado para seu nó e aplica as mudanças necessárias.\n\n> **Siglas e termos deste capítulo**\n> - **Recurso**: unidade gerenciada, identificada por tipo e título, com atributos.\n> - **Manifesto**: arquivo de texto Puppet, normalmente `.pp`, com declarações e lógica de configuração.\n> - **Catálogo**: documento compilado para um nó, listando recursos e relações que descrevem seu estado desejado.\n> - **Fact**: dado observado sobre um nó, como sistema operacional ou endereço de rede, usado na compilação/classificação.\n> - **Módulo**: estrutura para organizar manifestos, dados e arquivos reutilizáveis.\n\nUma declaração como `package { 'nginx': ensure => installed }` expressa o estado do pacote; Puppet seleciona ações para alcançá-lo. O tipo `file` administra arquivos e diretórios; `service` descreve serviço; `user` gerencia contas. Os valores permitidos dependem do tipo e do provedor disponível. Títulos identificam recursos e duplicações do mesmo recurso podem fazer a compilação falhar.\n\nClasses agrupam recursos relacionados e podem ser incluídas em nós ou em outras classes. A declaração include-like (`include nome_da_classe`) é flexível e idempotente: repetir a inclusão não duplica a classe. Módulos organizam código em estrutura reutilizável. Hiera fornece dados de configuração separados dos manifestos, permitindo valores por ambiente ou nó sem duplicar a lógica.\n\n### Ordem, relações e idempotência\n\nA ordem em que recursos são escritos não deve ser usada como substituto de dependências explícitas. Relações como `require`, `before`, `notify` e `subscribe` expressam dependência ou notificação. Por exemplo, um serviço pode depender da instalação de seu pacote; uma mudança no arquivo de configuração pode notificar o serviço para recarregar. Uma notificação só provoca ação quando o recurso notificado recebe evento de mudança.\n\nIdempotência significa que aplicar novamente o catálogo não produz mudanças desnecessárias quando o nó já está conforme. Ela depende de tipos e provedores que conseguem comparar estado real e desejado e de declarações corretas. Puppet não é simplesmente uma lista de comandos a executar sempre. A compilação do catálogo ocorre no servidor primário em arquitetura agente-servidor, embora também haja modos de aplicação local.\n\n### Como cai na prova\n\n- Manifesto declara; catálogo é compilado para um nó; agente aplica o catálogo.\n- Recurso é identificado por tipo e título; atributos especificam o estado.\n- Relações explícitas resolvem dependências e notificações; não confie em ordem incidental.\n- Idempotência mantém estado ao repetir aplicação; não quer dizer que nenhum comando interno jamais execute."
+    }
+  ],
+  "summary": "PowerShell automatiza com cmdlets e transporta objetos no pipeline; scripts usam variáveis, parâmetros, funções e tratamento de erros, e a política de execução do Windows é proteção em profundidade. Bash encadeia processos por fluxos de texto; citação correta, status de saída, redirecionamentos e controle de falhas evitam erros comuns. Puppet declara recursos e estado desejado em manifestos; servidor compila catálogo por nó e agente aplica relações de configuração de forma idempotente. Escolha a ferramenta pelo tipo de tarefa, valide entradas, limite privilégios e teste os efeitos antes de executar em produção.",
+  "flashcards": [
+    {
+      "front": "O que diferencia o pipeline do PowerShell do pipeline tradicional de shell?",
+      "back": "PowerShell transporta objetos com propriedades; shell como Bash normalmente conecta processos por fluxos de bytes/texto."
+    },
+    {
+      "front": "O que faz Get-Member no PowerShell?",
+      "back": "Mostra propriedades e métodos dos objetos recebidos, ajudando a descobrir sua estrutura."
+    },
+    {
+      "front": "O que representa $_ em Where-Object?",
+      "back": "O objeto corrente que está sendo avaliado no bloco."
+    },
+    {
+      "front": "Qual extensão é comum para um script PowerShell?",
+      "back": ".ps1 é a extensão normalmente usada para arquivos de script PowerShell."
+    },
+    {
+      "front": "Para que serve o bloco param(...) no começo de um script?",
+      "back": "Declarar parâmetros de entrada do script, que podem ser nomeados e validados."
+    },
+    {
+      "front": "Como promover um erro não terminante para permitir tratá-lo em catch?",
+      "back": "No contexto apropriado, use -ErrorAction Stop; depois trate-o com try/catch."
+    },
+    {
+      "front": "O que indica $LASTEXITCODE no PowerShell?",
+      "back": "O código de saída do último programa nativo externo executado."
+    },
+    {
+      "front": "A política de execução é uma fronteira de segurança?",
+      "back": "Não. É uma medida de defesa em profundidade que controla condições de execução de scripts no Windows."
+    },
+    {
+      "front": "Qual propósito tem o shebang em script Bash?",
+      "back": "Indicar o interpretador usado ao executar diretamente o arquivo."
+    },
+    {
+      "front": "O que contém $# em Bash?",
+      "back": "A quantidade de parâmetros posicionais recebidos."
+    },
+    {
+      "front": "Por que usar \"$@\" ao percorrer argumentos Bash?",
+      "back": "Mantém cada argumento separado, inclusive quando contém espaços."
+    },
+    {
+      "front": "Que efeito têm aspas simples em Bash?",
+      "back": "Preservam literalmente os caracteres dentro delas, sem expansão de variável."
+    },
+    {
+      "front": "O que faz 2>arquivo em Bash?",
+      "back": "Redireciona a saída de erro padrão para o arquivo."
+    },
+    {
+      "front": "O que acrescenta set -o pipefail?",
+      "back": "Faz o status do pipeline indicar falha em uma etapa anterior, não somente considerar a última."
+    },
+    {
+      "front": "Para que serve trap em Bash?",
+      "back": "Associar uma ação a sinais ou eventos de shell, por exemplo limpeza na saída."
+    },
+    {
+      "front": "O que é um recurso Puppet?",
+      "back": "Uma unidade gerenciada identificada por tipo e título, com atributos de estado desejado."
+    },
+    {
+      "front": "O que descreve um catálogo Puppet?",
+      "back": "Os recursos e relações compilados para o estado desejado de um nó específico."
+    },
+    {
+      "front": "Que função tem um fact Puppet?",
+      "back": "Fornecer dado observado do nó, como sistema operacional, para compilação ou classificação."
+    },
+    {
+      "front": "O que expressa notify entre recursos Puppet?",
+      "back": "Uma relação que pode notificar o recurso de destino quando o recurso de origem muda."
+    },
+    {
+      "front": "O que significa idempotência no Puppet?",
+      "back": "Aplicar repetidamente a configuração deixa o nó conforme sem produzir alterações desnecessárias."
+    }
+  ],
+  "tips": [
+    "Leia o tipo da ferramenta na questão: objeto do pipeline sugere PowerShell; fluxo textual sugere Bash; estado desejado sugere Puppet.",
+    "Em PowerShell, combine Get-Command, Get-Help e Get-Member para localizar comando, sintaxe e estrutura dos dados.",
+    "Em Bash, cite expansões de variáveis e argumentos; especialmente caminhos que possam conter espaço.",
+    "Cheque status de saída após comandos críticos; numa pipeline Bash, considere pipefail.",
+    "Em Puppet, escreva relações de dependência e notificação de forma explícita quando a ordem importar.",
+    "Antes de conceder privilégios elevados, valide entradas e teste efeitos numa cópia ou ambiente não produtivo."
+  ],
+  "traps": [
+    "Confundir objetos estruturados do pipeline PowerShell com texto separado por linhas no Bash.",
+    "Supor que toda falha PowerShell chega a catch sem configurar o comportamento do erro.",
+    "Achar que política de execução PowerShell é uma barreira de segurança absoluta.",
+    "Esquecer que expansão Bash sem aspas pode dividir palavras e expandir nomes de arquivo.",
+    "Supor que pipeline Bash, por padrão, falha se qualquer comando intermediário falhar.",
+    "Tratar manifesto Puppet como comandos shell executados na ordem em que foram escritos."
+  ],
+  "activeRecall": [
+    "Explique como um objeto passa de Get-Process a Where-Object no pipeline PowerShell.",
+    "Diferencie $?, $LASTEXITCODE e $Error em PowerShell.",
+    "Explique como aspas simples e duplas alteram a expansão em Bash.",
+    "Mostre o fluxo de STDOUT e STDERR em `comando >out 2>err`.",
+    "Descreva uma situação em que pipefail muda o status observado do pipeline.",
+    "Explique o caminho manifesto, compilação de catálogo e aplicação por agente Puppet.",
+    "Diferencie relação de dependência e notificação entre recursos Puppet.",
+    "Explique por que idempotência não significa ausência absoluta de execução interna."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Objetos e texto tratados como iguais",
+      "summary": "PowerShell envia objetos no pipeline; Bash encadeia normalmente fluxos de texto. A forma de filtrar, inspecionar e preservar dados difere."
+    },
+    {
+      "key": "e2",
+      "title": "Falhas silenciosas em scripts",
+      "summary": "Códigos de saída e preferências de erro devem ser entendidos e verificados. try/catch, $? e pipefail não têm comportamento intercambiável."
+    },
+    {
+      "key": "e3",
+      "title": "Expansões Bash sem citação",
+      "summary": "Expansões sem aspas podem sofrer divisão de palavras e globbing. Use citação apropriada para argumentos e caminhos."
+    },
+    {
+      "key": "e4",
+      "title": "Puppet confundido com shell imperativo",
+      "summary": "Manifesto declara recursos; catálogo é específico para nó; agente aplica estado desejado com relações. Recursos duplicados e dependências implícitas geram erros."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual propriedade caracteriza o pipeline do PowerShell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transfere objetos entre comandos, preservando propriedades acessíveis pelo comando seguinte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converte obrigatoriamente toda saída em arquivo CSV antes de chamar outro comando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executa cada comando em uma máquina remota, mesmo sem configuração de remoting.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permite apenas encadear comandos que tenham nomes iniciados por Get-.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui os parâmetros dos comandos por linhas de texto sem estrutura.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pipeline do PowerShell encaminha objetos, permitindo que o comando seguinte examine propriedades. CSV pode ser produzido explicitamente, mas não é conversão obrigatória; o pipeline tampouco implica remoting ou restrição ao verbo Get-.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, Get-Member é utilizado para inspecionar propriedades e métodos dos objetos recebidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Get-Member exibe membros dos objetos no pipeline e ajuda a identificar que informações podem ser consultadas ou usadas por outros cmdlets.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador deseja filtrar processos cujo uso de CPU exceda um limite. Qual expressão usa o objeto corrente do pipeline de modo apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Process | Where-Object { $_.CPU -gt 10 }",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Process | Get-Member { CPU -gt 10 }",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Process | Set-Location { CPU -gt 10 }",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Process | Where-Object { $LASTEXITCODE -gt 10 }",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Process | Select-Object { $_.CPU -gt 10 }",
+          "correct": false
+        }
+      ],
+      "explanation": "Where-Object avalia cada objeto recebido, e $_ representa o objeto corrente. Get-Member inspeciona membros, Set-Location muda diretório e Select-Object projeta propriedades, não é o cmdlet de filtro usado nesse caso.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os cmdlets nativos do PowerShell costumam seguir a forma Verbo-Substantivo, como Get-Process.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A convenção Verbo-Substantivo torna os nomes mais previsíveis; Get-Process combina um verbo de ação com o substantivo do objeto consultado.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente param(...) num script PowerShell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declara os parâmetros que o script recebe, permitindo nomear e validar suas entradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativa o pipeline para que comandos externos não recebam objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte automaticamente todos os erros em mensagens ignoradas pelo script.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assina digitalmente o arquivo com a identidade do usuário que o executou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Define o diretório atual que será usado por todos os processos do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bloco param declara entradas do script. Ele não desativa pipeline, não suprime erros, não assina o arquivo e não estabelece um diretório global para processos.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A variável $LASTEXITCODE registra o código de saída do último programa nativo externo executado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ela é útil ao chamar executáveis externos. Não deve ser confundida com $? (êxito da operação anterior) nem com $Error, coleção de informações de erros recentes.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script deve capturar em catch a falha de um cmdlet que produz erro não terminante. Qual abordagem é adequada no comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar -ErrorAction Stop no contexto do cmdlet e envolver a operação em try/catch.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ler $LASTEXITCODE depois do cmdlet, pois ele sempre contém seus erros internos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar Get-Member no erro, que converte qualquer mensagem em exceção terminante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir $Error como texto vazio antes da chamada para obrigar a captura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar o cmdlet após um pipe vazio, pois todo pipeline torna erros terminantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Erros não terminantes não chegam necessariamente ao catch. -ErrorAction Stop pode promovê-los a terminantes para o tratamento por try/catch. Código de saída de programa nativo, inspeção de membros ou apagar $Error não substituem essa configuração.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política de execução do PowerShell no Windows é uma fronteira de segurança que impede um usuário determinado de executar conteúdo malicioso por qualquer meio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação da Microsoft caracteriza a política como recurso de segurança e defesa em profundidade, não como fronteira de segurança; ela não impede todos os meios possíveis de executar conteúdo.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática é mais segura ao executar um script que altera contas e serviços em muitos computadores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar os alvos, testar em ambiente controlado e usar somente os privilégios necessários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executá-lo sempre como administrador e remover confirmações para terminar mais rápido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar as credenciais dentro do arquivo para que todos usem a mesma configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar códigos de saída porque a execução automática não exibe erros visuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar nomes de computador recebidos sem validação para incluir toda a rede disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validar alvos, testar efeitos e limitar privilégios reduz o alcance de erros. Administrador permanente, credenciais embutidas, ausência de verificação e confiança cega em entradas aumentam o risco da automação.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Arquivos de script PowerShell costumam usar a extensão .ps1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. .ps1 é a extensão usual de scripts PowerShell; o arquivo pode conter comandos, funções, parâmetros e lógica de controle.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de comandos ajuda a encontrar um comando, consultar sua ajuda e inspecionar o tipo de dado produzido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Command, Get-Help e Get-Member, cada qual com função distinta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Set-Location, Clear-Host e Out-Null, que juntos documentam os comandos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Process, Stop-Process e Start-Sleep, usados para inspecionar qualquer objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Where-Object, ForEach-Object e Sort-Object, que exibem a ajuda instalada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Import-Module, Export-Module e Remove-Module, que mostram membros do objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Get-Command localiza comandos; Get-Help consulta documentação; Get-Member revela membros de objetos. Os outros conjuntos mudam local, controlam processos, transformam coleções ou gerenciam módulos.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, Select-Object é normalmente empregado para selecionar ou projetar propriedades dos objetos recebidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Select-Object escolhe propriedades e pode criar projeções. O filtro por condição é normalmente feito com Where-Object.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador está chamando um programa externo pelo PowerShell e precisa decidir se ele terminou com sucesso. Qual dado deve examinar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "$LASTEXITCODE, que contém o código de saída do programa nativo externo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "$PSHOME, que guarda o código de sucesso de cada processo chamado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "$_, que sempre recebe o status numérico do último executável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "$ErrorActionPreference, que registra a saída padrão do processo externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "$PROFILE, que armazena os códigos de retorno desde a instalação.",
+          "correct": false
+        }
+      ],
+      "explanation": "$LASTEXITCODE guarda o código de saída do programa nativo mais recente. As demais variáveis têm outros papéis, como diretório de instalação, objeto corrente, preferência de erros e caminho do perfil.",
+      "section": "2. PowerShell: cmdlets, objetos e scripts",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O interpretador Bash oferece variáveis, funções e estruturas de controle além de executar comandos interativos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bash pode executar scripts não interativos e contém construções de linguagem como variáveis, funções, condicionais e laços.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual linha inicial ajuda o sistema a localizar Bash quando um arquivo de script é executado diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "#!/usr/bin/env bash, que solicita o Bash localizado no ambiente do sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "#!/bin/bash/env, que inicia qualquer shell disponível na rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "# bash, que concede permissão de execução ao arquivo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "#!powershell, que converte os comandos Bash em cmdlets compatíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "#!/usr/bin/python bash, que seleciona o shell conforme a extensão do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O shebang `#!/usr/bin/env bash` pede ao env que localize Bash pelo ambiente. Ele não concede permissão de execução nem converte comandos; a chamada explícita `bash arquivo` também pode iniciar o script.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, $1 e $2 representam os primeiros argumentos posicionais passados ao script ou função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os parâmetros posicionais numerados recebem os argumentos na ordem; $0 representa o nome do script ou função conforme o contexto de execução.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash recebe três argumentos, um deles com espaços. Qual opção percorre cada argumento preservando-o como uma unidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "for item in \"$@\"; do processar \"$item\"; done",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "for item in $@; do processar $item; done",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "for item in \"$*\"; do processar $item; done",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "for item in $#; do processar $item; done",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "for item in $0; do processar $item; done",
+          "correct": false
+        }
+      ],
+      "explanation": "\"$@\" citado expande cada argumento como palavra distinta, preservando espaços internos. Sem aspas há divisão e globbing; \"$*\" citado reúne os parâmetros numa palavra; $# é a quantidade e $0 identifica o script.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aspas simples no Bash preservam literalmente os caracteres dentro delas e impedem expansão de variável nesse trecho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O conteúdo entre aspas simples mantém seu valor literal; aspas duplas permitem, entre outras operações, expansão de variáveis e substituição de comando.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Bash manipula um arquivo cujo caminho pode conter espaços. Como deve referenciar uma variável arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Citar a expansão como \"$arquivo\" ao passá-la como argumento ao comando.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar eval $arquivo para que o shell proteja os espaços automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover as barras do caminho antes da expansão para evitar separação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar $* em lugar da variável, que transforma qualquer caminho em arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redirecionar o caminho para STDERR, que preserva os argumentos do comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expansão citada é passada como um argumento, mesmo contendo espaços. eval reinterpreta texto como código e aumenta riscos; as outras opções não protegem a divisão de palavras.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, o status zero normalmente indica sucesso, e um status diferente de zero pode indicar falha ou outro resultado especial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa convenção permite que comandos e scripts comuniquem resultado a quem os chamou; o significado de valores não nulos depende do comando.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando acrescenta mensagens de erro ao arquivo erros.log sem substituir seu conteúdo anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "comando 2>> erros.log, que acrescenta STDERR ao arquivo indicado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "comando 2> erros.log, que acrescenta STDERR sem substituir dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "comando >>2 erros.log, que redireciona a saída de erro por padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "comando < erros.log, que guarda erros novos no final do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "comando | erros.log, que anexa automaticamente todos os fluxos.",
+          "correct": false
+        }
+      ],
+      "explanation": "2>> acrescenta o descritor 2, a saída de erro padrão, ao arquivo. 2> sobrescreve; >>2 não redireciona STDERR; < fornece entrada e | conecta a saída a outro comando.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Bash retorna, por padrão, o status do último comando de um pipeline, de modo que uma falha anterior pode passar despercebida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem opções adicionais, o status do pipeline é normalmente o do último comando. `set -o pipefail` altera esse comportamento para refletir falha em etapa anterior.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso Bash associa uma ação de limpeza à saída normal do script, inclusive quando ele termina antecipadamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "trap com o evento EXIT, chamando a rotina de remoção dos temporários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Member com o evento EXIT, que converte temporários em objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "set -o pipefail, que apaga arquivos temporários após cada pipeline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "chmod +x, que executa limpeza sempre que o sistema inicia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "2>&1, que fecha arquivos temporários ao concluir o comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "trap pode associar uma ação ao evento EXIT, sendo útil para limpeza ao encerrar. pipefail trata status de pipeline; chmod altera permissões e 2>&1 combina descritores, sem limpar arquivos.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar eval com texto vindo de usuário é uma forma segura de escapar metacaracteres antes de executar comandos Bash.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. eval interpreta novamente o texto como código shell. Entrada controlada externamente pode então alterar ou acrescentar comandos; prefira passar argumentos separados e citados sem reinterpretação.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta é mais alinhada à tarefa de declarar que um pacote deve estar instalado em muitos nós e manter esse estado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Puppet, declarando recurso de pacote no estado desejado para os nós.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Bash, que compila automaticamente catálogos distintos por nó e fact.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PowerShell, que transforma qualquer cmdlet em manifesto declarativo Puppet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um shebang, que instala o pacote sem chamar interpretador algum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um redirecionamento, que mantém o pacote presente em cada execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Puppet declara recursos e seus estados desejados e pode manter configuração uniforme nos nós. Bash e PowerShell podem automatizar instalação com comandos, mas não compilam por si só catálogos Puppet; shebang e redirecionamento não instalam pacotes.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um manifesto Puppet é um arquivo de texto de configuração, normalmente com extensão .pp.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Manifestos Puppet são arquivos de texto que declaram recursos e podem conter lógica para descrever configurações de nós.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ciclo agente-servidor Puppet, o que recebe o agente para configurar seu próprio nó?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um catálogo compilado para aquele nó com recursos e relações a aplicar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O manifesto original de todos os nós, sem avaliação nem dados específicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo Bash universal que é sempre executado como root pelo agente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de fatos que substitui as declarações de recursos e atributos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma cópia do código-fonte do servidor que o agente compila localmente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor primário compila os dados e manifestos relevantes num catálogo específico para um agente. O catálogo contém recursos e relações do estado desejado, não é simplesmente o manifesto global ou uma lista de fatos.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cada agente Puppet recebe um catálogo que descreve os recursos gerenciados para um nó específico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O catálogo é compilado para um nó e reúne os recursos e as dependências aplicáveis àquele agente. Com essa descrição específica, o Puppet compara o estado observado com o desejado e aplica apenas as mudanças necessárias; não é um manifesto genérico enviado sem avaliação.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função de facts durante a compilação da configuração Puppet?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fornecer informações observadas do nó que podem orientar lógica e classificação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar manifestos localmente e registrar seus códigos de saída em Bash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o catálogo por dados de estado desejado definidos pelo agente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Servir como títulos únicos para que não seja necessário declarar recursos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar senhas de todos os nós dentro do arquivo de manifesto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Facts são dados sobre o nó, como sistema operacional, que o servidor pode usar na compilação ou classificação. Eles não substituem catálogo e recursos nem são um mecanismo para guardar senhas.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Recursos Puppet são identificados por tipo e título, e a duplicação de um recurso pode causar falha de compilação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Puppet exige unicidade dos recursos; títulos repetidos ou namevars duplicados dentro do tipo podem representar declarações conflitantes e impedir a compilação.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço deve iniciar somente depois da instalação de seu pacote. Como expressar essa dependência de forma adequada em Puppet?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar uma relação explícita, como require no serviço para o recurso de pacote.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar o recurso de serviço primeiro no arquivo e confiar nessa ordem textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear o serviço com prefixo A para que Puppet ordene recursos alfabeticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um fact chamado pacote_instalado sem declarar relação entre recursos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acrescentar um comentário depois do pacote para forçar dependência no catálogo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A relação explícita registra a dependência no catálogo e garante a ordem necessária. Ordem textual ou alfabética é incidental e facts/comentários não declaram relacionamento entre recursos.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Puppet, uma relação notify pode fazer um recurso ser atualizado quando outro recurso que o notifica sofre mudança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Relações de notificação combinam dependência com evento de atualização: uma mudança no recurso de origem pode provocar refresh no destino, por exemplo recarga de serviço após mudar arquivo.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de configuração alterado deve provocar a recarga do serviço relacionado. Qual recurso Puppet representa melhor esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Associar o arquivo ao serviço com relação notify ou subscribe apropriada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar o serviço duas vezes, para que a segunda declaração recarregue a primeira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir o conteúdo do arquivo como fact e deixar o agente inferir o serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escrever o serviço depois do arquivo e contar com a ordem do manifesto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar chmod no manifesto, porque isso reinicia automaticamente o serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "notify ou subscribe declara a relação de atualização, de forma que mudança no arquivo gere evento ao serviço. Duplicar recurso pode falhar, facts não criam relação e ordem de escrita não substitui dependência explícita.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Idempotência no Puppet significa que aplicar novamente a configuração tende a manter o estado correto sem repetir alterações desnecessárias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A ferramenta compara estado observado e desejado e altera o recurso quando necessário. Uma nova aplicação pode verificar os recursos sem produzir mudanças quando já estão conformes.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração de recurso expressa que o Puppet deve manter instalado o pacote nginx?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "package { 'nginx': ensure => installed }",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "service { 'nginx': ensure => installed }",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "fact { 'nginx': ensure => installed }",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "manifest { 'nginx': ensure => installed }",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "catalog { 'nginx': ensure => installed }",
+          "correct": false
+        }
+      ],
+      "explanation": "O tipo package administra pacotes e o atributo ensure pode declarar o estado installed. service representa serviços; fact, manifest e catalog não são tipos de recurso usados assim para instalação.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A inclusão include-like de uma classe Puppet pode ser repetida com segurança, pois a classe é tratada como singleton durante a compilação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A forma include-like é flexível e idempotente; classes são singletons numa compilação, mesmo que sua configuração possa variar por parâmetros.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe tem valores de configuração diferentes por ambiente, mas quer reutilizar os mesmos manifestos. Que recurso de organização ajuda a separar dados da lógica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hiera, que fornece dados de configuração separados dos manifestos Puppet.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Member, que altera atributos do catálogo conforme a máquina escolhida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "pipefail, que seleciona variáveis de ambiente na compilação do catálogo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Shebang, que escolhe valores por nó antes de iniciar o agente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "2>&1, que combina dados de configuração e código declarativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hiera fornece dados externos de configuração e pode organizar valores por nó ou ambiente, evitando duplicar lógica. Os demais recursos pertencem ao PowerShell ou Bash e não têm essa função no Puppet.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Puppet, a ordem textual dos recursos é sempre irrelevante, mesmo quando um recurso depende de outro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Recursos sem relação podem seguir uma ordem padrão, mas dependências importantes devem ser declaradas explicitamente; relações podem determinar ordem e notificação no catálogo.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre as três ferramentas está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "PowerShell passa objetos, Bash conecta fluxos de texto e Puppet declara estado de recursos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Bash compila catálogos por nó, Puppet transporta objetos .NET e PowerShell usa facts.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As três ferramentas são linguagens declarativas que aplicam estado por agente Puppet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PowerShell serve apenas para Windows, Bash apenas para interface gráfica e Puppet para edição de texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Puppet executa sempre comandos sequenciais, enquanto Bash e PowerShell apenas descrevem estados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação resume seus modelos: objetos no pipeline PowerShell, fluxos em shells como Bash e recursos de estado desejado no Puppet. As outras opções trocam conceitos ou limitam incorretamente as ferramentas.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script imperativo geralmente descreve passos a executar, enquanto uma configuração declarativa descreve o estado desejado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um script imperativo expressa procedimentos; uma declaração Puppet indica recursos e atributos desejados, permitindo ao mecanismo decidir ações para chegar ao estado declarado.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa executar tarefas de arquivos em Linux, tratando STDOUT, STDERR e status de comandos. Qual ferramenta combina melhor com esse modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bash, que executa comandos e conecta processos por fluxos padrão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Puppet, que substitui os fluxos do sistema por atributos de catálogo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hiera, que executa comandos de terminal em sequência interativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Member, que encaminha erros de shell para um objeto .NET.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um catálogo, que atua como interpretador geral de comandos Unix.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bash é apropriado para automação de comandos em sistemas Unix e usa entrada, saída, erro e status de processos. Puppet mantém configuração declarativa; Hiera fornece dados e catálogo não é um shell.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina automatizada que executa sem interação precisa validar entradas e verificar resultados, pois a ausência de supervisão não elimina falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Execução automática exige tratamento explícito de parâmetros, falhas e efeitos, já que não há necessariamente uma pessoa para notar uma saída inesperada no momento.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho reduz exposição de credenciais numa rotina de automação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obter segredos por mecanismo protegido do ambiente e evitar gravá-los em código ou logs.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Codificar a senha em Base64 dentro do script para que ela não seja legível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escrever a senha no comentário do script para facilitar a revisão por colegas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Imprimir o token no início da execução para confirmar a identidade usada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma única conta administrativa compartilhada em todas as rotinas automatizadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um mecanismo protegido e a exclusão de segredos de código e logs reduzem exposição. Base64 é codificação reversível; comentários, impressão do token e credencial administrativa compartilhada ampliam o risco.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": null,
+      "sourceUrl": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "No Bash, aspas duplas impedem inclusive a expansão de variáveis e a substituição de comandos, assim como aspas simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aspas duplas preservam muitos caracteres especiais, mas `$` e substituição de comando continuam ativos. Aspas simples preservam literalmente o conteúdo entre elas.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer que falhas em qualquer etapa relevante de uma pipeline Bash afetem seu status final. O que deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ativar set -o pipefail e ainda interpretar o código de saída retornado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente >arquivo, pois redirecionamento interrompe etapas com erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Citar cada comando com aspas simples para propagar seu status automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar trap DEBUG, que substitui os códigos de saída dos processos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar set -x, que transforma qualquer erro intermediário em exceção.",
+          "correct": false
+        }
+      ],
+      "explanation": "pipefail faz o status do pipeline refletir falhas em comandos anteriores, e o script ainda deve tratar esse status. Redirecionamentos, citação, rastreamento xtrace e trap DEBUG não substituem essa semântica.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atribuir explicitamente um estado desejado a um recurso Puppet permite que a ferramenta determine se precisa alterá-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo declarativo compara o estado existente com o declarado e aplica mudanças necessárias; se já estiver conforme, pode não realizar alteração.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um manifesto declara duas vezes o mesmo serviço com valores conflitantes. Qual consequência pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A compilação do catálogo pode falhar por duplicidade do recurso ou título conflitante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Puppet escolhe sempre o valor escrito por último e apaga o recurso anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O agente converte as duas declarações em classes distintas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor transforma o conflito em um fact e ignora os atributos repetidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A duplicidade garante que o serviço reinicie duas vezes em ordem segura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Puppet requer recursos únicos; títulos duplicados ou namevars conflitantes podem fazer a compilação falhar. Não se deve depender de sobrescrita implícita nem presumir conversão em classe ou notificação.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Scripts Bash e PowerShell devem ser executados com privilégios de administrador em qualquer situação para assegurar repetibilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Deve-se conceder somente o privilégio necessário à tarefa. Privilégios elevados sem necessidade ampliam o impacto de bugs, entradas maliciosas e erros de alvo.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que item diferencia claramente um catálogo Puppet de um manifesto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O manifesto declara configuração e pode conter lógica; o catálogo é compilado para um nó.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O manifesto contém somente facts; o catálogo contém apenas senhas de acesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O manifesto é saída de um processo Bash; o catálogo é seu código de saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O catálogo é sempre o mesmo arquivo global e não tem recursos associados ao nó.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O manifesto é um processo agente; o catálogo é a interface gráfica do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manifestos são os arquivos de configuração declarativa usados na compilação. O catálogo resultante é específico para um nó e contém recursos e relações aplicáveis; não é status de shell nem arquivo de senhas.",
+      "section": "4. Puppet: recursos, catálogos e estado desejado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `comando >saida.txt 2>&1` direciona a saída padrão ao arquivo e a saída de erro ao destino então associado à saída padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A ordem importa: primeiro stdout é direcionado ao arquivo; depois stderr é duplicado para o destino atual de stdout, também o arquivo.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão separa corretamente trabalho procedural de gerenciamento de configuração em servidores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar script para uma sequência específica e Puppet para declarar recursos a manter conformes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente Puppet para qualquer cálculo de texto e Bash para compilar catálogos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar PowerShell para todos os sistemas, pois somente ele pode criar arquivos de script.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar Bash para transportar objetos .NET e Puppet para formatar sua saída em tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a mesma ferramenta sempre, pois scripts e estado declarativo são conceitos idênticos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Scripts procedurais especificam passos; Puppet se destaca ao declarar estado de recursos que deve ser mantido. As ferramentas podem coexistir e não são idênticas em seus modelos de dados e controle.",
+      "section": "1. Scripts, automação e escolha da ferramenta",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Bash pode agrupar comandos reutilizáveis e receber parâmetros posicionais próprios durante sua chamada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bash oferece funções; dentro delas os parâmetros posicionais permitem receber argumentos da chamada, favorecendo reutilização e organização do script.",
+      "section": "3. Bash: comandos, expansão e controle de fluxo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PowerShell: about_Scripts",
+      "publisher": "Microsoft Learn",
+      "reference": "Arquivos de script, parâmetros, #Requires e execução de scripts",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_scripts?view=powershell-7.4",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PowerShell: about_Execution_Policies",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopos, precedência e limites da política de execução",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.4",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PowerShell: about_Pipelines",
+      "publisher": "Microsoft Learn",
+      "reference": "Objetos passados entre comandos e uso do pipeline",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pipelines?view=powershell-7.4",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Bash Reference Manual",
+      "publisher": "GNU Project",
+      "reference": "Quoting, expansão, parâmetros posicionais, pipelines, redirecionamento e scripts",
+      "url": "https://www.gnu.org/software/bash/manual/",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Puppet language overview",
+      "publisher": "Puppet",
+      "reference": "Manifestos, catálogo específico de nó, facts e compilação",
+      "url": "https://help.puppet.com/core/current/content/puppetcore/intro_puppet_language_and_code.htm",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Resources",
+      "publisher": "Puppet",
+      "reference": "Recursos, atributos, unicidade e relações",
+      "url": "https://help.puppet.com/core/current/Content/PuppetCore/lang_resources.htm",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Declaring classes",
+      "publisher": "Puppet",
+      "reference": "Declaração de classes e comportamento include-like idempotente",
+      "url": "https://help.puppet.com/core/current/Content/PuppetCore/lang_class_declare.htm",
+      "accessedAt": "2026-11-10"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Relationships and ordering",
+      "publisher": "Puppet",
+      "reference": "Dependências, ordem e notificações entre recursos",
+      "url": "https://help.puppet.com/core/current/Content/PuppetCore/lang_relationships.htm",
+      "accessedAt": "2026-11-10"
+    }
+  ]
+}
