@@ -14,12 +14,14 @@ if not exist "%CODEX_HOME%\auth.json" (
 )
 set CODEX_ORDEM=meio
 rem 08/11: divide a fila ao meio com a conta 2 (tirar quando a conta 1 voltar).
-set CODEX_MOD=6
-set CODEX_PARTES=3,4,5
-set CODEX_PARALELO=24
+rem CODEX_MOD=6 (conta 1 voltou em 13/11)
+rem CODEX_PARTES=3,4,5
+set CODEX_PARALELO=10
 set CODEX_ESFORCO=high
 set CODEX_CORRECOES=3
 :ciclo
+rem 14/11: primeiro engrossa os recortes magros (flashcards e memorizacao), depois as materias novas.
+deno run -A scripts\codex\loop-engrossar.ts
 deno run -A scripts\codex\loop-materias.ts
 timeout /t 300 /nobreak >nul
 goto ciclo

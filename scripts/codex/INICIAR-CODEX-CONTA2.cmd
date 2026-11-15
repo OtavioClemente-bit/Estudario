@@ -13,13 +13,15 @@ if not exist "%CODEX_HOME%\auth.json" (
 )
 set CODEX_ORDEM=reversa
 rem 08/11: com a conta 1 sem limite ate 13/11, esta conta pega tambem a parte dela (tirar a linha abaixo quando ela voltar).
-set CODEX_MOD=6
-set CODEX_PARTES=0,1,2
-set CODEX_PARALELO=24
+rem CODEX_MOD=6 (conta 1 voltou em 13/11)
+rem CODEX_PARTES=0,1,2
+set CODEX_PARALELO=10
 set CODEX_ESFORCO=high
 set CODEX_CORRECOES=3
 :ciclo
 rem Escreve as materias pendentes; quando acabam, acrescenta e decide os proximos itens (so uma conta decide por vez).
+rem 14/11: primeiro engrossa os recortes magros (flashcards e memorizacao), depois as materias novas.
+deno run -A scripts\codex\loop-engrossar.ts
 deno run -A scripts\codex\loop-materias.ts
 deno run -A scripts\codex\proxima-lista.ts 300
 deno run -A scripts\codex\loop-itens.ts
