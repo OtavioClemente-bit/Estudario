@@ -72,6 +72,9 @@ function conferir(id: string): string[] | null {
   if (fc > MAX_FLASHCARDS) erros.push(`${fc} flashcards; o máximo é ${MAX_FLASHCARDS}: troque os mais genéricos em vez de só somar`);
   if (fc < (velho.flashcards ?? []).length - 6) erros.push("muitos flashcards antigos sumiram; troque só os genéricos ou repetidos");
   if (ar < (velho.activeRecall ?? []).length) erros.push("itens de memorização antigos sumiram; mantenha-os e acrescente");
+  // Acento corrompido (14/11: 3 vieram com "Ã©" no lugar de "é").
+  const moji = /Ã[-¿]|â€|Â[-¿]/g;
+  if ((JSON.stringify(novo).match(moji)?.length ?? 0) > (JSON.stringify(velho).match(moji)?.length ?? 0)) erros.push('texto com acento corrompido (ex.: "Ã©" no lugar de "é", "Ã§" no lugar de "ç"); reescreva esses trechos com os acentos certos, em UTF-8');
   erros.push(...magros(id, novo));
   const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, `${SAIDA}/${id}.json`], stdout: "piped", stderr: "piped" }).outputSync();
   const saida = (new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr)).trim();
