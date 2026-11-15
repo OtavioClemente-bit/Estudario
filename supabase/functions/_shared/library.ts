@@ -411,7 +411,7 @@ export function validateLibraryMaterial(material: Json): Json {
   if (theory < LIBRARY_MIN.theoryChars) c.fail(`chapters: teoria curta demais (${theory} de ${LIBRARY_MIN.theoryChars} caracteres)`);
 
   c.text(material.summary, "summary", LIBRARY_MIN.summaryChars);
-  const cards = c.list(material.flashcards, "flashcards", LIBRARY_MIN.flashcards, 30);
+  const cards = c.list(material.flashcards, "flashcards", LIBRARY_MIN.flashcards, 60); // 15/11: 60 guardados (recortes magros); a entrega continua com até 30
   const fronts = new Set<string>();
   cards.forEach((card, index) => {
     const front = c.text(card.front, `flashcards[${index}].front`, 3, 240).trim().toLowerCase();
@@ -421,7 +421,7 @@ export function validateLibraryMaterial(material: Json): Json {
   });
   c.strings(material.tips, "tips", LIBRARY_MIN.tips, 8);
   c.strings(material.traps, "traps", LIBRARY_MIN.traps, 8);
-  c.list(material.activeRecall, "activeRecall", LIBRARY_MIN.activeRecall, 10).forEach((item, index) => {
+  c.list(material.activeRecall, "activeRecall", LIBRARY_MIN.activeRecall, 30) /* 15/11: 30 guardados; a entrega continua com até 10 */.forEach((item, index) => {
     c.text(item.question, `activeRecall[${index}].question`, 5, 1_000);
     c.text(item.answer, `activeRecall[${index}].answer`, 5, 3_000);
   });

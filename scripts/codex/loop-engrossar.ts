@@ -13,7 +13,7 @@ const SAIDA = `${ROOT}conteudo/entrada/engrossar-codex`;
 const LOG = `${ROOT}conteudo/entrada/engrossar-codex-log.txt`;
 const FALHAS = `${ROOT}conteudo/entrada/engrossar-codex-falhas.json`;
 const MAX_TOTAL = 6;
-const MIN_FLASHCARDS = 4, MIN_RECALL = 2, MAX_FLASHCARDS = 30;
+const MIN_FLASHCARDS = 4, MIN_RECALL = 2, MAX_FLASHCARDS = 60;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (m: string) => {
   const l = `[${new Date().toLocaleString("pt-BR")}] ${m}`;
@@ -112,6 +112,19 @@ function proxima(): { id: string; erros: string[] | null } | null {
   return null;
 }
 
+// --diagnostico: mostra por que as matérias desistidas (6 tentativas) não passam, sem chamar o Codex.
+if (Deno.args[0] === "--diagnostico") {
+  const motivos: Record<string, number> = {};
+  for (const [id, n] of Object.entries(total)) {
+    if (n < MAX_TOTAL) continue;
+    for (const e of conferir(id) ?? ["não gravou o arquivo"]) {
+      const k = e.replace(/"[^"]*"/g, "…").replace(/d+/g, "N").slice(0, 110);
+      motivos[k] = (motivos[k] ?? 0) + 1;
+    }
+  }
+  for (const [k, n] of Object.entries(motivos).sort((a, b) => b[1] - a[1]).slice(0, 15)) console.log(n, k);
+  Deno.exit(0);
+}
 const PARALELO = Number(Deno.env.get("CODEX_PARALELO") ?? 6);
 log(`engrossar iniciado: ${fila.length} matérias na lista, ${PARALELO} em paralelo`);
 async function trabalhador(n: number) {
@@ -139,7 +152,7 @@ Faça assim:
    dele (é por esses termos que o app escolhe os cartões do recorte). Frente curta e objetiva; verso com a resposta e o
    porquê. Nada genérico, nada repetido.
 3. A matéria tem no máximo ${MAX_FLASHCARDS} flashcards: se passar, troque os mais genéricos ou repetidos dos outros
-   capítulos. Itens de memorização antigos ficam todos.
+   capítulos. Itens de memorização antigos ficam todos (máximo de 30 itens de memorização na matéria).
 4. NÃO mude capítulos, questões nem nada além de "flashcards", "activeRecall" e "version".
 5. Nunca invente número de lei, artigo, prazo, valor ou súmula: use só o que está no texto da matéria; na dúvida, sem número.
 6. Valide com: deno run --allow-read --allow-env scripts/biblioteca/conferir-materia.ts ${destino} e corrija até OK.
