@@ -212,7 +212,7 @@ class CloudSyncService(
         val merged = SnapshotMerge.merge(base, JSONObject(localSnapshot), JSONObject(remoteText))
         keepLocalCopy()
         restoring = true
-        try { backup.restore(merged.toString()) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
+        try { backup.restore(merged) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
         br.com.estudario.data.FolhaLookStore.applyRemote(context, merged.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
         SyncedPrefs.applyRemote(context, merged.optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
         val snapshot = canonicalSnapshot()
@@ -278,9 +278,10 @@ class CloudSyncService(
         if (sha != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
         keepLocalCopy()
         restoring = true
-        try { backup.restore(SnapshotMerge.withoutStaleCopies(JSONObject(text)).toString()) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
-        br.com.estudario.data.FolhaLookStore.applyRemote(context, JSONObject(text).optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
-        SyncedPrefs.applyRemote(context, JSONObject(text).optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
+        val root = SnapshotMerge.withoutStaleCopies(JSONObject(text))
+        try { backup.restore(root) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
+        br.com.estudario.data.FolhaLookStore.applyRemote(context, root.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
+        SyncedPrefs.applyRemote(context, root.optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair
         // diferente da foto recebida); assim a próxima rodada não confunde isso com uma edição.
         val restored = canonicalSnapshot()

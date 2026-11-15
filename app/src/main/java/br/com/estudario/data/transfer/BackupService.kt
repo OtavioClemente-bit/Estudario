@@ -56,8 +56,10 @@ class BackupService(private val db: AppDatabase) {
         return root.toString(2)
     }
 
-    suspend fun restore(text: String) = db.withTransaction {
-        val root = try { JSONObject(text) } catch (_: Exception) { throw IllegalArgumentException("Backup JSON inválido.") }
+    suspend fun restore(text: String) = restore(try { JSONObject(text) } catch (_: Exception) { throw IllegalArgumentException("Backup JSON inválido.") })
+
+    /** Restaura de um JSON já lido (a sincronização não precisa virar texto e ler de novo: faltava memória). */
+    suspend fun restore(root: JSONObject) = db.withTransaction {
         // Aceita o formato antigo para não invalidar backups feitos antes da troca de nome.
         if (root.optString("format") !in ACCEPTED_BACKUP_FORMATS || root.optInt("version") !in 1..8) throw IllegalArgumentException("Formato ou versão de backup não suportado.")
         val competitions = root.array("competitions").objects().map { item -> CompetitionEntity(id = item.getLong("id"), name = item.getString("name"), isPrimary = item.getBoolean("primary"), createdAt = item.getLong("createdAt"), externalId = item.optNullableString("externalId"), assessedPriorityScore = item.assessedPriorityScore(), assessedPrioritySource = item.assessedPrioritySource(), assessedPriorityConfidence = item.assessedPriorityConfidence(), assessedPriorityRationale = item.optNullableString("assessedPriorityRationale"), assessedPriorityEvidenceJson = item.assessedPriorityEvidenceJson(), hasAssessedPriority = item.optBoolean("hasAssessedPriority", false), userPriorityOverride = item.userPriorityOverride()) }
