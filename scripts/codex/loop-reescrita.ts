@@ -63,13 +63,21 @@ function pendentes(): string[] {
   });
 }
 
+// Várias contas juntas (15/11): trava <id>.lock criada de forma exclusiva; trava com mais de 3 h é de quem morreu.
+function travar(id: string): boolean {
+  const t = `${SAIDA}/${id}.lock`;
+  try { if (Date.now() - (Deno.statSync(t).mtime?.getTime() ?? 0) > 3 * 3600_000) Deno.removeSync(t); } catch { /* sem trava */ }
+  try { Deno.writeTextFileSync(t, String(Deno.pid), { createNew: true }); return true; } catch { return false; }
+}
+const soltar = (id: string) => { try { Deno.removeSync(`${SAIDA}/${id}.lock`); } catch { /* já saiu */ } };
+const reversa = Deno.env.get("CODEX_ORDEM") === "reversa";
 const PARALELO = Number(Deno.env.get("CODEX_PARALELO") ?? 6);
 const emAndamento = new Set<string>();
 log(`reescrita iniciada: ${pendentes().length} matérias na fila, ${PARALELO} em paralelo`);
 async function trabalhador(n: number) {
   await sleep(n * 15_000);
   while (true) {
-    const id = pendentes().find((p) => !emAndamento.has(p));
+    const id = (reversa ? pendentes().reverse() : pendentes()).find((p) => !emAndamento.has(p) && travar(p));
     if (!id) { log(`[r${n}] nada mais a pegar`); break; }
     emAndamento.add(id);
     const erros = conferir(id);
@@ -102,16 +110,16 @@ Nenhum script gera, completa ou reescreve texto. Não faça mais nada nesta roda
     }).output();
     const txt = new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr);
     const depois = conferir(id);
-    if (depois && depois.length === 0) { log(`   [r${n}] ok: ${id} reescrita e aprovada`); emAndamento.delete(id); await sleep(10_000); continue; }
+    if (depois && depois.length === 0) { log(`   [r${n}] ok: ${id} reescrita e aprovada`); emAndamento.delete(id); soltar(id); await sleep(10_000); continue; }
     if (/hit your usage limit|usage limit (reached|has been reached)|try again (in|at) \d|rate_limit_exceeded/i.test(txt.slice(-2_000))) {
       log(`   [r${n}] limite do plano; esperando 30 min`);
       await sleep(30 * 60_000); // segura a matéria durante a espera
-      emAndamento.delete(id);
+      emAndamento.delete(id); soltar(id);
       continue;
     }
     contar(id);
     log(`   [r${n}] ${id}: ${depois ? `faltam ${depois.length} correções` : "não gravou"} (tentativa ${total[id]} de ${MAX_TOTAL})`);
-    emAndamento.delete(id);
+    emAndamento.delete(id); soltar(id);
   }
 }
 await Promise.all([...Array(PARALELO).keys()].map(trabalhador));

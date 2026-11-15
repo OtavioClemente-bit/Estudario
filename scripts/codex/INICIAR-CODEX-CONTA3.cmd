@@ -21,6 +21,8 @@ set CODEX_ESFORCO=high
 set CODEX_CORRECOES=3
 :ciclo
 rem 14/11: primeiro engrossa os recortes magros (flashcards e memorizacao), depois as materias novas.
+rem 15/11: reescrita didatica primeiro (pedido do dono: terminar rapido), depois engrossar e materias novas.
+deno run -A scripts\codex\loop-reescrita.ts
 deno run -A scripts\codex\loop-engrossar.ts
 deno run -A scripts\codex\loop-materias.ts
 timeout /t 300 /nobreak >nul
