@@ -82,6 +82,10 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
   // Grátis: das matérias do mês, no máximo FREE_AI_MATERIALS escritas pela IA (as da biblioteca
   // não contam). Lote extra não entra aqui: tem cota própria e é pequeno.
   beforeProvider: async (job, dependencies) => {
+    // IA desligada (CONTENT_AI_ENABLED=false, 15/11/2026: chave da OpenAI inválida e o dono não quer gastar):
+    // tópico sem matéria pronta falha na hora com "em produção pela nossa equipe" (o app mostra isso para este
+    // código), sem chamar a IA; o pedido já ficou registrado como falta da biblioteca.
+    if (job.feature === "CONTENT_GENERATION" && Deno.env.get("CONTENT_AI_ENABLED") === "false") return "PLAN_AI_MATERIAL_LIMIT";
     if (job.feature !== "CONTENT_GENERATION" || !dependencies.jobs.aiMaterialsThisMonth) return null;
     const { tier, used } = await dependencies.jobs.aiMaterialsThisMonth(job.userId);
     return tier === "FREE" && used >= FREE_AI_MATERIALS ? "PLAN_AI_MATERIAL_LIMIT" : null;
