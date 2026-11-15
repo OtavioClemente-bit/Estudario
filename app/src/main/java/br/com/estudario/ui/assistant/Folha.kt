@@ -5330,7 +5330,8 @@ private fun DrawScope.drawHeld(kind: String, h: Offset, angRad: Float, t: Float,
                             drawPath(blk, vg(listOf(Color(0xFFD9A070), Color(0xFFA06A3A), Color(0xFF7A4E26)), 8.6f, 12.2f)); drawPath(blk, outl, style = stroke(0.45f))
                             val lb = roundRect(-3f, 9.2f, 6f, 2.4f, 0.4f)
                             drawPath(lb, Color(0xFFFFFDF8)); drawPath(lb, Color(0x663C1908), style = stroke(0.2f))
-                            coverText("OK", 0f, 10.4f, 2.1f, red.toArgb(), family = android.graphics.Typeface.SANS_SERIF)
+                            // visto vermelho feito a traço na etiqueta (legível em qualquer tamanho, sem texto)
+                            drawPath(Path().apply { moveTo(-1.5f, 10.4f); lineTo(-0.4f, 11.2f); lineTo(1.6f, 9.7f) }, red, style = stroke(0.55f))
                             val rb = roundRect(-5.2f, 12f, 10.4f, 1.7f, 0.5f)
                             drawPath(rb, vg(listOf(Color(0xFFFF5C4D), Color(0xFFB81F3E)), 12f, 13.7f)); drawPath(rb, Color(0xD95A0A14), style = stroke(0.35f))
                             line(Color.White.copy(alpha = 0.45f), -4.8f, 9.3f, -4.8f, 11.4f, 0.4f)
@@ -5340,7 +5341,7 @@ private fun DrawScope.drawHeld(kind: String, h: Offset, angRad: Float, t: Float,
                             val a = 1f - (ph - 0.5f) / 0.5f
                             translate(gx - 2.2f, 17f) { rotate(-0.15f * DEG, pivot = Offset.Zero) {
                                 drawOval(red.copy(alpha = a), Offset(-4.8f, -1.6f), Size(9.6f, 3.2f), style = Stroke(0.45f))
-                                coverText("OK", 0f, 0f, 2f, red.copy(alpha = a).toArgb(), family = android.graphics.Typeface.SANS_SERIF)
+                                drawPath(Path().apply { moveTo(-1.6f, 0f); lineTo(-0.5f, 0.9f); lineTo(1.7f, -0.8f) }, red.copy(alpha = a), style = stroke(0.5f))
                             } }
                         }
                     }
@@ -5435,7 +5436,7 @@ private fun DrawScope.drawHeld(kind: String, h: Offset, angRad: Float, t: Float,
                                 for ((x, y) in listOf(-2.2f to -25f, 2.2f to -25f, -2f to -22.8f, 2f to -22.8f)) drawCircle(Gold, 0.6f, Offset(x, y))
                                 val ol = Color(0xFF461E05).copy(alpha = 0.9f)
                                 drawOval(ol, Offset(-6.2f, -9f), Size(12.4f, 11.2f), style = Stroke(1f)); drawOval(ol, Offset(-4.8f, -15.4f), Size(9.6f, 8.8f), style = Stroke(1f))
-                                val wood = Brush.radialGradient(0f to Color(0xFFF7C984), 0.6f to Color(0xFFD98A3A), 1f to Color(0xFFA85A1E), center = Offset(-2f, -9f), radius = 11f)
+                                val wood = Brush.radialGradient(0f to Color(0xFFF7C984), 0.6f to Color(0xFFD98A3A), 1f to Color(0xFFA85A1E), center = Offset(2f, -3f), radius = 11f) // de ponta-cabeça: luz no lado +x/+y, que na tela é em cima à esquerda
                                 drawOval(wood, Offset(-6.2f, -9f), Size(12.4f, 11.2f)); drawOval(wood, Offset(-4.8f, -15.4f), Size(9.6f, 8.8f))
                                 drawCircle(Gold, 2.6f, Offset(0f, -7.6f), style = Stroke(0.5f))
                                 drawCircle(Color(0xFF2A1608), 2f, Offset(0f, -7.6f))
@@ -5446,7 +5447,7 @@ private fun DrawScope.drawHeld(kind: String, h: Offset, angRad: Float, t: Float,
                                 while (fy < -10.5f) { line(Color(0xFFD7DAE6), -1.2f, fy, 1.2f, fy, 0.3f, round = false); fy += 1.8f }
                                 val vib = if (party) sin(t * 40f) * 0.25f else 0f
                                 for (i in 0 until 4) { val x = -0.75f + i * 0.5f; line(Color.White.copy(alpha = 0.9f), x, -21.6f, x + vib * (if (i % 2 == 1) 1f else -1f), -2f, 0.18f) }
-                                rotate(0.3f * DEG, pivot = Offset(-3.4f, -4.6f)) { oval(Color.White.copy(alpha = 0.3f), -4.6f, -7f, 2.4f, 4.8f) }
+                                rotate(0.3f * DEG, pivot = Offset(3.4f, -2.2f)) { oval(Color.White.copy(alpha = 0.3f), 2.2f, -4.6f, 2.4f, 4.8f) }
                             } }
                         }
                         if (party && !small) for (i in 0 until 2) {

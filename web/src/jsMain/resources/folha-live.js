@@ -3617,7 +3617,8 @@
       const col = new Path2D(); col.roundRect(-3.6, 7.4, 7.2, 1.3, 0.5); g.fillStyle = vGrad(g, GOLD3, 7.4, 8.7); g.fill(col); stroke(g, col, "rgba(110,70,10,0.85)", 0.35);
       const blk = new Path2D(); blk.roundRect(-5.6, 8.6, 11.2, 3.6, 0.9); g.fillStyle = vGrad(g, ["#D9A070", "#A06A3A", "#7A4E26"], 8.6, 12.2); g.fill(blk); stroke(g, blk, OUTL, 0.45);
       const lb = new Path2D(); lb.roundRect(-3, 9.2, 6, 2.4, 0.4); g.fillStyle = "#FFFDF8"; g.fill(lb); stroke(g, lb, "rgba(60,25,8,0.4)", 0.2);
-      g.save(); g.font = "bold 2.1px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#E0303F"; g.fillText("OK", 0, 10.5); g.restore();
+      // visto vermelho feito a traço na etiqueta (legível em qualquer tamanho, sem texto)
+      { const ck = new Path2D(); ck.moveTo(-1.5, 10.4); ck.lineTo(-0.4, 11.2); ck.lineTo(1.6, 9.7); stroke(g, ck, "#E0303F", 0.55); }
       const rb = new Path2D(); rb.roundRect(-5.2, 12, 10.4, 1.7, 0.5); g.fillStyle = vGrad(g, ["#FF5C4D", "#B81F3E"], 12, 13.7); g.fill(rb); stroke(g, rb, "rgba(90,10,20,0.85)", 0.35);
       line(g, "rgba(255,255,255,0.45)", -4.8, 9.3, -4.8, 11.4, 0.4);
       g.restore();
@@ -3625,7 +3626,7 @@
       if (party && ph > 0.5 && !small) {
         const a = 1 - (ph - 0.5) / 0.5; g.save(); g.globalAlpha = a; g.translate(GX - 2.2, 17); g.rotate(-0.15);
         g.beginPath(); g.ellipse(0, 0, 4.8, 1.6, 0, 0, 2 * PI); g.strokeStyle = "#E0303F"; g.lineWidth = 0.45; g.stroke();
-        g.font = "bold 2px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#E0303F"; g.fillText("OK", 0, 0.1); g.restore();
+        const ck = new Path2D(); ck.moveTo(-1.6, 0); ck.lineTo(-0.5, 0.9); ck.lineTo(1.7, -0.8); stroke(g, ck, "#E0303F", 0.5); g.restore();
       }
     } else if (kind === "grampeador") {
       // grampeador: base preta comprida, braço vermelho com a ponta cromada e a dobradiça atrás; na festa
@@ -3702,7 +3703,8 @@
       for (const [x, y] of [[-2.2, -25], [2.2, -25], [-2, -22.8], [2, -22.8]]) circle(g, GOLD, 0.6, x, y);
       for (const [cy, rx, ry] of [[-3.4, 6.2, 5.6], [-11, 4.8, 4.4]]) { g.beginPath(); g.ellipse(0, cy, rx, ry, 0, 0, 2 * PI); g.strokeStyle = "rgba(70,30,5,0.9)"; g.lineWidth = 1; g.stroke(); }
       g.beginPath(); g.ellipse(0, -3.4, 6.2, 5.6, 0, 0, 2 * PI); g.ellipse(0, -11, 4.8, 4.4, 0, 0, 2 * PI);
-      const rg = g.createRadialGradient(-2, -9, 0.6, 0, -6, 11); rg.addColorStop(0, "#F7C984"); rg.addColorStop(0.6, "#D98A3A"); rg.addColorStop(1, "#A85A1E"); g.fillStyle = rg; g.fill();
+      // (girado de ponta-cabeça: a luz e o realce ficam no lado +x/+y do desenho, que na tela é em cima à esquerda)
+      const rg = g.createRadialGradient(2, -3, 0.6, 0, -6, 11); rg.addColorStop(0, "#F7C984"); rg.addColorStop(0.6, "#D98A3A"); rg.addColorStop(1, "#A85A1E"); g.fillStyle = rg; g.fill();
       g.beginPath(); g.arc(0, -7.6, 2.6, 0, 2 * PI); g.strokeStyle = GOLD; g.lineWidth = 0.5; g.stroke();
       circle(g, "#2A1608", 2, 0, -7.6);
       const brg = new Path2D(); brg.roundRect(-2.6, -2.6, 5.2, 1.4, 0.4); g.fillStyle = "#3A2410"; g.fill(brg);
@@ -3710,7 +3712,7 @@
       for (let y = -20.4; y < -10.5; y += 1.8) line(g, "#D7DAE6", -1.2, y, 1.2, y, 0.3, false);
       const vib = party ? sin(t * 40) * 0.25 : 0;
       for (let i = 0; i < 4; i++) { const x = -0.75 + i * 0.5; line(g, "rgba(255,255,255,0.9)", x, -21.6, x + vib * (i % 2 ? 1 : -1), -2, 0.18); }
-      g.beginPath(); g.ellipse(-3.4, -4.6, 1.2, 2.4, 0.3, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.3)"; g.fill();
+      g.beginPath(); g.ellipse(3.4, -2.2, 1.2, 2.4, 0.3, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.3)"; g.fill();
       g.restore();
       if (party && !small) for (let i = 0; i < 2; i++) { const ph = (t * 0.8 + i / 2) % 1, x = -9 - i * 3 - ph * 2, y = -8 - ph * 9, a = sin(PI * ph); circle(g, `rgba(82,71,224,${a})`, 0.8, x, y); line(g, `rgba(82,71,224,${a})`, x + 0.7, y, x + 0.7, y - 2.6, 0.3); }
     } else if (kind === "pincel") {

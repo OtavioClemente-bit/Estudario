@@ -406,6 +406,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 br.com.estudario.data.FolhaLookStore.syncAreaPieces(application, area, summary)
             }
         }
+        // Widgets: a sequência (e o dia feito) vai para eles sempre que muda. Antes só ia ao abrir o
+        // armário, e o widget ficava mostrando um número velho (5 dias com a sequência em 31).
+        viewModelScope.launch {
+            streak.collect { s ->
+                if (s != null) runCatching {
+                    br.com.estudario.ui.widget.FolhaWidget.save(application, s, br.com.estudario.domain.FolhaBond.level(s.activeDays).index)
+                }
+            }
+        }
     }
 
     private val _badgeUnlock = MutableStateFlow<List<Badge>>(emptyList())
