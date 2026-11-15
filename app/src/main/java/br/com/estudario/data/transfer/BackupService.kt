@@ -16,7 +16,10 @@ private val ACCEPTED_BACKUP_FORMATS = setOf(BACKUP_FORMAT, "estudario-backup", "
 class BackupService(private val db: AppDatabase) {
     private val dao = db.dao()
 
-    suspend fun export(): String {
+    suspend fun export(): String = exportJson().toString(2)
+
+    /** A foto já montada, sem virar texto (a sincronização economiza memória em conta grande). */
+    suspend fun exportJson(): JSONObject {
         val questions = dao.questionsOnce()
         val root = JSONObject()
             .put("format", BACKUP_FORMAT)
@@ -53,7 +56,7 @@ class BackupService(private val db: AppDatabase) {
         root.put("examProfiles", JSONArray(simulations.examProfilesOnce().map { JSONObject().put("competitionId", it.competitionId).putNullable("board", it.board).putNullable("boardSource", it.boardSource).putNullable("boardUrl", it.boardUrl).put("boardPending", it.boardPending).put("style", it.style).put("targetPercent", it.targetPercent).put("updatedAt", it.updatedAt) }))
         root.put("simulations", JSONArray(simulations.simulationsOnce().map { JSONObject().put("id", it.id).put("competitionId", it.competitionId).put("mode", it.mode).put("title", it.title).putNullable("board", it.board).put("style", it.style).put("plannedQuestions", it.plannedQuestions).put("timeLimitMinutes", it.timeLimitMinutes).put("status", it.status).put("partsJson", it.partsJson).put("answersJson", it.answersJson).put("flaggedJson", it.flaggedJson).put("weakSpotsJson", it.weakSpotsJson).putNullable("sourceSimulationId", it.sourceSimulationId).put("createdAt", it.createdAt).putNullable("startedAt", it.startedAt).putNullable("finishedAt", it.finishedAt).put("elapsedSeconds", it.elapsedSeconds).put("answeredCount", it.answeredCount).put("correctCount", it.correctCount).put("questionCount", it.questionCount).putNullable("scorePercent", it.scorePercent) }))
         PlannerBackupCodec.write(db, root)
-        return root.toString(2)
+        return root
     }
 
     suspend fun restore(text: String) = restore(try { JSONObject(text) } catch (_: Exception) { throw IllegalArgumentException("Backup JSON inválido.") })

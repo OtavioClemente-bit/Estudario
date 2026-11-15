@@ -178,10 +178,13 @@ class CloudSyncService(
     }
 
     // A foto leva também o visual do Folha (o armário), a meta diária e as peças vistas, que não moram no banco.
-    private suspend fun canonicalSnapshot(): String = canonicalize(JSONObject(backup.export()).apply {
+    // Monta a foto direto do banco, sem passar por texto e ler de novo (em conta grande, cada cópia em
+    // texto eram dezenas de MB e o celular ficava sem memória no meio da sincronização).
+    private suspend fun canonicalSnapshot(): String = backup.exportJson().apply {
+        remove("exportedAt")
         br.com.estudario.data.FolhaLookStore.toJson(context)?.let { put(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY, it) }
         put(SyncedPrefs.SNAPSHOT_KEY, SyncedPrefs.toJson(context))
-    }.toString())
+    }.toString()
 
     private suspend fun isLocalEmpty(): Boolean =
         database.dao().competitionsOnce().isEmpty() && database.plannerDao().plansOnce().isEmpty()
@@ -206,15 +209,22 @@ class CloudSyncService(
         val path = head.objectPath ?: error("A nuvem não tem foto.")
         val response = request("GET", "/storage/v1/object/authenticated/$BUCKET/$path", null, null)
         if (response.status !in 200..299) error("Não deu para baixar os dados (${response.status}).")
-        val remoteText = response.body
-        if (sha256Hex(remoteText) != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
-        val base = runCatching { baseFile().takeIf { it.exists() }?.readText()?.let(::JSONObject) }.getOrNull()
-        val merged = SnapshotMerge.merge(base, JSONObject(localSnapshot), JSONObject(remoteText))
+        if (sha256Hex(response.body) != head.sha256) error("A cópia baixada veio incompleta. Tente de novo.")
         keepLocalCopy()
-        restoring = true
-        try { backup.restore(merged) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
-        br.com.estudario.data.FolhaLookStore.applyRemote(context, merged.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
-        SyncedPrefs.applyRemote(context, merged.optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
+        // Cada versão (base, deste aparelho, da conta) vira uma árvore só dentro do bloco, para a memória
+        // ser liberada antes de montar a foto nova; antes tudo ficava vivo junto e faltava memória.
+        val (look, prefsJson) = run {
+            val merged = SnapshotMerge.merge(
+                runCatching { baseFile().takeIf { it.exists() }?.readText()?.let(::JSONObject) }.getOrNull(),
+                JSONObject(localSnapshot),
+                JSONObject(response.body),
+            )
+            restoring = true
+            try { backup.restore(merged) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
+            merged.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY) to merged.optJSONObject(SyncedPrefs.SNAPSHOT_KEY)
+        }
+        br.com.estudario.data.FolhaLookStore.applyRemote(context, look)
+        SyncedPrefs.applyRemote(context, prefsJson)
         val snapshot = canonicalSnapshot()
         upload(userId, snapshot, sha256Hex(snapshot), head.revision)
     }
@@ -300,7 +310,7 @@ class CloudSyncService(
     /** Guarda a versão deste aparelho antes de substituí-la (mantém as 5 mais recentes). */
     private suspend fun keepLocalCopy() {
         val dir = File(context.filesDir, "sync-backups").apply { mkdirs() }
-        File(dir, "antes-de-sincronizar-${System.currentTimeMillis()}.json").writeText(backup.export())
+        File(dir, "antes-de-sincronizar-${System.currentTimeMillis()}.json").writeText(backup.exportJson().toString())
         dir.listFiles()?.sortedByDescending { it.name }?.drop(5)?.forEach { it.delete() }
     }
 
