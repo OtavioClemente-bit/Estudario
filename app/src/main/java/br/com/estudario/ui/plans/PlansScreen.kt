@@ -197,6 +197,7 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 Hero(
                     currentTier = (state as? PlansState.Ready)?.summary?.planTier,
+                    currentPlanName = (state as? PlansState.Ready)?.summary?.let { it.pricingOf(it.planTier)?.name?.takeIf { name -> name.isNotBlank() } },
                     renewsAt = (state as? PlansState.Ready)?.summary?.planRenewsAt,
                     onDismiss = onDismiss,
                 )
@@ -309,7 +310,7 @@ private fun brandBrush(): Brush = Brush.linearGradient(
 )
 
 @Composable
-private fun Hero(currentTier: String?, renewsAt: String?, onDismiss: () -> Unit) {
+private fun Hero(currentTier: String?, currentPlanName: String?, renewsAt: String?, onDismiss: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -357,7 +358,7 @@ private fun Hero(currentTier: String?, renewsAt: String?, onDismiss: () -> Unit)
                         Icon(Icons.Outlined.WorkspacePremium, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(8.dp))
                         Column {
-                            Text("Seu plano: ${planDisplayName(currentTier)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("Seu plano: ${currentPlanName ?: planDisplayName(currentTier)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             val renew = formatDate(renewsAt)
                             Text(
                                 when {
