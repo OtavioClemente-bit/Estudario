@@ -86,7 +86,7 @@ async function trabalhador(n: number) {
     if (!id) { log(`[r${n}] nada mais a pegar`); break; }
     emAndamento.add(id);
     const erros = conferir(id);
-    const destino = `conteudo/entrada/reescrita-codex/${id}.json`;
+    const destino = `${SAIDA.replace(ROOT, "")}/${id}.json`;
     log(`[r${n}] ${erros ? "correção" : "reescrita"}: ${id}`);
     const pedido = erros
       ? `Leia AGENTS.md e conteudo/fila/PROMPT-REESCRITA-DIDATICA.md. A reescrita didática de ${destino} já começou; NÃO recomece.
