@@ -1,0 +1,51 @@
+Nota do aluno: 6/10
+
+ERROS DE CONTEÚDO (corrija todos):
+- Títulos duplicados em cada capítulo (### e # repetidos) — sobra de rascunho
+
+O QUE FALTA (acrescente na teoria, dentro dos capítulos existentes):
+- Teorias do jornalismo
+- Legislação profissional (DL 972/69, CBT, Código de Ética da FENAJ e da radiodifusão, CF arts. 220-224)
+- Produção gráfica detalhada (papéis, processos de impressão, provas, tipologia e medidas)
+- Radiojornalismo/telejornalismo
+- Jornalismo institucional/empresarial e comunicação interna
+- Jornalismo científico, ambiental e jurídico
+- Classificação de gêneros de Marques de Melo
+
+ITENS DE EDITAL QUE A MATÉRIA COBRE SÓ EM PARTE:
+- "Ética: papel social da comunicação; código de ética do jornalista; regulamentação da profissão de jornalista.": falta Ética genérica; não apresenta o Código de Ética da FENAJ nem o Decreto-Lei 972/1969.
+- "Legislação e ética: direitos e deveres, Código de Ética dos Jornalistas Brasileiros.": falta Deveres gerais citados; texto do Código não.
+- "Constituição Federal no campo da comunicação social, ética jornalística e Código de Ética do Jornalista.": falta Falta o capítulo da Comunicação Social (arts. 220-224 CF) e o Código.
+- "Manual de Jornalismo da EBC (Empresa Brasil de Comunicação).": falta Só menciona que o Manual existe; não expõe seus princípios e orientações.
+- "Manual de Assessoria de Imprensa da FENAJ (Federação Nacional dos Jornalistas).": falta Manual da FENAJ não é citado nem resumido.
+- "Conceito de editoração e preparação de originais. Projeto gráfico. Tipologia. Caracteres e medidas, justificação, mancha gráfica e margens. Diagramação e retrancagem. Composição, impressão. Planejamento editorial. Ilustrações, cores, técnicas de impressão, redação do texto, visual da publicação.": falta Faltam tipologia, medidas tipográficas (ponto, paica, cícero), justificação, mancha gráfica, retrancagem.
+- "Processo gráfico: conceito de editoração e preparação de originais. Projeto gráfico. Tipologia: caracteres e medidas, justificação, mancha gráfica e margens. Diagramação e retrancagem: composição, impressão. Planejamento editorial: ilustrações, cores, técnicas de impressão, redação do texto, visual da publicação.": falta Mesmas lacunas: tipologia, medidas, mancha gráfica, retrancagem.
+- "Diagramação e retrancagem: composição, impressão.": falta Retrancagem e composição não explicadas.
+- "Aproveitamento do espaço gráfico em Jornalismo, produção editorial e publicidade e propaganda. Tipologia.": falta Tipologia e uso do espaço em publicidade ausentes.
+- "O texto: preparação de originais; edição de texto (padronização e hierarquização de itens, realce gráfico); noções básicas de editoração segundo a Associação Brasileira de Normas e Técnicas (ABNT).": falta Normas ABNT de editoração (NBR 6029, 6023 etc.) ausentes.
+- "Código de ética do fotógrafo (conduta profissional, credibilidade).": falta Só princípios gerais de integridade da imagem; código específico não tratado.
+- "Fotojornalismo.": falta Um parágrafo; faltam gêneros fotojornalísticos, técnica, história.
+- "Edição em rádio, jornalismo e edição em jornalismo digital.": falta Edição em rádio não é tratada.
+- "Edição no rádio jornalismo e Edição jornalismo digital.": falta Radiojornalismo ausente.
+- "Assessoria de Imprensa e Relações com a Mídia. História, atribuições, organização, estrutura e funcionamento. Estratégias de relacionamento com veículos de imprensa; produção de media kits e follow-ups; clippings e demais produtos de assessoria de imprensa; media training; gestão de crises de imagem O papel do assessor; atendimento à imprensa.": falta Falta história e estrutura da assessoria (Ivy Lee, Brasil) e gestão de crise de imagem.
+- "Comunicação institucional e assessoria de imprensa. Assessoria de imprensa. Planejamento de relacionamento com a imprensa. Atendimento à imprensa. Media training. Releases, notas oficiais, artigos, sugestões de pauta e press kit. Organização de entrevistas coletivas e eventos para imprensa. Clipping, monitoramento e análise de mídia. Gestão de imagem e reputação institucional.": falta Planejamento de assessoria, organização de coletivas e gestão de reputação muito superficiais.
+- "Assessoria de imprensa. Planejamento de assessoria de imprensa. Relacionamento com a mídia. Redação em assessoria de imprensa: release, sugestão de pauta, press-kit, notícia institucional, nota oficial. Instrumentos: organização de entrevistas coletivas, entrevistas exclusivas, distribuição de sugestões de pauta, follow-up. Media training. Monitoramento e análise de mídia.": falta Planejamento da assessoria e organização prática de coletivas/exclusivas não detalhados.
+- "Assessoria de Imprensa: Coletivas de imprensa, Conduta ética do assessor, House organs, Jornalismo empresarial, Mailling, Clipagem, Planejamento, Press-kit, Release.": falta House organs e jornalismo empresarial ausentes.
+- "Jornalismo institucional. História, atribuições, organização, estrutura e funcionamento. Notícia institucional. Estrutura e processo de construção da notícia. Notícia na mídia impressa. Notícia na mídia eletrônica. Notícia na mídia digital. A produção da notícia e as rotinas da assessoria de imprensa. O papel do assessor. Atendimento à imprensa. Sugestões de pauta, releases e artigos.": falta História e estrutura do jornalismo institucional e notícia em mídia eletrônica ausentes.
+- "Organização de entrevistas. Produtos de uma assessoria de imprensa. Mecanismos de controle da informação. Pauta institucional. Canais e estratégias de comunicação interna. Publicações jornalísticas empresariais: história, planejamento, conceitos e técnicas. Métodos e técnicas de pesquisa.": falta Comunicação interna, publicações empresariais e métodos de pesquisa ausentes.
+- "Interfaces entre a assessoria de imprensa, as relações públicas, a publicidade institucional e a administração e gestão da empresa.": falta Comunicação integrada/interfaces RP-publicidade não discutidas.
+- "Redação jornalística e Redação Publicitária.": falta Redação publicitária ausente.
+- "Uso de técnicas gráficas em Jornalismo, Relações Públicas e Publicidade e Propaganda.": falta Técnicas gráficas só em linhas gerais; nada de RP/publicidade.
+- "Ética profissional nas áreas de Relações Públicas, Jornalismo e Publicidade e Propaganda.": falta Ética de RP e publicidade (CONAR, código de RP) ausente.
+- "Redação dos diferentes gêneros jornalísticos: notícia, crônica, editorial, coluna, crítica, comentário, fait-divers, conto, entrevista, reportagem, feature, resenhas, press release, infografia e legendas, adaptados à imprensa escrita, radiojornalismo telejornalismo e jornalismo digital.": falta Faltam crítica, comentário, fait-divers, feature, resenha, infografia e adaptação a rádio/TV.
+- "Gêneros jornalísticos: um modelo classificatório.": falta Classificação de Marques de Melo (informativo, opinativo, interpretativo, diversional, utilitário) não apresentada.
+- "As diversas formas de jornalismo (online, radiojornalismo, telejornalismo, comunitário, documentário, redes sociais) e seu papel no mundo global.": falta Só jornalismo digital; radio/telejornalismo, comunitário e documentário ausentes.
+- "Jornalismo e meios de comunicação de massa. História e conceitos. Veículos de comunicação de massa no Brasil. História, estrutura e funcionamento. Características, linguagens e técnicas de produção, apuração, entrevista, redação e edição para jornal, revista, rádio, Internet, TV e vídeo. Condições de produção da notícia. Princípios e orientações gerais para redigir um texto jornalístico.": falta História dos veículos e linguagens de rádio/TV/vídeo ausentes.
+- "Jornalismo e meios de comunicação de massa. História e conceitos. Veículos de comunicação de massa no Brasil: história, estrutura e funcionamento. Características, linguagens e técnicas de produção, apuração, entrevista, redação e edição para jornal, revista, rádio, internet, TV e vídeo. As condições de produção da notícia. Princípios e orientações gerais para redigir um texto jornalístico.": falta História dos veículos e linguagens de rádio/TV/vídeo ausentes.
+- "Jornalismo, Redação e Assessoria de Imprensa: Linguagem e gêneros jornalísticos; Estrutura da notícia e critérios de noticiabilidade; Apuração, checagem de dados e técnicas de entrevista; Produção de notícias, releases, notas oficiais, artigos e roteiros para audiovisual e podcasts.": falta Roteiros para audiovisual e podcasts ausentes.
+- "Checagem de fatos, responsabilidade social da informação, comunicação pública online, combate à desinformação, relações humanas no trabalho, ética profissional e ética no serviço público.": falta Relações humanas no trabalho, ética no serviço público e comunicação pública online ausentes.
+- "Cobertura jornalística de políticas públicas municipais.": falta Não trata cobertura de políticas públicas (orçamento, fontes oficiais municipais, dados abertos).
+- "Redação e jornalismo. Gêneros e formatos de textos jornalísticos: newsletter; comunicados; informativos; matérias jornalísticas, linguagem dos veículos rádio, televisão, web, impressos; crônicas; editoriais. Processos de produção da notícia, conceitos e valores-notícia. Estrutura do texto jornalístico.": falta Newsletter e linguagem de rádio/TV ausentes.
+- "Redação e jornalismo. Acessibilidade e linguagem simples em conteúdos e ferramentas de comunicação. Gêneros e formatos de textos jornalísticos: newsletter; comunicados; informativos; matérias jornalísticas, linguagem dos veículos rádio, televisão, web, impressos; crônicas; editoriais. Processos de produção da notícia, conceitos e valores-notícia. Estrutura do texto jornalístico.": falta Linguagem simples, newsletter e linguagem de rádio/TV pouco ou nada tratadas.
+- "Uso de fotos, ilustrações e infografia no jornalismo. Edição textual e revisão. Projeto editorial: definição de objetivos, público-alvo, linha editorial, identidade, estratégia de distribuição, indicadores e avaliação. Narrativas audiovisuais: relação entre texto, áudio e imagem.": falta Infografia, projeto editorial (linha editorial, distribuição, indicadores) e narrativas audiovisuais ausentes.
+- "Levantamento de dados, mapas, gráficos, indicativos numéricos, pesquisa complementar (livros, textos).": falta Jornalismo de dados e visualização só tangenciados.

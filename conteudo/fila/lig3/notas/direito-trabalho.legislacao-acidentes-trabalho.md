@@ -1,0 +1,10 @@
+Nota do aluno: 8/10
+
+ERROS DE CONTEÚDO (corrija todos):
+- nenhum
+
+O QUE FALTA (acrescente na teoria, dentro dos capítulos existentes):
+- Contribuição SAT/RAT e FAP
+
+ITENS DE EDITAL QUE A MATÉRIA COBRE SÓ EM PARTE:
+- "SAT - Seguro contra Acidente do Trabalho.": falta Não trata da contribuição SAT/RAT (alíquotas 1-3%, FAP, financiamento).

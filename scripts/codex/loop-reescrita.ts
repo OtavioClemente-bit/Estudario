@@ -6,9 +6,14 @@
 //   deno run -A scripts/codex/loop-reescrita.ts
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const CODEX_JS = `${Deno.env.get("APPDATA")}/npm/node_modules/@openai/codex/bin/codex.js`;
-const SAIDA = `${ROOT}conteudo/entrada/reescrita-codex`;
-const LOG = `${ROOT}conteudo/entrada/reescrita-codex-log.txt`;
-const FALHAS = `${ROOT}conteudo/entrada/reescrita-codex-falhas.json`;
+// CODEX_LIG3=1 (17/11): fila da conferência das ligações (conteudo/fila/lig3/reescrever.txt). Cada matéria vem com as
+// notas do aluno (erros, o que falta, itens cobertos só em parte) em conteudo/fila/lig3/notas/<id>.md; saída separada.
+const LIG3 = Deno.env.get("CODEX_LIG3") === "1";
+const SAIDA = `${ROOT}conteudo/entrada/${LIG3 ? "reescrita-lig3" : "reescrita-codex"}`;
+const LOG = `${ROOT}conteudo/entrada/${LIG3 ? "reescrita-lig3" : "reescrita-codex"}-log.txt`;
+const FALHAS = `${ROOT}conteudo/entrada/${LIG3 ? "reescrita-lig3" : "reescrita-codex"}-falhas.json`;
+const TEORIA_MAX = LIG3 ? 45_000 : 30_000;
+const notas = (id: string) => { try { return Deno.readTextFileSync(`${ROOT}conteudo/fila/lig3/notas/${id}.md`); } catch { return ""; } };
 const MAX_TOTAL = 8;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (m: string) => {
@@ -33,7 +38,7 @@ function conferir(id: string): string[] | null {
   if (JSON.stringify(tn) !== JSON.stringify(tv)) erros.push(`os títulos dos capítulos mudaram; têm de ser exatamente: ${JSON.stringify(tv)}`);
   if (JSON.stringify(novo.questions) !== JSON.stringify(velho.questions)) erros.push("as questões mudaram; copie-as de volta exatamente como estão na matéria publicada");
   const teoria = (novo.chapters ?? []).reduce((s: number, c: Json) => s + String(c.markdown ?? "").length, 0);
-  if (teoria < 15_000 || teoria > 30_000) erros.push(`teoria com ${teoria} caracteres; precisa ficar entre 15.000 e 30.000`);
+  if (teoria < 15_000 || teoria > TEORIA_MAX) erros.push(`teoria com ${teoria} caracteres; precisa ficar entre 15.000 e ${TEORIA_MAX}`);
   const iguais = (novo.chapters ?? []).filter((c: Json, i: number) => c.markdown === velho.chapters?.[i]?.markdown).length;
   if (iguais) erros.push(`${iguais} capítulo(s) continuam com o texto antigo; reescreva todos`);
   // Capítulo com texto de outra matéria (03/11: 10 reescritas vieram com UTI, ISS, Campo Geral etc. no lugar).
@@ -54,8 +59,8 @@ function conferir(id: string): string[] | null {
 const total: Record<string, number> = (() => { try { return ler(FALHAS); } catch { return {}; } })();
 const contar = (id: string) => { total[id] = (total[id] ?? 0) + 1; Deno.writeTextFileSync(FALHAS, JSON.stringify(total, null, 1)); };
 function pendentes(): string[] {
-  const feitas = new Set(linhas("conteudo/fila/reescrita-didatica-feitas.txt"));
-  return linhas("conteudo/fila/reescrita-didatica-faltam.txt").filter((id) => {
+  const feitas = new Set(linhas(LIG3 ? "conteudo/fila/lig3/feitas.txt" : "conteudo/fila/reescrita-didatica-feitas.txt"));
+  return linhas(LIG3 ? "conteudo/fila/lig3/reescrever.txt" : "conteudo/fila/reescrita-didatica-faltam.txt").filter((id) => {
     if (feitas.has(id) || (total[id] ?? 0) >= MAX_TOTAL) return false;
     try { Deno.statSync(publicada(id)); } catch { return false; }
     const e = conferir(id);
@@ -102,7 +107,12 @@ Faça a REESCRITA DIDÁTICA COMPLETA da matéria ${publicada(id).replace(ROOT, "
 3. NÃO mude os títulos dos capítulos nem as questões (elas apontam para os títulos). Não mexa em nada fora do markdown e da versão.
 4. Nunca invente número de lei, artigo, prazo, valor ou súmula: use os que já estão no texto ou que você conferiu na fonte
    oficial; na dúvida, explique sem o número.
-5. Valide com: deno run --allow-read --allow-env scripts/biblioteca/conferir-materia.ts ${destino} e corrija até OK.
+${LIG3 ? `ESTA REESCRITA TEM PROBLEMAS APONTADOS POR UM ALUNO QUE ESTUDOU A MATÉRIA. Corrija TODOS os erros e acrescente,
+dentro dos capítulos que já existem, tudo o que falta (teoria total até ${TEORIA_MAX} caracteres). Nunca invente norma:
+número de lei/artigo/resolução só se você conferiu; se não der para conferir, explique sem o número. Se um item "falta"
+é de outra disciplina e não cabe nesta matéria, ignore-o.
+${notas(id).slice(0, 6000)}
+` : ""}5. Valide com: deno run --allow-read --allow-env scripts/biblioteca/conferir-materia.ts ${destino} e corrija até OK.
 Nenhum script gera, completa ou reescreve texto. Não faça mais nada nesta rodada.`;
     const o = await new Deno.Command("node", {
       args: [CODEX_JS, "exec", "-c", `model_reasoning_effort="${Deno.env.get("CODEX_ESFORCO") ?? "high"}"`, "-s", "workspace-write", "--skip-git-repo-check", "-C", ROOT, pedido],

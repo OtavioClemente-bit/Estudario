@@ -1,0 +1,10 @@
+Nota do aluno: 8/10
+
+ERROS DE CONTEÚDO (corrija todos):
+- Aspas escapadas (\"efetivamente prestado...\") aparecem literalmente no texto, sobra de formatação
+
+O QUE FALTA (acrescente na teoria, dentro dos capítulos existentes):
+- nada
+
+ITENS DE EDITAL QUE A MATÉRIA COBRE SÓ EM PARTE:
+- nenhum
