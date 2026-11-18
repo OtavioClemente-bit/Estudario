@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import br.com.estudario.EstudarioApplication
@@ -64,8 +65,17 @@ fun TopicAiContentScreen(
         factory = AiTextJobViewModel.Factory(app, AiFeature.CONTENT_GENERATION, "content:${topic.id}"),
     )
     val state by jobs.state.collectAsState()
+    // Pronto rápido (a matéria da biblioteca sai em ~3 s): antes de abrir, a animação passa pelas etapas que
+    // faltavam, em vez de cortar no meio. Só quando a pessoa viu a geração começar nesta tela.
+    var finale by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    var sawGenerating by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (state == AiTextJobState.Generating) sawGenerating = true
     LaunchedEffect(state) {
         val done = state as? AiTextJobState.Done ?: return@LaunchedEffect
+        if (sawGenerating) {
+            for (i in 2 until ContentCopy.stages.size) { finale = i; kotlinx.coroutines.delay(700) }
+            finale = ContentCopy.stages.size; kotlinx.coroutines.delay(400)
+        }
         val estudo = runCatching {
             TopicContentEstudoMapper.toEstudo(competition, subject, allTopics, topic, done.proposal)
         }.getOrNull() ?: return@LaunchedEffect
@@ -75,7 +85,8 @@ fun TopicAiContentScreen(
     AiGenerationScreen(
         target = topic.title,
         copy = ContentCopy,
-        state = state,
+        state = if (finale != null) AiTextJobState.Generating else state,
+        stageIndex = finale,
         onGenerate = { jobs.start(TopicContentAiInput.build(competition, null, subject, topic, allTopics)) },
         onRefresh = jobs::refresh,
         onFallback = onFallback,

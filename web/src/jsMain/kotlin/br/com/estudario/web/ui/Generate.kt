@@ -170,8 +170,21 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
 
     // O estúdio: escolhas à esquerda, o pacote montando ao vivo à direita (no celular, embaixo, com
     // o botão sempre à mão). Cabeçalho fixo; o meio rola.
+    // Pronto rápido (a matéria da biblioteca sai em ~3 s): antes do "Prontinho" a animação passa pelas etapas que
+    // faltavam, uma a uma, em vez de cortar no meio. Quem abre a janela com tudo já pronto vai direto ao resultado.
+    val doneAtOpen = remember(topicId) { progress is AiContent.Progress.Done }
+    var finale by remember(topicId) { mutableStateOf<Int?>(null) }
+    var finaleDone by remember(topicId) { mutableStateOf(doneAtOpen) }
+    val stageCount = if (showQuestions) 5 else 6
+    LaunchedEffect(progress is AiContent.Progress.Done) {
+        if (progress is AiContent.Progress.Done && !finaleDone) {
+            for (i in 2 until stageCount) { finale = i; kotlinx.coroutines.delay(700) }
+            finale = stageCount; kotlinx.coroutines.delay(400)
+            finaleDone = true
+        }
+    }
     Modal(onDismiss = close, wide = true, extraClass = "gx-studio") {
-        when (val p = progress) {
+        when (val p = if (progress is AiContent.Progress.Done && !finaleDone) AiContent.Progress.Sending else progress) {
             null, is AiContent.Progress.Failed -> {
                 Div({ classes("gx-top") }) {
                     Div({ classes("gx-top-id") }) {
@@ -293,7 +306,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     eyebrow = topic?.title?.take(60),
                     stages = if (showQuestions) listOf("Conferindo a segurança", "Enviando o pedido", "Separando as que você ainda não viu", "Buscando questões no estilo da banca", "Conferindo gabaritos e explicações")
                     else listOf("Conferindo a segurança", "Enviando o pedido", "Lendo o tópico e a banca", "Escrevendo a teoria", "Montando flashcards e questões", "Revisando tudo"),
-                    stageIndex = when (p) {
+                    stageIndex = finale ?: when (p) {
                         AiContent.Progress.Checking -> 0
                         AiContent.Progress.Sending -> 1
                         else -> null

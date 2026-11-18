@@ -80,6 +80,8 @@ fun AiGenerationScreen(
     onRefresh: () -> Unit,
     onFallback: () -> Unit,
     onClose: () -> Unit,
+    /** Etapa mostrada à força (o final rápido depois que a matéria ficou pronta); null = pelo tempo. */
+    stageIndex: Int? = null,
 ) {
     var login by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
@@ -102,6 +104,7 @@ fun AiGenerationScreen(
                             title = copy.processingTitle,
                             stages = copy.stages,
                             stageMillis = copy.stageMillis,
+                            stageIndex = stageIndex,
                             scene = copy.scene,
                             footer = {
                                 Text(
