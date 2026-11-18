@@ -55,7 +55,7 @@ fun HomeScreen() {
 
     val hour = Date().getHours()
     val greeting = when (hour) { in 0..4 -> "Boa madrugada"; in 5..11 -> "Bom dia"; in 12..17 -> "Boa tarde"; else -> "Boa noite" }
-    val firstName = session?.name?.substringBefore(' ')?.takeIf { it.isNotBlank() } ?: if (Store.demo) "estudante" else "estudante"
+    val firstName = br.com.estudario.web.data.Prefs.userName()?.substringBefore(' ')?.takeIf { it.isNotBlank() } ?: if (Store.demo) "estudante" else "estudante"
     val daysToExam = plan?.exam?.let { it - todayEpoch }?.takeIf { it >= 0 }
     val coverage = percent(studied, leaves.size)
 

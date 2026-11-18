@@ -169,7 +169,7 @@ fun ProfileScreen(
     }
 
     busy?.let { br.com.estudario.ui.components.EstudarioProcessDialog(it, "Não feche o app até terminar.") }
-    if (editName) TextInputDialog("Seu nome", profile.name, "Como quer ser chamado", onDismiss = { editName = false }) { viewModel.setUserName(it) }
+    if (editName) NameDialog(profile, onDismiss = { editName = false }) { viewModel.setUserName(it) }
     restoreRaw?.let { raw ->
         val summary = remember(raw) { viewModel.backupSummary(raw) }
         if (summary == null) {

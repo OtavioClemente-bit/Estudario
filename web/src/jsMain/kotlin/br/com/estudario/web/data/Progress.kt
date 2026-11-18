@@ -79,6 +79,27 @@ object Prefs {
         Store.update { data -> data.withObject(SYNCED_KEY, JsonObject(synced(data) + fields)) }
     }
 
+    /** Limite do nome escolhido (o mesmo do app, NameDialog.kt). */
+    const val NAME_MAX = 30
+
+    /** O nome como fica guardado: sem espaços sobrando e dentro do limite. */
+    fun cleanName(raw: String): String = raw.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ").take(NAME_MAX)
+
+    /**
+     * Como a pessoa quer ser chamada: o nome escolhido no app ou no site ("userName" na foto da conta,
+     * o mesmo de SyncedPrefs.kt do app) ou, sem escolha, o da conta Google.
+     */
+    fun userName(data: Snapshot = Store.data): String? =
+        (synced(data)["userName"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
+            ?: Store.session?.name?.takeIf { it.isNotBlank() }
+
+    /** Grava o nome escolhido na foto da conta (o app adota na próxima sincronização). */
+    fun setUserName(raw: String) {
+        val name = cleanName(raw)
+        if (name.isEmpty()) return
+        setSyncedFields(mapOf("userName" to JsonPrimitive(name), "userNameUpdatedAt" to JsonPrimitive(kotlin.js.Date.now().toLong())))
+    }
+
     private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.longOrNull
     private fun JsonObject.withGoal(questions: Int, history: String, at: Long) =
         JsonObject(this + mapOf("dailyGoal" to JsonPrimitive(questions), "goalHistory" to JsonPrimitive(history), "goalUpdatedAt" to JsonPrimitive(at)))

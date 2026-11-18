@@ -40,7 +40,7 @@ object GoogleAccountSignIn {
         val email = google.id
         val prefs = app.preferences
         prefs.setUserEmail(email)
-        google.displayName?.takeIf { it.isNotBlank() && prefs.userName.first().isBlank() }?.let { prefs.setUserName(it) }
+        google.displayName?.takeIf { it.isNotBlank() && prefs.userName.first().isBlank() }?.let { prefs.setUserName(it, manual = false) }
         if (prefs.userPhotoPath.first() == null) google.profilePictureUri?.let { savePhoto(app, it.toString()) }
         email
     }

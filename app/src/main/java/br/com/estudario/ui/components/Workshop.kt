@@ -1,5 +1,6 @@
 package br.com.estudario.ui.components
 
+import br.com.estudario.ui.brand.marker
 import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -440,14 +441,12 @@ fun WorkshopChecklist(stages: List<String>, current: Int, modifier: Modifier = M
     }
 }
 
-/** O título com o marca-texto amarelo atrás, que anda junto com o progresso. */
+/** O título com o risco do Folha embaixo (a folhinha verde na ponta), como os outros títulos do app e do site. */
 @Composable
-fun HighlightedTitle(text: String, progress: Float, modifier: Modifier = Modifier) {
+fun HighlightedTitle(text: String, @Suppress("UNUSED_PARAMETER") progress: Float, modifier: Modifier = Modifier) {
     Text(
         text,
-        modifier.drawBehind {
-            drawRoundRect(HIGHLIGHT, Offset(0f, size.height * 0.56f), Size(size.width * clamp01(progress), size.height * 0.36f), CornerRadius(3.dp.toPx()))
-        },
+        modifier.marker(),
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Black,
         textAlign = androidx.compose.ui.text.style.TextAlign.Center,

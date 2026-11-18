@@ -41,6 +41,8 @@ class AppPreferences(private val context: Context) {
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val seenToursKey = stringPreferencesKey("seen_tours")
     private val userNameKey = stringPreferencesKey("user_name")
+    /** Quando a pessoa escolheu o nome (em qualquer aparelho); decide qual nome vale ao sincronizar. */
+    private val userNameUpdatedAtKey = longPreferencesKey("user_name_updated_at")
     private val userEmailKey = stringPreferencesKey("user_email")
     private val userPhotoKey = stringPreferencesKey("user_photo_path")
     private val dailyGoalKey = intPreferencesKey("daily_goal_questions")
@@ -265,7 +267,29 @@ class AppPreferences(private val context: Context) {
         }
     }
 
-    suspend fun setUserName(value: String) { context.dataStore.edit { it[userNameKey] = value.trim() } }
+    /** [manual] = a pessoa escolheu o nome (vai para a conta e vale nos outros aparelhos). */
+    suspend fun setUserName(value: String, manual: Boolean = true) {
+        context.dataStore.edit {
+            it[userNameKey] = value.trim()
+            if (manual) it[userNameUpdatedAtKey] = System.currentTimeMillis()
+        }
+    }
+
+    /** O nome para a foto sincronizada e quando foi escolhido (0 = veio da conta Google, nunca escolhido). */
+    suspend fun syncedUserName(): Pair<String, Long> = context.dataStore.data.map { it[userNameKey].orEmpty() to (it[userNameUpdatedAtKey] ?: 0L) }.first()
+
+    /** Usa o nome de outro aparelho se ele foi escolhido depois do daqui (ou se aqui não há nome). */
+    suspend fun applySyncedUserName(name: String, updatedAt: Long) {
+        val clean = name.trim().take(40)
+        if (clean.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val localAt = prefs[userNameUpdatedAtKey] ?: 0L
+            if (updatedAt > localAt || (prefs[userNameKey].isNullOrBlank() && updatedAt >= localAt)) {
+                prefs[userNameKey] = clean
+                prefs[userNameUpdatedAtKey] = updatedAt
+            }
+        }
+    }
     suspend fun setUserEmail(value: String) { context.dataStore.edit { it[userEmailKey] = value.trim() } }
     suspend fun setUserPhotoPath(value: String?) {
         context.dataStore.edit { prefs -> if (value.isNullOrBlank()) prefs.remove(userPhotoKey) else prefs[userPhotoKey] = value }

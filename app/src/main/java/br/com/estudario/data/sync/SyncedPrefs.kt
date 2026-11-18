@@ -41,6 +41,9 @@ object SyncedPrefs {
         br.com.estudario.ui.brand.PaperStyle.load(context)
         val paperAt = br.com.estudario.ui.brand.PaperStyle.updatedAt(context)
         if (paperAt > 0) out.put("paperPattern", br.com.estudario.ui.brand.PaperStyle.pattern).put("paperLight", br.com.estudario.ui.brand.PaperStyle.light).put("paperUpdatedAt", paperAt)
+        // O nome (o mesmo do site): vale o escolhido por último; o que veio do Google conta como 0.
+        val (name, nameAt) = app(context).preferences.syncedUserName()
+        if (name.isNotBlank()) out.put("userName", name).put("userNameUpdatedAt", nameAt)
         return out
     }
 
@@ -61,6 +64,7 @@ object SyncedPrefs {
         br.com.estudario.data.FlashDeckLog.refresh(context)
         if (json.has("paperUpdatedAt")) br.com.estudario.ui.brand.PaperStyle.adopt(context, json.optString("paperPattern"), json.optString("paperLight"), json.optLong("paperUpdatedAt", 0L))
         json.set(BADGES).takeIf { it.isNotEmpty() }?.let { app(context).preferences.markBadgesEarned(it) }
+        if (json.optString("userName").isNotBlank()) app(context).preferences.applySyncedUserName(json.optString("userName"), json.optLong("userNameUpdatedAt", 0L))
     }
 
     /** Entre duas fotos: a meta mudada por último e tudo o que foi visto ou comemorado nos dois. */
@@ -73,6 +77,8 @@ object SyncedPrefs {
         (folhaSets.keys + BADGES).forEach { name -> out.put(name, JSONArray((a.set(name) + b.set(name)).sorted())) }
         val paper = if (b.optLong("paperUpdatedAt", 0L) > a.optLong("paperUpdatedAt", 0L)) b else a
         if (paper.has("paperUpdatedAt")) out.put("paperPattern", paper.optString("paperPattern")).put("paperLight", paper.optString("paperLight")).put("paperUpdatedAt", paper.optLong("paperUpdatedAt", 0L))
+        val named = listOf(a, b).filter { it.optString("userName").isNotBlank() }.maxByOrNull { it.optLong("userNameUpdatedAt", 0L) }
+        if (named != null) out.put("userName", named.optString("userName")).put("userNameUpdatedAt", named.optLong("userNameUpdatedAt", 0L))
         return out
     }
 }

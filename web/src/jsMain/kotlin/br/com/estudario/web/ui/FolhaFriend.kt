@@ -13,7 +13,7 @@ import br.com.estudario.web.data.Store
  */
 object FolhaFriend {
     /** Primeiro nome da pessoa (ou nulo na demonstração e sem nome). */
-    fun firstName(): String? = Store.session?.name?.substringBefore(' ')?.takeIf { it.isNotBlank() }
+    fun firstName(): String? = br.com.estudario.web.data.Prefs.userName()?.substringBefore(' ')?.takeIf { it.isNotBlank() }
 
     /** A matéria estudada por último (questão respondida ou tarefa do plano) e há quantos dias. */
     fun lastSubject(data: Snapshot): Pair<String, Int>? {

@@ -146,7 +146,10 @@ fun ProfileScreen() {
             }
             Div({ classes("gm-card-id") }) {
                 Span({ classes("gm-class") }) { Text(progress.levelTitle.uppercase()) }
-                H2({ classes("gm-name") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
+                Div({ classes("pc-name-row") }) {
+                    H2({ classes("gm-name") }) { Text(br.com.estudario.web.data.Prefs.userName() ?: if (Store.demo) "Demonstração" else "Estudante") }
+                    EditNameButton("on-card")
+                }
                 P({ classes("gm-mail") }) { Text(session?.email ?: "Dados de exemplo") }
                 Div({ classes("gm-xp") }) {
                     Div({ classes("gm-xp-head") }) {

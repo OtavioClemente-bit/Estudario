@@ -1,5 +1,6 @@
 package br.com.estudario.ui.profile
 
+import br.com.estudario.ui.brand.marker
 import android.annotation.SuppressLint
 import android.view.View
 import android.webkit.WebView
@@ -159,7 +160,8 @@ fun CelEyebrow(text: String, color: Color = CelGold) =
 
 @Composable
 fun CelTitle(text: String) =
-    Text(text, color = Color.White, fontWeight = FontWeight.Black, fontSize = 28.sp, lineHeight = 32.sp, textAlign = TextAlign.Center)
+    // o risco do Folha embaixo (no lugar da faixa laranja de marca-texto)
+    Text(text, color = Color.White, fontWeight = FontWeight.Black, fontSize = 28.sp, lineHeight = 32.sp, textAlign = TextAlign.Center, modifier = androidx.compose.ui.Modifier.marker())
 
 @Composable
 fun CelBody(text: String) =

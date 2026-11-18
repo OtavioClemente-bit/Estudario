@@ -72,7 +72,7 @@ fun AvatarContent() {
         preset != null -> PresetArt(preset)
         v?.startsWith("photo:") == true -> Img(src = v.removePrefix("photo:"), alt = "")
         session?.avatarUrl != null -> Img(src = session.avatarUrl, alt = "")
-        else -> Text(initials(session?.name ?: session?.email))
+        else -> Text(initials(br.com.estudario.web.data.Prefs.userName() ?: session?.email))
     }
 }
 

@@ -563,7 +563,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _transfer.value = try {
             val user = drive.userInfo(token)
             app.preferences.setUserEmail(user.email)
-            if (app.preferences.userName.first().isBlank() && user.name.isNotBlank()) app.preferences.setUserName(user.name)
+            if (app.preferences.userName.first().isBlank() && user.name.isNotBlank()) app.preferences.setUserName(user.name, manual = false)
             if (app.preferences.userPhotoPath.first() == null) user.pictureUrl?.let { saveGooglePhoto(it) }
             when (action) {
                 GoogleAction.SIGN_IN -> TransferState.Done(

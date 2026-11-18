@@ -103,11 +103,25 @@ private val tipWords = listOf("dica", "bizu", "macete", "lembre", "memorize", "r
 /** calloutKindOf do app: citação que na verdade é dica (false) ou alerta (true). */
 private fun calloutTrap(block: String): Boolean? {
     val text = block.trimStart()
-    if (!text.startsWith(">")) return null
+    // "**Pegadinha:** ..." e "**Resumo para a prova:** ..." no fim de cada capítulo também viram cartão.
+    if (!text.startsWith(">")) return boldCalloutTrap(text)
     val head = text.removePrefix(">").trimStart('*', '_', ' ', '#').take(40).lowercase()
     return when {
         trapWords.any { head.startsWith(it) || head.contains("$it:") } -> true
         tipWords.any { head.startsWith(it) || head.contains("$it:") } -> false
+        else -> null
+    }
+}
+
+/** Parágrafo que começa com um rótulo curto em negrito de dica ou alerta (o mesmo do app). */
+private fun boldCalloutTrap(text: String): Boolean? {
+    if (text.lines().any { it.trimStart().startsWith("|") }) return null
+    val match = Regex("^\\*\\*([^*]{2,40})\\*\\*").find(text) ?: return null
+    val label = match.groupValues[1].trim().lowercase()
+    if (!label.endsWith(":") && !text.substring(match.range.last + 1).trimStart().startsWith(":")) return null
+    return when {
+        trapWords.any { label.startsWith(it) } -> true
+        tipWords.any { label.startsWith(it) } || label.startsWith("resumo") -> false
         else -> null
     }
 }
@@ -434,6 +448,8 @@ fun TopicScreen(topicId: Long) {
                 }
             } else if (theories.isEmpty()) EmptyGenerate("menu_book", "Ainda não tem teoria aqui", "Escolha o que quer receber (teoria, resumo, flashcards, questões) e o Estudário gera para este tópico.") { generating = true }
             theories.forEach { theory -> key(theory.id) { TheoryReader(theory) } }
+            // As dicas da matéria logo depois da leitura, num carrossel curto, em vez de só numa aba no fim.
+            if (theories.isNotEmpty() && tips.isNotEmpty()) TipsTeaser(tips) { tab = 2; window.scrollTo(0.0, 0.0) }
             TopicSources(topicId)
             TopicNotes(topicId)
         }
@@ -846,7 +862,7 @@ private fun TheoryReader(theory: Theory) {
             val trap = calloutTrap(block)
             Div({
                 id("tb-${theory.id}-$i")
-                classes(*listOfNotNull("tblock", trap?.let { if (it) "callout-trap" else "callout-tip" }, if (i in markedBlocks) "marked" else null, if (theoryMarks.any { it.blockIndex == i && it.quote == blocks[i] }) "marked-whole" else null, if (i == flashBlock) "flash-mark" else null).toTypedArray())
+                classes(*listOfNotNull("tblock", trap?.let { if (it) "callout-trap" else "callout-tip" }, if (trap != null && !block.trimStart().startsWith(">")) "callout-inline" else null, if (i in markedBlocks) "marked" else null, if (theoryMarks.any { it.blockIndex == i && it.quote == blocks[i] }) "marked-whole" else null, if (i == flashBlock) "flash-mark" else null).toTypedArray())
             }) {
                 // Tabela se grifa inteira, num toque (selecionar célula por célula fica torto).
                 if (block.lines().count { it.trimStart().startsWith("|") } >= 2) {
@@ -875,7 +891,11 @@ private fun TheoryReader(theory: Theory) {
                         onClick { if (!TheoryPins.add(TheoryPins.titleFor(table), table)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser") }
                     }) { Icon("push_pin"); Text("Fixar tabela") }
                 }
-                if (trap != null) {
+                if (trap != null && !block.trimStart().startsWith(">")) {
+                    // O rótulo em negrito já está no texto: só o ícone ao lado, sem cabeçalho repetido.
+                    Span({ classes("callout-ic") }) { Icon(if (trap) "report" else "lightbulb", filled = true) }
+                    Div({ classes("callout-body") }) { Markdown(block) }
+                } else if (trap != null) {
                     Div({ classes("callout-head") }) { Icon(if (trap) "warning" else "lightbulb", filled = true); Text(if (trap) "Atenção" else "Dica") }
                     Markdown(block.lines().joinToString("\n") { it.trimStart().removePrefix(">").removePrefix(" ") })
                 } else Markdown(block)
@@ -1242,10 +1262,7 @@ private fun DeckDialog(deck: Summary, onClose: () -> Unit) {
         ProgressBar((index + 1).toDouble() / cards.size)
         val card = cards[index]
         val saved = Store.data.snippets.any { it.externalId == Actions.savedCardId(deck.id, card.front, card.back) }
-        Div({ classes("flash", *listOfNotNull(if (flipped) "flipped" else null).toTypedArray()); onClick { flipped = !flipped } }) {
-            if (!flipped) { Span({ classes("eyebrow") }) { Text("FRENTE") }; H3 { Inline(card.front) }; Span({ classes("xs", "muted") }) { Text("Toque para virar") } }
-            else { Span({ classes("eyebrow") }) { Text("VERSO") }; if (card.back.isBlank()) P { Text(card.front) } else Markdown(card.back) }
-        }
+        PaperFlashCard(card.front, card.back, flipped, index, cards.size, "Toque para virar") { flipped = !flipped }
         Div({ classes("row", "between") }) {
             Btn("Anterior", { if (index > 0) { index--; flipped = false } }, style = "ghost", icon = "arrow_back", enabled = index > 0)
             Btn(if (saved) "Salvo no Caderno" else "Salvar cartão", { Store.update { Actions.toggleSavedFlashcard(it, deck.id, deck.topicId, card.front, card.back) } }, style = if (saved) "tonal" else "outline", icon = if (saved) "bookmark" else "bookmark_border")
@@ -1261,23 +1278,65 @@ private fun DeckDialog(deck: Summary, onClose: () -> Unit) {
 private fun TipsTab(tips: List<br.com.estudario.web.data.Snippet>, onGenerate: () -> Unit) {
     if (tips.isEmpty()) { EmptyGenerate("lightbulb", "Sem dicas ainda", "Dicas e pegadinhas de banca vêm junto com o material gerado para este tópico.", onGenerate); return }
     SectionHeader("Dicas e pegadinhas", "O que costuma decidir a questão. ★ guarda no Caderno.")
-    listOf(false, true).map { t -> t to tips.filter { (it.kind == "PEGADINHA") == t } }.filter { it.second.isNotEmpty() }.forEach { (trap, group) ->
-        key("g$trap") {
-            Div({ classes("tip-head", if (trap) "trap" else "tip") }) {
-                Span({ classes("tip-ic") }) { Icon(if (trap) "pest_control_rodent" else "lightbulb", filled = true) }
-                Div {
-                    B { Text(if (trap) "PEGADINHAS DA BANCA" else "DICAS QUE DECIDEM QUESTÃO") }
-                    Div({ classes("small", "muted") }) { Text(if (trap) "${group.size} ${if (group.size == 1) "armadilha" else "armadilhas"} que a banca costuma armar" else "${group.size} ${if (group.size == 1) "dica" else "dicas"} para acertar mais rápido") }
+    val trapCount = tips.count { it.kind == "PEGADINHA" }
+    val tipCount = tips.size - trapCount
+    // Filtro em vez de dois blocos longos: cada dica é um cartão curto, fácil de passar o olho.
+    var filter by remember { mutableStateOf(0) }
+    if (tipCount > 0 && trapCount > 0) Div({ classes("tipc-filter") }) {
+        listOf("Todas" to tips.size, "Dicas" to tipCount, "Pegadinhas" to trapCount).forEachIndexed { i, (label, n) ->
+            Button({ classes(*listOfNotNull("tipc-chip", if (filter == i) "on" else null).toTypedArray()); onClick { filter = i } }) { Text(label); Span({ classes("tipc-n") }) { Text("$n") } }
+        }
+    }
+    val shown = when (filter) { 1 -> tips.filter { it.kind != "PEGADINHA" }; 2 -> tips.filter { it.kind == "PEGADINHA" }; else -> tips.sortedBy { it.kind == "PEGADINHA" } }
+    Div({ classes("tipc-list") }) {
+        shown.forEachIndexed { i, tip ->
+            key(tip.id) {
+                TipCard(tip.text, tip.answer, tip.kind == "PEGADINHA", "${i + 1}/${shown.size}") {
+                    StarButton(tip.favorite) { Store.update { Actions.toggleSnippetFavorite(it, tip.id) } }
                 }
             }
-            group.forEach { tip ->
-                key(tip.id) {
-                    Div({ classes("tip-row", if (trap) "trap" else "tip") }) {
-                        Div({ classes("grow") }) { Inline(tip.text); tip.answer?.takeIf { it.isNotBlank() }?.let { P({ classes("small", "muted"); attr("style", "margin-top:6px") }) { Inline(it) } } }
-                        StarButton(tip.favorite) { Store.update { Actions.toggleSnippetFavorite(it, tip.id) } }
-                    }
-                }
-            }
+        }
+    }
+}
+
+/** "**Título:** resto" vira título curto e texto; sem negrito no começo, é só texto. */
+private fun tipParts(text: String): Pair<String?, String> {
+    val match = Regex("^\\s*\\*\\*([^*]{2,70})\\*\\*\\s*[:.]?\\s*").find(text) ?: return null to text
+    val rest = text.substring(match.range.last + 1).trim()
+    return if (rest.isBlank()) null to text else match.groupValues[1].trim().trimEnd(':', '.').trim() to rest
+}
+
+@Composable
+private fun TipCard(text: String, answer: String?, trap: Boolean, counter: String?, action: @Composable () -> Unit = {}) {
+    val (title, body) = tipParts(text)
+    Div({ classes("tipc", if (trap) "trap" else "tip") }) {
+        Span({ classes("tipc-ic") }) { Icon(if (trap) "report" else "lightbulb", filled = true) }
+        Div({ classes("tipc-body") }) {
+            Div({ classes("tipc-kind") }) { Text(if (trap) "Pegadinha" else "Dica"); counter?.let { Span({ classes("tipc-count") }) { Text(it) } } }
+            title?.let { B({ classes("tipc-title") }) { Inline(it) } }
+            Div({ classes("tipc-text") }) { Inline(body) }
+            answer?.takeIf { it.isNotBlank() }?.let { Div({ classes("tipc-text", "muted") }) { Inline(it) } }
+        }
+        action()
+    }
+}
+
+/** Depois da teoria: as dicas num carrossel de cartões, com contador, levando para a aba completa. */
+@Composable
+private fun TipsTeaser(tips: List<br.com.estudario.web.data.Snippet>, onOpen: () -> Unit) {
+    val ordered = remember(tips) { tips.sortedBy { it.kind == "PEGADINHA" } }
+    var index by remember(tips) { mutableStateOf(0) }
+    val tip = ordered[index.coerceIn(0, ordered.lastIndex)]
+    Div({ classes("tipc-teaser") }) {
+        Div({ classes("row", "between") }) {
+            Div { B { Text("Dicas e pegadinhas") }; Div({ classes("small", "muted") }) { Text("${ordered.size} para levar para a prova") } }
+            Btn("Ver todas", onOpen, style = "ghost", small = true, icon = "arrow_forward")
+        }
+        key(tip.id) { TipCard(tip.text, tip.answer, tip.kind == "PEGADINHA", null) }
+        if (ordered.size > 1) Div({ classes("tipc-nav") }) {
+            IconButton("chevron_left", "Anterior") { index = (index - 1 + ordered.size) % ordered.size }
+            Span({ classes("small", "strong", "muted") }) { Text("${index + 1} de ${ordered.size}") }
+            IconButton("chevron_right", "Próxima") { index = (index + 1) % ordered.size }
         }
     }
 }

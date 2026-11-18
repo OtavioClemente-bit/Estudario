@@ -40,6 +40,28 @@ fun flashcardsOf(data: Snapshot, topicId: Long?, saved: Boolean = false, deckId:
     return if (deckId != null) fromDecks else fromDecks + fromRecall
 }
 
+/**
+ * O cartão de estudo do Estudário: ficha de caderno pautada, com margem vermelha, borda de tinta e
+ * sombra dura. Frente com a pergunta grande, verso com a resposta; vira em 3D ao tocar.
+ */
+@Composable
+fun PaperFlashCard(front: String, back: String, flipped: Boolean, index: Int, total: Int, hint: String, onFlip: () -> Unit) {
+    Div({ classes(*listOfNotNull("pcard", if (flipped) "flipped" else null).toTypedArray()); attr("role", "button"); attr("aria-label", if (flipped) "Ver a pergunta" else "Ver a resposta"); onClick { onFlip() } }) {
+        Div({ classes("pcard-inner") }) {
+            Div({ classes("pcard-face", "front") }) {
+                Div({ classes("pcard-top") }) { Span({ classes("pcard-tag") }) { Text("Pergunta") }; Span({ classes("pcard-num") }) { Text("${index + 1} de $total") } }
+                Div({ classes("pcard-q") }) { Inline(front) }
+                Span({ classes("pcard-hint") }) { Icon("touch_app"); Text(hint) }
+            }
+            Div({ classes("pcard-face", "back") }) {
+                Div({ classes("pcard-top") }) { Span({ classes("pcard-tag", "ok") }) { Text("Resposta") }; Span({ classes("pcard-num") }) { Text("${index + 1} de $total") } }
+                Div({ classes("pcard-ctx") }) { Inline(front) }
+                Div({ classes("pcard-a") }) { if (back.isBlank()) Inline(front) else Markdown(back) }
+            }
+        }
+    }
+}
+
 @Composable
 fun FlashcardsScreen(topicId: Long?, saved: Boolean = false, deckId: Long? = null) {
     val data = Store.data
@@ -118,19 +140,7 @@ fun FlashcardsScreen(topicId: Long?, saved: Boolean = false, deckId: Long? = nul
         if (topicId == null) topics[card.topicId]?.let { Chip(it.title, "primary") }
     }
     ProgressBar(index.toDouble() / deck.size)
-    Div({ classes(*listOfNotNull("flash", if (flipped) "flipped" else null).toTypedArray()); onClick { flipped = !flipped } }) {
-        Div({ classes("flash-inner") }) {
-            Div({ classes("flash-face") }) {
-                Span({ classes("eyebrow") }) { Text("Pergunta") }
-                Div({ classes("q") }) { Inline(card.front) }
-                Span({ classes("xs", "faint") }) { Text("Clique ou aperte espaço para virar") }
-            }
-            Div({ classes("flash-face", "back") }) {
-                Span({ classes("eyebrow") }) { Text("Resposta") }
-                Div({ classes("a") }) { Markdown(card.back) }
-            }
-        }
-    }
+    PaperFlashCard(card.front, card.back, flipped, index, deck.size, "Clique ou aperte espaço para virar") { flipped = !flipped }
     if (flipped) Div({ classes("grid", "cols-2") }) {
         Btn("Não lembrei", { answer(false) }, style = "outline", icon = "close", block = true)
         Btn("Lembrei", { answer(true) }, icon = "check", block = true)

@@ -178,6 +178,7 @@ fun App() {
     FocusModalsHost()
     ReviewPracticePanelsHost()
     AvatarPickerHost()
+    NameEditHost()
     ToastHost()
 }
 
@@ -307,7 +308,10 @@ private fun SidebarContent(section: Route) {
                 Span({ classes("pc-crest") }) { LevelCrestView(progress.level, 30) }
             }
             Div({ attr("style", "min-width:0;flex:1") }) {
-                B({ classes("clamp-2", "pc-name") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
+                Div({ classes("pc-name-row") }) {
+                    B({ classes("clamp-2", "pc-name") }) { Text(br.com.estudario.web.data.Prefs.userName() ?: if (Store.demo) "Demonstração" else "Estudante") }
+                    EditNameButton()
+                }
                 Span({ classes("pc-rank") }) { Text("Nível ${progress.level}") }
                 Span({ classes("pc-title") }) { Text(rank.title) }
             }
@@ -430,7 +434,7 @@ private fun ConflictDialog(device: String?) {
 /** Conta nova (ou sem nada sincronizado): começa por aqui, como o primeiro acesso do app. */
 @Composable
 private fun WelcomeScreen() {
-    val name = Store.session?.name?.substringBefore(' ')
+    val name = br.com.estudario.web.data.Prefs.userName()?.substringBefore(' ')
     Div({ classes("hero") }) {
         Div({ classes("stack") }) {
             Span({ classes("eyebrow"); attr("style", "color:rgba(255,255,255,.8)") }) { Text("Comece com um plano") }
