@@ -21,8 +21,8 @@ set CODEX_CORRECOES=3
 :ciclo
 rem Escreve as materias pendentes; quando acabam, acrescenta e decide os proximos itens (so uma conta decide por vez).
 rem 14/11: primeiro engrossa os recortes magros (flashcards e memorizacao), depois as materias novas.
-rem 15/11: reescrita didatica primeiro (pedido do dono: terminar rapido), depois engrossar e materias novas.
-deno run -A scripts\codex\loop-reescrita.ts
+rem 18/11: primeiro os cartoes por topico do edital (fila conteudo/fila/cartoes-topico.json).
+deno run -A scripts\codex\loop-cartoes-topico.ts
 deno run -A scripts\codex\loop-engrossar.ts
 deno run -A scripts\codex\loop-materias.ts
 deno run -A scripts\codex\proxima-lista.ts 300
