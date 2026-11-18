@@ -96,7 +96,7 @@ object FolhaWardrobe {
     fun visible(item: FolhaItem): Boolean = item.owner == null || item.owner == accountHash
 
     /** Presentes exclusivos (uma conta cada): o SHA-256 do e-mail, nunca o e-mail. */
-    private const val ARTUR_LIMA = "54ad4ff0c80c0ef59183a3a0111ad983a3084eb04fc8c46375a2131cb572e228"
+    private const val ARTUR_LIMA = "6732b3981cf309505182c3f1ffc340b6378f78ce33dade6437f0eaef7a4803ce"
 
     /**
      * O plano da conta (FREE, ESSENCIAL, PRO ou TESTE), que libera as peças de assinante. O app e o site
