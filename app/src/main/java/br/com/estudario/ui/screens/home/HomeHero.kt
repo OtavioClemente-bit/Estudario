@@ -227,6 +227,12 @@ fun DailyMissionCard(
                     )
                 }
             }
+            // O Folha volta ao Início (como no site): fala da missão de hoje; tocar nele abre o próximo passo.
+            if (total > 0) MissionFolha(
+                missionLine(done, total, mission.items.getOrNull(nowIndex)),
+                mood = when { complete -> br.com.estudario.ui.assistant.FolhaMood.PROUD; done > 0 -> br.com.estudario.ui.assistant.FolhaMood.HAPPY; else -> br.com.estudario.ui.assistant.FolhaMood.IDLE },
+                onClick = mission.items.getOrNull(nowIndex)?.onOpen ?: onStartCurrent,
+            )
             // Os passos, ligados por um fio.
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val shown = mission.items.take(6)
@@ -335,4 +341,96 @@ private fun greetingNow(now: LocalTime = LocalTime.now()): String = when (now.ho
     in 5..11 -> "Bom dia"
     in 12..17 -> "Boa tarde"
     else -> "Boa noite"
+}
+
+/** O Folha ao lado do balão com a fala da missão. A boca mexe enquanto "fala" e depois descansa. */
+@Composable
+internal fun MissionFolha(line: String, mood: br.com.estudario.ui.assistant.FolhaMood, onClick: (() -> Unit)?) {
+    val g = br.com.estudario.ui.profile.Game
+    var talking by androidx.compose.runtime.remember(line) { androidx.compose.runtime.mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(line) { kotlinx.coroutines.delay((line.length * 45L).coerceIn(900L, 3200L)); talking = false }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        br.com.estudario.ui.assistant.Folha(64.dp, Modifier, if (talking) br.com.estudario.ui.assistant.FolhaMood.TALKING else mood, onClick)
+        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier.weight(1f).clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 18.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant).border(1.5.dp, g.ink.copy(alpha = 0.18f), androidx.compose.foundation.shape.RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 18.dp))
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) { Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface) }
+    }
+}
+
+/**
+ * O Folha no Início quando não há missão hoje (dia livre ou sem plano): o mesmo cartão e o mesmo
+ * balão da missão, com frases do dia de descanso. Tocar nele abre o plano.
+ */
+@Composable
+fun HomeFolhaCard(hasPlan: Boolean, onOpenPlan: () -> Unit) {
+    val g = br.com.estudario.ui.profile.Game
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    val now = java.time.LocalDateTime.now()
+    val seed = (now.toLocalDate().toEpochDay() + now.hour / 6).toInt()
+    val lines = if (!hasPlan) listOf(
+        "Oi! Monta seu plano comigo? Eu organizo o que estudar a cada dia.",
+        "Sem plano ainda? Toque aqui que eu te ajudo a montar o primeiro.",
+    ) else listOf(
+        "Dia livre no plano! Descansar também faz parte do estudo.",
+        "Hoje é folga. Se bater vontade, uma revisão rápida mantém tudo fresco.",
+        "Plano em dia! Aproveita para recarregar, amanhã a gente segue.",
+        "Nada pendente hoje. Que tal umas questões do caderno de erros, só pra manter o ritmo?",
+    )
+    Column(Modifier.fillMaxWidth().cutPanel(shape).clip(shape).background(g.bg2).padding(18.dp)) {
+        MissionFolha(lines[Math.floorMod(seed, lines.size)], br.com.estudario.ui.assistant.FolhaMood.HAPPY, onOpenPlan)
+    }
+}
+
+/**
+ * A fala do Folha sobre a missão de hoje (as mesmas frases do site), mudando com o que já foi feito,
+ * o próximo passo e a hora do dia. Sorteadas pelo dia, para não repetir a toda hora.
+ */
+private fun missionLine(done: Int, total: Int, next: MissionItemUi?): String {
+    val now = java.time.LocalDateTime.now()
+    val hour = now.hour
+    val seed = now.toLocalDate().toEpochDay()
+    fun pick(vararg options: String) = options[(((seed / 7 + done * 3 + hour) % options.size).toInt() + options.size) % options.size]
+    val nextName = next?.title?.substringBefore(':')?.substringBefore('(')?.trim()?.take(48)?.takeIf { it.isNotBlank() }
+    val kind = when (next?.kind) {
+        br.com.estudario.domain.planner.PlanTaskType.QUESTIONS -> "questões"
+        br.com.estudario.domain.planner.PlanTaskType.REVIEW -> "revisão"
+        br.com.estudario.domain.planner.PlanTaskType.THEORY -> "teoria"
+        else -> next?.typeLabel?.lowercase()?.takeIf { it.isNotBlank() } ?: "tarefa"
+    }
+    return when {
+        total > 0 && done == total -> pick(
+            "Missão cumprida! Hoje você fez tudo o que o plano pedia. Orgulho define.",
+            "Fechou o dia! Agora é descansar a cabeça: o que você estudou fica mais firme dormindo.",
+            "Todas as $total feitas. Quer um bônus? Umas questões do caderno de erros caem bem.",
+            "Dia completo! Amanhã eu separo os próximos passos para você.",
+        )
+        done == 0 && hour < 12 -> pick(
+            "Bom dia! Hoje são $total passos. Começa pelo primeiro: ${nextName ?: "a primeira tarefa"}.",
+            "Café na mão? O primeiro passo de hoje é $kind. Vamos nessa!",
+            "Manhã é ótima para estudar. Primeiro passo: ${nextName ?: kind}.",
+        )
+        done == 0 && hour >= 18 -> pick(
+            "Ainda dá tempo de salvar o dia! Começa por ${nextName ?: "o primeiro passo"}.",
+            "Noite boa para estudar. Um passo de cada vez, começando pelo primeiro.",
+            "Hoje são $total passos. Que tal só o primeiro agora? Depois a gente vê.",
+        )
+        done == 0 -> pick(
+            "Hoje são $total passos. Toque em mim e eu te levo direto para o primeiro.",
+            "Seu plano de hoje está pronto. Primeiro passo: ${nextName ?: kind}.",
+            "Bora começar? O primeiro é $kind, coisa de poucos minutos para pegar o ritmo.",
+        )
+        total - done == 1 -> pick(
+            "Falta só um! ${nextName ?: "O último passo"} e o dia está fechado.",
+            "Último passo do dia. Vai lá que eu já estou preparando a comemoração.",
+        )
+        else -> pick(
+            "Mandou bem! $done de $total feitos. O próximo é $kind.",
+            "Isso aí! Agora vem ${nextName ?: "o próximo passo"}.",
+            "Você está no ritmo: faltam ${total - done}. Um de cada vez.",
+        )
+    }
 }

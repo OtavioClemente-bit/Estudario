@@ -266,7 +266,7 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
             return@Scaffold
         }
         val owned = FolhaWardrobe.items.count { FolhaWardrobe.unlocked(it, summary) }
-        val total = FolhaWardrobe.items.size
+        val total = FolhaWardrobe.items.count { FolhaWardrobe.visible(it) }
         val chosen = remember(chosenVersion, summary) { FolhaSlot.entries.associateWith { FolhaWardrobePrefs.chosen(context, it, summary) } }
         val fresh = remember(seenVersion, summary) { FolhaWardrobe.items.filter { WardrobeSeen.isNew(context, it, summary) }.toSet() }
         val equip: (FolhaItem) -> Unit = { item ->

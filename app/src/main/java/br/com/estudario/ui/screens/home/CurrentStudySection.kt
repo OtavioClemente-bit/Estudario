@@ -215,11 +215,8 @@ private fun NoPlanBody(onCreatePlan: () -> Unit, practiceAvailable: Boolean, onP
             style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Text(
-            "Você não precisa organizar sua vida de estudos sozinho. Diga seu concurso e sua disponibilidade, nós cuidamos da agenda.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // O Folha no Início, falando (como no site): aqui ele convida a montar o plano.
+        MissionFolha("Você não precisa organizar tudo sozinho. Me diz seu concurso e seu tempo que eu cuido da agenda!", br.com.estudario.ui.assistant.FolhaMood.WAVE, onCreatePlan)
         Button(
             onClick = onCreatePlan,
             modifier = Modifier.fillMaxWidth(),
@@ -235,6 +232,17 @@ private fun NoPlanBody(onCreatePlan: () -> Unit, practiceAvailable: Boolean, onP
     }
 }
 
+/** Frases do Folha no dia livre, sorteadas pelo dia (não repete a toda hora). */
+private fun freeDayLine(): String {
+    val lines = listOf(
+        "Dia livre no plano! Descansar também faz parte. Se bater vontade, umas questões mantêm o ritmo.",
+        "Hoje é folga. Uma revisão rápida mantém tudo fresco, mas sem pressão!",
+        "Plano em dia! Aproveita para recarregar. Amanhã a gente segue de onde parou.",
+        "Nada agendado hoje. Que tal 10 questões só para não perder o embalo?",
+    )
+    return lines[Math.floorMod(java.time.LocalDate.now().toEpochDay().toInt(), lines.size)]
+}
+
 @Composable
 private fun NoTaskTodayBody(practiceAvailable: Boolean, onPractice: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.medium)) {
@@ -244,11 +252,7 @@ private fun NoTaskTodayBody(practiceAvailable: Boolean, onPractice: () -> Unit) 
             style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Text(
-            "Seu plano continua amanhã. Se quiser aproveitar o tempo livre, responda algumas questões.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        MissionFolha(freeDayLine(), br.com.estudario.ui.assistant.FolhaMood.HAPPY, if (practiceAvailable) onPractice else null)
         if (practiceAvailable) {
             OutlinedButton(onClick = onPractice, modifier = Modifier.fillMaxWidth()) {
                 Text("Responder 10 questões", style = MaterialTheme.typography.labelLarge)
@@ -267,10 +271,9 @@ private fun DayCompleteBody(state: CurrentStudyUiState.DayComplete) {
             color = MaterialTheme.colorScheme.onSurface,
         )
         val missoes = state.missionsToday
-        Text(
-            "${missoes} missõe${if (missoes == 1) "" else "s"} concluída${if (missoes == 1) "" else "s"} · ${minutesLabelPtBr(state.minutesToday)} de estudo. Amanhã o plano continua de onde parou.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        MissionFolha(
+            "${missoes} missõe${if (missoes == 1) "" else "s"} concluída${if (missoes == 1) "" else "s"} e ${minutesLabelPtBr(state.minutesToday)} de estudo. Tô orgulhoso! Amanhã a gente segue.",
+            br.com.estudario.ui.assistant.FolhaMood.PROUD, null,
         )
     }
 }

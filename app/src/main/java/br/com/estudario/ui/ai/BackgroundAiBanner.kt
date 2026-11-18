@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +78,18 @@ private fun TaskRow(task: BackgroundAiTasks.Task, onOpen: (String, Long?) -> Uni
             }
             if (status is BackgroundAiTasks.Status.Failed) {
                 IconButton(onClick = { BackgroundAiTasks.dismiss(task.id) }) { Icon(Icons.Outlined.Close, "Dispensar aviso", Modifier.size(18.dp)) }
+            }
+            // Geração travada ou que a pessoa desistiu: dá para cancelar (antes o aviso ficava para sempre).
+            if (status == BackgroundAiTasks.Status.Running) {
+                var confirm by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                IconButton(onClick = { confirm = true }) { Icon(Icons.Outlined.Close, "Cancelar geração", Modifier.size(18.dp)) }
+                if (confirm) br.com.estudario.ui.components.AlertDialog(
+                    onDismissRequest = { confirm = false },
+                    title = { Text("Cancelar a geração?") },
+                    text = { Text("O material de \"${task.title}\" deixa de ser preparado. Você pode pedir de novo depois.") },
+                    confirmButton = { br.com.estudario.ui.brand.TextButton(onClick = { confirm = false; BackgroundAiTasks.dismiss(task.id) }) { Text("Cancelar geração") } },
+                    dismissButton = { br.com.estudario.ui.brand.TextButton(onClick = { confirm = false }) { Text("Continuar") } },
+                )
             }
         }
     }

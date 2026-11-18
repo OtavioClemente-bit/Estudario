@@ -45,8 +45,10 @@ object PlanSimulations {
                 return null
             }
         }
-        // O primeiro do plano é o diagnóstico; depois, só do que já foi estudado.
-        val diagnostic = app.database.simulationDao().simulationsOnce().none { it.competitionId == task.competitionId && it.status == "FINISHED" }
+        // Grátis: o primeiro do plano é o diagnóstico; depois, só do que já foi estudado. Pago nunca recebe
+        // diagnóstico: o simulado do plano já é do que a pessoa estudou, como os que ela cria.
+        val paid = br.com.estudario.data.planner.LibraryGaps.knownPaid(app)
+        val diagnostic = !paid && app.database.simulationDao().simulationsOnce().none { it.competitionId == task.competitionId && it.status == "FINISHED" }
         val id = runCatching { service.createForPlan(task.competitionId, task.plannedQuestions.coerceAtLeast(10), diagnostic) }
             .getOrElse { return it.message ?: "Não deu para montar o simulado agora. Tente de novo em instantes." }
         prefs(app).edit().putLong("tarefa:${task.id}", id).putString("simulado:$id", task.id).apply()

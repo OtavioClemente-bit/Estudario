@@ -162,7 +162,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
     }
     val notificationDestination by viewModel.notificationDestination.collectAsState()
     LaunchedEffect(notificationDestination) {
-        notificationDestination?.let { destination -> navController.navigate(destination) { launchSingleTop = true }; viewModel.consumeNotificationDestination() }
+        // Rota vinda de notificação ou widget: se não existir (versão antiga, link quebrado), fica no Início em vez de fechar o app.
+        notificationDestination?.let { destination -> runCatching { navController.navigate(destination) { launchSingleTop = true } }; viewModel.consumeNotificationDestination() }
     }
     // Guias: o de primeiros passos abre sozinho na primeira abertura; os de Plano e Treinar abrem
     // na primeira visita a cada aba; o de conteúdo abre depois do primeiro edital importado.
@@ -253,6 +254,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
         br.com.estudario.ui.focus.FocusTimeUpDialog(
             plannedMinutes = planned,
             title = focusSession.title,
+            fromPlan = focusSession.taskId != null || focusSession.origin != br.com.estudario.data.local.FocusSessionOrigin.LIVRE,
             onContinue = { markSeen() },
             onFinish = { markSeen(); focusSheetOpen = true },
             onFinishAndComplete = focusSession.topicId?.takeIf { canCompleteFocusTopic }?.let { topicId ->
@@ -411,6 +413,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onWardrobe = { abrirDoMenu("wardrobe") },
                         onSettings = { abrirDoMenu("more") },
                         onNotifications = { abrirDoMenu("notifications") },
+                        onWidgets = { abrirDoMenu("widgets") },
                         onSyncCalendar = { abrirDoMenu("agenda") },
                         onHelp = { drawerScope.launch { drawerState.close() }; showTourPicker = true },
                         onPlans = { drawerScope.launch { drawerState.close() }; showPlansFromMenu = true },
@@ -448,7 +451,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         currentRoute == "focus-history" -> "Histórico de foco"
                         currentRoute == "theory/{id}?block={block}" -> "Leitura"
                         currentRoute == "notebook" || currentRoute == "notebook/flip" || currentRoute == "notebook/page/{id}" -> "Caderno de estudo"
-                        currentRoute == "notebook/saved" -> "Grifos, notas e salvos"
+                        currentRoute == "notebook/saved" -> "Caderno de estudo"
                         currentRoute == "agenda" -> "Agenda"
                         else -> null
                     },
@@ -584,7 +587,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
                                 val app = navController.context.applicationContext as br.com.estudario.EstudarioApplication
                                 app.database.simulationDao().simulation(finished)?.let { s -> br.com.estudario.data.simulation.PlanSimulations.finished(app, finished, (s.elapsedSeconds / 60).toInt(), s.questionCount, s.correctCount) }
                             }
-                            navController.navigate("simulation/$finished/result") { popUpTo("simulations") }
+                            // Tira a prova da pilha (aberta pelo plano, "simulations" nem está nela): voltar do
+                            // resultado vai para onde a pessoa estava antes, nunca de volta para a prova entregue.
+                            navController.navigate("simulation/$finished/result") { popUpTo("simulation/{id}/exam") { inclusive = true } }
                         },
                     )
                 }
@@ -610,6 +615,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 composable("errors/mission?topic={topic}", arguments = listOf(androidx.navigation.navArgument("topic") { type = androidx.navigation.NavType.LongType; defaultValue = -1L })) { back ->
                     ViradaMissionScreen(viewModel, topicId = back.arguments?.getLong("topic")?.takeIf { it >= 0 }, onBack = { navController.popBackStack() })
                 }
+                composable("widgets") { br.com.estudario.ui.widget.WidgetsScreen() }
                 composable("more") { MoreScreen(viewModel, onOpenSetup = viewModel::reopenInitialSetup, onNotifications = { navController.navigate("notifications") }, onAgenda = { navController.navigate("agenda") }) }
                 composable("agenda") {
                     val agendaPlan by planViewModel.state.collectAsState()
@@ -634,16 +640,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     ) { navController.popBackStack() }
                 }
                 // O Caderno que se escreve sozinho: a entrada (fichário), a Folheada do dia e a página
-                // de cada tópico estudado. O que a pessoa guardou continua em "notebook/saved".
+                // de cada tópico estudado. O que a pessoa guardou fica em "Salvos deste assunto", na página de cada tópico.
                 composable("notebook") {
                     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                        NotebookTabs(saved = false, onNotebook = {}, onSaved = { navController.navigate("notebook/saved") { launchSingleTop = true } }, viewModel = viewModel)
                         androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
                             NotebookHomeScreen(
                                 viewModel,
                                 onFlip = { navController.navigate("notebook/flip") },
                                 onPage = { navController.navigate("notebook/page/$it") },
-                                onSaved = { navController.navigate("notebook/saved") },
+                                onSaved = {},
                                 onEdital = { navController.navigate("syllabus") },
                                 onTrain = { navController.navigate("notebook/quiz/$it") },
                             )
@@ -659,6 +664,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onBack = { navController.popBackStack() },
                         onTheory = { navController.navigate("topic/$it") },
                         onTrain = { navController.navigate("notebook/quiz/$it") },
+                        onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },
+                        onTrainFavorites = { topicId -> navController.navigate("quiz/20/$topicId/0/favorites/_/_") },
                     )
                 }
                 // Treino aberto pelo Caderno: ao terminar volta para o caderno (a página já aparece com o estado novo).
@@ -670,19 +677,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         backLabel = "Voltar ao caderno",
                     )
                 }
+                // A antiga aba "Grifos e salvos" agora mora dentro de cada página do Caderno.
                 composable("notebook/saved") {
-                    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                        NotebookTabs(saved = true, onNotebook = { if (!navController.popBackStack("notebook", false)) navController.navigate("notebook") }, onSaved = {}, viewModel = viewModel)
-                        androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
-                            StudyNotebookScreen(
-                                viewModel,
-                                onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },
-                                onOpenTopic = { navController.navigate("topic/$it") },
-                                onTrainFavorites = { navController.navigate("quiz/20/0/0/favorites/_/_") },
-                                onTrainTopicFavorites = { topicId -> navController.navigate("quiz/20/$topicId/0/favorites/_/_") },
-                            )
-                        }
-                    }
+                    androidx.compose.runtime.LaunchedEffect(Unit) { navController.navigate("notebook") { popUpTo("notebook/saved") { inclusive = true }; launchSingleTop = true } }
                 }
                 composable("quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}") { backStack ->
                     val args = backStack.arguments
@@ -791,7 +788,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
         }
         // Emblema novo entra depois da comemoração do dia, para as duas não brigarem pela tela.
         val badgeUnlock by viewModel.badgeUnlock.collectAsState()
-        if (celebration == null && tourStep == null && !studying) BadgeCelebrationScreen(badgeUnlock, viewModel::consumeBadgeUnlock)
+        if (celebration == null && tourStep == null && !studying) BadgeCelebrationScreen(badgeUnlock, viewModel::consumeBadgeUnlock, progress, onTrophies = { navController.navigate("badges") })
         // Subida de nível: depois da sequência e dos emblemas, uma tela de cada vez.
         val levelUp by viewModel.levelUp.collectAsState()
         levelUp?.let { event -> if (celebration == null && badgeUnlock.isEmpty() && tourStep == null && !studying) br.com.estudario.ui.profile.LevelUpScreen(event, viewModel::consumeLevelUp) }

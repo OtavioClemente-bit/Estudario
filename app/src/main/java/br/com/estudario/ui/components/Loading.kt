@@ -6,6 +6,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
@@ -58,7 +60,8 @@ fun LoadingScreen(title: String, message: String? = null, modifier: Modifier = M
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        EstudarioBookLoader(size = 72.dp)
+        // A marca atual (o fichário do topo do app), pulsando de leve, no lugar do livro antigo.
+        BrandPulseLoader(size = 72.dp)
         Text(
             title,
             style = MaterialTheme.typography.titleMedium,
@@ -116,4 +119,26 @@ fun SkeletonCard(modifier: Modifier = Modifier, lines: Int = 2) {
             repeat(lines) { index -> SkeletonBlock(Modifier.fillMaxWidth(if (index == lines - 1) 0.7f else 1f), height = 12) }
         }
     }
+}
+
+/** Espera com a marca do Estudário: o fichário do topo respirando devagar (leve para a bateria). */
+@Composable
+fun BrandPulseLoader(size: androidx.compose.ui.unit.Dp = 48.dp, modifier: Modifier = Modifier) {
+    val reduced = rememberReducedMotion()
+    val scale = if (reduced) 1f else {
+        val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "brand-loader")
+        val v by t.animateFloat(
+            0.92f, 1.06f,
+            androidx.compose.animation.core.infiniteRepeatable(
+                androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                androidx.compose.animation.core.RepeatMode.Reverse,
+            ),
+            label = "pulse",
+        )
+        v
+    }
+    br.com.estudario.ui.brand.BrandMenuMark(
+        modifier.progressSemantics().graphicsLayer { scaleX = scale; scaleY = scale },
+        size = size,
+    )
 }

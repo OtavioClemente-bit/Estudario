@@ -134,6 +134,10 @@ interface AppDao {
     @Query("SELECT statement FROM questions ORDER BY importedAt DESC LIMIT :limit") suspend fun recentStatements(limit: Int): List<String>
     @Query("SELECT COUNT(*) FROM questions") suspend fun questionCount(): Int
     @Transaction @Query("SELECT * FROM questions WHERE id = :id") suspend fun question(id: Long): QuestionWithOptions?
+    /** Questão do dia (widget): poucas candidatas, curtas, de tópicos já estudados primeiro e das menos dominadas. Ler o banco inteiro travava o widget. */
+    @Transaction @Query("SELECT q.* FROM questions q LEFT JOIN topics t ON t.id = q.topicId WHERE q.isHidden = 0 AND q.simulationId IS NULL AND LENGTH(q.statement) <= 520 ORDER BY (t.status = 'NAO_ESTUDADO'), (q.correctCount > q.errorCount), q.id LIMIT 300") suspend fun widgetQuestionCandidates(): List<QuestionWithOptions>
+    /** Respostas desde um momento (widgets de constância e do plano), sem ler o histórico inteiro. */
+    @Query("SELECT * FROM question_attempts WHERE answeredAt >= :since") suspend fun attemptsSince(since: Long): List<QuestionAttemptEntity>
     @Query("SELECT * FROM questions WHERE externalId = :externalId LIMIT 1") suspend fun questionByExternalId(externalId: String): QuestionEntity?
     @Query("SELECT * FROM questions WHERE sourceId = :sourceId LIMIT 1") suspend fun questionBySourceId(sourceId: String): QuestionEntity?
     @Query("SELECT * FROM questions WHERE normalizedHash = :hash LIMIT 1") suspend fun questionByNormalizedHash(hash: String): QuestionEntity?

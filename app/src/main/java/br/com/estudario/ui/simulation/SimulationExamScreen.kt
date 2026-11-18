@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -125,12 +127,13 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
     }
     BackHandler { confirmExit = true }
 
+    // Alternativas riscadas ("id:letra"), como na prova de papel: só ajudam a pensar, não são salvas.
+    // Criada antes do retorno abaixo: depois dele, o Compose podia perder os riscos.
+    val crossed = remember { mutableStateMapOf<String, Boolean>() }
     if (current == null || questions.isEmpty() || !loaded) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LinearProgressIndicator() }
         return
     }
-    // Alternativas riscadas ("id:letra"), como na prova de papel: só ajudam a pensar, não são salvas.
-    val crossed = remember { mutableStateMapOf<String, Boolean>() }
     val safeIndex = index.coerceIn(0, questions.lastIndex)
     val question = questions[safeIndex]
     val remaining = (limitSeconds - elapsed).coerceAtLeast(0)
@@ -161,52 +164,50 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
                 LinearProgressIndicator({ answers.size / questions.size.toFloat() }, Modifier.fillMaxWidth().padding(horizontal = 12.dp))
             }
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MarkdownText(br.com.estudario.text.StatementLayout.separateCommand(question.question.statement))
-            val trueFalse = question.options.map { it.key }.toSet() == setOf("C", "E")
-            if (!trueFalse) Text("Arraste uma alternativa para o lado para riscar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            question.options.sortedBy { it.position }.forEach { option ->
-                val selected = answers[question.question.id] == option.key
-                val crossKey = "${question.question.id}:${option.key}"
-                val isCrossed = crossed[crossKey] == true
-                fun toggleCross() {
-                    crossed[crossKey] = !isCrossed
-                    if (!isCrossed && selected) { answers.remove(question.question.id); save() }
-                }
-                br.com.estudario.ui.screens.SwipeToEliminate(crossed = isCrossed, enabled = true, onToggle = ::toggleCross) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.fillMaxWidth().alpha(if (isCrossed) 0.45f else 1f).selectable(selected = selected) {
-                        // Riscada: tocar desfaz o risco. Tocar de novo na marcada desmarca: deixar em
-                        // branco é uma escolha de prova.
-                        if (isCrossed) { crossed[crossKey] = false; return@selectable }
-                        if (selected) answers.remove(question.question.id) else answers[question.question.id] = option.key
-                        save()
-                    },
-                ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-                        Box(
-                            Modifier.size(28.dp).clip(CircleShape).background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center,
-                        ) { Text(option.key, fontWeight = FontWeight.Bold, color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant) }
-                        Spacer(Modifier.width(12.dp))
-                        if (trueFalse) Text(if (option.key == "C") "Certo" else "Errado", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, textDecoration = if (isCrossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
-                        else br.com.estudario.ui.components.StudyInlineText(
-                            option.text, Modifier.weight(1f),
-                            onTap = {
-                                if (isCrossed) crossed[crossKey] = false
-                                else { if (selected) answers.remove(question.question.id) else answers[question.question.id] = option.key; save() }
-                            },
-                            style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textDecoration = if (isCrossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null),
-                        )
-                    }
-                }
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // Cabeçalho da questão, como num caderno de prova: número em destaque e o enunciado num cartão.
+            Text(
+                "QUESTÃO " + (safeIndex + 1),
+                style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.primary, letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
+            )
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Box(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+                    MarkdownText(br.com.estudario.text.StatementLayout.separateCommand(question.question.statement))
                 }
             }
+            Spacer(Modifier.height(2.dp))
+            val trueFalse = question.options.map { it.key }.toSet() == setOf("C", "E")
+            // As mesmas alternativas do Treinar e das revisões: tocar escolhe, arrastar para o lado risca.
+            val crossedHere = crossed.filter { it.value && it.key.startsWith("${question.question.id}:") }.keys.mapTo(hashSetOf()) { it.substringAfter(":") }
+            br.com.estudario.ui.components.AnswerOptions(
+                options = if (trueFalse) question.options.map { it.copy(text = if (it.key == "C") "Certo" else "Errado") } else question.options,
+                picked = answers[question.question.id],
+                crossed = crossedHere,
+                answered = null,
+                onPick = { key ->
+                    // Tocar de novo na marcada desmarca: deixar em branco é uma escolha de prova.
+                    if (answers[question.question.id] == key) answers.remove(question.question.id) else answers[question.question.id] = key
+                    save()
+                },
+                onToggleCross = { key ->
+                    val crossKey = "${question.question.id}:$key"
+                    val nowCrossed = crossed[crossKey] != true
+                    crossed[crossKey] = nowCrossed
+                    if (nowCrossed && answers[question.question.id] == key) { answers.remove(question.question.id); save() }
+                },
+            )
         }
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { index = (safeIndex - 1).coerceAtLeast(0) }, enabled = safeIndex > 0, modifier = Modifier.weight(1f)) { Text("Anterior") }
             if (safeIndex < questions.lastIndex) Button(onClick = { index = safeIndex + 1 }, modifier = Modifier.weight(1f)) { Text("Próxima") }
             else Button(onClick = { confirmSubmit = true }, modifier = Modifier.weight(1f)) { Text("Entregar") }

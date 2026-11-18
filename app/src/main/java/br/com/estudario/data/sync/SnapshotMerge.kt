@@ -29,9 +29,12 @@ object SnapshotMerge {
         "questionTags" to listOf("questionId", "tagId"),
     )
 
+    // Decisão final (concluída, não feita, reagendada, cancelada) vence estado aberto. Antes "em
+    // andamento" vencia "reprogramada": uma tarefa reagendada num aparelho e iniciada no outro voltava
+    // para o dia antigo e o plano acusava atraso de novo, sem a pessoa ter atrasado nada.
     private val taskStatusRank = mapOf(
-        "CONCLUIDA" to 7, "NAO_REALIZADA" to 6, "EM_ANDAMENTO" to 5, "PAUSADA" to 4,
-        "REPROGRAMADA" to 3, "CANCELADA" to 2, "PLANEJADA" to 1,
+        "CONCLUIDA" to 7, "NAO_REALIZADA" to 6, "REPROGRAMADA" to 5, "CANCELADA" to 4,
+        "EM_ANDAMENTO" to 3, "PAUSADA" to 2, "PLANEJADA" to 1,
     )
 
     fun merge(base: JSONObject?, local: JSONObject, remote: JSONObject): JSONObject {

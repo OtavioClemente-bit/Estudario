@@ -29,6 +29,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** Quando o app saiu da tela (0 = ainda não saiu nesta execução). Fica fora da Activity para valer entre recriações. */
+@Volatile private var leftAppAt = 0L
+private const val RESYNC_AFTER_AWAY_MS = 2 * 60_000L
+
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
 
@@ -57,7 +61,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
                 while (true) {
-                    kotlinx.coroutines.delay(45_000L)
+                    // A cada 45 s esquentava o celular (sincronização completa sem parar): agora a cada 3 min.
+                    kotlinx.coroutines.delay(3 * 60_000L)
                     br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this@MainActivity)
                 }
             }
@@ -66,7 +71,6 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
                 while (true) {
                     br.com.estudario.ui.ai.GoogleAccountSignIn.renewIfNeeded(this@MainActivity)
-                    br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this@MainActivity)
                     // Assinatura comprada em outro aparelho ou ainda não confirmada: confere com o servidor.
                     runCatching { (application as EstudarioApplication).playBilling.restore() }
                     kotlinx.coroutines.delay(10 * 60 * 1_000L)
@@ -189,7 +193,11 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         val app = application as EstudarioApplication
-        if (app.cloudSync.enabled) {
+        // Minimizar por alguns segundos (olhar o WhatsApp, por exemplo) não abre o "Sincronizando":
+        // só confere a conta se o app ficou fora da tela por um tempo de verdade, ou se é a abertura.
+        val away = if (leftAppAt == 0L) Long.MAX_VALUE else System.currentTimeMillis() - leftAppAt
+        leftAppAt = 0L
+        if (app.cloudSync.enabled && away >= RESYNC_AFTER_AWAY_MS) {
             br.com.estudario.data.sync.SyncGate.hold()
             br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this)
             lifecycleScope.launch {
@@ -202,7 +210,11 @@ class MainActivity : ComponentActivity() {
     /** Ao sair do app, o que foi estudado sobe para a conta e aparece no app web. */
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this)
+        if (!isChangingConfigurations) {
+            leftAppAt = System.currentTimeMillis()
+            // Espera um pouco: se a pessoa voltar logo, a sincronização de saída não roda à toa.
+            br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this, delaySeconds = 20)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

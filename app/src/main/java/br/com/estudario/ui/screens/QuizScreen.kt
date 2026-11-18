@@ -575,7 +575,8 @@ internal fun SwipeToEliminate(crossed: Boolean, enabled: Boolean, onToggle: () -
                 contentAlignment = if (toLeft) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(if (crossed) Icons.Outlined.Undo else Icons.Outlined.StrikethroughS, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // O mesmo desenho do site (a borracha da turma), no lugar do "S" cortado genérico.
+                    br.com.estudario.ui.brand.BrandIcon(if (crossed) br.com.estudario.ui.brand.Glyph.Cycle else br.com.estudario.ui.brand.Glyph.Eraser, size = 24.dp)
                     Spacer(Modifier.width(6.dp))
                     Text(if (crossed) "Desfazer" else "Riscar", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

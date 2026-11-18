@@ -163,6 +163,8 @@ class EstudarioApplication : Application() {
         repository = StudyRepository(database)
         focusSessionRepository = FocusSessionRepository(database.dao())
         preferences = AppPreferences(this)
+        // A conta decide os presentes exclusivos do armário do Folha (FolhaWardrobe.owner): entrou, saiu ou trocou, atualiza.
+        applicationScope.launch { preferences.userEmail.collect { br.com.estudario.domain.FolhaWardrobe.setAccount(it) } }
         planRepository = StudyPlanRepository(database)
         calendarSyncService = br.com.estudario.data.planner.CalendarSyncService(this)
         planService = StudyPlanApplicationService(

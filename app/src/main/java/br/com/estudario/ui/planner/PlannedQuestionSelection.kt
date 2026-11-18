@@ -43,5 +43,12 @@ fun planTaskQuestionIds(
             pendingError = it.question.id in pendingErrorQuestionIds,
         )
     }
-    return br.com.estudario.domain.planner.PlanQuestionPool.pick(candidates, topicId, subject, studied, count)
+    val picked = br.com.estudario.domain.planner.PlanQuestionPool.pick(candidates, topicId, subject, studied, count)
+    // O plano prometeu [count] questões: se as inéditas e os erros não bastam, completa com as já
+    // acertadas do mesmo tópico e depois da matéria (antes abria 11 quando o plano dizia 15).
+    if (count == Int.MAX_VALUE || picked.size >= count || picked.isEmpty()) return picked
+    val taken = picked.toHashSet()
+    val sameTopic = candidates.filter { topicId != null && it.topicId == topicId && it.id !in taken }.shuffled()
+    val sameSubject = candidates.filter { subject != null && it.subjectId == subject && it.id !in taken && (topicId == null || it.topicId != topicId) }.shuffled()
+    return picked + (sameTopic + sameSubject).map { it.id }.take(count - picked.size)
 }
