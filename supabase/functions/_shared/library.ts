@@ -746,6 +746,27 @@ function interleave<T>(lists: T[][]): T[] {
 const MIN_FOCUSED_FLASHCARDS = 8;
 const MIN_FOCUSED_RECALL = 5;
 
+const TOPIC_STOP = new Set(["sobre", "entre", "pelos", "pelas", "quando", "outros", "outras", "seus", "suas", "como", "para", "pela", "pelo", "dos", "das", "com", "sem", "nos", "nas", "e", "de", "do", "da", "em", "no", "na", "os", "as", "um", "uma", "lei", "artigo", "nocoes", "conceito", "conceitos", "aspectos", "geral", "gerais", "basicos", "principais"]);
+const topicStems = (text: string) => [...new Set(text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !TOPIC_STOP.has(w)).map((w) => w.slice(0, 6)))];
+/**
+ * Põe primeiro o que fala do tópico do edital (palavras do tópico pesam 3, títulos dos capítulos
+ * entregues pesam 1); ordem estável, nada sai. Matéria inteira: fica como está.
+ */
+function byTopic<T>(items: T[], topicPath: string[] | undefined, focused: Json[], wholeTheory: boolean): T[] {
+  if (wholeTheory || items.length < 2) return items;
+  const topic = topicStems(String(topicPath?.[topicPath.length - 1] ?? ""));
+  const titles = topicStems(focused.map((chapter) => String(chapter.title ?? "")).join(" ")).filter((s) => !topic.includes(s));
+  if (topic.length === 0 && titles.length === 0) return items;
+  const bags = items.map((item) => new Set(topicStems(typeof item === "string" ? item : JSON.stringify(item))));
+  // Palavra rara pesa mais ("restful" > "api"): peso = log(1 + itens / itens que têm a palavra).
+  const weight = (s: string) => Math.log(1 + items.length / Math.max(1, bags.filter((b) => [...b].some((w) => w === s || (w.length >= 4 && (s.startsWith(w) || w.startsWith(s))))).length));
+  // "rest" (do cartão) casa com "restfu" (do tópico): uma palavra começa a outra, com 4 letras ou mais.
+  const has = (words: Set<string>, s: string) => words.has(s) || [...words].some((w) => w.length >= 4 && (s.startsWith(w) || w.startsWith(s)));
+  const score = (words: Set<string>) =>
+    topic.filter((s) => has(words, s)).reduce((sum, s) => sum + 3 * weight(s), 0) + titles.filter((s) => has(words, s)).reduce((sum, s) => sum + weight(s), 0);
+  return items.map((item, i) => ({ item, i, s: score(bags[i]) })).sort((a, b) => b.s - a.s || a.i - b.i).map(({ item }) => item);
+}
+
 export function assembleFromLibrary(
   material: Json,
   note: Json | null,
@@ -900,7 +921,7 @@ export function assembleFromLibrary(
   }
   const inFocus = <T>(items: T[]) => outside.length === 0 && fits === null ? items : items.filter((item) => !mentionsOutside(item));
   const merged = (field: "tips" | "traps") =>
-    wants("TIPS_TRAPS") ? [...new Set([...inFocus((note?.[field] as string[]) ?? []).filter((item) => !unexplained(item)), ...inFocus(material[field] as string[])])].slice(0, 8) : [];
+    wants("TIPS_TRAPS") ? byTopic([...new Set([...inFocus((note?.[field] as string[]) ?? []).filter((item) => !unexplained(item)), ...inFocus(material[field] as string[])])], input.topicPath, focused, wholeTheory).slice(0, 8) : [];
   // Com recorte, só os cartões do que a teoria entregue ensina, mesmo que sejam poucos. Nunca o baralho
   // inteiro: o aluno decorava cartão de capítulo que nem estava estudando. Poucos demais: entram os
   // que mais tocam o assunto dos capítulos entregues (metade ou mais do vocabulário próprio deles),
@@ -918,8 +939,10 @@ export function assembleFromLibrary(
     const extra = new Set(near.slice(0, min - kept.length));
     return items.filter((item) => kept.includes(item) || extra.has(item));
   };
-  const cards = closest(material.flashcards as Json[]);
-  const recall = closest(material.activeRecall as Json[], MIN_FOCUSED_RECALL);
+  // 18/11/2026: com recorte, o que fala do tópico do edital vem primeiro (ex.: "API RESTful e JSON" abria com
+  // cartões de DDD e saga); os gerais continuam depois, como revisão.
+  const cards = byTopic(closest(material.flashcards as Json[]), input.topicPath, focused, wholeTheory);
+  const recall = byTopic(closest(material.activeRecall as Json[], MIN_FOCUSED_RECALL), input.topicPath, focused, wholeTheory);
 
   const content: Json = {
     schemaVersion: AI_TOPIC_CONTENT_SCHEMA_VERSION,

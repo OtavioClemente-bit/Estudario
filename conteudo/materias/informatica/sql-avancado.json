@@ -2,7 +2,7 @@
   "id": "informatica.sql-avancado",
   "subject": "Informática",
   "title": "SQL avançado",
-  "version": 4,
+  "version": 5,
   "status": "PUBLISHED",
   "aliases": [
     "SQL avançado",
@@ -41,10 +41,6 @@
   "summary": "## Normalização\nDependência funcional `X → Y`: valores iguais de X implicam valores iguais de Y. Chave candidata é superchave mínima; atributo primo integra chave candidata. **1FN**: atributos atômicos no domínio. **2FN**: sem dependência parcial de atributo não primo em chave composta. **3FN**: dependências não triviais com determinante superchave ou determinado primo. **FNBC**: todo determinante não trivial é superchave. A 3FN pode preservar dependências que uma decomposição em FNBC não mantém localmente. Desnormalização deliberada acelera algumas leituras com custo de consistência.\n\n## Visões e índices\n**View comum** guarda definição lógica; **atualizável** permite DML quando respeitadas regras específicas; **materializada** armazena resultado e exige mecanismo de atualização. No PostgreSQL, `REFRESH MATERIALIZED VIEW CONCURRENTLY` exige view populada e índice único adequado. **B-tree/B+**: igualdade, intervalo e ordem; **hash**: igualdade; **bitmap**: conjuntos combináveis; **índice composto**: ordem e seletividade dos predicados importam, mas a ausência da coluna inicial não impede todo uso em produtos com skip scan. Mais índices também tornam escritas e manutenção potencialmente mais caras. `GRANT` e `REVOKE` controlam privilégios, que também podem vir de outros papéis.\n\n## Código procedural\n**BEFORE** antecede operação; **AFTER** ocorre após a instrução, sem implicar `COMMIT`; **INSTEAD OF** substitui ação. Trigger por linha difere de por comando. PostgreSQL expõe `OLD/NEW` para linha; SQL Server trabalha com tabelas `deleted/inserted` que podem conter várias linhas. Função produz retorno na forma prevista; procedure encapsula operações; packages PL/SQL separam specification e body; cursores processam resultados individualmente quando necessário. **PL/SQL:** `DECLARE`, `BEGIN`, `EXCEPTION`, `END`; `:=`, `%TYPE`, `%ROWTYPE`, cursor explícito. **T-SQL:** `@variavel`, `SET`, `TRY...CATCH`, `THROW`. Procedimentos e transações variam por produto.\n\n## Transações e concorrência\n**COMMIT** confirma; **ROLLBACK** desfaz trabalho não confirmado; **SAVEPOINT** permite rollback parcial sem confirmar etapas anteriores. Leituras sujas veem alterações não confirmadas; não repetíveis veem a mesma linha mudar; fantasmas alteram conjunto de linhas por predicado; **write skew** pode violar invariante após alterações em linhas diferentes. Pela taxonomia padrão: `READ COMMITTED` impede leitura suja; `REPEATABLE READ` também impede leitura não repetível; `SERIALIZABLE` previne anomalias de serialização. PostgreSQL trata `READ UNCOMMITTED` como `READ COMMITTED` e seu `REPEATABLE READ` evita fantasmas, mas não toda anomalia de serialização. **Deadlock** é ciclo de espera; bloqueio demorado sem ciclo é contenção.\n\n## Tuning\n**EXPLAIN** exibe plano; **EXPLAIN ANALYZE** executa e mede, com `BUFFERS` para investigar uso de cache/I/O. Custo estimado não é tempo real. Descompasso entre cardinalidade estimada e efetiva aponta para estatísticas, correlações ou filtros problemáticos. `Seq Scan` pode ser correto; `Index Scan` favorece acesso seletivo; `Nested Loop`, `Hash Join` e `Merge Join` são escolhas dependentes de volume, seletividade e ordem. Ajustes: reescrita de filtros, estatísticas, índices adequados, particionamento com pruning, tratamento de locks e dimensionamento do pool. Meça também impacto em escrita, memória, filas e consistência.",
   "flashcards": [
     {
-      "front": "O que significa X → Y?",
-      "back": "Linhas iguais em X precisam concordar em Y em todo estado válido da relação; a regra decorre do domínio."
-    },
-    {
       "front": "Qual a diferença entre superchave e chave candidata?",
       "back": "A superchave determina todas as colunas; a chave candidata é superchave mínima."
     },
@@ -61,72 +57,112 @@
       "back": "Toda dependência funcional não trivial deve ter determinante que seja superchave."
     },
     {
-      "front": "O que é desnormalização?",
-      "back": "Redundância introduzida ou preservada deliberadamente, com controle de atualização e risco de inconsistência."
-    },
-    {
-      "front": "View comum persiste automaticamente o resultado?",
-      "back": "Em geral persiste a definição lógica da consulta; view materializada persiste resultados, com atualização conforme o produto."
-    },
-    {
       "front": "O que permite atualizar uma view simples?",
       "back": "Regras de atualizabilidade do SGBD; em PostgreSQL há views simples automaticamente atualizáveis e a cláusula WITH CHECK OPTION."
-    },
-    {
-      "front": "Por que uma view materializada pode estar defasada?",
-      "back": "Porque suas linhas persistidas dependem de REFRESH ou mecanismo específico para acompanhar mudanças nas origens."
-    },
-    {
-      "front": "Para quais buscas B-tree costuma ser útil?",
-      "back": "Igualdade, intervalos e ordenação compatível, dependendo de seletividade e do plano."
     },
     {
       "front": "O que importa em índice composto?",
       "back": "Ordem das colunas e condições sobre prefixos, seletividade, ordenação e eventuais otimizações do SGBD."
     },
     {
-      "front": "Índices melhoram toda escrita?",
-      "back": "Não. Inserções, exclusões e certas atualizações precisam manter estruturas de índice."
-    },
-    {
-      "front": "Quando ocorre trigger BEFORE?",
-      "back": "Antes da operação correspondente, conforme semântica e suporte do SGBD."
+      "front": "O que caracteriza um índice de cobertura?",
+      "back": "Ele contém as colunas necessárias para atender a consulta sem buscar os valores na tabela; ainda assim, o SGBD pode precisar consultar a tabela para verificar visibilidade ou por limitações do plano."
     },
     {
       "front": "Qual diferença entre triggers por linha e comando?",
       "back": "Por linha executa para cada registro afetado; por comando é disparado para o comando, não necessariamente para cada registro."
     },
     {
-      "front": "Como T-SQL expõe linhas do trigger?",
-      "back": "Por tabelas lógicas inserted e deleted que podem conter várias linhas afetadas por uma única instrução."
-    },
-    {
-      "front": "O que compõe um bloco PL/SQL?",
-      "back": "DECLARE opcional, BEGIN obrigatório, EXCEPTION opcional e END;."
-    },
-    {
-      "front": "O que há em package PL/SQL?",
-      "back": "Specification pública e body com implementações e membros privados, conforme declaração."
-    },
-    {
-      "front": "SAVEPOINT confirma alterações anteriores?",
-      "back": "Não. Ele marca ponto para rollback parcial e não substitui COMMIT."
-    },
-    {
-      "front": "Qual diferença entre leitura não repetível e fantasma?",
-      "back": "A primeira relê uma linha com valor alterado; o fantasma altera o conjunto que satisfaz um predicado."
-    },
-    {
       "front": "READ UNCOMMITTED lê dados sujos no PostgreSQL?",
       "back": "Não. PostgreSQL trata READ UNCOMMITTED como READ COMMITTED e evita leituras sujas."
     },
     {
-      "front": "Qual a diferença entre EXPLAIN e EXPLAIN ANALYZE?",
-      "back": "EXPLAIN mostra plano previsto; ANALYZE executa a consulta para produzir métricas observadas."
+      "front": "O que exige a 1FN em uma coluna multivalorada?",
+      "back": "Valores atômicos conforme o domínio e ausência de grupos repetitivos; telefones distintos podem ser representados em linhas de uma relação de contato."
     },
     {
-      "front": "O que é uma estatística de cardinalidade?",
-      "back": "Informação para estimar quantas linhas passarão por cada operação; estimativa errada pode levar a plano ruim."
+      "front": "Por que produto → nome_produto viola a 2FN em ItemPedido?",
+      "back": "Com chave composta (pedido, produto), nome_produto depende apenas de parte da chave; separar Produto evita repetir o nome em cada pedido."
+    },
+    {
+      "front": "Como a regra docente → disciplina diferencia 3FN de FNBC?",
+      "back": "Pode satisfazer 3FN se disciplina for atributo primo, mas viola FNBC se docente não for superchave; a FNBC não oferece a exceção do atributo primo."
+    },
+    {
+      "front": "Quando guardar preço no item do pedido não é desnormalização indevida?",
+      "back": "Quando o domínio exige preservar o preço praticado na compra: o preço histórico descreve aquela venda, mesmo que o preço atual do cadastro mude."
+    },
+    {
+      "front": "Um trigger AFTER executa depois do COMMIT?",
+      "back": "Não. AFTER ocorre depois da operação correspondente, mas ainda dentro da transação; um ROLLBACK também desfaz seus efeitos transacionais."
+    },
+    {
+      "front": "Em trigger por linha, o que OLD e NEW representam?",
+      "back": "OLD é o estado anterior e NEW o estado proposto; INSERT tem NEW, DELETE tem OLD e UPDATE pode expor ambos."
+    },
+    {
+      "front": "Quando preferir operação em conjunto a cursor?",
+      "back": "Quando um comando como UPDATE ... WHERE produz o mesmo resultado; processamento linha a linha alterna motores e costuma custar mais."
+    },
+    {
+      "front": "Qual é a diferença de propósito entre função e stored procedure?",
+      "back": "A função produz um valor ou conjunto; a procedure encapsula passos de processamento. Efeitos colaterais e controle transacional dependem do SGBD."
+    },
+    {
+      "front": "Leitura não repetível e leitura fantasma descrevem o mesmo caso?",
+      "back": "Não. Na não repetível, a mesma linha volta com outro valor; no fantasma, muda o conjunto de linhas que satisfaz o predicado."
+    },
+    {
+      "front": "O que SERIALIZABLE garante diante de write skew no PostgreSQL?",
+      "back": "Busca equivalência com execução serial e pode abortar uma transação por conflito; a aplicação deve repetir a transação completa."
+    },
+    {
+      "front": "Como identificar uma atualização perdida?",
+      "back": "Duas transações leem o mesmo valor e uma gravação sobrescreve o resultado da outra; bloqueio ou comparação de versão pode detectar ou evitar o conflito."
+    },
+    {
+      "front": "Por que write skew pode ocorrer sem duas transações editarem a mesma linha?",
+      "back": "Ambas leem uma regra global, alteram linhas diferentes e confirmam decisões individualmente válidas que, juntas, violam a regra."
+    },
+    {
+      "front": "Qual diferença entre deadlock e contenção por lock?",
+      "back": "Deadlock exige ciclo de espera entre transações; uma espera longa sem ciclo é contenção. Ordem consistente de locks e transações curtas reduzem o risco."
+    },
+    {
+      "front": "Uma view materializada reflete automaticamente cada alteração nas tabelas-base?",
+      "back": "Não necessariamente. Ela armazena o resultado da consulta; a atualização depende de refresh ou mecanismo específico do SGBD, podendo haver defasagem em relação às tabelas-base."
+    },
+    {
+      "front": "Quando um índice UNIQUE em view materializada é necessário no PostgreSQL?",
+      "back": "No REFRESH MATERIALIZED VIEW CONCURRENTLY, a view precisa estar populada e ter um índice UNIQUE adequado que identifique todas as linhas; essa modalidade permite manter consultas à view sem bloqueá-las durante a atualização."
+    },
+    {
+      "front": "Por que a coluna líder importa em um índice B-tree composto?",
+      "back": "A ordem das chaves organiza o acesso; predicados que restringem as colunas iniciais costumam aproveitar melhor o índice, embora alguns produtos tenham otimizações adicionais."
+    },
+    {
+      "front": "Por que um índice hash não atende a uma busca por intervalo de datas?",
+      "back": "Hash calcula a localização para igualdade, mas não mantém as chaves em ordem. Uma B-tree ordenada pode localizar o início do intervalo e percorrer as entradas seguintes."
+    },
+    {
+      "front": "Em que tipo de consulta um índice bitmap pode ser útil?",
+      "back": "Ele representa a presença de valores por linha em mapas de bits e pode combinar filtros sobre colunas de baixa cardinalidade; sua adequação depende do SGBD e do perfil de leitura e escrita."
+    },
+    {
+      "front": "Quando um Seq Scan pode ser melhor que um Index Scan?",
+      "back": "Quando a consulta precisa de grande parte da tabela ou a leitura sequencial custa menos que localizar muitas linhas dispersas pelo índice."
+    },
+    {
+      "front": "O que significa grande diferença entre linhas estimadas e efetivas no plano?",
+      "back": "O otimizador errou a cardinalidade; investigue estatísticas desatualizadas, distribuição e correlação entre colunas ou predicados que dificultam a estimativa."
+    },
+    {
+      "front": "O custo mostrado pelo EXPLAIN é tempo em milissegundos?",
+      "back": "Não. É uma estimativa relativa usada pelo planejador; EXPLAIN ANALYZE mede tempos observados ao executar a instrução."
+    },
+    {
+      "front": "Para que serve EXPLAIN ANALYZE com BUFFERS?",
+      "back": "Executa a instrução, mede o plano e informa atividade de buffers, ajudando a distinguir trabalho em memória de leituras que podem envolver I/O."
     }
   ],
   "tips": [
@@ -153,16 +189,20 @@
       "answer": "Sim, quando disciplina é atributo primo e docente não é superchave; 3FN permite determinado primo, FNBC não."
     },
     {
-      "question": "Por que decomposição deve considerar junção sem perda e preservação de dependências?",
-      "answer": "Para recompor os dados corretamente e, quando possível, verificar restrições sem precisar reconstruir várias relações."
-    },
-    {
       "question": "Como escolher entre view comum e materializada para um painel?",
       "answer": "Examine necessidade de atualização imediata, custo da consulta, frequência de leitura, armazenamento e política de refresh."
     },
     {
-      "question": "Qual a diferença entre B-tree, hash e bitmap?",
-      "answer": "B-tree favorece igualdade, faixa e ordem; hash igualdade; bitmap combina conjuntos de linhas, com suporte dependente do produto."
+      "question": "Uma consulta filtra apenas a segunda coluna de um índice B-tree composto. É correto concluir que o índice nunca poderá ajudar?",
+      "answer": "Não. Restringir a coluna líder costuma ser mais eficiente, mas alguns SGBDs podem usar estratégias como skip scan; a utilidade depende do produto, da distribuição dos dados e do plano escolhido."
+    },
+    {
+      "question": "O que deve ser verificado antes de usar REFRESH MATERIALIZED VIEW CONCURRENTLY no PostgreSQL?",
+      "answer": "Confirme que a view está populada e possui índice UNIQUE adequado que cubra todas as linhas, sem predicado parcial ou expressão; avalie também a defasagem aceitável e o custo de atualizar o resultado armazenado."
+    },
+    {
+      "question": "Qual estrutura de índice costuma atender tanto igualdade quanto intervalos ordenados, e qual é mais voltada à igualdade exata?",
+      "answer": "B-tree mantém as chaves em ordem e pode atender igualdade e intervalos; hash direciona buscas por igualdade, mas não organiza as chaves para percorrer uma faixa."
     },
     {
       "question": "Quais dois riscos existem em trigger que supõe uma única linha modificada?",
@@ -173,12 +213,28 @@
       "answer": "Reexecutar a transação completa de forma segura e idempotente, não apenas o último comando falho."
     },
     {
-      "question": "O que investigar quando o plano estima 10 linhas e executa com 100 mil?",
-      "answer": "Estatísticas, seletividade, distribuição, correlações, parâmetros e forma dos predicados, comparando plano e dados reais."
+      "question": "Ao desnormalizar o total acumulado de pedidos, como um trigger AFTER deve manter a cópia correta sob concorrência?",
+      "answer": "O AFTER ainda executa dentro da transação. A atualização do total deve ser atômica com a alteração de origem e protegida contra concorrência, para que duas transações não deixem uma cópia inconsistente."
     },
     {
-      "question": "Por que índices extras podem piorar uma carga de escrita intensa?",
-      "answer": "Cada inserção, atualização pertinente ou exclusão precisa manter estruturas adicionais, gerando trabalho e armazenamento."
+      "question": "Duas transações leem saldo suficiente para aprovar saques diferentes; cada uma debita uma conta distinta e confirma. Como impedir que o invariante do saldo agregado seja violado?",
+      "answer": "Esse padrão pode ser write skew, pois as escritas atingem linhas distintas após leituras relacionadas. Use isolamento serializável com tratamento de abortos e repetição da transação completa, ou bloqueie de modo coordenado os dados que sustentam o invariante."
+    },
+    {
+      "question": "Uma relação está em 1FN e tem chave composta. O que verificar antes de concluir que viola 2FN?",
+      "answer": "Identifique as chaves candidatas e os atributos primos; a violação exige atributo não primo que dependa de parte, e não da chave candidata composta inteira."
+    },
+    {
+      "question": "Duas transações esperam por locks, mas não formam um ciclo. Como classificar e investigar a situação?",
+      "answer": "É contenção, não deadlock. Localize as sessões bloqueadoras, os objetos e a duração das transações; deadlock especificamente envolve ciclo de espera."
+    },
+    {
+      "question": "Duas transações leem a mesma versão de uma linha e tentam atualizar seu saldo. Que risco existe e como uma aplicação pode detectá-lo?",
+      "answer": "Pode ocorrer atualização perdida se a gravação de uma transação sobrescrever a decisão da outra. Bloqueio adequado ou atualização otimista com comparação de versão permite detectar ou serializar o conflito."
+    },
+    {
+      "question": "EXPLAIN ANALYZE informa que uma ordenação foi external merge e usou espaço temporário em disco. O que isso sugere e o que deve ser avaliado antes de aumentar work_mem?",
+      "answer": "A ordenação não coube inteiramente na memória disponível para a operação e recorreu a arquivos temporários. Avalie quantas ordenações e operações concorrentes podem ocorrer, pois work_mem se aplica por operação e pode elevar bastante o consumo total de memória."
     }
   ],
   "errorConcepts": [
