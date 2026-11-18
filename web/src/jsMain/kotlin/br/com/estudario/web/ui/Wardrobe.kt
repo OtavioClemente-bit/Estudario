@@ -228,7 +228,7 @@ fun WardrobeScreen() {
         kotlinx.coroutines.delay(2500); WardrobeSeen.markSeen(FolhaWardrobe.of(slot), progress)
     }
     val owned = FolhaWardrobe.items.count { FolhaWardrobe.unlocked(it, progress) }
-    val total = FolhaWardrobe.items.size
+    val total = FolhaWardrobe.items.count { FolhaWardrobe.visible(it) }
     val equip: (FolhaItem) -> Unit = { item ->
         if (FolhaWardrobe.unlocked(item, progress)) {
             trying = null
@@ -521,7 +521,7 @@ fun WardrobeCard(progress: ProgressEngine.ProgressSummary) {
         Div({ classes("wd-card-folha", "wd-card-ic") }) { Icon("checkroom") }
         Div({ classes("grow") }) {
             Div({ classes("eyebrow") }) { Text("ARMÁRIO DO FOLHA") }
-            B { Text("$owned de ${FolhaWardrobe.items.size} peças liberadas") }
+            B { Text("$owned de ${FolhaWardrobe.items.count { FolhaWardrobe.visible(it) }} peças liberadas") }
             if (next != null) P({ classes("xs", "muted"); attr("style", "margin:2px 0 0") }) { Text("Próxima: ${next.first.name} (${(next.second * 100).toInt()}%)") }
         }
         Icon("chevron_right", extraClass = "faint")

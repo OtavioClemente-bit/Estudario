@@ -2640,7 +2640,7 @@
   // As peças do peito no tamanho certo: os broches e medalhas ficam presos sempre no mesmo lugar (lado
   // esquerdo, abaixo do olho) e maiores, para lerem de longe; gravatas e laços no meio, logo abaixo da boca.
   const NECK_ZOOM = { borboleta: [50, 83.4, 1.35], medalha: [25.6, 73.2, 1.4], roseta: [24.5, 78.4, 1.45], "medalha-militar": [25, 71.6, 1.4], balanca: [24.8, 72.4, 1.5], broche: [23.5, 79.6, 1.55], flor: [76.5, 79.6, 1.45], caneta: [26, 70, 1.3],
-    "cruz-saude": [24.5, 77, 1.4], divisas: [24.5, 75.5, 1.35], brasao: [24.5, 76, 1.4], leao: [24.5, 77, 1.4], selo: [24.5, 75.5, 1.35], parlamentar: [24.5, 77, 1.4], estrelinha: [24.5, 77.5, 1.35], postits: [24.5, 76, 1.3], sininho: [50, 83, 2], plaqueta: [50, 83.5, 1.25], perolas: [50, 80, 1.08] };
+    "cruz-saude": [24.5, 77, 1.4], divisas: [24.5, 75.5, 1.35], brasao: [24.5, 76, 1.4], leao: [24.5, 77, 1.4], selo: [24.5, 75.5, 1.35], parlamentar: [24.5, 77, 1.4], estrelinha: [24.5, 77.5, 1.35], postits: [24.5, 76, 1.3], sininho: [50, 83, 2], plaqueta: [50, 83.5, 1.25], perolas: [50, 80, 1.08], "colar-artur": [50, 80, 1.08] };
   function drawNeckwear(g, t, small, kind) {
     const z = NECK_ZOOM[kind];
     if (!z) { drawNeckwearRaw(g, t, small, kind); return; }
@@ -3047,6 +3047,42 @@
       note(21, 72.5, -0.18, "#FFF3A0", "#FFD84A", "rgba(120,90,10,0.55)");
       note(27.6, 74.6, 0.14, "#FFD1E3", "#FF8FB8", "rgba(150,40,80,0.5)");
       note(22.6, 79.4, -0.06 + sin(t * 2.2) * 0.14, "#D2FBE6", "#7EE0B8", "rgba(20,100,70,0.55)");
+    } else if (kind === "colar-artur") {
+      // colar do Artur (presente exclusivo, um só no Estudário): cordão preto de couro que desce dos ombros
+      // em U por baixo da boca e, bem no meio, atravessa uma conta vermelha (a corda entra por um lado e sai
+      // pelo outro). Na conta, espinhos gravados em volta, como um entalhe, sem ponta saindo.
+      const cord = new Path2D(); cord.moveTo(16, 66); cord.bezierCurveTo(20, 92, 80, 92, 84, 66);
+      const w = small ? 2.4 : 1.7;
+      g.save(); g.lineCap = "round";
+      g.translate(0.35, 0.55); g.strokeStyle = "rgba(20,10,30,0.28)"; g.lineWidth = w; g.stroke(cord); g.translate(-0.35, -0.55);
+      g.strokeStyle = "#121216"; g.lineWidth = w; g.stroke(cord);
+      if (!small) { g.translate(-0.15, -0.35); g.strokeStyle = "rgba(255,255,255,0.25)"; g.lineWidth = 0.35; g.stroke(cord); g.translate(0.15, 0.35); }
+      g.restore();
+      const bz = (u) => { const a = (1 - u) ** 3, b = 3 * u * (1 - u) ** 2, c = 3 * u * u * (1 - u), d = u ** 3; return [a * 16 + b * 20 + c * 80 + d * 84, a * 66 + b * 92 + c * 92 + d * 66]; };
+      const run = (t * 0.22) % 1.3;
+      if ((run >= 0.04 && run <= 0.42) || (run >= 0.58 && run <= 0.96)) { const [gx, gy] = bz(run); circle(g, "rgba(255,255,255,0.55)", small ? 0.8 : 0.55, gx - 0.2, gy - 0.4); }
+      const [cx, cy] = bz(0.5), r = small ? 4.6 : 4;
+      circle(g, "rgba(20,10,30,0.28)", r, cx + 0.45, cy + 0.65);
+      const rg = g.createRadialGradient(cx - r * 0.3, cy - r * 0.42, 0.1, cx, cy, r * 1.35);
+      rg.addColorStop(0, "#FF8A80"); rg.addColorStop(0.35, "#EE2B36"); rg.addColorStop(0.78, "#B0111B"); rg.addColorStop(1, "#6A0610");
+      circle(g, rg, r, cx, cy);
+      // os furos por onde a corda entra e sai
+      g.fillStyle = "#121216";
+      g.beginPath(); g.ellipse(cx - r + 0.4, cy, 0.75, 0.95, 0, 0, 2 * PI); g.fill();
+      g.beginPath(); g.ellipse(cx + r - 0.4, cy, 0.75, 0.95, 0, 0, 2 * PI); g.fill();
+      // espinhos gravados: gotas finas em volta, apontando para fora, só na superfície
+      if (!small) for (let i = 0; i < 8; i++) {
+        const ang = (i * 45 + 22.5) * PI / 180, dx = Math.cos(ang), dy = Math.sin(ang);
+        const bx = cx + dx * r * 0.42, by = cy + dy * r * 0.42, tx = cx + dx * r * 0.86, ty = cy + dy * r * 0.86, nx = -dy * 0.42, ny = dx * 0.42;
+        const th = new Path2D(); th.moveTo(bx + nx, by + ny);
+        th.quadraticCurveTo((bx + tx) / 2 + nx * 0.6, (by + ty) / 2 + ny * 0.6, tx, ty);
+        th.quadraticCurveTo((bx + tx) / 2 - nx * 0.6, (by + ty) / 2 - ny * 0.6, bx - nx, by - ny); th.closePath();
+        g.fillStyle = "rgba(86,2,8,0.65)"; g.fill(th);
+        g.strokeStyle = "rgba(255,179,179,0.2)"; g.lineWidth = 0.12; g.stroke(th);
+      }
+      g.beginPath(); g.arc(cx, cy, r, 0, 2 * PI); g.strokeStyle = "#3A0508"; g.lineWidth = small ? 0.6 : 0.35; g.stroke();
+      g.beginPath(); g.arc(cx, cy, r * 0.72, 3.49, 4.71); g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = small ? 0.6 : 0.4; g.lineCap = "round"; g.stroke();
+      circle(g, "rgba(255,255,255,0.9)", r * 0.2, cx - r * 0.36, cy - r * 0.46);
     } else if (kind === "perolas") {
       // colar de pérolas: o fio desce dos ombros em U por baixo da boca, cada pérola com o reflexo rosado e o
       // pontinho de luz; a do meio é maior, presa num fecho dourado, e um brilho corre o fio devagar

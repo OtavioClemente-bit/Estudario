@@ -43,8 +43,12 @@ object Store {
     /** Por que o último envio falhou (aparece no aviso de "sem conexão" e em Ajustes). */
     var lastError by mutableStateOf<String?>(null)
         private set
-    var session by mutableStateOf(Auth.session)
-        private set
+    private var sessionState by mutableStateOf(Auth.session)
+    /** A conta também decide os presentes exclusivos do armário do Folha (FolhaWardrobe.owner). */
+    var session: AuthSession?
+        get() = sessionState
+        private set(value) { sessionState = value; br.com.estudario.domain.FolhaWardrobe.setAccount(value?.email) }
+    init { br.com.estudario.domain.FolhaWardrobe.setAccount(Auth.session?.email) }
 
     /** Demonstração local: nada é enviado para a conta. */
     var demo by mutableStateOf(false)

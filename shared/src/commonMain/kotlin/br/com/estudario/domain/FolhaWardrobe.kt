@@ -62,6 +62,13 @@ data class FolhaItem(
      * [FolhaWardrobe.OTHER_AREA_FACTOR] vezes ele. Sem área, vale para todo mundo.
      */
     val days: Int? = null,
+    /**
+     * Presente exclusivo de uma conta: o SHA-256 (hex) do e-mail dela, em minúsculas. Só essa conta vê e
+     * usa a peça; para as outras ela nem aparece no armário. O e-mail em si nunca fica no código.
+     */
+    val owner: String? = null,
+    /** Para quem é o presente ("Artur Lima"), mostrado no armário de quem ganhou. */
+    val ownerName: String? = null,
 )
 
 /**
@@ -70,8 +77,26 @@ data class FolhaItem(
  * comprado nem ganho por engano, e quem troca de aparelho recupera tudo junto com o histórico.
  */
 object FolhaWardrobe {
-    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null, collection: String? = null, plan: String? = null, area: FolhaArea? = null, days: Int? = null) =
-        FolhaItem(id, slot, name, rarity, badge, level, collection, plan, area, days)
+    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null, collection: String? = null, plan: String? = null, area: FolhaArea? = null, days: Int? = null, owner: String? = null, ownerName: String? = null) =
+        FolhaItem(id, slot, name, rarity, badge, level, collection, plan, area, days, owner, ownerName)
+
+    /**
+     * A conta que está usando o app ou o site, como o SHA-256 do e-mail em minúsculas (ver [FolhaItem.owner]).
+     * O app e o site atualizam ao entrar e ao sair da conta.
+     */
+    var accountHash: String? = null
+        private set
+
+    fun setAccount(email: String?) {
+        val clean = email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        accountHash = clean?.let { br.com.estudario.text.Sha256.digest(it.encodeToByteArray()).joinToString("") { b -> ((b.toInt() and 0xFF) + 0x100).toString(16).substring(1) } }
+    }
+
+    /** Peça que esta conta pode ver: as comuns e os presentes que são dela. */
+    fun visible(item: FolhaItem): Boolean = item.owner == null || item.owner == accountHash
+
+    /** Presentes exclusivos (uma conta cada): o SHA-256 do e-mail, nunca o e-mail. */
+    private const val ARTUR_LIMA = "54ad4ff0c80c0ef59183a3a0111ad983a3084eb04fc8c46375a2131cb572e228"
 
     /**
      * O plano da conta (FREE, ESSENCIAL, PRO ou TESTE), que libera as peças de assinante. O app e o site
@@ -505,6 +530,8 @@ object FolhaWardrobe {
         item("3d", FolhaSlot.OCULOS, "Óculos 3D", R, days = 35),
         item("mergulho", FolhaSlot.OCULOS, "Máscara de mergulho", E, days = 80),
         item("perolas", FolhaSlot.PESCOCO, "Colar de pérolas", R, days = 25),
+        // presentes exclusivos: um dono só
+        item("colar-artur", FolhaSlot.PESCOCO, "Colar do Artur", FolhaRarity.LENDARIA, owner = ARTUR_LIMA, ownerName = "Artur Lima"),
         item("lenco", FolhaSlot.PESCOCO, "Lenço de seda", C, days = 14),
         item("sininho", FolhaSlot.PESCOCO, "Sininho", C, days = 7),
         item("guarda-chuva", FolhaSlot.MAO, "Guarda-chuva", C, days = 10),
@@ -577,12 +604,13 @@ object FolhaWardrobe {
     fun piecesOf(c: FolhaCollection): List<FolhaItem> = c.pieces.mapNotNull { (slot, id) -> find(slot, id) }
     fun rewardOf(c: FolhaCollection): FolhaItem? = find(c.reward.first, c.reward.second)
 
-    fun of(slot: FolhaSlot): List<FolhaItem> = items.filter { it.slot == slot }
+    fun of(slot: FolhaSlot): List<FolhaItem> = items.filter { it.slot == slot && visible(it) }
     /** A peça padrão de cada lugar (a primeira não exclusiva). */
     fun default(slot: FolhaSlot): FolhaItem = of(slot).first { it.collection == null && it.badgeId == null && it.level == null && it.plan == null && it.days == null }
     fun find(slot: FolhaSlot, id: String?): FolhaItem? = items.firstOrNull { it.slot == slot && it.id == id }
 
     fun unlocked(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean = when {
+        item.owner != null -> item.owner == accountHash
         item.plan != null -> planRank(subscriberTier) >= planRank(item.plan)
         key(item) in owned -> true
         item.collection != null -> collection(item.collection)?.let { c -> piecesOf(c).all { unlocked(it, summary) } } ?: false
@@ -597,6 +625,7 @@ object FolhaWardrobe {
 
     /** Como liberar, em uma linha ("Emblema Semana cheia: 7 dias seguidos batendo a meta", "Chegar ao nível 5"). */
     fun requirement(item: FolhaItem): String = when {
+        item.owner != null -> "Presente exclusivo para ${item.ownerName ?: "você"}: só existe um no Estudário"
         item.plan == "PRO" -> "Exclusiva de quem assina o Pro"
         item.plan != null -> "Exclusiva de quem assina o Essencial ou o Pro"
         item.collection != null -> "Complete a coleção ${collection(item.collection)?.name ?: ""}"
@@ -616,7 +645,7 @@ object FolhaWardrobe {
 
     /** O andamento até liberar: atual, alvo e a unidade. Nulo quando já vem liberada. */
     fun progress(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Triple<Int, Int, String>? {
-        if (item.plan != null) return null
+        if (item.plan != null || item.owner != null) return null
         item.collection?.let { id -> val c = collection(id) ?: return null; val ps = piecesOf(c); return Triple(ps.count { unlocked(it, summary) }, ps.size, "peças") }
         goalOf(item)?.let { g -> return Triple(current(g.kind, summary).coerceAtMost(g.target), g.target, g.kind.unit) }
         item.level?.let { return Triple(summary.level.coerceAtMost(it), it, "nível") }
