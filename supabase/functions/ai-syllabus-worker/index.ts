@@ -1035,9 +1035,12 @@ export async function processSyllabusJob(
 export async function runSyllabusWorker(
   dependencies: SyllabusWorkerDependencies,
   maxJobs = 1,
+  deadlineMs = Number.POSITIVE_INFINITY,
 ): Promise<number> {
+  // Vários pedidos por rodada, até o tempo acabar (18/11): com 1 por rodada (cron de minuto em minuto) o servidor
+  // inteiro entregava ~60 matérias por hora, mesmo as prontas da biblioteca, e a espera passava de 1 minuto.
   let processed = 0;
-  for (let attempt = 0; attempt < maxJobs; attempt += 1) {
+  for (let attempt = 0; attempt < maxJobs && Date.now() < deadlineMs; attempt += 1) {
     if (!await processSyllabusJob(dependencies)) break;
     processed += 1;
   }

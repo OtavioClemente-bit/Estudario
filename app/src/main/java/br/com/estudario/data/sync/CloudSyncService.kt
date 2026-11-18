@@ -232,7 +232,7 @@ class CloudSyncService(
     private suspend fun upload(userId: String, snapshot: String, sha: String, expectedRevision: Long) {
         // O servidor aceita no máximo 25 arquivos por conta; envios recusados (do site, por exemplo)
         // enchiam a pasta e travavam tudo. Limpa antes de enviar, sempre guardando a foto vigente.
-        runCatching { prune(userId, currentPath = "", keep = 3) }
+        runCatching { prune(userId, currentPath = "", keep = 1) }
         val path = "$userId/${System.currentTimeMillis()}-${sha.take(12)}.json"
         val bytes = snapshot.encodeToByteArray()
         val put = request("POST", "/storage/v1/object/$BUCKET/$path", bytes, "application/json", mapOf("x-upsert" to "false"))
@@ -261,7 +261,7 @@ class CloudSyncService(
      * Apaga as fotos antigas da conta, deixando a atual e as 4 mais recentes antes dela. Cada envio
      * cria um arquivo novo; sem isso a pasta da conta só cresce. Melhor esforço.
      */
-    private suspend fun prune(userId: String, currentPath: String, keep: Int = 4) {
+    private suspend fun prune(userId: String, currentPath: String, keep: Int = 1) {
         // Sem saber qual é a foto vigente, não apaga nada; com ela, nunca a apaga.
         val headPath = runCatching { fetchHead() }.getOrNull()?.let { it.objectPath ?: "" } ?: return
         val listBody = JSONObject()

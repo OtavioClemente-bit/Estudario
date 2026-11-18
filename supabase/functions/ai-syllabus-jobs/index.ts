@@ -391,7 +391,9 @@ async function createJob(
     const textClient = await clientContext(request);
     const blocked = await verifyWebClient(dependencies, request, textClient);
     if (blocked) return blocked;
-    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input, textClient, body.purpose);
+    const created = await createTextJob(dependencies, user, key, body.feature as AiFeature, body.input, textClient, body.purpose);
+    if (created.status < 300) kickTextWorker();
+    return created;
   }
   if (body.feature !== undefined && body.feature !== SYLLABUS_FEATURE) return safeError("INVALID_FEATURE", 400);
   const source = sourceInput(body);
@@ -498,6 +500,23 @@ async function createJob(
  * entra em processamento na mesma chamada. A entrada é validada antes de tudo; o que não passa
  * nem chega a reservar cota.
  */
+/**
+ * Acorda o worker de texto na hora em que o pedido entra (18/11), sem esperar o cron do próximo minuto: a matéria
+ * pronta da biblioteca sai em segundos. Não espera a resposta; se falhar, o cron pega no minuto seguinte.
+ */
+function kickTextWorker(): void {
+  const url = Deno.env.get("SUPABASE_URL")?.trim();
+  const token = Deno.env.get("AI_WORKER_AUTH_TOKEN")?.trim();
+  if (!url || !token) return;
+  const call = fetch(`${url}/functions/v1/ai-text-worker`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: "{}",
+  }).then((r) => r.body?.cancel()).catch(() => {});
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  runtime?.waitUntil?.(call);
+}
+
 async function createTextJob(
   dependencies: AiSyllabusJobsDependencies,
   user: AuthenticatedUser,

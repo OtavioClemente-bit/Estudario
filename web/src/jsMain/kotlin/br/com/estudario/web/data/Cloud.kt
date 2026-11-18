@@ -90,7 +90,7 @@ object Cloud {
         // O servidor aceita no máximo 25 arquivos por conta. A limpeza antes só rodava depois de um
         // envio aceito: com envios recusados acumulando, a pasta enchia e travava tudo (o celular
         // inclusive). Agora limpa antes de enviar, sempre guardando a foto vigente.
-        runCatching { prune(currentPath = "", keep = 3) }
+        runCatching { prune(currentPath = "", keep = 1) }
         // O texto vira bytes e o resumo SHA-256 sai do próprio navegador (rápido e fora do caminho da
         // tela). Antes o resumo era calculado em Kotlin, byte a byte, nos ~10 MB da conta: travava a
         // página por segundos logo depois de responder uma questão.
@@ -136,7 +136,7 @@ object Cloud {
      * envio cria um arquivo novo; sem isso a pasta da conta só cresce. Melhor esforço: falhar aqui
      * não falha a sincronização.
      */
-    suspend fun prune(currentPath: String, keep: Int = 4) {
+    suspend fun prune(currentPath: String, keep: Int = 1) {
         val userId = Auth.session?.userId ?: return
         // Sem saber qual é a foto vigente, não apaga nada.
         val currentHead = runCatching { head() }.getOrNull() ?: return

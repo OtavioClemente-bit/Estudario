@@ -36,8 +36,13 @@ if (import.meta.main) {
           error: { code: "AI_WORKER_UNAUTHORIZED", message: "AI worker authorization required" },
         }, { status: 401 });
       }
+      // Algumas filas em paralelo, cada uma pegando pedidos até o prazo da rodada (o pedido da biblioteca leva ~1 s;
+      // o de IA, mais). O lease de cada pedido impede duas filas de pegarem o mesmo.
+      const lanes = Math.max(1, environmentNumber("TEXT_WORKER_LANES", 4));
+      const deadline = Date.now() + environmentNumber("TEXT_WORKER_BUDGET_MS", 45_000);
+      const counts = await Promise.all(Array.from({ length: lanes }, () => {
       const store = new SupabaseSyllabusWorkerStore(environment, null, `text-worker:${crypto.randomUUID()}`, TEXT_QUEUE);
-      const processed = await runSyllabusWorker({
+      return runSyllabusWorker({
         jobs: store,
         provider: createOpenAiProvider({
           background: true,
@@ -53,7 +58,9 @@ if (import.meta.main) {
         maxRetries: environmentNumber("AI_MAX_RETRIES", 3),
         maxOutputTokens: environmentNumber("TEXT_MAX_OUTPUT_TOKENS", 24_000),
         maxProcessingSeconds: environmentNumber("TEXT_MAX_PROCESSING_SECONDS", 900),
-      }, environmentNumber("AI_WORKER_BATCH_SIZE", 1));
+      }, environmentNumber("AI_WORKER_BATCH_SIZE", 200), deadline);
+      }));
+      const processed = counts.reduce((sum, n) => sum + n, 0);
       return Response.json({ processed }, { headers: { "cache-control": "no-store" } });
     } catch {
       return Response.json({
