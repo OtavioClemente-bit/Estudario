@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do Gemini
 // @namespace    estudario
-// @version      1.14
+// @version      1.15
 // @updateURL    http://127.0.0.1:8788/estudario-gemini.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-gemini.user.js
 // @description  Envia os pedidos da fila do Estudário ao Gemini (modo Argon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
@@ -149,10 +149,10 @@ PEDIDO:
         set("atual", null);
         set("vivo", Date.now());
         set("proximo", Date.now() + PAUSA());
-        if (r.erro) { set("falhas", get("falhas", 0) + 1); atualizar(r.erro); if (/recusou/.test(r.erro)) set("proximo", Date.now() + 30 * 60_000); return; }
+        if (r.erro) { set("falhas", get("falhas", 0) + 1); atualizar(r.erro); local("POST", "/falha", { nome: atual.nome, erro: r.erro, conta: `gemini${U}` }).catch(() => {}); if (/recusou/.test(r.erro)) set("proximo", Date.now() + 30 * 60_000); return; }
         let ok = false;
         try { JSON.parse(r.texto); ok = true; } catch { /* inválido */ }
-        if (!ok) { set("falhas", get("falhas", 0) + 1); atualizar("JSON inválido; pulei"); return; }
+        if (!ok) { set("falhas", get("falhas", 0) + 1); atualizar("JSON inválido; pulei"); local("POST", "/falha", { nome: atual.nome, erro: `JSON inválido (${r.texto.length} caracteres; fim: ${r.texto.slice(-60).replace(/\s+/g, " ")})`, conta: `gemini${U}` }).catch(() => {}); return; }
         const res = await local("POST", "/arquivo", { nome: atual.nome, conteudo: r.texto, conta: `gemini${U}` });
         if (res.ok && !res.ja) set("salvos", get("salvos", 0) + 1);
         atualizar(res.ok ? `salvo ${atual.nome}` : `servidor recusou: ${res.erro}`);
@@ -162,7 +162,7 @@ PEDIDO:
       // conversa. Espera até 5 min desde o envio; só depois esquece e segue (antes recarregava sem parar).
       if (atual) {
         if (Date.now() - (atual.t ?? 0) < 5 * 60_000) { atualizar("enviado; esperando a conversa abrir…"); return; }
-        set("atual", null); atualizar(`envio de ${atual.nome} não confirmado em 5 min; sigo para o próximo`);
+        set("atual", null); atualizar(`envio de ${atual.nome} não confirmado em 5 min; sigo para o próximo`); local("POST", "/falha", { nome: atual.nome, erro: "envio não confirmado em 5 min", conta: `gemini${U}` }).catch(() => {});
       }
 
       let fila = get("fila", []);

@@ -44,6 +44,12 @@ Deno.serve({ hostname: "127.0.0.1", port: 8788 }, async (req) => {
     log(`gravado ${nome}.json${quem}`);
     return json({ ok: true });
   }
+  // 18/11/2026: o script do Gemini avisa quando perde uma resposta (antes só escrevia na página e o log não mostrava nada).
+  if (req.method === "POST" && u.pathname === "/falha") {
+    const { nome, erro, conta } = await req.json().catch(() => ({}));
+    log(`falha ${String(nome ?? "?").slice(0, 120)}: ${String(erro ?? "?").slice(0, 160)}${conta ? ` (conta ${String(conta).slice(0, 10)})` : ""}`);
+    return json({ ok: true });
+  }
   return json({ ok: false }, 404);
 });
 log("servidor da fila iniciado em http://127.0.0.1:8788");
