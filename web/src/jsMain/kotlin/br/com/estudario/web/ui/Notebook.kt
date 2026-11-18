@@ -67,7 +67,6 @@ fun marksDueToday(marks: List<br.com.estudario.web.data.TheoryMark>): List<br.co
  */
 @Composable
 fun NotebookScreen() {
-    NotebookTabs(saved = true)
     val data = Store.data
     // Só o concurso em foco (aba no topo quando há mais de um).
     val scope = CompetitionFilter.topicIds(data)

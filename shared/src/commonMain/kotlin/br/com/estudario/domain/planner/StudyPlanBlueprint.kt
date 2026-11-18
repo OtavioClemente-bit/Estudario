@@ -133,7 +133,8 @@ object StudyPlanBlueprint {
     /** Parte da janela de conteúdo usada para ver o edital; o resto é folga para atraso e segunda passada. */
     private const val CONTENT_WINDOW_SHARE = 0.85
     private const val SUBJECT_MIX_INTERVAL_DAYS = 14
-    private const val SUBJECT_MIX_QUESTIONS = 15
+    /** Questões de uma revisão de matéria (o motor usa para reconhecer cópia a mais). */
+    const val SUBJECT_MIX_QUESTIONS = 15
     private const val MIN_SEEN_FOR_SUBJECT_MIX = 3
     /** Bateria menor que isso não vale uma tarefa no plano. */
     private const val MIN_PRACTICE_QUESTIONS = 3
@@ -328,14 +329,16 @@ object StudyPlanBlueprint {
                 .map { it to trackOf(it, subject) }
             skippedByEvidence += tracks.count { (t, track) -> track == Track.COVERED && !t.studied }
             val pending = tracks.filter { it.second != Track.COVERED }
-            if (pending.isEmpty() || contentDays == 0) return@forEach
             fun minutesOf(track: Track) = when (track) {
                 Track.FULL -> roundTo5(THEORY_BASE_MINUTES * factor * config.theoryPace)
                 Track.SHORT -> roundTo5(SHORT_THEORY_MINUTES * factor * config.theoryPace).coerceAtLeast(20)
                 Track.DIAGNOSE -> DIAGNOSTIC_QUESTIONS * config.minutesPerQuestion
                 Track.COVERED -> 0
             }
+            // O tamanho da leitura vale também na reta final (sem teoria nova): a teoria que já estava marcada
+            // continua com o tamanho certo e o motor reconhece a cópia a mais.
             pending.forEach { (t, track) -> if (track == Track.FULL || track == Track.SHORT) theorySizes[t.topicId] = minutesOf(track) }
+            if (pending.isEmpty() || contentDays == 0) return@forEach
             // A matéria de mais peso termina antes (75% da janela); a de menos, no fim dela.
             val weight = weights.getValue(subject.subjectId)
             val finishShare = 1.0 - 0.25 * (weight - 1).toDouble() / (maxWeight - 1).coerceAtLeast(1)

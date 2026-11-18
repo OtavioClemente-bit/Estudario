@@ -46,7 +46,7 @@ object LevelCrest {
      * Escudo de metal com borda chanfrada e miolo escuro, o número no meio e, embaixo, a faixa com as
      * cinco casas de estrela do título (as acesas são os níveis já subidos nele, as outras ficam vazias).
      */
-    fun svg(level: Int, id: String = "lc", small: Boolean = false): String {
+    fun svg(level: Int, id: String = "lc", small: Boolean = false, locked: Boolean = false): String {
         val tier = rankIndex(level)
         val r = ranks[tier]
         val sb = StringBuilder()
@@ -126,8 +126,30 @@ object LevelCrest {
                 sb.append("""<path d="${star(x, cy, 10.0)}" fill="#000000" fill-opacity=".35" stroke="${r.light}" stroke-opacity=".35" stroke-width="1.4" stroke-linejoin="round"/>""")
             }
         }
-        sb.append("</svg>")
-        return sb.toString()
+        if (!locked) { sb.append("</svg>"); return sb.toString() }
+        // bloqueado: o mesmo brasão em tons de cinza (nítido, sem transparência) e o selo do cadeado no canto
+        val gray = Regex("#([0-9A-Fa-f]{6})").replace(sb.toString()) { m -> grayOf(m.groupValues[1]) }
+        return gray + lockSeal() + "</svg>"
+    }
+
+    /** A cor convertida para um cinza levemente frio, puxado para o meio (nem branco estourado nem preto). */
+    private fun grayOf(hex: String): String {
+        val v = hex.toInt(16)
+        val lum = (0.3 * (v shr 16 and 255) + 0.59 * (v shr 8 and 255) + 0.11 * (v and 255)) / 255.0
+        val g = (62 + lum * 170).roundToInt().coerceIn(0, 255)
+        fun h(c: Int) = c.coerceIn(0, 255).toString(16).padStart(2, '0')
+        return "#" + h(g - 4) + h(g - 1) + h(g + 8)
+    }
+
+    /** O selo do cadeado (canto inferior direito), no traço dos ícones do app: tinta, preenchimento e sombra. */
+    private fun lockSeal(): String {
+        val ink = "#2B2550"
+        return """<g transform="translate(194 196) scale(1.18) translate(-194 -196)"><circle cx="196" cy="200" r="34" fill="#000000" fill-opacity=".22"/>""" +
+            """<circle cx="194" cy="196" r="34" fill="#FFFFFF" stroke="$ink" stroke-width="6"/>""" +
+            """<path d="M181 192 L181 182 Q181 167 194 167 Q207 167 207 182 L207 192" fill="none" stroke="$ink" stroke-width="7" stroke-linecap="round"/>""" +
+            """<rect x="172" y="188" width="44" height="32" rx="8" fill="#8D82E8" stroke="$ink" stroke-width="6" stroke-linejoin="round"/>""" +
+            """<rect x="177" y="192" width="34" height="6" rx="3" fill="#FFFFFF" fill-opacity=".45"/>""" +
+            """<circle cx="194" cy="203" r="4.5" fill="$ink"/><rect x="192" y="204" width="4" height="9" rx="2" fill="$ink"/></g>"""
     }
 
     /**

@@ -512,16 +512,22 @@ internal fun TitlesTrail(level: Int) {
                         // Trilho entre as fases: aceso até onde a pessoa chegou.
                         Row(Modifier.fillMaxWidth().height(4.dp)) {
                             Box(Modifier.weight(1f).fillMaxHeight().background(if (i == 0) Color.Transparent else if (reached) league.c1 else Game.track))
-                            Box(Modifier.weight(1f).fillMaxHeight().background(if (i == stops.lastIndex) Color.Transparent else if (stops[i + 1] <= level) league.c1 else Game.track))
+                            Box(Modifier.weight(1f).fillMaxHeight().background(if (i == stops.lastIndex) Color.Transparent else if (stops[i + 1] <= level) league.c1 else Game.track)) {
+                                // até o próximo título: a parte já andada acesa
+                                if (now && i < stops.lastIndex) Box(Modifier.fillMaxHeight().fillMaxWidth(((level - stop + 1f) / (stops[i + 1] - stop)).coerceIn(0f, 1f)).background(league.c1))
+                            }
                         }
                         // o brasão de cada patente: o atual maior e pulsando, os que faltam apagados e com cadeado
                         Box(contentAlignment = Alignment.Center) {
+                            // o próximo título: anel pontilhado na cor da liga, pulsando de leve
+                            if (next != null && stop == next.first) Canvas(Modifier.size(50.dp).graphicsLayer { val sc = 0.96f + 0.06f * pulse; scaleX = sc; scaleY = sc }) {
+                                drawCircle(league.c1.copy(alpha = 0.16f))
+                                drawCircle(league.c1, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))))
+                            }
                             LevelCrestImage(stop, if (now) 52.dp else 42.dp, Modifier.graphicsLayer {
-                                alpha = if (reached) 1f else 0.5f
                                 val sc = if (now) 0.94f + 0.06f * pulse else 1f
                                 scaleX = sc; scaleY = sc
-                            })
-                            if (!reached) Icon(Icons.Rounded.Lock, null, Modifier.size(15.dp), tint = Game.ink)
+                            }, locked = !reached)
                         }
                     }
                     Spacer(Modifier.height(6.dp))

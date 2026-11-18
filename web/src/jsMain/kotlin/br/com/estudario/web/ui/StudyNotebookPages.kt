@@ -30,7 +30,7 @@ import kotlin.js.Date
  * O Caderno de estudo que se escreve sozinho (a regra em StudyNotebook, módulo comum): a entrada é um
  * fichário com as matérias e a "Folheada do dia"; cada tópico estudado é uma página de caderno com o
  * essencial em frases curtas, os grifos em marca-texto, as notas em post-it, as pegadinhas como
- * carimbo e os cartões em fichinhas. O que a pessoa guardou continua em "Grifos, notas e salvos".
+ * carimbo e os cartões em fichinhas. O que a pessoa guardou fica em "Salvos deste assunto" (NotebookSaved.kt).
  */
 
 private const val LAST_PAGE_KEY = "estudario.caderno.ultima"
@@ -117,7 +117,7 @@ private fun NotebookHelp(onClose: () -> Unit) {
             GxSection("quiz", "Como aquecer uma página", "Treine 5 questões do tópico: acertando 4, ela fica firme na hora. Vale o treino mais recente (as últimas 5 respostas dos últimos 7 dias), então uma rodada boa apaga uma rodada ruim.", "#22D3EE") {}
             GxSection("replay", "Firme não é para sempre", "O treino vale por 7 dias. Depois, a página se segura pela leitura e pelas revisões. Se ficar muito tempo parada, volta a morno e, passados 30 dias, esfria e pede treino de novo.", "#A78BFF") {}
             GxSection("local_fire_department", "Folheada do dia", "Todo dia eu separo 5 páginas do que está esfriando: um ponto-chave, um grifo seu, uma pegadinha, um cartão e uma questão que você errou. Leva uns 5 minutos.", "#FF8A3D") {}
-            GxSection("bookmarks", "Grifos, notas e salvos", "Na outra aba fica tudo o que você guardou. O que você grifa na teoria aparece em marca-texto dentro da página do tópico.", "#FFC94D") {}
+            GxSection("bookmarks", "Salvos deste assunto", "Na página de cada tópico ficam os grifos, questões, dicas, pegadinhas, flashcards e notas que você guardou dele. O que não tem tópico fica em Geral.", "#FFC94D") {}
             Div({ classes("gx-go", "row") }) {
                 Span {}
                 GxLaunch("Entendi", icon = "check_circle") { onClose() }
@@ -180,7 +180,6 @@ fun NotebookHome() {
     val today = Queries.dateOf(now)
     val warmedToday = topics.count { t -> t.lastPracticeAt?.let { Queries.dateOf(it) == today } == true }
 
-    NotebookTabs(saved = false)
     CompetitionTabs()
     Div({ classes("cb-binder", "rise") }) {
         Div({ classes("cb-rings") }) { repeat(5) { org.jetbrains.compose.web.dom.I() } }
@@ -284,6 +283,7 @@ fun NotebookHome() {
                 }
             }
         }
+        SavedTopicsShelf()
     }
 }
 
@@ -427,6 +427,19 @@ fun NotebookPageScreen(topicId: Long) {
     val topic = remember(data, topicId) { notebookTopics(data).firstOrNull { it.id == topicId } }
     val raw = data.topics.firstOrNull { it.id == topicId }
     androidx.compose.runtime.LaunchedEffect(topicId) { writeLocal(LAST_PAGE_KEY, topicId.toString()) }
+    if (topic == null && (topicId == NOTEBOOK_GENERAL || raw != null) && (savedByTopic(data)[topicId]?.total ?: 0) > 0) {
+        // Tópico ainda não estudado (ou o Geral), mas com coisa guardada: só os salvos.
+        val subjectName = raw?.let { r -> data.subjects.firstOrNull { it.id == r.subjectId }?.name }
+        Div({ classes("cb-top") }) { Btn("Caderno", { Router.go(Route.Notebook) }, style = "ghost", small = true, icon = "arrow_back") }
+        Div({ classes("cb-tpage", "rise"); attr("style", "--c:${subjectColor(subjectName ?: "")}") }) {
+            Span({ classes("cb-crumb") }) { Text((subjectName ?: "Caderno").uppercase()) }
+            H2 { Text(raw?.title ?: "Geral") }
+            if (raw == null) P({ classes("small", "muted") }) { Text("O que você guardou sem um tópico do edital.") }
+            TopicSavedPanel(topicId)
+            if (raw != null) Div({ classes("cb-foot") }) { Btn("Ler a teoria", { Router.go(Route.Topic(topicId)) }, style = "outline", icon = "menu_book") }
+        }
+        return
+    }
     if (topic == null || raw == null) {
         Card { Empty("description", "Esta página ainda está em branco", "Estude o tópico (leia a teoria e marque como estudado) e ele vira página do seu caderno.", action = {
             Div({ classes("row", "wrap"); attr("style", "gap:8px;justify-content:center") }) {
@@ -467,6 +480,7 @@ fun NotebookPageScreen(topicId: Long) {
             }
             if (firm != StudyNotebook.Firmness.FIRM && hasQuestions) Btn("Treinar 5", { Router.go(Route.Quiz("topico-${topic.id}-5-c")) }, style = "primary", small = true)
         }
+        TopicSavedPanel(topic.id)
         if (thin) Div({ classes("cb-thin") }) {
             Icon("info", filled = true)
             Span { Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.") }
@@ -559,24 +573,5 @@ private fun MarkQuote(mark: StudyNotebook.Mark) {
         Div({ classes("cb-quote-in") }) { Markdown(md, compact = true) }
         if (long) Button({ classes("cb-link", "cb-quote-more"); onClick { open = !open } }) { Text(if (open) "recolher" else "ver o trecho inteiro") }
         if (mark.note.isNotBlank()) Div({ classes("cb-quote-note") }) { Span { Text("✎ sua nota") }; Text(mark.note) }
-    }
-}
-
-/**
- * As abas do Caderno: o caderno que se escreve sozinho e o que a pessoa guardou (grifos, notas,
- * questões e cartões salvos). Antes o segundo ficava num link no fim da página.
- */
-@Composable
-internal fun NotebookTabs(saved: Boolean) {
-    val data = Store.data
-    val guardados = data.theoryMarks.size + data.notes.size
-    Div({ classes("cb-tabs"); attr("role", "tablist") }) {
-        Button({ classes(*listOfNotNull("cb-tabbtn", if (!saved) "on" else null).toTypedArray()); attr("role", "tab"); attr("aria-selected", (!saved).toString()); onClick { Router.go(Route.Notebook) } }) {
-            Icon("auto_stories", filled = true); Span { Text("Caderno") }
-        }
-        Button({ classes(*listOfNotNull("cb-tabbtn", if (saved) "on" else null).toTypedArray()); attr("role", "tab"); attr("aria-selected", saved.toString()); onClick { Router.go(Route.NotebookSaved) } }) {
-            Icon("bookmarks", filled = true); Span { Text("Grifos, notas e salvos") }
-            if (guardados > 0) B({ classes("cb-tabcount") }) { Text("$guardados") }
-        }
     }
 }

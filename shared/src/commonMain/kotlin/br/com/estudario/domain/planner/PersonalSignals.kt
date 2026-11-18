@@ -49,11 +49,18 @@ data class PersonalPace(
             val minutesByTask = measured.groupBy { it.taskId!! }.mapValues { (_, l) -> l.sumOf { it.minutes } }
             // Concluída ou feita em parte (registrar menos que o planejado deixa a tarefa "em andamento"):
             // sem a feita em parte, só as passadas lentas entravam e o ritmo só subia.
-            val worked = tasks.filter { (it.status == PlanTaskStatus.CONCLUIDA || it.status == PlanTaskStatus.EM_ANDAMENTO) && it.id in minutesByTask }
+            // A tarefa feita em parte e depois remarcada (vira REPROGRAMADA e o resto nasce numa cópia) também
+            // conta: sem ela, de quem marca "fiz uma parte" só entrava o resto (20 min de uma teoria de 50), o
+            // ritmo caía para o piso sem a pessoa ser rápida, e mudava a cada reorganização do mesmo dia.
+            val worked = tasks.filter { (it.status == PlanTaskStatus.CONCLUIDA || it.status == PlanTaskStatus.EM_ANDAMENTO || it.status == PlanTaskStatus.REPROGRAMADA) && it.id in minutesByTask }
 
             // Teoria: só a primeira passada de cada tópico (a retomada é curta e distorceria a conta);
             // teoria partida em dois dias seguidos conta inteira.
-            val theoryByTopic = worked.filter { it.type == PlanTaskType.THEORY && it.topicId != null }.groupBy { it.topicId!! }
+            // Tópico com parte da teoria ainda por fazer não entra: a leitura pela metade não é o tempo do tópico.
+            val unfinished = tasks.filter { it.type == PlanTaskType.THEORY && it.topicId != null && (it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.EM_ANDAMENTO) }
+                .mapTo(hashSetOf()) { it.topicId!! }
+            val concluded = tasks.filter { it.type == PlanTaskType.THEORY && it.topicId != null && it.status == PlanTaskStatus.CONCLUIDA }.mapTo(hashSetOf()) { it.topicId!! }
+            val theoryByTopic = worked.filter { it.type == PlanTaskType.THEORY && it.topicId != null && (it.topicId in concluded || it.topicId !in unfinished) }.groupBy { it.topicId!! }
             val samples = theoryByTopic.mapNotNull { (topicId, list) ->
                 val first = list.minOf { it.date }
                 val pass = list.filter { daysBetween(first, it.date) <= 2 }

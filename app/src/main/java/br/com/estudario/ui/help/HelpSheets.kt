@@ -188,7 +188,7 @@ fun NotebookHelp(onClose: () -> Unit) {
         GxSection(Glyph.Clipboard, "Como aquecer uma página", "Treine 5 questões do tópico: acertando 4, ela fica firme na hora. Vale o treino mais recente (as últimas 5 respostas dos últimos 7 dias), então uma rodada boa apaga uma rodada ruim.", Gx.cyan) {}
         GxSection(Glyph.Cycle, "Firme não é para sempre", "O treino vale por 7 dias. Depois, a página se segura pela leitura e pelas revisões. Se ficar muito tempo parada, volta a morno e, passados 30 dias, esfria e pede treino de novo.", Gx.violet) {}
         GxSection(Glyph.Fire, "Folheada do dia", "Todo dia eu separo 5 páginas do que está esfriando: um ponto-chave, um grifo seu, uma pegadinha, um cartão e uma questão que você errou. Leva uns 5 minutos.", Gx.orange) {}
-        GxSection(Glyph.Bookmark, "Grifos e salvos", "Na outra aba fica tudo o que você guardou. O que você grifa na teoria aparece em marca-texto dentro da página do tópico.", Gx.gold) {}
+        GxSection(Glyph.Bookmark, "Salvos deste assunto", "Na página de cada tópico ficam os grifos, questões, dicas, pegadinhas, flashcards e notas que você guardou dele. O que não tem tópico fica em Geral.", Gx.gold) {}
     }
 }
 

@@ -343,6 +343,7 @@ object PlannerSnapshotBuilder {
             questionCapByTopic = questionCap,
             theoryMinutesByTopic = if (pace.theorySamples >= PersonalPace.MIN_THEORY_TOPICS) blueprint.theoryMinutesByTopic else emptyMap(),
             minutesPerQuestion = pace.minutesPerQuestion,
+            theoryNeedByTopic = blueprint.theoryMinutesByTopic,
         )
     }
 }

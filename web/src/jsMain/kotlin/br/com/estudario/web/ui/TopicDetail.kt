@@ -181,7 +181,7 @@ private fun TopicHelp(onClose: () -> Unit) {
                     Span { B { Text("Questões, Erros e Histórico: ") }; Text("treine o tópico, veja onde você erra e tudo o que já fez nele.") }
                 }
             }
-            GxSection("library_books", "Onde tudo fica depois", "No Caderno de estudo, em \"Grifos, notas e salvos\". Lá, \"Abrir na teoria\" traz você de volta ao trecho, piscando. Achou erro no material? Use ⋮ › Reportar erro.", "#22A06B") {}
+            GxSection("library_books", "Onde tudo fica depois", "No Caderno de estudo, na página do tópico, em \"Salvos deste assunto\". Lá, \"Abrir na teoria\" traz você de volta ao trecho, piscando. Achou erro no material? Use ⋮ › Reportar erro.", "#22A06B") {}
             Div({ classes("gx-go", "row") }) {
                 Span {}
                 GxLaunch("Entendi, bora ler", icon = "check_circle") { onClose() }

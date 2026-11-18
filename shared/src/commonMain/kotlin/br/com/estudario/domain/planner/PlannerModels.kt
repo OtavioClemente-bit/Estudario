@@ -199,6 +199,11 @@ data class StudyPlannerSnapshot(
     val theoryMinutesByTopic: Map<Long, Int> = emptyMap(),
     /** Minutos por questão medidos; null = o tamanho que a tarefa já tem. */
     val minutesPerQuestion: Int? = null,
+    /**
+     * Tamanho da leitura de cada tópico ainda não lido (sempre preenchido, com ou sem ritmo medido): o motor
+     * não deixa a teoria viva de um tópico passar disso (cópias de dois aparelhos, plano antigo inflado).
+     */
+    val theoryNeedByTopic: Map<Long, Int> = emptyMap(),
 ) {
     init {
         require(revision >= 0)

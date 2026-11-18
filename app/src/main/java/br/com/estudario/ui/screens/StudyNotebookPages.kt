@@ -454,6 +454,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                 }
             }
         }
+        item(key = "saved-shelf") { SavedTopicsShelf(viewModel, onPage) }
     }
 }
 
@@ -619,10 +620,14 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
 // ------------------------------------------------------------------ a página do tópico
 
 @Composable
-fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit, onTheory: (Long) -> Unit, onTrain: (Long) -> Unit) {
+fun NotebookPageScreen(
+    viewModel: AppViewModel, topicId: Long, onBack: () -> Unit, onTheory: (Long) -> Unit, onTrain: (Long) -> Unit,
+    onOpenTheory: (theoryId: Long, block: Int) -> Unit = { _, _ -> }, onTrainFavorites: (Long) -> Unit = onTrain,
+) {
     val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
     LaunchedEffect(topicId) { prefs.edit().putLong("ultima", topicId).apply() }
     val page = rememberNotebookPage(viewModel, topicId)
+    val savedCount = rememberSavedByTopic(viewModel)[topicId]?.total ?: 0
     val subjects by viewModel.subjects.collectAsState()
     val now = remember { System.currentTimeMillis() }
     // Cada parte da página é um item próprio da lista: a tela só desenha o que está visível e os botões
@@ -633,12 +638,17 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { NotebookHelpButton() }
         }
         when {
+            topicId == NOTEBOOK_GENERAL -> item(key = "general") { SavedOnlyPage(viewModel, topicId, onOpenTheory, onTheory, onTrainFavorites) }
             page == null -> item(key = "loading") { NotebookLoading() }
+            page.topic == null && savedCount > 0 -> item(key = "saved-only") { SavedOnlyPage(viewModel, topicId, onOpenTheory, onTheory, onTrainFavorites) }
             page.topic == null -> {
                 item(key = "blank") { Text("Esta página ainda está em branco: estude o tópico (leia a teoria e marque como estudado) e ele vira página do seu caderno.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp)) }
                 item(key = "blank-go") { Button(onClick = { onTheory(topicId) }, Modifier.padding(horizontal = 8.dp)) { Text("Abrir o tópico") } }
             }
-            else -> notebookPage(page, page.topic, subjects.firstOrNull { it.id == page.topic.subjectId }?.name.orEmpty(), now, onTheory, onTrain)
+            else -> {
+                item(key = "saved") { TopicSavedPanel(viewModel, topicId, onOpenTheory, onTheory, onTrainFavorites) }
+                notebookPage(page, page.topic, subjects.firstOrNull { it.id == page.topic.subjectId }?.name.orEmpty(), now, onTheory, onTrain)
+            }
         }
     }
 }
@@ -860,37 +870,6 @@ private fun MiniCard(front: String, back: String) {
     ) {
         if (angle < 90f) Text(inkInline(front), fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp, maxLines = 6, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         else Text(inkInline(back), Modifier.graphicsLayer { rotationY = 180f }, color = Color.White, fontSize = 12.5.sp, maxLines = 7, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-    }
-}
-
-/**
- * As abas do Caderno: o caderno que se escreve sozinho e o que a pessoa guardou (grifos, notas,
- * questões e cartões salvos). Antes o segundo ficava num link no fim da página (o site faz igual).
- */
-@Composable
-fun NotebookTabs(saved: Boolean, onNotebook: () -> Unit, onSaved: () -> Unit, viewModel: AppViewModel) {
-    val marks by viewModel.theoryMarks.collectAsState()
-    val notes by viewModel.notes.collectAsState()
-    val count = marks.size + notes.size
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        @Composable
-        fun Tab(on: Boolean, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, badge: Int, onClick: () -> Unit) {
-            Row(
-                Modifier.weight(1f).padding(horizontal = 4.dp).then(if (on) Modifier.offset(2.dp, 3.dp).border(2.dp, br.com.estudario.ui.brand.cutInk(), RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp)) else Modifier.cutPanel(RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp), 3.dp)).clip(RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp)).background(if (on) Color(0xFF2F5BD3) else scheme.surface).clickable(enabled = !on, onClick = onClick).padding(vertical = 10.dp, horizontal = 8.dp),
-                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(icon, null, Modifier.size(18.dp), tint = if (on) Color.White else scheme.onSurfaceVariant)
-                Spacer(Modifier.width(6.dp))
-                Text(label, fontWeight = FontWeight.Black, fontSize = 13.sp, color = if (on) Color.White else scheme.onSurface, maxLines = 1)
-                if (badge > 0) { Spacer(Modifier.width(6.dp)); Text("$badge", Modifier.clip(RoundedCornerShape(50)).background(Gold).padding(horizontal = 6.dp, vertical = 1.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF3B2300)) }
-            }
-        }
-        Tab(!saved, "Caderno", Icons.Outlined.AutoStories, 0, onNotebook)
-        Tab(saved, "Grifos e salvos", Icons.Outlined.Bookmarks, count, onSaved)
     }
 }
 

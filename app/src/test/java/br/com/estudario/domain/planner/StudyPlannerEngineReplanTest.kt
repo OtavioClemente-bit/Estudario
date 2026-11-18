@@ -39,7 +39,8 @@ class StudyPlannerEngineReplanTest {
     @Test
     fun `daily reorganization keeps the tasks already planned for today`() {
         val today = monday.plusDays(1)
-        val planned = listOf(task("a", today, 50), task("b", today, 40), task("c", today, 30))
+        // um tópico por tarefa: três teorias do mesmo tópico no mesmo dia são cópias (dois aparelhos) e o motor fica com uma
+        val planned = listOf(task("a", today, 50, topicId = 101L), task("b", today, 40, topicId = 102L), task("c", today, 30, topicId = 103L))
         val proposal = engine.plan(snapshot(today = today, dailyMinutes = 120, tasks = planned), ReplanReason.DAY_MISSED)
 
         assertTrue(proposal.transitions.none { it.taskId in setOf("a", "b", "c") })
@@ -62,14 +63,53 @@ class StudyPlannerEngineReplanTest {
 
     @Test
     fun `concluir a teoria do dia nao puxa a atrasada nem tira as questoes de hoje`() {
-        val late = task("late-theory", monday.minusDays(2), 50)
+        val late = task("late-theory", monday.minusDays(2), 50, topicId = 101L)
         val done = task("today-theory", monday, 50, PlanTaskStatus.CONCLUIDA)
-        val questions = (1..4).map { task("q$it", monday, 20) }
+        val questions = (1..4).map { task("q$it", monday, 20, topicId = 200L + it) }
         val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 120, tasks = listOf(late, done) + questions), ReplanReason.TASK_COMPLETED)
 
         assertTrue(proposal.transitions.isEmpty())
         assertTrue(proposal.newTasks.none { it.date == monday })
         assertTrue(proposal.preservedTaskIds.containsAll(listOf("late-theory", "q1", "q2", "q3", "q4")))
+    }
+
+    @Test
+    fun `teoria concluida tira as outras partes da mesma teoria do plano`() {
+        // a leitura dividida em 3 dias: a pessoa leu tudo no primeiro; as partes 2 e 3 saem, a de outro tópico fica
+        val done = task("parte-1", monday, 60, PlanTaskStatus.CONCLUIDA, topicId = 131L)
+        val p2 = task("parte-2", monday.plusDays(1), 65, topicId = 131L)
+        val p3 = task("parte-3", monday.plusDays(2), 60, topicId = 131L)
+        val other = task("outro", monday.plusDays(1), 50, topicId = 65L)
+        val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 120, tasks = listOf(done, p2, p3, other)), ReplanReason.TASK_COMPLETED)
+
+        assertTrue(proposal.newTasks.none { it.topicId == 131L && it.type == PlanTaskType.THEORY })
+        assertTrue(proposal.transitions.map { it.taskId }.containsAll(listOf("parte-2", "parte-3")))
+        assertTrue("outro" in proposal.preservedTaskIds)
+    }
+
+    @Test
+    fun `parte da teoria depois da semana estavel nao vira a teoria inteira de novo`() {
+        // teoria de 75 min em duas partes: 50 dentro da semana estável (fica) e 25 logo depois dela (é remarcada).
+        // Antes a parte de 25, por ser a única remarcada, ganhava o tamanho da teoria inteira (75) e o tópico
+        // passava a ter 125 min; a cada dia a conta se repetia e a teoria chegava a 180 min em 4 partes.
+        val inside = task("parte-1", monday.plusDays(6), 50, topicId = 131L)
+        val outside = task("parte-2", monday.plusDays(7), 25, topicId = 131L)
+        val base = snapshot(today = monday, dailyMinutes = 120, tasks = listOf(inside, outside))
+        val proposal = engine.plan(base.copy(policy = base.policy.copy(horizonDays = 14), theoryMinutesByTopic = mapOf(131L to 75)), ReplanReason.DAY_MISSED)
+
+        assertTrue("parte-1" in proposal.preservedTaskIds)
+        assertEquals(25, proposal.newTasks.filter { it.topicId == 131L }.sumOf { it.plannedMinutes })
+    }
+
+    @Test
+    fun `teoria de retomada marcada nao sai do plano por causa da primeira leitura`() {
+        // o tópico foi lido há 40 dias e a pessoa segue errando: a teoria curta de retomada fica onde está
+        val first = task("leitura", monday.minusDays(40), 50, PlanTaskStatus.CONCLUIDA, topicId = 131L)
+        val retake = task("retomada", monday.plusDays(1), 25, topicId = 131L)
+        val proposal = engine.plan(snapshot(today = monday, dailyMinutes = 120, tasks = listOf(first, retake)), ReplanReason.TASK_COMPLETED)
+
+        assertTrue("retomada" in proposal.preservedTaskIds)
+        assertTrue(proposal.transitions.isEmpty())
     }
 
     @Test
@@ -177,11 +217,12 @@ class StudyPlannerEngineReplanTest {
         date: LocalDate,
         minutes: Int,
         status: PlanTaskStatus = PlanTaskStatus.PLANEJADA,
+        topicId: Long = 100L,
     ) = PlannerTask(
         id = id,
         planId = "plan-1",
         subjectId = 10L,
-        topicId = 100L,
+        topicId = topicId,
         date = date,
         type = PlanTaskType.THEORY,
         plannedMinutes = minutes,

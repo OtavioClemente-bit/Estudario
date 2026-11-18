@@ -18,9 +18,9 @@ import com.caverock.androidsvg.SVG
  * desenha): a patente do título, as estrelas e o número. Até 48 dp sai sem os detalhes finos.
  */
 @Composable
-internal fun LevelCrestImage(level: Int, size: Dp, modifier: Modifier = Modifier) {
+internal fun LevelCrestImage(level: Int, size: Dp, modifier: Modifier = Modifier, locked: Boolean = false) {
     val small = size <= 48.dp
-    val svg = remember(level, small) { runCatching { SVG.getFromString(LevelCrest.svg(level, "lc$level", small)) }.getOrNull() }
+    val svg = remember(level, small, locked) { runCatching { SVG.getFromString(LevelCrest.svg(level, "lc$level", small, locked)) }.getOrNull() }
     Canvas(modifier.size(size).semantics { contentDescription = "Nível $level, ${LevelCrest.rank(level).title}" }) {
         svg ?: return@Canvas
         svg.documentWidth = this.size.width

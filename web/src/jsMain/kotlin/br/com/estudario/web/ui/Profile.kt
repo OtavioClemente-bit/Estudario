@@ -214,11 +214,14 @@ fun ProfileScreen() {
                     marks.forEachIndexed { i, lv ->
                         val reached = progress.level >= lv
                         val current = reached && (marks.getOrNull(i + 1)?.let { progress.level < it } ?: true)
-                        Div({ classes(*listOfNotNull("gm-node", if (reached) "on" else null, if (current) "now" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color}") }) {
-                            // o brasão de cada patente: o atual maior, os que faltam apagados e com cadeado
+                        val prev = marks.getOrNull(i - 1)
+                        val isNext = !reached && prev != null && progress.level >= prev
+                        // o trilho até o próximo título acende na proporção dos níveis já subidos
+                        val pct = if (isNext && prev != null) ((progress.level - prev + 1) * 100 / (lv - prev)).coerceIn(0, 100) else 0
+                        Div({ classes(*listOfNotNull("gm-node", if (reached) "on" else null, if (current) "now" else null, if (isNext) "next" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color};--p:$pct%;--pn:${leagueOf(prev ?: lv).color}") }) {
+                            // o brasão de cada patente: o atual maior; os que faltam em cinza com o selo do cadeado no canto
                             Span({ classes("gm-node-crest") }) {
-                                LevelCrestView(lv, if (current) 60 else 48)
-                                if (!reached) Span({ classes("gm-node-lock") }) { Icon("lock", filled = true) }
+                                LevelCrestView(lv, if (current) 60 else 48, locked = !reached)
                             }
                             B { Text("NV $lv") }
                             Span { Text(br.com.estudario.domain.ProgressEngine.levelTitle(lv)) }

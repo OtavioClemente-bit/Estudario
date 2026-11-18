@@ -80,7 +80,7 @@ private fun titleOf(route: Route): String = when (route) {
     is Route.Quiz -> "Questões"
     Route.Simulations, is Route.Simulation -> "Simulados"
     Route.Notebook, Route.NotebookFlip, is Route.NotebookPage -> "Caderno de estudo"
-    Route.NotebookSaved -> "Grifos, notas e salvos"
+    Route.NotebookSaved -> "Caderno de estudo"
     is Route.Flashcards -> "Flashcards"
     Route.Reviews, is Route.ReviewSession -> "Revisões espaçadas"
     Route.Errors, Route.ErrorMission -> "Caderno de erros"
@@ -197,7 +197,7 @@ private fun Screen(route: Route) {
         Route.Notebook -> NotebookHome()
         Route.NotebookFlip -> NotebookFlipScreen()
         is Route.NotebookPage -> NotebookPageScreen(route.topicId)
-        Route.NotebookSaved -> NotebookScreen()
+        Route.NotebookSaved -> NotebookHome()
         is Route.Flashcards -> FlashcardsScreen(route.topicId, route.saved, route.deckId)
         Route.Reviews -> ReviewsScreen()
         is Route.ReviewSession -> ReviewSessionScreen(route.id)

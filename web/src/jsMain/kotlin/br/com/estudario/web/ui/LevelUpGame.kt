@@ -27,15 +27,15 @@ import kotlin.random.Random
 
 /** O brasão do nível (LevelCrest, o mesmo desenho do app): a patente do título, as estrelas e o número. */
 @Composable
-internal fun LevelCrestView(level: Int, size: Int, extraClass: String? = null) {
+internal fun LevelCrestView(level: Int, size: Int, extraClass: String? = null, locked: Boolean = false) {
     val id = remember { "lc" + Random.nextInt(1, 999_999) }
-    key(level) {
+    key(level, locked) {
         Div({
             classes(*listOfNotNull("lc-crest", extraClass).toTypedArray())
             attr("style", "width:${size}px;height:${size}px")
             attr("role", "img")
             attr("aria-label", "Nível $level, ${LevelCrest.rank(level).title}")
-            ref { el -> el.innerHTML = LevelCrest.svg(level, "$id-$level", small = size <= 48); onDispose { } }
+            ref { el -> el.innerHTML = LevelCrest.svg(level, "$id-$level", small = size <= 48, locked = locked); onDispose { } }
         })
     }
 }
