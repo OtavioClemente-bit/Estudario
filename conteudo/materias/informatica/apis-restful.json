@@ -2,7 +2,7 @@
   "id": "informatica.apis-restful",
   "subject": "Informática",
   "title": "APIs RESTful",
-  "version": 1,
+  "version": 2,
   "status": "PUBLISHED",
   "aliases": [
     "APIs RESTful e HTTP",
@@ -24,19 +24,23 @@
   "chapters": [
     {
       "title": "1. REST, recursos e representações",
-      "markdown": "### O problema que este assunto resolve\n\nUma API permite que sistemas diferentes troquem informações e solicitem operações por uma interface previsível. REST (Representational State Transfer, transferência representacional de estado) é um estilo arquitetural descrito por Roy Fielding para sistemas distribuídos de hipermídia. Não é uma biblioteca, um formato de arquivo nem um protocolo que obrigue toda API a usar JSON. HTTP é um protocolo frequentemente usado para concretizar as interações REST na Web.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface pela qual um programa solicita capacidades ou dados de outro.\n> - **Recurso**: conceito identificável, como cliente, pedido ou coleção de pedidos.\n> - **URI**: identificador uniforme de recurso; localiza ou identifica o alvo da interação.\n> - **Representação**: dados que descrevem o estado de um recurso em determinado formato.\n> - **Hipermídia**: informação que inclui controles, como links e ações disponíveis.\n\n### O recurso não é o arquivo JSON\n\nEm `/clientes/42`, o servidor identifica o cliente de identificador 42. Uma resposta JSON como `{\"id\":42,\"nome\":\"Lia\"}` é uma representação desse recurso, não o recurso em si. O mesmo recurso pode ter representações diferentes, por exemplo JSON ou XML, escolhidas por negociação de conteúdo. Um recurso pode também representar algo não físico, como uma pesquisa, uma fatura ou o resultado de uma consulta.\n\nURIs devem apontar para recursos estáveis e usar nomes claros. Coleções são comumente substantivos no plural (`/clientes`); um item pode ser endereçado como `/clientes/42`; uma relação subordinada pode ser `/clientes/42/pedidos`. Verbos nos caminhos (`/buscarCliente`, `/criarPedido`) tendem a embutir a operação no identificador e duplicar a semântica que o método HTTP já fornece. Consultas e filtros podem ser expressos na query string, como `/pedidos?estado=aberto&pagina=2`.\n\n### Estado do recurso e estado da aplicação\n\nO servidor mantém o estado persistente dos recursos. O cliente percorre a aplicação por interações e controles recebidos, em vez de depender de caminhos internos não publicados. Uma resposta pode trazer links para ações possíveis, por exemplo um pedido aberto com link para cancelamento. Essa ideia de hipermídia como motor do estado da aplicação é associada à restrição HATEOAS. Ela ajuda clientes a descobrir transições oferecidas pelo serviço.\n\nREST não significa simplesmente “retornar JSON por HTTP”. Uma API que usa HTTP e JSON pode ignorar as restrições REST, por exemplo mantendo sessão obrigatória no servidor ou escondendo todas as ações em endpoints específicos. A avaliação é arquitetural: observa-se o conjunto de restrições e o efeito sobre a interação entre componentes.\n\n### Como cai na prova\n\n- O recurso é identificado pelo URI; JSON, XML ou outro conteúdo é uma representação dele.\n- REST é estilo arquitetural; HTTP é um protocolo e JSON é um formato de representação.\n- A interface deve expor recursos e semântica compreensíveis, não somente verbos arbitrários nos caminhos.\n- Hyperlinks ou controles na representação podem indicar transições válidas para o cliente."
+      "markdown": "### O problema que este assunto resolve\n\nImagine que o aplicativo de celular de um tribunal precisa mostrar os processos de um advogado, e que esses dados ficam num servidor do outro lado do país. O aplicativo não tem acesso ao banco de dados do servidor; ele precisa *pedir* os dados por uma porta combinada. Essa porta é a **API** (Application Programming Interface, interface de programação de aplicações): um conjunto de regras pelo qual um programa solicita dados ou operações a outro programa.\n\nO problema é que, sem um padrão, cada equipe inventa a sua porta: um sistema chama `/pegaProcesso?num=1`, outro `/consultar_processo`, outro exige um formato próprio. **REST** (Representational State Transfer, transferência representacional de estado) nasceu para organizar essa conversa. Ele foi descrito por **Roy Fielding** em sua tese de doutorado (2000) como um **estilo arquitetural** para sistemas distribuídos de hipermídia, como a própria Web. Uma API que segue esse estilo é chamada de **RESTful**.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface pela qual um programa solicita capacidades ou dados de outro.\n> - **Estilo arquitetural**: conjunto de restrições sobre como os componentes de um sistema interagem; não é produto nem biblioteca.\n> - **HTTP** (Hypertext Transfer Protocol): protocolo de aplicação da Web, com métodos, códigos de status e cabeçalhos.\n> - **Recurso**: qualquer conceito identificável, como cliente, pedido, processo ou uma coleção de pedidos.\n> - **URI** (Uniform Resource Identifier, identificador uniforme de recurso): cadeia que identifica o recurso, como `/clientes/42`. A **URL** é o URI que também diz onde e como acessar (`https://api.exemplo.gov.br/clientes/42`).\n> - **Representação**: dados que descrevem o estado de um recurso num formato, como JSON ou XML.\n> - **Hipermídia**: conteúdo que traz controles, como links e ações disponíveis.\n\n### REST, HTTP e JSON não são a mesma coisa\n\nA banca adora misturar três camadas diferentes:\n\n| Conceito | O que é | Exemplo |\n| --- | --- | --- |\n| REST | Estilo arquitetural (um conjunto de restrições) | Interface uniforme, stateless, cache |\n| HTTP | Protocolo que costuma concretizar REST na Web | `GET /clientes/42 HTTP/1.1` |\n| JSON | Formato de representação dos dados | `{\"id\":42,\"nome\":\"Lia\"}` |\n| XML | Outro formato de representação possível | `<cliente id=\"42\"><nome>Lia</nome></cliente>` |\n\nREST não obriga JSON: o mesmo recurso pode ser entregue em JSON, XML, CSV ou HTML. E usar HTTP com JSON não basta para ser REST: uma API que guarda sessão no servidor ou esconde todas as ações em um único endereço usa HTTP, mas foge do estilo.\n\n### O recurso não é o arquivo JSON\n\nEm `/clientes/42`, o URI identifica **o cliente de número 42**, um conceito. A resposta `{\"id\":42,\"nome\":\"Lia\"}` é **uma representação** desse cliente naquele momento. Se o cliente pedir XML, recebe outra representação do mesmo recurso. A escolha entre formatos chama-se **negociação de conteúdo** (o cliente diz o que aceita no cabeçalho `Accept`, visto no capítulo 4). Um recurso pode ser algo não físico: uma pesquisa, uma fatura, o resultado de um cálculo, o \"carrinho atual\".\n\n### Como desenhar bons URIs\n\nExemplo passo a passo: Bruno vai criar a API de uma biblioteca pública.\n\n1. Ele identifica os conceitos: livros, leitores e empréstimos.\n2. Coleções viram substantivos no plural: `/livros`, `/leitores`, `/emprestimos`.\n3. Um item é endereçado pelo identificador: `/livros/8`.\n4. Uma relação subordinada fica abaixo do dono: `/leitores/15/emprestimos` (empréstimos do leitor 15).\n5. Filtros, ordenação e página vão na *query string* (parte depois do `?`): `/livros?autor=Machado&ordem=titulo&pagina=2`.\n6. A operação **não** entra no caminho: em vez de `/criarLivro` ou `/apagarLivro?id=8`, ele usa `POST /livros` e `DELETE /livros/8`. O método HTTP já carrega o verbo.\n\nBoas práticas comuns: letras minúsculas, hífen para separar palavras (`/notas-fiscais`), sem extensão de arquivo no caminho (o formato vem dos cabeçalhos), identificadores estáveis que não mudam quando a implementação muda.\n\n**Pegadinha:** a banca afirma que \"`/buscarCliente?id=42` é o URI RESTful típico\". Errado: verbos no caminho duplicam a semântica do método. O padrão é `GET /clientes/42`. Outra: \"o URI identifica a representação JSON\". Não; identifica o recurso.\n\n### Estado do recurso e estado da aplicação\n\nHá dois \"estados\" diferentes. O **estado do recurso** (o pedido está aberto, o saldo é R$ 100) fica guardado no servidor. O **estado da aplicação** (em que tela o usuário está, qual o próximo passo) é conduzido pelo cliente, que avança seguindo os links e controles que recebe nas respostas. Uma resposta de pedido aberto pode trazer um link \"cancelar\"; quando o pedido é entregue, esse link deixa de aparecer. Essa ideia é a **HATEOAS** (Hypermedia As The Engine Of Application State, hipermídia como motor do estado da aplicação), detalhada no capítulo 5.\n\n**Resumo para a prova**\n\n- REST é estilo arquitetural de Fielding; HTTP é protocolo; JSON e XML são formatos de representação.\n- O URI identifica o recurso; JSON/XML é uma representação dele; um recurso pode ter várias.\n- Coleções no plural (`/clientes`), item por id (`/clientes/42`), sub-recurso (`/clientes/42/pedidos`), filtros na query string.\n- Verbo no caminho (`/criarPedido`) é antipadrão: o verbo é o método HTTP.\n- Usar HTTP + JSON não torna uma API RESTful; o que conta é respeitar as restrições."
     },
     {
       "title": "2. Restrições arquiteturais REST",
-      "markdown": "### O problema que este assunto resolve\n\nAs restrições REST definem como os componentes devem interagir para que o sistema possa crescer, evoluir e admitir intermediários. Fielding deriva REST a partir de estilos arquiteturais anteriores e adiciona uma interface uniforme. As restrições são cumulativas: retirar uma delas pode afastar a arquitetura do estilo, ainda que a API continue funcionando.\n\n> **Siglas e termos deste capítulo**\n> - **Cliente-servidor**: separa a interface do usuário e a apresentação do armazenamento e processamento de recursos.\n> - **Stateless**: cada solicitação contém o necessário para ser entendida sem contexto de sessão guardado no servidor.\n> - **Cache**: armazenamento temporário de respostas que podem ser reutilizadas segundo regras explícitas.\n> - **Camada**: componente intermediário entre cliente e servidor, como proxy, gateway ou balanceador.\n> - **Code-on-demand**: possibilidade de transferir código executável ao cliente; restrição opcional em REST.\n\n### Restrições e efeitos\n\n| Restrição | Efeito prático |\n| --- | --- |\n| Cliente-servidor | Separação de responsabilidades e evolução independente dos lados |\n| Sem estado de sessão no servidor | Cada requisição é autossuficiente; facilita escalabilidade e recuperação |\n| Cache | Resposta reutilizável reduz latência e tráfego quando a política permite |\n| Interface uniforme | Interações seguem semântica genérica e visível entre componentes |\n| Sistema em camadas | Cliente não precisa conhecer se fala com servidor final ou intermediário |\n| Código sob demanda | Cliente pode receber código executável; é opcional e reduz visibilidade |\n\nSem estado não quer dizer que o sistema não guarde dados. O servidor pode armazenar clientes, pedidos e outros estados persistentes. O que a restrição evita é depender de contexto conversacional guardado entre uma requisição e outra, como uma sessão implícita necessária para interpretar o próximo pedido. Credenciais ou tokens podem ser enviados a cada chamada; a autenticação não contradiz por si só a ausência de estado.\n\nRespostas precisam indicar se podem ser armazenadas e por quanto tempo ou sob quais condições. Não se deve presumir que toda resposta é cacheável. Dados personalizados, mutáveis ou sensíveis podem exigir diretivas que impeçam armazenamento ou revalidação antes do uso. Intermediários podem cachear, encaminhar ou transformar mensagens conforme as semânticas e políticas aplicáveis.\n\nA interface uniforme reduz acoplamento porque padroniza identificação de recursos, manipulação por representações, mensagens autodescritivas e hipermídia. Camadas permitem inserir gateway ou proxy sem que o cliente precise conhecer a topologia interna. Isso melhora escalabilidade e permite encapsular sistemas legados, mas cada salto pode acrescentar latência.\n\n### Como cai na prova\n\n- Stateless trata do contexto de interação, não da inexistência de banco de dados.\n- Cache é uma restrição REST e depende de política explícita da resposta.\n- Código sob demanda é opcional, diferentemente das demais restrições centrais.\n- Camadas ocultam detalhes topológicos do cliente; não significam que não haja intermediários."
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema na Web precisa atender milhões de clientes, passar por proxies e balanceadores, e mudar o servidor sem quebrar os aplicativos já instalados. Fielding observou o que fazia a Web funcionar nessa escala e transformou isso em **restrições**: regras que limitam como os componentes conversam. Em troca dessas limitações, ganha-se escalabilidade, simplicidade, visibilidade e capacidade de evolução. As restrições são cumulativas: retirar uma delas afasta a arquitetura do estilo REST, mesmo que a API continue \"funcionando\".\n\n> **Siglas e termos deste capítulo**\n> - **Cliente-servidor**: separa a interface com o usuário (cliente) do armazenamento e processamento (servidor).\n> - **Stateless** (sem estado): cada requisição traz tudo o que é preciso para ser entendida, sem contexto de sessão guardado no servidor.\n> - **Cache**: armazenamento temporário de respostas para reutilizá-las, conforme regras explícitas.\n> - **Interface uniforme**: forma padronizada e genérica de interagir com qualquer recurso.\n> - **Sistema em camadas**: há intermediários (proxy, gateway, balanceador) entre cliente e servidor final.\n> - **Code-on-demand** (código sob demanda): o servidor pode enviar código executável ao cliente, como um script; é a única restrição **opcional**.\n> - **Token**: credencial enviada a cada chamada, por exemplo no cabeçalho `Authorization`.\n\n### As seis restrições e o que cada uma traz\n\n| Restrição | O que exige | Efeito prático |\n| --- | --- | --- |\n| Cliente-servidor | Separação de responsabilidades | Cliente e servidor evoluem de forma independente |\n| Stateless | Requisição autossuficiente | Qualquer servidor do cluster atende qualquer chamada; escala e recupera melhor |\n| Cache | Resposta rotulada como cacheável ou não | Menos latência e tráfego quando a política permite |\n| Interface uniforme | Semântica genérica e visível | Menor acoplamento; intermediários entendem as mensagens |\n| Sistema em camadas | Cada componente só vê a camada vizinha | Pode-se inserir gateway, proxy ou cache sem o cliente saber |\n| Code-on-demand (opcional) | Envio de código ao cliente | Estende o cliente, mas reduz a visibilidade |\n\n### Stateless na prática\n\nExemplo: Carla usa o aplicativo de um banco que roda em três servidores atrás de um balanceador.\n\n1. Ela faz login e recebe um token.\n2. Na primeira chamada, `GET /contas/77/extrato?mes=2026-10`, envia o token no cabeçalho. O servidor A responde.\n3. Na segunda chamada, `GET /contas/77/extrato?mes=2026-11`, o balanceador manda para o servidor C. Como a requisição traz o token e todos os parâmetros, C responde sem precisar \"lembrar\" de nada.\n4. Num desenho **não** stateless, a primeira chamada guardaria \"conta atual = 77\" numa sessão do servidor A, e a segunda seria só `GET /extrato/proximo`. Se caísse no servidor C, ele não saberia de que conta se trata.\n\nStateless **não** significa que o servidor não guarda dados: contas, pedidos e clientes ficam no banco normalmente (é o estado do recurso). O que se evita é o contexto **conversacional** entre uma requisição e outra. Enviar credencial a cada chamada é perfeitamente compatível com a restrição.\n\n### Cache, interface uniforme e camadas\n\nCada resposta deve dizer, explícita ou implicitamente, se pode ser armazenada e por quanto tempo. Dados públicos e estáveis (a lista de comarcas) podem ser guardados; dados pessoais ou que mudam a todo instante exigem diretivas que impeçam o armazenamento ou obriguem a revalidação (cabeçalhos no capítulo 4).\n\nA **interface uniforme** tem quatro sub-restrições, cobradas com frequência:\n\n1. **Identificação de recursos** nas requisições (por URI).\n2. **Manipulação de recursos por meio de representações** (o cliente envia uma representação para alterar o recurso).\n3. **Mensagens autodescritivas** (método, cabeçalhos e tipo de mídia bastam para entender a mensagem).\n4. **Hipermídia como motor do estado da aplicação** (HATEOAS).\n\nNo **sistema em camadas**, o cliente não sabe se fala com o servidor final, com um proxy de cache ou com um gateway de API que autentica e repassa. Isso permite escalar e encapsular sistemas legados, mas cada salto pode acrescentar latência.\n\n**Pegadinha:** \"todas as restrições REST são obrigatórias\" ou \"REST proíbe guardar dados no servidor\". Ambas erradas: code-on-demand é opcional, e stateless proíbe só a sessão conversacional. Outra: \"cache não é restrição REST, é otimização do HTTP\". É restrição do estilo.\n\n**Resumo para a prova**\n\n- Seis restrições: cliente-servidor, stateless, cache, interface uniforme, camadas e code-on-demand (opcional).\n- Stateless: cada requisição é autossuficiente; banco de dados e token a cada chamada são permitidos.\n- Cache depende de a resposta indicar se é armazenável.\n- Interface uniforme: identificação por URI, manipulação por representações, mensagens autodescritivas e HATEOAS.\n- Camadas escondem a topologia do cliente; podem somar latência."
     },
     {
       "title": "3. Métodos HTTP e semântica das operações",
-      "markdown": "### O problema que este assunto resolve\n\nUma API previsível combina o URI do recurso com o método HTTP apropriado. O método expressa a intenção genérica da solicitação; não deve ser escolhido somente pelo verbo do nome de uma função interna. HTTP define propriedades como segurança (efeito pretendido essencialmente de leitura) e idempotência (repetir a chamada tem o mesmo efeito pretendido que executá-la uma vez).\n\n> **Siglas e termos deste capítulo**\n> - **GET**: obtém uma representação atual ou selecionada do recurso.\n> - **HEAD**: equivalente a GET quanto aos metadados, sem conteúdo de resposta.\n> - **POST**: solicita que o recurso processe o conteúdo segundo sua própria semântica.\n> - **PUT**: cria ou substitui o estado do recurso-alvo conforme a representação enviada.\n> - **PATCH**: aplica modificações parciais de acordo com um formato definido.\n> - **Idempotente**: repetições têm o mesmo efeito pretendido no servidor.\n\n### Métodos em uso comum\n\n| Método | Uso frequente em APIs | Propriedade HTTP essencial |\n| --- | --- | --- |\n| GET | Consultar coleção ou item | Seguro e idempotente |\n| HEAD | Consultar metadados sem conteúdo | Seguro e idempotente |\n| POST | Criar subordinado ou executar processamento | Não é idempotente por definição |\n| PUT | Substituir ou criar estado no URI conhecido | Idempotente, não seguro |\n| PATCH | Alterar parte do recurso | Idempotência depende da semântica definida |\n| DELETE | Remover associação/estado do recurso-alvo | Idempotente, não seguro |\n| OPTIONS | Descobrir comunicação permitida para o alvo | Seguro e idempotente |\n\n“Seguro” não significa ausência absoluta de efeitos incidentais, como registrar acesso; significa que o cliente não pediu nem espera mudança de estado do recurso. PUT e DELETE são idempotentes, embora a primeira e a segunda resposta possam diferir. Excluir duas vezes pode produzir sucesso na primeira chamada e recurso ausente na seguinte; o efeito pretendido continua equivalente. POST geralmente não é idempotente, pois repeti-lo pode criar dois pedidos. Uma chave de idempotência definida pela aplicação pode reduzir duplicações em operações de criação, mas não altera a definição genérica do método.\n\nPUT costuma representar a substituição da representação do recurso no URI-alvo. PATCH descreve uma alteração parcial, conforme o formato acordado. POST pode enviar dados a uma coleção para criação subordinada, ou pedir processamento que não se encaixe em outra semântica. A escolha precisa ser documentada e consistente.\n\n### Como cai na prova\n\n- GET é seguro; PUT e DELETE são idempotentes, mas não seguros.\n- POST não é automaticamente seguro para repetição após falha de comunicação.\n- Idempotência compara o efeito pretendido, não exige respostas byte a byte iguais.\n- PATCH não é automaticamente idempotente; depende das operações especificadas."
+      "markdown": "### O problema que este assunto resolve\n\nSe o URI diz **qual** recurso, falta dizer **o que** fazer com ele. Em vez de inventar um verbo por operação, o HTTP oferece um pequeno conjunto de **métodos** com significado conhecido por todos: navegadores, proxies, caches e bibliotecas. Quando a API respeita esse significado, um intermediário sabe, por exemplo, que pode repetir com tranquilidade um GET que falhou, mas não um POST de pagamento. Por isso a banca cobra duas propriedades: **seguro** e **idempotente**.\n\n> **Siglas e termos deste capítulo**\n> - **Método seguro**: o cliente não pede nem espera mudança de estado no servidor; a operação é essencialmente de leitura.\n> - **Método idempotente**: executar a mesma requisição uma ou várias vezes tem o mesmo efeito pretendido no servidor.\n> - **Corpo (body)**: conteúdo enviado junto com a requisição ou a resposta, como um JSON.\n> - **Chave de idempotência**: identificador que o cliente envia para o servidor reconhecer e descartar repetições de uma mesma operação.\n> - **RFC** (Request for Comments): documento técnico que padroniza protocolos da internet; a semântica do HTTP está na RFC 9110.\n\n### Os métodos e suas propriedades\n\n| Método | Uso típico em APIs | Seguro? | Idempotente? |\n| --- | --- | --- | --- |\n| GET | Consultar coleção ou item | Sim | Sim |\n| HEAD | Igual ao GET, mas só cabeçalhos, sem corpo | Sim | Sim |\n| OPTIONS | Descobrir métodos e opções permitidos no alvo | Sim | Sim |\n| POST | Criar item numa coleção ou pedir processamento | Não | Não |\n| PUT | Substituir (ou criar) o recurso no URI informado | Não | Sim |\n| DELETE | Remover o recurso-alvo | Não | Sim |\n| PATCH | Alterar parte do recurso | Não | Não por definição (depende do formato) |\n\nRegra de memória: **todo método seguro é idempotente, mas nem todo idempotente é seguro** (PUT e DELETE mudam o estado, mas repetir não muda mais nada).\n\n### Exemplo passo a passo: o pedido de Diego\n\n1. `POST /pedidos` com `{\"item\":\"caneta\",\"qtd\":2}` → o servidor cria o pedido 900 e responde `201 Created` com `Location: /pedidos/900`.\n2. A rede cai antes da resposta e o aplicativo reenvia o mesmo POST → pode nascer o pedido 901, duplicado. POST não é idempotente. Para evitar isso, muitas APIs aceitam uma **chave de idempotência** em cabeçalho: o servidor vê a mesma chave e devolve o resultado da primeira vez. Isso é convenção da aplicação, não muda a definição do método.\n3. `GET /pedidos/900` → leitura; repetir mil vezes não altera nada (seguro e idempotente). Registrar o acesso num log é efeito incidental e não tira a segurança.\n4. `PUT /pedidos/900` com a representação **completa** `{\"item\":\"caneta\",\"qtd\":3}` → substitui o pedido. Enviar de novo deixa o mesmo estado (idempotente). Se Diego omitir um campo no PUT, a semântica de substituição indica que ele some ou volta ao padrão.\n5. `PATCH /pedidos/900` com `{\"qtd\":3}` → altera só a quantidade. Já um PATCH \"some 1 à quantidade\" dá resultado diferente a cada repetição: por isso PATCH não é idempotente por definição.\n6. `DELETE /pedidos/900` → `204 No Content`. Repetir dá `404 Not Found`, mas o efeito (pedido inexistente) é o mesmo: idempotente. **Idempotência compara efeitos, não respostas.**\n\n### PUT x POST x PATCH\n\n| Ponto | POST | PUT | PATCH |\n| --- | --- | --- | --- |\n| Quem define o URI do novo item | Servidor (`/pedidos` → `/pedidos/900`) | Cliente (`PUT /pedidos/900`) | Recurso já existe |\n| Conteúdo enviado | Dados a processar | Representação completa | Instruções de mudança parcial |\n| Idempotente | Não | Sim | Não necessariamente |\n\nFormatos padronizados de PATCH incluem o **JSON Patch** (lista de operações como `add`, `remove`, `replace`) e o **JSON Merge Patch** (um JSON parcial que é mesclado ao recurso).\n\n**Pegadinha:** \"DELETE não é idempotente porque a segunda chamada retorna 404\" (errado: vale o efeito). \"PUT é seguro porque é idempotente\" (errado: PUT altera estado). \"GET pode ser usado para excluir se a API documentar\" (viola a semântica: caches, robôs e pré-carregamento de navegador repetem GETs livremente).\n\n**Resumo para a prova**\n\n- Seguros: GET, HEAD, OPTIONS (e TRACE). Idempotentes: os seguros + PUT e DELETE.\n- POST não é seguro nem idempotente; PATCH não é idempotente por definição.\n- PUT substitui o recurso inteiro no URI informado pelo cliente; PATCH altera parte; POST cria subordinado com URI definido pelo servidor.\n- Idempotência olha o efeito no servidor, não a igualdade das respostas.\n- Chave de idempotência reduz duplicidade de POST, sem mudar a definição do método."
     },
     {
       "title": "4. Respostas, erros e desenho de contrato",
-      "markdown": "### O problema que este assunto resolve\n\nO cliente precisa distinguir sucesso, ausência de representação, erro de entrada, falta de autorização e indisponibilidade temporária sem interpretar mensagens improvisadas. O código de status sinaliza a classe do resultado; cabeçalhos e conteúdo completam a resposta. Os códigos HTTP válidos pertencem às classes 1xx a 5xx.\n\n> **Siglas e termos deste capítulo**\n> - **2xx**: solicitação recebida, entendida e aceita com sucesso.\n> - **3xx**: requer ação adicional, frequentemente seguir outro URI.\n> - **4xx**: problema na solicitação ou impossibilidade de atendê-la por motivo atribuível ao cliente.\n> - **5xx**: servidor ou gateway falhou ao cumprir uma solicitação aparentemente válida.\n> - **Content-Type**: formato da representação enviada na mensagem.\n> - **Accept**: formatos de resposta que o cliente prefere receber.\n\n### Escolher códigos com significado\n\n`200 OK` indica sucesso com resposta; `201 Created` informa criação e normalmente identifica o recurso criado, frequentemente com `Location`; `202 Accepted` indica que o processamento foi aceito, mas ainda não terminou; `204 No Content` confirma sucesso sem conteúdo de resposta. `304 Not Modified` permite reutilizar representação armazenada sob validação condicional.\n\nEntre erros, `400 Bad Request` cobre solicitação inválida; `401 Unauthorized` significa que faltam credenciais válidas ou elas são inválidas (apesar do nome histórico); `403 Forbidden` indica recusa de acesso; `404 Not Found` indica que o alvo não foi encontrado ou não é revelado; `409 Conflict` indica conflito com o estado atual; `422 Unprocessable Content` aponta conteúdo entendido sintaticamente, mas cujas instruções não podem ser processadas; `429 Too Many Requests` sinaliza limitação de requisições; `500 Internal Server Error` é falha interna; `503 Service Unavailable` indica incapacidade temporária, possivelmente acompanhada de `Retry-After`. O código escolhido deve corresponder ao caso e não servir como rótulo genérico.\n\nRepresentações de erro devem ser consistentes e úteis: identificador estável, mensagem segura para o consumidor e, quando apropriado, detalhes de validação por campo. Não exponha stack trace, segredo ou dado interno. A API deve documentar campos obrigatórios, tipos, formatos aceitos, códigos, cabeçalhos, paginação e ordenação. `Content-Type` descreve o corpo enviado; `Accept` expressa preferência do cliente.\n\nPaginação evita respostas ilimitadas: limite e cursor ou número de página devem ter semântica documentada, e a resposta pode informar próximo link ou cursor. Versionamento deve ser pensado para compatibilidade; mudanças incompatíveis precisam de estratégia explícita e período de transição quando aplicável. Segurança inclui TLS, autenticação e autorização por recurso, validação de entrada, limites de uso e cuidado com dados pessoais.\n\n### Como cai na prova\n\n- `201` comunica criação; `202` aceitação ainda pendente; `204` sucesso sem corpo.\n- `401` se relaciona a autenticação; `403`, a recusa de acesso.\n- `503` é indisponibilidade temporária; `Retry-After` pode orientar nova tentativa.\n- Um contrato claro especifica formatos, campos, erros, paginação e regras de compatibilidade."
+      "markdown": "### O problema que este assunto resolve\n\nDepois de enviar a requisição, o cliente precisa saber, sem ler uma mensagem improvisada, o que aconteceu: deu certo? foi criado? o erro foi meu ou do servidor? posso tentar de novo? Quem responde isso é o **código de status** (três dígitos), complementado pelos **cabeçalhos** (metadados em pares nome: valor) e pelo corpo. Um contrato claro entre quem oferece a API e quem a consome evita que cada cliente \"adivinhe\" o comportamento.\n\n> **Siglas e termos deste capítulo**\n> - **Código de status**: número de três dígitos cujo primeiro dígito indica a classe do resultado (1xx a 5xx).\n> - **Cabeçalho (header)**: metadado da mensagem, como `Content-Type: application/json`.\n> - **Tipo de mídia (MIME type)**: rótulo do formato do conteúdo, como `application/json` ou `text/html`.\n> - **ETag** (entity tag): identificador de uma versão específica da representação, usado em requisições condicionais.\n> - **TLS** (Transport Layer Security): criptografia do canal; HTTP sobre TLS é o HTTPS.\n> - **Contrato**: descrição documentada da API (recursos, campos, formatos, códigos, erros), muitas vezes escrita no padrão **OpenAPI**.\n\n### As cinco classes de status\n\n| Classe | Significado | Exemplos |\n| --- | --- | --- |\n| 1xx | Informativo, processamento continua | `100 Continue` |\n| 2xx | Sucesso | `200`, `201`, `202`, `204` |\n| 3xx | Redirecionamento ou ação adicional | `301`, `304` |\n| 4xx | Erro atribuível ao cliente | `400`, `401`, `403`, `404`, `409`, `422`, `429` |\n| 5xx | Falha do servidor ou gateway | `500`, `502`, `503`, `504` |\n\n### Os códigos que mais caem\n\n- `200 OK`: sucesso com corpo. `201 Created`: recurso criado, normalmente com `Location` apontando para ele. `202 Accepted`: pedido aceito, processamento ainda não terminou (ex.: geração de relatório). `204 No Content`: sucesso sem corpo (comum em DELETE ou PUT).\n- `301 Moved Permanently`: o recurso mudou de URI de vez. `304 Not Modified`: a cópia que o cliente já tem continua válida.\n- `400 Bad Request`: requisição malformada. `401 Unauthorized`: apesar do nome, trata de **autenticação** (faltou credencial ou ela é inválida). `403 Forbidden`: autenticado, mas **sem permissão**. `404 Not Found`: alvo inexistente (ou que não se quer revelar). `405 Method Not Allowed`: método não suportado no recurso. `409 Conflict`: conflito com o estado atual (ex.: e-mail já cadastrado). `412 Precondition Failed`: condição de cabeçalho condicional falhou. `415 Unsupported Media Type`: formato do corpo não aceito. `422 Unprocessable Content`: sintaxe correta, mas conteúdo não processável (ex.: data de fim antes da de início). `429 Too Many Requests`: limite de uso excedido.\n- `500 Internal Server Error`: falha interna genérica. `502 Bad Gateway` e `504 Gateway Timeout`: problema no servidor de trás de um gateway. `503 Service Unavailable`: indisponibilidade temporária, possivelmente com `Retry-After`.\n\n### Cabeçalhos essenciais\n\n| Cabeçalho | Quem envia | Para quê |\n| --- | --- | --- |\n| `Content-Type` | Quem envia corpo (cliente ou servidor) | Diz o formato do corpo **desta** mensagem |\n| `Accept` | Cliente | Diz os formatos que ele **aceita** receber |\n| `Location` | Servidor | URI do recurso criado (201) ou destino do redirecionamento (3xx) |\n| `ETag` | Servidor | Versão da representação |\n| `If-None-Match` | Cliente | \"Só me mande se a ETag for diferente desta\" |\n| `If-Match` | Cliente | \"Só altere se a versão ainda for esta\" |\n| `Cache-Control` | Ambos | Regras de cache: `max-age`, `no-cache`, `no-store`, `private`, `public` |\n| `Authorization` | Cliente | Credencial, como `Bearer <token>` |\n\nExemplo passo a passo: Elisa consulta a lista de varas.\n\n1. `GET /varas` com `Accept: application/json`. Resposta `200`, `Content-Type: application/json`, `ETag: \"v7\"`, `Cache-Control: max-age=3600`.\n2. Durante uma hora, o cliente reutiliza a cópia sem perguntar ao servidor.\n3. Depois disso, ele revalida: `GET /varas` com `If-None-Match: \"v7\"`. Nada mudou → `304 Not Modified`, sem corpo; economizou tráfego.\n4. Para editar com segurança, envia `PUT /varas/3` com `If-Match: \"v7\"`. Se outra pessoa alterou antes (ETag agora \"v8\"), o servidor responde `412 Precondition Failed`, evitando a \"atualização perdida\".\n\nDiretivas de `Cache-Control` que confundem: `no-cache` **permite guardar**, mas obriga a revalidar antes de usar; `no-store` proíbe guardar; `private` restringe ao cache do próprio usuário (não ao de proxies compartilhados).\n\n### Contrato, segurança e limites\n\nO contrato deve documentar campos obrigatórios, tipos, formatos, códigos, cabeçalhos, paginação e erros (capítulo 5). Segurança envolve TLS em todo tráfego, autenticação (frequentemente tokens OAuth 2.0 ou JWT), autorização **por recurso** (Elisa pode ler a vara 3, mas não a 4), validação de entrada, limitação de taxa (`429`) e respostas de erro que não exponham stack trace, segredos ou dados internos.\n\n**Pegadinha:** trocar 401 e 403 (401 = quem é você?; 403 = sei quem você é, mas não pode). Trocar `Content-Type` e `Accept` (o primeiro descreve o que estou enviando; o segundo, o que aceito receber). Dizer que `no-cache` impede armazenar (quem impede é `no-store`). Responder `200` com `{\"erro\":\"não encontrado\"}` no corpo é antipadrão: o código deve refletir o resultado.\n\n**Resumo para a prova**\n\n- 2xx sucesso, 3xx redirecionamento, 4xx erro do cliente, 5xx erro do servidor.\n- `201` + `Location` na criação; `202` aceito e pendente; `204` sem corpo; `304` cópia ainda válida.\n- `401` autenticação; `403` autorização; `409` conflito; `422` conteúdo inválido; `429` excesso; `503` indisponível.\n- `ETag` + `If-None-Match` → `304`; `ETag` + `If-Match` → `412` se mudou.\n- `no-cache` revalida; `no-store` não guarda."
+    },
+    {
+      "title": "5. JSON, HATEOAS, paginação, versionamento, erros e comparação com SOAP e GraphQL",
+      "markdown": "### O problema que este assunto resolve\n\nUma API não vive só de métodos e códigos. O consumidor precisa entender os dados que chegam (JSON), descobrir o que pode fazer a seguir (HATEOAS), receber listas grandes sem travar (paginação), continuar funcionando quando a API muda (versionamento) e interpretar erros de forma padronizada (problem details). E a banca ainda pergunta quando REST é melhor ou pior que SOAP e GraphQL. Este capítulo fecha essas pontas.\n\n> **Siglas e termos deste capítulo**\n> - **JSON** (JavaScript Object Notation): formato de texto para dados estruturados, padronizado na RFC 8259; independe da linguagem JavaScript.\n> - **ISO 8601**: norma internacional de representação de datas e horas, como `2026-11-18T14:30:00-03:00`.\n> - **Modelo de maturidade de Richardson**: escala de quatro níveis (0 a 3) criada por Leonard Richardson para medir o quanto uma API adota as ideias REST.\n> - **Problem details**: formato padronizado de corpo de erro, definido na RFC 9457 (que substituiu a RFC 7807).\n> - **SOAP** (originalmente Simple Object Access Protocol): protocolo de troca de mensagens em XML.\n> - **WSDL** (Web Services Description Language): contrato em XML que descreve um serviço SOAP.\n> - **GraphQL**: linguagem de consulta para APIs em que o cliente diz exatamente quais campos quer.\n\n### JSON: tipos e armadilhas\n\nJSON tem só seis tipos de valor: **string** (entre aspas duplas), **number** (sem distinção entre inteiro e decimal), **boolean** (`true`/`false`), **null**, **object** (pares chave: valor entre chaves, chaves sempre strings) e **array** (lista ordenada entre colchetes). Não há tipo data, nem comentário, nem aspas simples.\n\n```json\n{\"id\": 42, \"nome\": \"Lia\", \"ativo\": true, \"telefone\": null,\n \"tags\": [\"vip\", \"sp\"], \"nascimento\": \"1990-05-03\", \"criadoEm\": \"2026-11-18T14:30:00Z\"}\n```\n\n- **Datas**: como não há tipo data, usa-se string em ISO 8601 (`AAAA-MM-DD`, com `T`, hora e fuso; o `Z` indica UTC). Evita a ambiguidade de \"03/05/1990\" (3 de maio ou 5 de março?).\n- **null x ausente**: `\"telefone\": null` diz \"o campo existe e não tem valor\"; omitir `telefone` pode significar \"não informado\" ou \"não alterar\". Num JSON Merge Patch, enviar `null` **apaga** o campo, e omitir **mantém**. O contrato deve fixar essa diferença.\n- **Números grandes e dinheiro**: identificadores muito longos e valores monetários costumam ir como string ou em centavos inteiros, para evitar perda de precisão em leitores que usam ponto flutuante.\n\n### HATEOAS e o modelo de Richardson\n\nCom HATEOAS, a resposta traz os próximos passos possíveis:\n\n```json\n{\"id\": 900, \"estado\": \"aberto\",\n \"_links\": {\"self\": {\"href\": \"/pedidos/900\"},\n            \"pagar\": {\"href\": \"/pedidos/900/pagamento\"},\n            \"cancelar\": {\"href\": \"/pedidos/900\"}}}\n```\n\nQuando o pedido é pago, o link `pagar` some. O cliente segue links em vez de montar URIs à mão, e o servidor pode reorganizar caminhos sem quebrar clientes. Formatos como HAL usam a chave `_links`.\n\n| Nível de Richardson | O que a API faz | Exemplo |\n| --- | --- | --- |\n| 0 – \"pântano do POX\" | Um único endpoint, tudo via POST, ação no corpo | `POST /api` com `{\"acao\":\"buscarPedido\"}` |\n| 1 – Recursos | Vários URIs, um por recurso, mas ainda tudo em POST | `POST /pedidos/900` |\n| 2 – Verbos HTTP | Métodos e códigos de status com a semântica correta | `GET /pedidos/900` → `200` |\n| 3 – Controles de hipermídia | Nível 2 + HATEOAS | Resposta com `_links` |\n\nPOX significa \"plain old XML\". Para Fielding, só o nível 3 é REST de fato; a maioria das APIs \"REST\" do mercado está no nível 2.\n\n### Paginação, filtros e ordenação\n\nExemplo: Fábio lista 50 mil processos.\n\n1. `GET /processos?limit=50&offset=100` → paginação por **deslocamento** (pula 100, traz 50). Simples, mas fica lenta em páginas profundas e pode pular ou repetir itens se houver inserções.\n2. `GET /processos?limit=50&cursor=eyJpZCI6OTAwfQ` → paginação por **cursor**: o servidor devolve um marcador opaco do último item; estável e eficiente em listas que mudam.\n3. A resposta informa o próximo passo: campo `next` no corpo ou cabeçalho `Link: </processos?cursor=...>; rel=\"next\"`.\n4. Filtros e ordenação na query string: `?vara=3&situacao=ativo&sort=-dataDistribuicao` (o sinal de menos é convenção comum para ordem decrescente). Seleção de campos: `?fields=numero,classe`.\n\nO servidor deve impor um limite máximo de página, para ninguém pedir um milhão de itens de uma vez.\n\n### Versionamento\n\nMudanças **compatíveis** (acrescentar campo opcional, novo recurso) não exigem nova versão, desde que os clientes ignorem campos desconhecidos. Mudanças **incompatíveis** (remover ou renomear campo, mudar tipo) exigem estratégia:\n\n| Estratégia | Exemplo | Observação |\n| --- | --- | --- |\n| No caminho | `/v1/pedidos`, `/v2/pedidos` | Mais visível e simples; a mais comum |\n| Na query string | `/pedidos?versao=2` | Fácil de testar; polui o URI |\n| Em cabeçalho próprio | `Api-Version: 2` | URI limpo; menos visível |\n| Por tipo de mídia | `Accept: application/vnd.loja.v2+json` | Alinhado à negociação de conteúdo |\n\nBoa prática: anunciar a descontinuação com antecedência e manter as duas versões durante a transição.\n\n### Erros padronizados: RFC 9457 (problem details)\n\nEm vez de cada API inventar seu formato de erro, a RFC 9457 define o tipo de mídia `application/problem+json` com membros padrão: **type** (URI que identifica o tipo de problema), **title** (resumo legível do tipo), **status** (o código HTTP), **detail** (explicação desta ocorrência) e **instance** (URI desta ocorrência). Podem-se acrescentar membros de extensão.\n\n```json\n{\"type\": \"https://api.exemplo.gov.br/problemas/saldo-insuficiente\",\n \"title\": \"Saldo insuficiente\", \"status\": 422,\n \"detail\": \"O saldo de R$ 30,00 não cobre o valor de R$ 50,00.\",\n \"instance\": \"/contas/77/transferencias/5501\", \"saldo\": 3000}\n```\n\nO código HTTP da resposta continua sendo o que vale; o campo `status` apenas o repete por conveniência.\n\n### REST x SOAP x GraphQL\n\n| Ponto | REST | SOAP | GraphQL |\n| --- | --- | --- | --- |\n| Natureza | Estilo arquitetural | Protocolo de mensagens | Linguagem de consulta + ambiente de execução |\n| Formato | Livre (JSON, XML...) | Sempre XML, em envelope (Envelope, Header, Body) | Consulta própria; resposta em JSON |\n| Endpoints | Um URI por recurso | Normalmente um endpoint por serviço | Normalmente um endpoint único (`/graphql`) |\n| Contrato | Opcional (OpenAPI) | WSDL | Esquema tipado obrigatório |\n| Uso dos métodos HTTP | Semântica completa | Quase sempre só POST | Geralmente POST (GET para consultas) |\n| Cache HTTP | Natural, por URI | Difícil | Difícil no nível HTTP |\n| Ponto forte | Simplicidade, cache, escala | Padrões corporativos (WS-Security, transações) | Evita over-fetching e under-fetching |\n\n**Over-fetching** é receber campos demais; **under-fetching** é precisar de várias chamadas para montar uma tela. GraphQL resolve ambos porque o cliente escolhe campos e relações numa única consulta. Em GraphQL, **query** lê, **mutation** altera e **subscription** recebe atualizações em tempo real. SOAP é independente de transporte (pode usar HTTP, SMTP e outros) e muito usado em integrações governamentais e bancárias antigas.\n\n**Pegadinha:** \"JSON tem tipo date nativo\" (não tem; usa-se string ISO 8601). \"Nível 2 de Richardson já é REST completo\" (falta a hipermídia). \"No problem details, o campo status substitui o código HTTP\" (não substitui). \"SOAP pode usar JSON\" (SOAP é XML). \"GraphQL exige um endpoint por recurso\" (é o contrário).\n\n**Resumo para a prova**\n\n- JSON: string, number, boolean, null, object, array; datas em string ISO 8601; null ≠ ausente.\n- Richardson: 0 (POX, um endpoint), 1 (recursos), 2 (verbos e códigos), 3 (hipermídia/HATEOAS).\n- Paginação por offset ou cursor, com link `next`; filtros e ordenação na query string.\n- Versionar só mudanças incompatíveis: caminho, query, cabeçalho ou tipo de mídia.\n- RFC 9457: `application/problem+json` com type, title, status, detail, instance.\n- SOAP = protocolo XML + WSDL; GraphQL = consulta com endpoint único e campos escolhidos pelo cliente."
     }
   ],
   "summary": "REST é um estilo arquitetural para sistemas distribuídos, composto por restrições como cliente-servidor, comunicação sem estado de sessão, cache, interface uniforme e camadas; código sob demanda é opcional. Uma API RESTful identifica recursos por URI e transfere representações, normalmente por HTTP. O método HTTP define semântica genérica: GET é seguro; PUT e DELETE são idempotentes; POST normalmente não é. Códigos de status, cabeçalhos e representações formam o contrato da API. Boas APIs documentam recursos, validação, erros, formatos, paginação, segurança e compatibilidade.",
@@ -136,6 +140,126 @@
     {
       "front": "Quando 503 é apropriado?",
       "back": "Quando o servidor está temporariamente incapaz de atender, possivelmente com Retry-After."
+    },
+    {
+      "front": "Quais são os seis tipos de valor do JSON?",
+      "back": "String, number, boolean, null, object e array."
+    },
+    {
+      "front": "JSON tem tipo de data nativo?",
+      "back": "Não. Datas costumam ir como string no formato ISO 8601, como 2026-11-18T14:30:00Z."
+    },
+    {
+      "front": "Qual a diferença entre campo com null e campo ausente no JSON?",
+      "back": "null diz que o campo existe sem valor; ausente pode significar não informado ou não alterar. O contrato deve definir."
+    },
+    {
+      "front": "No JSON Merge Patch, o que faz enviar um campo com null?",
+      "back": "Remove o campo do recurso; omitir o campo o mantém como está."
+    },
+    {
+      "front": "O que é o modelo de maturidade de Richardson?",
+      "back": "Escala de 0 a 3 que mede a adoção de REST: 0 endpoint único, 1 recursos, 2 verbos HTTP e códigos, 3 hipermídia."
+    },
+    {
+      "front": "O que caracteriza o nível 0 de Richardson?",
+      "back": "Um único endpoint, geralmente com POST, e a ação descrita no corpo (o chamado pântano do POX)."
+    },
+    {
+      "front": "O que o nível 3 de Richardson acrescenta ao nível 2?",
+      "back": "Controles de hipermídia (HATEOAS): a resposta traz links para as próximas ações."
+    },
+    {
+      "front": "O que significa HATEOAS?",
+      "back": "Hypermedia As The Engine Of Application State: hipermídia como motor do estado da aplicação."
+    },
+    {
+      "front": "Qual a vantagem da paginação por cursor sobre a por offset?",
+      "back": "É estável quando há inserções e eficiente em páginas profundas, pois parte de um marcador do último item."
+    },
+    {
+      "front": "Onde costumam ir filtros e ordenação numa API REST?",
+      "back": "Na query string, como /processos?vara=3&sort=-data."
+    },
+    {
+      "front": "Quando é preciso criar nova versão da API?",
+      "back": "Em mudanças incompatíveis, como remover ou renomear campo ou mudar seu tipo."
+    },
+    {
+      "front": "Cite estratégias de versionamento de API.",
+      "back": "No caminho (/v1), na query string, em cabeçalho próprio ou por tipo de mídia no Accept."
+    },
+    {
+      "front": "Qual RFC define problem details para APIs HTTP atualmente?",
+      "back": "A RFC 9457, que substituiu a RFC 7807."
+    },
+    {
+      "front": "Qual o tipo de mídia de problem details em JSON?",
+      "back": "application/problem+json."
+    },
+    {
+      "front": "Quais os membros padrão de problem details?",
+      "back": "type, title, status, detail e instance."
+    },
+    {
+      "front": "Qual o formato de mensagem do SOAP?",
+      "back": "XML, num envelope com Envelope, Header opcional e Body."
+    },
+    {
+      "front": "O que é WSDL?",
+      "back": "Linguagem em XML que descreve o contrato de um serviço SOAP."
+    },
+    {
+      "front": "O que é over-fetching?",
+      "back": "Receber mais campos do que o cliente precisa."
+    },
+    {
+      "front": "O que é under-fetching?",
+      "back": "Precisar de várias chamadas para reunir os dados de que o cliente precisa."
+    },
+    {
+      "front": "Como o GraphQL evita over-fetching?",
+      "back": "O cliente declara na consulta exatamente os campos e relações que quer."
+    },
+    {
+      "front": "Em GraphQL, qual operação altera dados?",
+      "back": "A mutation; query lê e subscription recebe atualizações."
+    },
+    {
+      "front": "O que significa no-cache no Cache-Control?",
+      "back": "A resposta pode ser guardada, mas precisa ser revalidada antes de cada uso."
+    },
+    {
+      "front": "O que significa no-store no Cache-Control?",
+      "back": "A resposta não deve ser armazenada em nenhum cache."
+    },
+    {
+      "front": "Para que serve o ETag com If-None-Match?",
+      "back": "Revalidação: se a versão não mudou, o servidor responde 304 Not Modified sem corpo."
+    },
+    {
+      "front": "Para que serve o If-Match com ETag?",
+      "back": "Evitar atualização perdida: se a versão mudou, o servidor responde 412 Precondition Failed."
+    },
+    {
+      "front": "Qual a diferença entre Content-Type e Accept?",
+      "back": "Content-Type descreve o corpo enviado; Accept informa os formatos que o cliente aceita receber."
+    },
+    {
+      "front": "Que cabeçalho acompanha normalmente o 201 Created?",
+      "back": "Location, com o URI do recurso criado."
+    },
+    {
+      "front": "O que indica 415 Unsupported Media Type?",
+      "back": "O servidor não aceita o formato do corpo enviado."
+    },
+    {
+      "front": "O que indica 412 Precondition Failed?",
+      "back": "Uma condição de cabeçalho condicional, como If-Match, não foi satisfeita."
+    },
+    {
+      "front": "Quais são as quatro sub-restrições da interface uniforme?",
+      "back": "Identificação de recursos, manipulação por representações, mensagens autodescritivas e HATEOAS."
     }
   ],
   "tips": [
@@ -186,6 +310,38 @@
     {
       "question": "O que uma resposta de erro bem projetada deve oferecer?",
       "answer": "Status correto, formato consistente, mensagem segura e detalhes úteis para corrigir a solicitação sem expor dados internos."
+    },
+    {
+      "question": "Explique por que datas em APIs JSON costumam usar ISO 8601.",
+      "answer": "Porque JSON não tem tipo data e o ISO 8601 é inequívoco, ordenável e permite indicar fuso horário."
+    },
+    {
+      "question": "Descreva os quatro níveis do modelo de Richardson.",
+      "answer": "0: endpoint único com ações no corpo; 1: um URI por recurso; 2: métodos HTTP e códigos com semântica correta; 3: hipermídia (HATEOAS)."
+    },
+    {
+      "question": "Compare paginação por offset e por cursor.",
+      "answer": "Offset pula N itens e é simples, mas fica lento e instável com inserções; cursor parte de um marcador do último item e é estável e eficiente."
+    },
+    {
+      "question": "Explique como ETag e cabeçalhos condicionais economizam tráfego e evitam conflitos.",
+      "answer": "Com If-None-Match o servidor responde 304 se nada mudou; com If-Match ele recusa com 412 a alteração feita sobre versão desatualizada."
+    },
+    {
+      "question": "Quais membros padrão a RFC 9457 define para problem details?",
+      "answer": "type, title, status, detail e instance, no tipo de mídia application/problem+json, com membros de extensão permitidos."
+    },
+    {
+      "question": "Compare REST, SOAP e GraphQL quanto a formato e endpoints.",
+      "answer": "REST usa vários URIs e formato livre; SOAP usa XML em envelope, contrato WSDL e normalmente um endpoint; GraphQL usa um endpoint único e o cliente escolhe os campos."
+    },
+    {
+      "question": "Diferencie no-cache e no-store.",
+      "answer": "no-cache permite guardar, mas exige revalidar antes de usar; no-store proíbe armazenar."
+    },
+    {
+      "question": "Quando uma mudança na API exige nova versão e quais estratégias existem?",
+      "answer": "Quando é incompatível (remover, renomear ou mudar tipo de campo); versiona-se no caminho, na query string, em cabeçalho ou no tipo de mídia."
     }
   ],
   "errorConcepts": [
@@ -1640,6 +1796,246 @@
       "explanation": "200 pode representar sucesso, mas 201 Created comunica especificamente criação concluída e pode indicar o URI do novo recurso. A escolha deve refletir o resultado da operação.",
       "section": "4. Respostas, erros e desenho de contrato",
       "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API precisa enviar a data e a hora de criação de um registro em JSON, de forma inequívoca e com fuso horário. Qual representação é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número 18112026, lido como dia, mês e ano.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um valor do tipo date nativo do JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A string \"18/11/2026 14:30\", no padrão brasileiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A string \"2026-11-18T14:30:00-03:00\", em ISO 8601.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um objeto com o nome do dia da semana por extenso.",
+          "correct": false
+        }
+      ],
+      "explanation": "JSON não tem tipo de data nativo; por isso datas vão como string. O formato ISO 8601 é inequívoco, ordenável e permite indicar o fuso (-03:00 ou Z para UTC). O padrão dd/mm/aaaa é ambíguo entre países e o número solto perde o significado.",
+      "section": "5. JSON, HATEOAS, paginação, versionamento, erros e comparação com SOAP e GraphQL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API tem URIs distintos por recurso e usa GET, POST, PUT e DELETE com os códigos de status corretos, mas suas respostas não trazem links para as próximas ações. No modelo de maturidade de Richardson, ela está em qual nível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nível 0, porque usa HTTP apenas como transporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nível 1, porque só identifica recursos por URI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nível 2, porque usa verbos e códigos HTTP sem hipermídia.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Nível 3, porque já usa os métodos HTTP corretamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nível 4, reservado a APIs com cache habilitado.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modelo de Richardson, o nível 1 introduz recursos, o nível 2 acrescenta o uso correto de métodos e códigos HTTP e o nível 3 acrescenta controles de hipermídia (HATEOAS). Sem links nas respostas, a API fica no nível 2. Não existe nível 4.",
+      "section": "5. JSON, HATEOAS, paginação, versionamento, erros e comparação com SOAP e GraphQL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segundo a RFC 9457 (problem details para APIs HTTP), qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo status do corpo substitui o código de status HTTP da resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O formato só pode ser usado em respostas com código 500.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O corpo deve conter obrigatoriamente o stack trace do erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exige que a mensagem de erro seja escrita em XML dentro de um envelope.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Define o tipo application/problem+json com membros como type, title, status, detail e instance.",
+          "correct": true
+        }
+      ],
+      "explanation": "A RFC 9457, que substituiu a RFC 7807, padroniza o corpo de erro com o tipo de mídia application/problem+json e os membros type, title, status, detail e instance, admitindo extensões. O campo status só repete o código HTTP, que continua valendo; expor stack trace é má prática de segurança.",
+      "section": "5. JSON, HATEOAS, paginação, versionamento, erros e comparação com SOAP e GraphQL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo precisa, numa só chamada, apenas do nome do cliente e do total de seus três últimos pedidos, sem receber campos desnecessários. Qual tecnologia foi desenhada justamente para o cliente escolher os campos retornados num endpoint único?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GraphQL, com uma query que lista os campos desejados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SOAP, com um envelope XML descrito em WSDL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HTTP HEAD, que devolve só os campos pedidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cache-Control, com a diretiva no-store.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Paginação por offset, com limit igual a três.",
+          "correct": false
+        }
+      ],
+      "explanation": "GraphQL é uma linguagem de consulta em que o cliente declara os campos e relações que quer, normalmente num endpoint único, evitando over-fetching e under-fetching. SOAP troca mensagens XML; HEAD devolve só cabeçalhos; no-store e paginação tratam de outros problemas.",
+      "section": "5. JSON, HATEOAS, paginação, versionamento, erros e comparação com SOAP e GraphQL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente já tem em cache a lista de varas com ETag \"v7\" e quer saber se ela mudou sem baixar tudo de novo. O que deve enviar e que resposta recebe se nada mudou?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "If-Match: \"v7\", recebendo 412 Precondition Failed.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cache-Control: no-store, recebendo 200 OK com a lista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "If-None-Match: \"v7\", recebendo 304 Not Modified.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Content-Type: \"v7\", recebendo 204 No Content.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Location: \"v7\", recebendo 201 Created.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na revalidação, o cliente envia If-None-Match com a ETag que possui; se a versão no servidor for a mesma, a resposta é 304 Not Modified, sem corpo, e o cliente reutiliza a cópia. If-Match serve para alterações condicionais e gera 412 quando a versão mudou.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o SOAP, comparado ao estilo REST, assinale a alternativa correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SOAP é um estilo arquitetural e REST é um protocolo baseado em XML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SOAP troca mensagens XML em envelope e costuma ter o contrato descrito em WSDL.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SOAP exige JSON e só funciona com o método GET.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SOAP dispensa contrato porque cada recurso tem seu próprio URI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOAP aproveita o cache HTTP por URI com mais facilidade que REST.",
+          "correct": false
+        }
+      ],
+      "explanation": "SOAP é um protocolo de mensagens em XML, com Envelope, Header opcional e Body, e contrato normalmente descrito em WSDL; costuma usar POST num endpoint por serviço, o que dificulta o cache HTTP. REST é estilo arquitetural, com formato livre e um URI por recurso.",
+      "section": "5. JSON, HATEOAS, paginação, versionamento, erros e comparação com SOAP e GraphQL",
+      "errorConceptKey": "e1",
       "sourceType": "AUTHORIAL",
       "board": null,
       "agency": null,

@@ -1,0 +1,1664 @@
+{
+  "id": "informatica.swagger-openapi-documentacao-apis",
+  "subject": "Informática",
+  "title": "Swagger e OpenAPI: documentação de APIs",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ferramentas Swagger para APIs",
+    "Documentação de APIs (OpenAPI/Swagger)",
+    "Documentação de APIs com Swagger",
+    "OpenAPI Specification e Swagger",
+    "Swagger UI e Swagger Editor",
+    "Swagger Codegen e OpenAPI Generator",
+    "springdoc-openapi no Spring Boot",
+    "Documentação de APIs REST com OpenAPI 3",
+    "Swagger 2.0 e OpenAPI 3",
+    "Contrato de API OpenAPI: design-first e code-first",
+    "Documentação de APIs Swagger/OpenAPI"
+  ],
+  "scope": {
+    "covers": "Documentação de APIs HTTP com OpenAPI e Swagger: o que é a OpenAPI Specification e sua relação histórica com o Swagger; estrutura do documento OpenAPI 3 (openapi, info, servers, paths, components, schemas, security, parâmetros, requestBody, respostas e securitySchemes); Swagger UI, Swagger Editor, Swagger Codegen e OpenAPI Generator; abordagens design-first e code-first; springdoc-openapi no Spring Boot e suas anotações; diferenças entre Swagger 2.0 e OpenAPI 3.0/3.1; versionamento, mudanças compatíveis e incompatíveis e teste de contrato.",
+    "excludes": "MapStruct e mapeamento de objetos; fundamentos gerais de REST, métodos e códigos HTTP; OAuth 2.0 e JWT em profundidade; SOAP e WSDL; API Gateway e microsserviços, salvo contrastes."
+  },
+  "theoryTitle": "Swagger e OpenAPI: como descrever, publicar e evoluir o contrato de uma API",
+  "chapters": [
+    {
+      "title": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "markdown": "### O problema que este assunto resolve\n\nOutro órgão precisa consultar o sistema de processos do tribunal por uma **API** (*Application Programming Interface*: o \"balcão\" pelo qual um programa pede coisas a outro). Sem documentação, o programador do outro órgão precisa adivinhar: qual endereço chamar? Que campos mandar? O número do processo vai no caminho ou no corpo? O que volta quando o processo não existe? Precisa de token?\n\nManuais em texto ou planilha envelheciam rápido: o código mudava e o manual não. A solução foi criar um **formato padronizado e legível por máquina** para descrever a API. Esse formato é a **OpenAPI Specification**, e o conjunto de ferramentas mais conhecido que trabalha com ela se chama **Swagger**.\n\n> **Termos explicados**\n> - **API HTTP**: API acessada por requisições HTTP (*HyperText Transfer Protocol*), com métodos como GET, POST, PUT, PATCH e DELETE.\n> - **OpenAPI Specification (OAS)**: especificação que define **como descrever** uma API HTTP num documento JSON ou YAML.\n> - **Documento OpenAPI** (ou \"descrição OpenAPI\"): o arquivo concreto, como `openapi.yaml`, que descreve **uma** API.\n> - **Swagger**: nome de um conjunto de ferramentas (Swagger UI, Swagger Editor, Swagger Codegen) e também o nome **antigo** da própria especificação, até a versão 2.0.\n> - **YAML**: formato de texto baseado em recuos (indentação), mais fácil de ler que JSON; o OpenAPI aceita os dois.\n> - **Contrato**: o acordo sobre o que a API recebe e devolve; quem consome confia nele.\n\n### Especificação, documento e ferramenta: três coisas diferentes\n\nA confusão mais cobrada em prova é tratar tudo como sinônimo. Separe assim:\n\n| Peça | O que é | Analogia |\n| --- | --- | --- |\n| **OpenAPI Specification** | As **regras** de como escrever a descrição | A norma da ABNT para escrever um trabalho |\n| **Documento OpenAPI** | A descrição de **uma** API concreta | O seu trabalho escrito seguindo a norma |\n| **Swagger UI / Editor / Codegen** | **Programas** que leem ou geram documentos | O editor de texto e a impressora |\n| **API implementada** | O código que realmente atende as chamadas | O serviço que o trabalho descreve |\n\nUm documento OpenAPI **descreve** a API; ele **não a executa**. Se o documento diz que `GET /processos/{numero}` devolve 404 quando o processo não existe, isso só será verdade se o código fizer isso. Documentação e implementação podem divergir, e é justamente por isso que existem práticas de teste de contrato (capítulo 5).\n\n### Um pouco de história, sem decorar datas incertas\n\nA especificação nasceu com o nome **Swagger**, mantida depois pela empresa **SmartBear**, que em 2015 a doou à **OpenAPI Initiative**, projeto sob a **Linux Foundation**. A partir daí:\n\n- a especificação passou a se chamar **OpenAPI Specification**; a versão **Swagger 2.0** é tratada como **OpenAPI 2.0**;\n- a primeira versão já com o novo nome foi a **OpenAPI 3.0** (versão 3.0.0, publicada em 2017);\n- depois veio a **OpenAPI 3.1** (3.1.0, em 2021), que alinhou os esquemas ao **JSON Schema** moderno;\n- o nome **Swagger** continuou com as **ferramentas** da SmartBear (Swagger UI, Swagger Editor, Swagger Codegen, SwaggerHub).\n\nPor isso a frase \"Swagger e OpenAPI são exatamente a mesma coisa\" é **imprecisa**: hoje, OpenAPI é a especificação e Swagger é principalmente o nome das ferramentas; só no passado (até a 2.0) \"Swagger\" também era o nome da especificação.\n\n### Exemplo concreto passo a passo\n\nAna é desenvolvedora no tribunal e precisa publicar a consulta de processos.\n\n1. Ela escreve (ou o framework gera) o arquivo `openapi.yaml` dizendo: existe a operação `GET /processos/{numero}`, o parâmetro `numero` vai no caminho e é obrigatório, a resposta 200 traz um objeto `Processo` e a resposta 404 indica processo inexistente.\n2. Ela publica esse arquivo junto com a API.\n3. O **Swagger UI** lê o arquivo e monta uma página web com a lista de operações, os campos e um botão **\"Try it out\"** para testar a chamada pelo navegador.\n4. Bruno, do outro órgão, testa a chamada e usa um **gerador de código** para criar o cliente na linguagem dele.\n\nRepare que em nenhum passo o documento \"implementou\" a regra: quem consulta o banco e responde é o código de Ana.\n\n### Para que serve um documento OpenAPI\n\nDocumentação navegável, geração de clientes e servidores, validação de requisições e respostas, servidores falsos (*mocks*) para testes e revisão de mudanças de contrato.\n\n**Pegadinha:** a OpenAPI é **independente de linguagem de programação**: não é biblioteca Java nem exclusiva do Spring. Também não é protocolo de transporte (quem transporta é o HTTP) nem o mesmo que WSDL, que descreve serviços SOAP.\n\n**Pegadinha:** OpenAPI **não obriga** que a API seja \"REST pura\" nem que toda resposta seja JSON. Ela descreve APIs HTTP em geral, e cada resposta declara seus tipos de mídia (`application/json`, `application/xml`, `text/plain` etc.).\n\n### Resumo para a prova\n\n- **OpenAPI Specification (OAS)** = padrão para **descrever** APIs HTTP, em **JSON ou YAML**, independente de linguagem.\n- **Swagger** = ferramentas (UI, Editor, Codegen) e **nome antigo** da especificação até a **2.0**.\n- Especificação doada em **2015** à **OpenAPI Initiative** (Linux Foundation); a **3.0** foi a primeira com o nome OpenAPI.\n- O documento **descreve, não implementa** nem garante segurança: a regra está no código.\n- Usos: documentação interativa, geração de código, validação, mocks, testes e governança de contrato."
+    },
+    {
+      "title": "2. Estrutura do documento OpenAPI 3",
+      "markdown": "### O problema que este capítulo resolve\n\nA banca pergunta **onde** fica cada informação: o endereço do servidor, os modelos reutilizáveis, a exigência de token. Este capítulo percorre o documento OpenAPI 3 campo a campo.\n\n> **Termos explicados**\n> - **Path** (caminho): o trecho do endereço depois do servidor, como `/processos/{numero}`.\n> - **Operação**: a combinação de caminho + método HTTP, como `GET /processos/{numero}`.\n> - **Schema** (esquema): a descrição da forma de um dado: tipo, propriedades, obrigatoriedade, formato.\n> - **`$ref`**: referência a outro ponto do documento (ou de outro arquivo), para reutilizar definições sem copiar.\n\n### Visão geral do documento\n\n```yaml\nopenapi: 3.0.3                      # versão da ESPECIFICAÇÃO usada\ninfo:                               # metadados da API (obrigatório)\n  title: API de Processos           # nome (obrigatório)\n  version: 1.4.0                    # versão do DOCUMENTO/API (obrigatório)\n  description: Consulta de processos eletrônicos\nservers:                            # onde a API está\n  - url: https://api.tribunal.exemplo/v1\n    description: Produção\npaths:                              # as operações\n  /processos/{numero}:\n    get:\n      summary: Consulta um processo\n      operationId: consultarProcesso\n      tags: [Processos]\n      parameters:\n        - name: numero\n          in: path                  # vem no caminho\n          required: true            # obrigatório para \"in: path\"\n          schema:\n            type: string\n      responses:\n        '200':\n          description: Processo encontrado\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/Processo'\n        '404':\n          description: Processo inexistente\ncomponents:                         # peças reutilizáveis\n  schemas:\n    Processo:\n      type: object\n      required: [numero, classe]\n      properties:\n        numero: { type: string }\n        classe: { type: string }\n        sigiloso: { type: boolean }\n```\n\n### Campo a campo\n\n**`openapi`**: diz **qual versão da especificação** o documento segue (por exemplo `3.0.3` ou `3.1.0`). É obrigatório. Não confunda com `info.version`.\n\n**`info`**: metadados; são obrigatórios `title` e `version`. O `info.version` é a versão **do documento da API** (o rótulo que a equipe dá ao contrato), não a versão do OpenAPI.\n\n**`servers`**: lista de URLs onde a API está (produção, homologação), com variáveis opcionais. Substitui `host`, `basePath` e `schemes` do Swagger 2.0.\n\n**`paths`**: o coração do documento. Cada chave é um caminho iniciado por `/`; dentro dele ficam os métodos (`get`, `post`, `put`, `patch`, `delete`...), cada um com:\n- `summary`/`description` (textos) e `operationId` (identificador **único**, usado pelos geradores como nome de método);\n- `parameters`, com `in` igual a **`path`, `query`, `header` ou `cookie`**;\n- `requestBody`: o corpo (no 2.0 era um parâmetro `in: body`);\n- `responses`: por código HTTP em texto (`'200'`) ou `default`;\n- `security` (sobrescreve a global) e `tags`.\n\n**`components`**: depósito de peças reutilizáveis (`schemas`, `responses`, `parameters`, `examples`, `requestBodies`, `headers`, `securitySchemes`, `links`, `callbacks`). Nada ali **tem efeito sozinho**: só vale quando referenciado por `$ref` ou exigido em `security`.\n\n**`security`**: requisitos aplicados **a todas as operações**, salvo quando a operação declara o seu; `security: []` numa operação indica que ela **não exige** autenticação.\n\n### Esquemas (schemas)\n\nO esquema descreve o formato dos dados. Na **3.0**, ele é um **subconjunto estendido** do JSON Schema (algumas palavras-chave mudam, como `nullable: true`). Na **3.1**, o *Schema Object* é compatível com o **JSON Schema 2020-12**, e o nulo passa a ser expresso por tipo, como `type: [string, 'null']`.\n\nPalavras importantes: `type` (`string`, `number`, `integer`, `boolean`, `array`, `object`); `format` refina o tipo (`int64`, `date-time`, `uuid`); `required` é a lista dos **nomes** obrigatórios, declarada **no objeto**, e não em cada propriedade; `enum` lista valores permitidos; `items` dá o tipo dos elementos de um `array`; `allOf`, `oneOf` e `anyOf` compõem esquemas.\n\n### Segurança: securitySchemes\n\nOs tipos de esquema de segurança na 3.0 são:\n\n| `type` | Uso | Exemplo |\n| --- | --- | --- |\n| `apiKey` | Chave enviada em `header`, `query` ou `cookie` | `X-API-Key: abc` |\n| `http` | Esquemas HTTP, como `basic` e `bearer` | `Authorization: Bearer <token>` |\n| `oauth2` | Fluxos OAuth 2.0 (*authorization code*, *client credentials*...) | escopos `processos:ler` |\n| `openIdConnect` | Descoberta via URL do OpenID Connect | `openIdConnectUrl` |\n\nA 3.1 acrescentou o tipo `mutualTLS` (autenticação por certificado dos dois lados).\n\n### Exemplo concreto passo a passo\n\nCarla quer documentar `POST /peticoes`, que recebe uma petição e devolve 201.\n\n1. Em `components.schemas`, ela cria `NovaPeticao` com `required: [processo, texto]`.\n2. Em `paths./peticoes.post`, declara `requestBody` com `required: true` e `content: application/json` apontando `$ref: '#/components/schemas/NovaPeticao'`.\n3. Em `responses`, declara `'201'` (criada) com cabeçalho `Location`, `'400'` (dados inválidos) e `'401'` (sem autenticação).\n4. A segurança global já vale; uma operação pública declararia `security: []`.\n\n**Pegadinha:** o parâmetro com `in: path` **deve** ter `required: true`; parâmetro de caminho opcional não existe na especificação. Já um parâmetro `in: query` é opcional por padrão.\n\n**Pegadinha:** declarar um esquema de segurança em `components.securitySchemes` **não aplica** segurança a nada. É preciso exigi-lo em `security` (global ou por operação). E mesmo exigido, o documento só **descreve**: quem barra o acesso é o servidor.\n\n### Resumo para a prova\n\n- Raiz OAS 3: `openapi` (obrigatório), `info` (obrigatório: `title` e `version`), `servers`, `paths`, `components`, `security`, `tags`, `externalDocs`.\n- Na **3.0**, `paths` é obrigatório; na **3.1**, basta ter ao menos um entre `paths`, `components` e `webhooks`.\n- `openapi` = versão da especificação; `info.version` = versão do documento/API.\n- Parâmetros: `in` = `path`, `query`, `header`, `cookie`; `path` sempre `required: true`; corpo vai em `requestBody`.\n- `components` guarda peças reutilizáveis referenciadas por `$ref: '#/components/...'`; sozinho não produz efeito.\n- `security` global vale para todas as operações; a operação pode sobrescrever, e `security: []` dispensa autenticação.\n- securitySchemes: `apiKey`, `http`, `oauth2`, `openIdConnect` (+ `mutualTLS` na 3.1)."
+    },
+    {
+      "title": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "markdown": "### O problema que este capítulo resolve\n\nUm documento OpenAPI é texto. Alguém precisa **mostrá-lo**, **ajudar a escrevê-lo** e **gerar código** a partir dele. Cada tarefa tem sua ferramenta, e a prova adora trocar os papéis.\n\n> **Termos explicados**\n> - **Ferramenta de renderização**: programa que transforma o documento em página de leitura.\n> - **Esqueleto de servidor** (*server stub*): código inicial com as classes e assinaturas das operações, sem a regra de negócio.\n> - **Cliente** ou **SDK** (*Software Development Kit*): biblioteca pronta para chamar a API numa linguagem.\n> - **Mock**: servidor falso que responde com exemplos, usado para testar antes de a API existir.\n> - **Lint** (*linting*): verificação automática de estilo e de regras de qualidade de um arquivo.\n\n### Swagger UI: a vitrine interativa\n\nO **Swagger UI** é uma aplicação web (HTML, CSS e JavaScript) que **lê um documento OpenAPI** e gera uma **documentação interativa** no navegador. Para cada operação, mostra caminho, método, parâmetros, esquemas e respostas, e oferece o botão **\"Try it out\"**, que permite preencher parâmetros e **enviar uma requisição real** à API, exibindo a resposta.\n\nPontos importantes:\n- O Swagger UI **não implementa** a API. O \"Try it out\" envia a chamada para o servidor declarado em `servers`; se a API estiver fora do ar, a chamada falha.\n- Há um botão **\"Authorize\"** quando o documento declara esquemas de segurança: o usuário informa o token ou a chave, e o Swagger UI os envia nas chamadas de teste.\n- Expô-lo em produção é decisão de segurança: ele revela a superfície da API.\n\n### Swagger Editor: escrever e validar\n\nO **Swagger Editor** é um editor (no navegador, com versão on-line e possibilidade de rodar localmente) para **escrever documentos OpenAPI em YAML ou JSON**. Ele:\n- **valida** o documento enquanto você digita, apontando erros de estrutura (campo obrigatório faltando, `$ref` quebrado);\n- mostra ao lado uma **pré-visualização** no estilo do Swagger UI;\n- ajuda a abordagem **design-first**, em que o contrato é escrito antes do código.\n\nO Editor **não hospeda** a API e não é servidor de produção.\n\n### Swagger Codegen e OpenAPI Generator: gerar código\n\nO **Swagger Codegen** é a ferramenta da família Swagger que **gera código a partir do documento**: **clientes** (SDKs) em várias linguagens, **esqueletos de servidor** e documentação estática. Funciona por linha de comando, por plugins de build (como Maven e Gradle) e por bibliotecas.\n\nO **OpenAPI Generator** é um projeto da comunidade que surgiu como **fork** (bifurcação, cópia independente) do Swagger Codegen, em 2018, mantido por parte dos antigos colaboradores. Ele faz o mesmo tipo de trabalho (clientes, servidores, documentação, configurações) e tem um catálogo grande de geradores. Em prova, basta saber: **ambos geram código a partir do contrato**; o OpenAPI Generator é derivado do Swagger Codegen e é mantido pela comunidade.\n\nNa linha de comando, informa-se o documento de entrada, o gerador desejado (cliente Java, por exemplo) e a pasta de saída. O código gerado de **servidor** traz interfaces e modelos, mas a **regra de negócio** continua por conta do desenvolvedor. Um cuidado prático: não edite à mão o código gerado que será regenerado; implemente as interfaces em outras classes, para não perder o trabalho na próxima geração.\n\n### Tabela comparativa\n\n| Ferramenta | Entrada | Saída / papel | Não faz |\n| --- | --- | --- | --- |\n| **Swagger UI** | Documento OpenAPI | Página interativa, \"Try it out\" | Não implementa nem gera servidor |\n| **Swagger Editor** | Você digitando YAML/JSON | Documento validado + pré-visualização | Não hospeda a API |\n| **Swagger Codegen** | Documento OpenAPI | Clientes, stubs de servidor, docs | Não escreve a regra de negócio |\n| **OpenAPI Generator** | Documento OpenAPI | Idem (fork comunitário do Codegen) | Não é especificação |\n### Exemplo concreto passo a passo\n\nDiego lidera o front-end de um portal do tribunal; a API ainda não ficou pronta.\n\n1. O back-end escreve o contrato no **Swagger Editor**, que acusa um `$ref` para esquema inexistente; eles corrigem.\n2. Sobem um **mock** que devolve os exemplos do documento.\n3. Diego gera o cliente TypeScript com o **OpenAPI Generator** e faz a tela chamando o mock.\n4. O back-end gera os **stubs** Java e implementa a regra.\n5. Com a API no ar, o **Swagger UI** permite testar cada operação com \"Try it out\".\n\n**Pegadinha:** \"o Swagger UI gera automaticamente o código do servidor a partir do documento\" está **errado**: quem gera código é o Codegen/OpenAPI Generator. O Swagger UI só exibe e permite testar.\n\n**Pegadinha:** o botão \"Try it out\" faz **chamadas reais**. Testar um `DELETE` pelo Swagger UI apontado para produção apaga dado de verdade.\n\n### Resumo para a prova\n\n- **Swagger UI**: lê o documento e gera **documentação interativa**; \"Try it out\" envia chamadas reais; \"Authorize\" informa credenciais.\n- **Swagger Editor**: escreve e **valida** documentos YAML/JSON com pré-visualização; apoia design-first.\n- **Swagger Codegen**: gera **clientes, stubs de servidor e docs** a partir do contrato.\n- **OpenAPI Generator**: **fork comunitário** do Swagger Codegen (2018), mesma finalidade.\n- Código gerado não traz regra de negócio; não editar à mão o que será regenerado.\n- Expor Swagger UI em produção revela a API: decisão de segurança."
+    },
+    {
+      "title": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "markdown": "### O problema que este capítulo resolve\n\nO que nasce primeiro, o contrato ou o código? E, no Spring Boot, como fazer o documento sair do próprio código, sem escrever YAML à mão?\n\n> **Termos explicados**\n> - **Design-first** (ou *contract-first*, API-first): escreve-se o **contrato** antes; o código é feito para cumpri-lo.\n> - **Code-first**: escreve-se o **código** antes; o contrato é **gerado** a partir dele (por leitura do código e de anotações).\n> - **Anotação**: marcação Java começada por `@`, lida pelo compilador ou por bibliotecas em execução.\n> - **Starter**: dependência do Spring Boot que traz um conjunto pronto de bibliotecas.\n\n### Design-first x code-first\n\n| Aspecto | Design-first | Code-first |\n| --- | --- | --- |\n| O que nasce primeiro | Contrato (YAML/JSON) | Código da API |\n| Fonte da verdade | O documento OpenAPI | O código (o documento é derivado) |\n| Ferramentas típicas | Swagger Editor, geradores de stubs, mocks | springdoc-openapi, anotações |\n| Vantagem | Consumidores começam cedo; revisão do contrato antes de codificar | Rapidez; documento sempre reflete o código |\n| Risco | Implementação divergir do contrato se não houver validação | Contrato \"acidental\": muda sem ninguém perceber ao mudar o código |\n\nNenhuma é \"a correta\" em absoluto: **as duas produzem documento OpenAPI**; a diferença é **qual lado é a fonte da verdade**.\n\n### springdoc-openapi: o documento gerado pelo Spring Boot\n\nO **springdoc-openapi** é uma biblioteca que **examina a aplicação Spring em tempo de execução** (controladores, mapeamentos, tipos de parâmetros e retornos, validações e anotações) e **gera o documento OpenAPI 3** automaticamente, além de servir o **Swagger UI**.\n\nPara Spring Boot 3 com Spring MVC, a dependência usual é o starter `springdoc-openapi-starter-webmvc-ui` (há variante `webflux` para aplicações reativas). Com ela no projeto, sem configuração extra, os endereços padrão são:\n\n| Endereço | Conteúdo |\n| --- | --- |\n| `/v3/api-docs` | Documento OpenAPI em **JSON** |\n| `/v3/api-docs.yaml` | O mesmo documento em **YAML** |\n| `/swagger-ui.html` | Swagger UI (redireciona para `/swagger-ui/index.html`) |\n\nPropriedades comuns no `application.properties`:\n\n`springdoc.api-docs.path` (muda o caminho do JSON), `springdoc.swagger-ui.path` (muda o caminho da interface) e `springdoc.swagger-ui.enabled=false` (desliga a interface, por exemplo em produção).\n\nO **Springfox** é uma biblioteca **mais antiga** com a mesma ideia, voltada sobretudo ao Swagger 2.0.\n\n### As anotações (pacote io.swagger.v3.oas.annotations)\n\nO springdoc usa as anotações do **Swagger Core para OpenAPI 3**, do pacote `io.swagger.v3.oas.annotations`. As mais cobradas:\n\n| Anotação | Onde | Para quê |\n| --- | --- | --- |\n| `@Tag(name, description)` | Classe controladora | Agrupa as operações |\n| `@Operation(summary, description)` | Método | Descreve a operação |\n| `@ApiResponse(responseCode, description)` | Método | Documenta uma resposta (agrupáveis em `@ApiResponses`) |\n| `@Parameter(description, required)` | Parâmetro | Documenta um parâmetro |\n| `@Schema(description, example)` | Classe/campo de DTO | Documenta o modelo de dados |\n| `@Hidden` | Classe ou método | Esconde do documento |\n| `@SecurityRequirement(name)` | Método/classe | Exige um esquema de segurança |\nAs anotações antigas do Swagger 2 (pacote `io.swagger.annotations`: `@Api`, `@ApiOperation`, `@ApiModelProperty`) aparecem em projetos legados com Springfox.\n\n### Exemplo concreto passo a passo\n\nEduardo cria o serviço de consulta de processos em Spring Boot 3.\n\n```java\n@RestController\n@RequestMapping(\"/processos\")\n@Tag(name = \"Processos\", description = \"Consulta de processos eletrônicos\")\npublic class ProcessoController {\n\n  @GetMapping(\"/{numero}\")\n  @Operation(summary = \"Consulta um processo pelo número\")\n  @ApiResponse(responseCode = \"200\", description = \"Processo encontrado\")\n  @ApiResponse(responseCode = \"404\", description = \"Processo inexistente\")\n  public ProcessoDTO consultar(\n      @Parameter(description = \"Número CNJ do processo\") @PathVariable String numero) {\n    return servico.buscar(numero);   // a regra continua aqui, no código\n  }\n}\n```\n\n1. Ele adiciona o starter `springdoc-openapi-starter-webmvc-ui` ao `pom.xml`.\n2. Abre `/v3/api-docs`: caminho, parâmetro e esquema `ProcessoDTO` já aparecem, lidos de `@GetMapping`, `@PathVariable` e do tipo de retorno.\n3. As anotações `@Tag`, `@Operation`, `@ApiResponse` e `@Parameter` **enriquecem** o documento com textos e respostas.\n4. Para metadados globais (título, versão, servidor), ele registra um **bean** do tipo `OpenAPI`:\n\n```java\n@Bean\nOpenAPI apiProcessos() {\n  return new OpenAPI().info(new Info().title(\"API de Processos\").version(\"1.4.0\"));\n}\n```\n\n5. Para separar a API pública da administrativa, usa beans `GroupedOpenApi`.\n6. Em produção, desliga o Swagger UI por propriedade ou protege os endereços com o Spring Security.\n\n**Pegadinha:** as anotações de documentação **não validam** nada. `@Parameter(required = true)` ou `@Schema(example = \"...\")` aparecem no documento, mas quem rejeita entrada inválida é a validação do código (por exemplo, Bean Validation com `@NotNull`, `@Size`), que o springdoc também consegue refletir no esquema.\n\n**Pegadinha:** sem nenhuma anotação Swagger, o springdoc **já gera** documento a partir dos mapeamentos do Spring. As anotações são opcionais e servem para enriquecer ou corrigir.\n\n### Resumo para a prova\n\n- **Design-first**: contrato antes, é a fonte da verdade; **code-first**: código antes, contrato gerado.\n- **springdoc-openapi** gera **OpenAPI 3** lendo a aplicação Spring em execução e serve o **Swagger UI**.\n- Padrões: **`/v3/api-docs`** (JSON), `/v3/api-docs.yaml`, **`/swagger-ui.html`**; mudáveis por `springdoc.api-docs.path` e `springdoc.swagger-ui.path`.\n- Anotações `io.swagger.v3.oas.annotations`: `@Tag`, `@Operation`, `@ApiResponse`, `@Parameter`, `@Schema`, `@Hidden`, `@SecurityRequirement`.\n- Legado: Springfox + `io.swagger.annotations` (`@Api`, `@ApiOperation`), ligados ao Swagger 2.\n- Bean `OpenAPI` = metadados globais; `GroupedOpenApi` = vários documentos por grupo.\n- Anotação documenta; quem valida é o código."
+    },
+    {
+      "title": "5. Swagger 2.0 x OpenAPI 3, versionamento e contrato",
+      "markdown": "### O problema que este capítulo resolve\n\nAPIs mudam, e cada mudança pode **quebrar** quem já as consome. Além disso, muitos sistemas legados ainda usam **Swagger 2.0**, e a banca cobra as diferenças para o **OpenAPI 3**. Aqui se aprende a reconhecer a versão do documento e a cuidar do contrato ao longo do tempo.\n\n> **Termos explicados**\n> - **Mudança compatível** (*non-breaking*): consumidores antigos continuam funcionando sem alteração.\n> - **Mudança incompatível** (*breaking change*): algum consumidor antigo deixa de funcionar.\n> - **Versionamento semântico** (SemVer): versão no formato MAIOR.MENOR.CORREÇÃO; sobe o MAIOR quando há quebra.\n> - **Teste de contrato**: teste automatizado que verifica se a implementação (ou o consumidor) obedece ao contrato combinado.\n> - **Depreciação**: aviso de que algo continuará funcionando por um tempo, mas será removido.\n\n### Swagger 2.0 x OpenAPI 3: como reconhecer\n\nA primeira linha entrega a versão: o Swagger 2.0 começa com **`swagger: \"2.0\"`**; o OpenAPI 3 começa com **`openapi: 3.0.x`** ou **`openapi: 3.1.x`**.\n\n| Tema | Swagger 2.0 (OpenAPI 2.0) | OpenAPI 3.x |\n| --- | --- | --- |\n| Campo de versão | `swagger: \"2.0\"` | `openapi: 3.0.x` / `3.1.x` |\n| Servidor | `host`, `basePath`, `schemes` (um host só) | `servers` (lista de URLs, com variáveis) |\n| Modelos reutilizáveis | `definitions`, `parameters`, `responses` na raiz | Tudo dentro de **`components`** |\n| Referência a modelo | `#/definitions/Processo` | `#/components/schemas/Processo` |\n| Corpo da requisição | Parâmetro `in: body` (e `formData` para formulário) | **`requestBody`** próprio, com `content` |\n| Tipos de mídia | `consumes` / `produces` globais ou por operação | `content` por tipo de mídia em cada corpo/resposta |\n| Segurança | `securityDefinitions` (`basic`, `apiKey`, `oauth2`) | `components.securitySchemes` (`http`, `apiKey`, `oauth2`, `openIdConnect`) |\n| Parâmetro em cookie | Não previsto | `in: cookie` |\n| Composição de esquemas | `allOf` | `allOf`, **`oneOf`**, **`anyOf`**, `not` |\nE entre **3.0 e 3.1**:\n- a 3.1 alinha o *Schema Object* ao **JSON Schema 2020-12** (por exemplo, `type: [string, 'null']` em vez de `nullable: true`);\n- a 3.1 cria o campo raiz **`webhooks`**, para descrever chamadas que a **API faz** ao consumidor quando ocorre um evento;\n- na 3.1, `paths` deixa de ser obrigatório: basta ter `paths`, `components` ou `webhooks`;\n- surge o tipo de segurança `mutualTLS`.\n### Versionamento: dois números diferentes\n\nNa prova aparecem dois \"números de versão\" que não se confundem:\n\n| Número | Onde fica | O que significa |\n| --- | --- | --- |\n| Versão da especificação | `openapi: 3.0.3` | Qual regra de escrita o documento segue |\n| Versão da API/documento | `info.version: 2.1.0` | Qual versão do **contrato** a equipe publicou |\n\nAo consumidor, a API expõe a versão **no caminho** (`/v1/processos`), **em cabeçalho** ou **em parâmetro de consulta**. O OpenAPI **não obriga** nenhuma estratégia; apenas descreve a escolhida.\n\n### O que quebra e o que não quebra\n\n| Mudança | Para quem consome a resposta | Classificação típica |\n| --- | --- | --- |\n| Acrescentar campo **opcional** na resposta | Cliente tolerante ignora | Compatível |\n| **Remover** campo da resposta | Cliente que o usa quebra | Incompatível |\n| **Renomear** campo ou caminho | Equivale a remover + criar | Incompatível |\n| Tornar **obrigatório** um campo de entrada antes opcional | Requisições antigas passam a falhar | Incompatível |\n| Acrescentar nova operação | Ninguém é afetado | Compatível |\n| Mudar o tipo de `integer` para `string` | Desserialização falha | Incompatível |\nBoa prática: marcar a operação antiga com **`deprecated: true`** no documento, avisar prazo, publicar a nova versão em paralelo e só então remover.\n\n### Contrato e teste de contrato\n\nTer o documento não garante que a API o cumpre. Por isso se usam validação de requisições e respostas contra os esquemas, **testes de contrato** (o consumidor declara o que usa; o provedor verifica que não quebrou) e comparação automática das versões do documento antes da publicação.\n\n### Exemplo concreto passo a passo\n\nFernanda mantém a API de processos na versão 1 e precisa trocar o campo `classe` (texto) por um objeto `classe` com código e nome.\n\n1. Mudar o tipo de `classe` é **incompatível**.\n2. Ela cria `/v2/processos/{numero}` com o novo formato e `info.version: 2.0.0`.\n3. Na v1, marca a operação com `deprecated: true` e anuncia a data de desligamento.\n4. Depois do prazo, com os consumidores migrados, desliga a v1.\n\n**Pegadinha:** \"mudar a primeira linha de `swagger: \"2.0\"` para `openapi: 3.0.0` converte o documento\" é **falso**: a estrutura muda (componentes, `requestBody`, `servers`, segurança).\n\n**Pegadinha:** alterar `info.version` **não** versiona a API por si só, nem muda a especificação usada. É só o rótulo do contrato; os consumidores só percebem a versão pelo que a API expõe (caminho, cabeçalho) e pela comunicação da mudança.\n\n### Resumo para a prova\n\n- 2.0: `swagger: \"2.0\"`, `host`/`basePath`/`schemes`, `definitions`, `in: body`, `consumes`/`produces`, `securityDefinitions`.\n- 3.x: `openapi`, `servers`, **`components`**, **`requestBody`**, `content` por mídia, `oneOf`/`anyOf`, `in: cookie`, `links`, `callbacks`.\n- 3.1: JSON Schema 2020-12, `webhooks`, `paths` opcional, `mutualTLS`.\n- `openapi` = versão da especificação; `info.version` = versão do contrato.\n- Remover, renomear, mudar tipo ou tornar obrigatória a entrada = **quebra**; acrescentar opcional/operação = compatível.\n- `deprecated: true`, versões paralelas, testes de contrato e comparação automática protegem os consumidores."
+    }
+  ],
+  "summary": "## Swagger e OpenAPI em uma página\nA **OpenAPI Specification (OAS)** é o padrão, independente de linguagem, para **descrever** APIs HTTP em **JSON ou YAML**. **Swagger** foi o nome da especificação até a **2.0** e hoje designa sobretudo **ferramentas** (Swagger UI, Editor, Codegen). Em 2015 a especificação foi doada à **OpenAPI Initiative** (Linux Foundation); a **3.0** foi a primeira com o nome OpenAPI e a **3.1** alinhou os esquemas ao **JSON Schema 2020-12** e criou `webhooks`.\n\n**Documento OAS 3:** `openapi` (versão da especificação), `info` (`title` e `version` obrigatórios; `info.version` = versão do contrato), `servers`, `paths` (operações com `parameters` em `path`/`query`/`header`/`cookie`, `requestBody`, `responses` por código), `components` (`schemas`, `securitySchemes` e outras peças reutilizadas por `$ref`) e `security` (global, sobrescrita por operação; `security: []` dispensa). Parâmetro de caminho é sempre `required: true`.\n\n**Ferramentas:** Swagger UI exibe e testa (\"Try it out\" faz chamada real); Swagger Editor escreve e valida; Swagger Codegen e **OpenAPI Generator** (fork comunitário) geram clientes e stubs. **Design-first** tem o contrato como fonte da verdade; **code-first** gera o contrato a partir do código. **springdoc-openapi** gera OpenAPI 3 a partir da aplicação Spring, em `/v3/api-docs`, com Swagger UI em `/swagger-ui.html`, enriquecido por `@Tag`, `@Operation`, `@ApiResponse`, `@Parameter`, `@Schema`, `@Hidden`.\n\n**2.0 x 3:** `swagger: \"2.0\"`, `host/basePath/schemes`, `definitions`, `in: body`, `securityDefinitions` viram `servers`, `components`, `requestBody` e `securitySchemes`. Remover, renomear, mudar tipo ou tornar obrigatória uma entrada **quebra** consumidores; use `deprecated`, versões paralelas e teste de contrato. Documentar **não implementa** nem protege: a regra está no servidor.",
+  "flashcards": [
+    {
+      "front": "O que é a OpenAPI Specification?",
+      "back": "Padrão independente de linguagem para descrever APIs HTTP (caminhos, operações, parâmetros, corpos, respostas, esquemas e segurança) em JSON ou YAML."
+    },
+    {
+      "front": "Swagger e OpenAPI são sinônimos?",
+      "back": "Não exatamente. Swagger foi o nome da especificação até a 2.0; hoje OpenAPI é a especificação e Swagger é sobretudo o nome das ferramentas (UI, Editor, Codegen)."
+    },
+    {
+      "front": "Para quem a especificação Swagger foi doada em 2015?",
+      "back": "Para a OpenAPI Initiative, projeto sob a Linux Foundation."
+    },
+    {
+      "front": "Qual foi a primeira versão publicada já com o nome OpenAPI?",
+      "back": "A OpenAPI 3.0 (3.0.0, de 2017). A Swagger 2.0 é tratada como OpenAPI 2.0."
+    },
+    {
+      "front": "Em quais formatos se escreve um documento OpenAPI?",
+      "back": "JSON ou YAML."
+    },
+    {
+      "front": "Quais campos são obrigatórios em info?",
+      "back": "title e version."
+    },
+    {
+      "front": "Diferença entre o campo openapi e info.version",
+      "back": "openapi indica a versão da especificação seguida (ex.: 3.0.3); info.version é a versão do documento/contrato da API dada pela equipe."
+    },
+    {
+      "front": "Para que serve servers?",
+      "back": "Lista as URLs onde a API está disponível (produção, homologação), com variáveis opcionais; substitui host, basePath e schemes do Swagger 2.0."
+    },
+    {
+      "front": "Valores possíveis de in num parâmetro OpenAPI 3",
+      "back": "path, query, header e cookie."
+    },
+    {
+      "front": "Parâmetro in: path pode ser opcional?",
+      "back": "Não. Parâmetro de caminho deve ter required: true."
+    },
+    {
+      "front": "Onde fica o corpo da requisição no OpenAPI 3?",
+      "back": "Em requestBody, com content por tipo de mídia. No Swagger 2.0 era um parâmetro in: body."
+    },
+    {
+      "front": "Para que serve components?",
+      "back": "Guardar peças reutilizáveis (schemas, responses, parameters, examples, requestBodies, headers, securitySchemes, links, callbacks), referenciadas por $ref. Sozinhas não produzem efeito."
+    },
+    {
+      "front": "Como se referencia um esquema reutilizável no OpenAPI 3?",
+      "back": "$ref: '#/components/schemas/NomeDoEsquema'."
+    },
+    {
+      "front": "Como uma operação dispensa a segurança global?",
+      "back": "Declarando security: [] (lista vazia) na própria operação."
+    },
+    {
+      "front": "Tipos de securitySchemes no OpenAPI 3.0",
+      "back": "apiKey, http (basic, bearer...), oauth2 e openIdConnect. A 3.1 acrescentou mutualTLS."
+    },
+    {
+      "front": "Onde se declara quais propriedades são obrigatórias num schema?",
+      "back": "Na lista required do próprio objeto, com os nomes das propriedades."
+    },
+    {
+      "front": "O que faz o Swagger UI?",
+      "back": "Lê um documento OpenAPI e gera documentação interativa no navegador, com Try it out para enviar chamadas reais e Authorize para informar credenciais."
+    },
+    {
+      "front": "O que faz o Swagger Editor?",
+      "back": "Permite escrever documentos OpenAPI em YAML/JSON, validando-os enquanto se digita e mostrando pré-visualização."
+    },
+    {
+      "front": "O que fazem Swagger Codegen e OpenAPI Generator?",
+      "back": "Geram código a partir do documento: clientes (SDKs), esqueletos de servidor e documentação. O OpenAPI Generator é um fork comunitário do Swagger Codegen."
+    },
+    {
+      "front": "O código de servidor gerado traz a regra de negócio?",
+      "back": "Não. Traz interfaces e modelos; a regra continua por conta do desenvolvedor."
+    },
+    {
+      "front": "Design-first x code-first",
+      "back": "Design-first: o contrato é escrito antes e é a fonte da verdade. Code-first: o código vem antes e o contrato é gerado dele."
+    },
+    {
+      "front": "O que é springdoc-openapi?",
+      "back": "Biblioteca que examina a aplicação Spring em execução e gera o documento OpenAPI 3, servindo também o Swagger UI."
+    },
+    {
+      "front": "Endereços padrão do springdoc-openapi",
+      "back": "/v3/api-docs (JSON), /v3/api-docs.yaml (YAML) e /swagger-ui.html (Swagger UI)."
+    },
+    {
+      "front": "Starter do springdoc para Spring Boot 3 com Spring MVC",
+      "back": "springdoc-openapi-starter-webmvc-ui (há variante webflux para aplicações reativas)."
+    },
+    {
+      "front": "Anotação para descrever uma operação no springdoc",
+      "back": "@Operation(summary, description), do pacote io.swagger.v3.oas.annotations."
+    },
+    {
+      "front": "Anotação para esconder um endpoint do documento",
+      "back": "@Hidden."
+    },
+    {
+      "front": "Como definir título e versão globais no springdoc por código?",
+      "back": "Registrando um bean do tipo OpenAPI com info(new Info().title(...).version(...))."
+    },
+    {
+      "front": "Springfox x springdoc",
+      "back": "Springfox é biblioteca mais antiga, ligada ao Swagger 2.0 e às anotações io.swagger.annotations (@Api, @ApiOperation). springdoc gera OpenAPI 3."
+    },
+    {
+      "front": "Como reconhecer um documento Swagger 2.0?",
+      "back": "Pela primeira linha swagger: \"2.0\" e por campos como host, basePath, definitions, securityDefinitions, consumes e produces."
+    },
+    {
+      "front": "Novidades da OpenAPI 3.1",
+      "back": "Schema Object compatível com JSON Schema 2020-12, campo raiz webhooks, paths opcional (basta paths, components ou webhooks) e securityScheme mutualTLS."
+    },
+    {
+      "front": "Remover um campo da resposta é mudança compatível?",
+      "back": "Não. Quebra quem usa o campo; é mudança incompatível (breaking change)."
+    },
+    {
+      "front": "Como sinalizar no documento que uma operação será removida?",
+      "back": "Com deprecated: true na operação, avisando prazo e oferecendo a alternativa."
+    }
+  ],
+  "tips": [
+    "Separe especificação (OpenAPI), documento (o openapi.yaml de uma API) e ferramenta (Swagger UI, Editor, Codegen).",
+    "Primeira linha entrega a versão: swagger: \"2.0\" é o formato antigo; openapi: 3.x é o atual.",
+    "Para achar onde ficam modelos e esquemas de segurança no OpenAPI 3, pense em components.",
+    "Corpo de requisição no OpenAPI 3 é requestBody; in: body é coisa do Swagger 2.0.",
+    "Swagger UI mostra e testa; Editor escreve e valida; Codegen/OpenAPI Generator geram código.",
+    "No springdoc, lembre /v3/api-docs para o JSON e /swagger-ui.html para a interface.",
+    "Anotação documenta, não valida: validação é Bean Validation ou regra do código.",
+    "Na dúvida sobre compatibilidade, pergunte se um cliente antigo continuaria funcionando sem mudar nada."
+  ],
+  "traps": [
+    "Dizer que o documento OpenAPI implementa a API ou garante a segurança: ele só descreve.",
+    "Afirmar que OpenAPI é biblioteca Java ou exclusiva do Spring: é independente de linguagem.",
+    "Confundir info.version (versão do contrato) com o campo openapi (versão da especificação).",
+    "Tratar parâmetro in: path como opcional: ele é sempre obrigatório.",
+    "Achar que declarar securitySchemes em components já aplica segurança: é preciso exigi-lo em security.",
+    "Atribuir ao Swagger UI a geração de código de servidor, que é tarefa do Codegen/OpenAPI Generator.",
+    "Supor que trocar swagger: \"2.0\" por openapi: 3.0.0 converte o documento: a estrutura muda.",
+    "Considerar compatível remover ou renomear campo da resposta."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre OpenAPI Specification, documento OpenAPI e Swagger UI.",
+      "answer": "A especificação é o conjunto de regras para descrever APIs HTTP; o documento é a descrição concreta de uma API seguindo essas regras; o Swagger UI é uma ferramenta que lê o documento e mostra documentação interativa."
+    },
+    {
+      "question": "Por que se diz que Swagger e OpenAPI não são exatamente sinônimos hoje?",
+      "answer": "Porque, após a doação de 2015 à OpenAPI Initiative, a especificação passou a se chamar OpenAPI (a partir da 3.0) e o nome Swagger ficou com as ferramentas da SmartBear; só até a versão 2.0 Swagger era o nome da especificação."
+    },
+    {
+      "question": "Quais são os principais campos do objeto raiz de um documento OpenAPI 3 e o que cada um guarda?",
+      "answer": "openapi (versão da especificação), info (metadados, com title e version obrigatórios), servers (URLs), paths (operações), components (peças reutilizáveis), security (exigências globais), além de tags e externalDocs."
+    },
+    {
+      "question": "Como documentar uma operação pública numa API cuja segurança global exige token?",
+      "answer": "Declarando na própria operação security: [], que sobrescreve a exigência global e indica que ela não requer autenticação."
+    },
+    {
+      "question": "Qual é o papel de components e por que ele não produz efeito sozinho?",
+      "answer": "Ele guarda definições reutilizáveis (schemas, respostas, parâmetros, securitySchemes etc.). Só passam a valer quando referenciadas por $ref ou, no caso de segurança, exigidas em security."
+    },
+    {
+      "question": "Compare Swagger UI, Swagger Editor e OpenAPI Generator.",
+      "answer": "Swagger UI exibe o documento e permite testar chamadas reais; Swagger Editor serve para escrever e validar o documento; OpenAPI Generator (fork do Swagger Codegen) gera clientes, stubs de servidor e documentação."
+    },
+    {
+      "question": "Em que design-first e code-first diferem, e qual risco cada um tem?",
+      "answer": "No design-first o contrato vem antes e é a fonte da verdade, com risco de a implementação divergir sem validação; no code-first o contrato é gerado do código, com risco de mudanças acidentais no contrato ao alterar o código."
+    },
+    {
+      "question": "Como o springdoc-openapi gera o documento e onde ele fica por padrão?",
+      "answer": "Examina a aplicação Spring em execução (mapeamentos, tipos, validações e anotações) e publica o OpenAPI 3 em /v3/api-docs (e .yaml), com o Swagger UI em /swagger-ui.html."
+    },
+    {
+      "question": "Cite quatro diferenças entre Swagger 2.0 e OpenAPI 3.",
+      "answer": "host/basePath/schemes viraram servers; definitions virou components.schemas; o corpo in: body virou requestBody; securityDefinitions virou components.securitySchemes; surgiram oneOf/anyOf, in: cookie, links e callbacks."
+    },
+    {
+      "question": "Classifique como compatível ou incompatível: acrescentar campo opcional na resposta, renomear campo, mudar integer para string.",
+      "answer": "Acrescentar campo opcional costuma ser compatível; renomear e mudar o tipo são incompatíveis, pois quebram consumidores existentes."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir especificação com ferramenta",
+      "summary": "Trata OpenAPI e Swagger como a mesma coisa ou atribui à especificação papéis de ferramenta (exibir, gerar código), ignorando que hoje OpenAPI é a especificação e Swagger nomeia principalmente ferramentas."
+    },
+    {
+      "key": "e2",
+      "title": "Achar que documentar implementa ou protege",
+      "summary": "Supõe que o documento OpenAPI, o Swagger UI ou as anotações executam regra de negócio, validam entradas ou barram acessos, quando apenas descrevem; quem implementa e protege é o código do servidor."
+    },
+    {
+      "key": "e3",
+      "title": "Errar a localização dos campos do documento",
+      "summary": "Coloca informações no lugar errado: versão da especificação em info.version, esquemas fora de components, corpo como parâmetro no OpenAPI 3 ou parâmetro de caminho opcional."
+    },
+    {
+      "key": "e4",
+      "title": "Trocar os papéis das ferramentas Swagger",
+      "summary": "Confunde Swagger UI (exibir e testar), Swagger Editor (escrever e validar) e Codegen/OpenAPI Generator (gerar clientes e stubs)."
+    },
+    {
+      "key": "e5",
+      "title": "Confundir abordagens e bibliotecas no Spring",
+      "summary": "Mistura design-first com code-first, Springfox com springdoc, ou as anotações antigas io.swagger.annotations com as de io.swagger.v3.oas.annotations."
+    },
+    {
+      "key": "e6",
+      "title": "Ignorar diferenças de versão e quebras de contrato",
+      "summary": "Não distingue Swagger 2.0 de OpenAPI 3.x ou trata como compatíveis mudanças que quebram consumidores, como remover, renomear ou mudar o tipo de campos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Na terminologia atual, OpenAPI designa a especificação para descrever APIs HTTP, enquanto Swagger designa principalmente um conjunto de ferramentas que trabalham com essa especificação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Depois da doação da especificação à OpenAPI Initiative, o padrão passou a se chamar OpenAPI Specification, e o nome Swagger ficou associado às ferramentas da SmartBear, como Swagger UI, Swagger Editor e Swagger Codegen. Só até a versão 2.0 Swagger era também o nome da especificação.",
+      "section": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OpenAPI Specification é uma biblioteca da linguagem Java e, por isso, só pode descrever APIs implementadas com Spring Boot.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A OpenAPI é uma especificação independente de linguagem: um documento em JSON ou YAML pode descrever uma API HTTP feita em Java, Python, C#, Node.js ou outra tecnologia. O springdoc-openapi é apenas uma das bibliotecas que geram esse documento no ecossistema Spring.",
+      "section": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o documento OpenAPI de uma API declara a resposta 404 para processo inexistente, o servidor passa a devolver esse código automaticamente, ainda que o código da aplicação não trate essa situação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O documento descreve o comportamento combinado, mas não o executa. Quem devolve 404 é o código do servidor; se ele não tratar o caso, a API pode responder outra coisa e ficar em desacordo com o contrato, divergência que os testes de contrato procuram detectar.",
+      "section": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A especificação originalmente chamada Swagger foi doada à OpenAPI Initiative, projeto mantido sob a Linux Foundation, e a versão Swagger 2.0 passou a ser tratada como OpenAPI 2.0.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em 2015 a especificação Swagger foi doada à OpenAPI Initiative, sob a Linux Foundation. A versão 2.0 é referida tanto como Swagger 2.0 quanto como OpenAPI 2.0, e a 3.0 foi a primeira lançada já com o nome OpenAPI.",
+      "section": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num documento OpenAPI 3, o campo info.version indica a versão da especificação OpenAPI seguida pelo documento, como 3.0.3.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A versão da especificação fica no campo raiz openapi (por exemplo, openapi: 3.0.3). O info.version guarda a versão do documento ou contrato da API, número que a própria equipe atribui, como 1.4.0.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na OpenAPI 3, um parâmetro declarado com in: path deve ser marcado como obrigatório, com required: true.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O parâmetro de caminho compõe o próprio endereço, como numero em /processos/{numero}; sem ele a URL não corresponde à operação. Por isso a especificação exige required: true para in: path, enquanto parâmetros de query são opcionais por padrão.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Definir um esquema http com scheme bearer em components.securitySchemes é suficiente para que todas as operações do documento passem a exigir o token, mesmo que não exista nenhum campo security no documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O que está em components apenas fica disponível para uso. A exigência nasce do campo security, no objeto raiz (para todas as operações) ou em cada operação. Sem security, o esquema bearer está definido, mas não é requerido por nenhuma operação.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa API cuja exigência global de segurança requer token, uma operação pode declarar security com lista vazia para indicar que ela não exige autenticação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O security declarado na operação sobrescreve o global. Escrever security: [] na operação (uma consulta pública de status, por exemplo) informa que ela não tem requisito de segurança, embora as demais continuem exigindo o token.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num Schema Object da OpenAPI 3.0, a obrigatoriedade de cada propriedade de um objeto é indicada por required: true escrito dentro da definição da própria propriedade, como se faz com parâmetros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em esquemas, required é uma lista declarada no objeto, com os nomes das propriedades obrigatórias, por exemplo required: [numero, classe]. O required booleano existe em Parameter e em Request Body, mas não marca propriedades dentro de um schema.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Swagger UI gera, a partir de um documento OpenAPI, uma página de documentação interativa em que é possível preencher parâmetros e enviar requisições à API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Swagger UI é uma aplicação web que lê o documento e lista operações, parâmetros, esquemas e respostas. O recurso Try it out permite preencher valores e enviar a requisição ao servidor declarado, mostrando a resposta obtida.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Swagger Editor funciona como servidor de aplicação que hospeda a API descrita, dispensando a implantação do serviço em produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Swagger Editor serve para escrever documentos OpenAPI em YAML ou JSON, validando a estrutura e exibindo pré-visualização. Ele não executa a API: o serviço continua precisando ser implementado e implantado em um servidor.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o Try it out do Swagger UI aponta para o servidor de produção, executar por ele uma operação DELETE apenas simula a exclusão, sem efeito sobre os dados reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Try it out envia uma requisição HTTP verdadeira ao servidor configurado em servers. Se ele for o de produção e a credencial permitir, o DELETE apaga o recurso de fato. Por isso muitos órgãos restringem ou desligam o Swagger UI em produção.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O OpenAPI Generator surgiu como bifurcação comunitária do Swagger Codegen e, como ele, gera clientes e esqueletos de servidor a partir de um documento OpenAPI.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em 2018 parte dos colaboradores criou o OpenAPI Generator como fork do Swagger Codegen. Os dois leem o contrato e produzem SDKs de cliente, stubs de servidor e documentação em diversas linguagens, sem escrever a regra de negócio.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na abordagem design-first, o contrato da API é escrito antes do código e funciona como fonte da verdade para a implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No design-first (também chamado contract-first), a equipe desenha e revisa o documento OpenAPI primeiro; consumidores podem começar com mocks e o código é feito para cumprir esse contrato. No code-first, ao contrário, o documento é derivado do código.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com o springdoc-openapi numa aplicação Spring Boot e sem configuração adicional, o documento OpenAPI em formato JSON fica disponível, por padrão, no caminho /v3/api-docs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O springdoc publica o documento em /v3/api-docs (JSON) e /v3/api-docs.yaml (YAML), e o Swagger UI em /swagger-ui.html. Esses caminhos podem ser alterados pelas propriedades springdoc.api-docs.path e springdoc.swagger-ui.path.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No springdoc-openapi, é a anotação @Parameter(required = true) que faz o Spring rejeitar, com erro 400, requisições que omitam o valor, o que dispensa Bean Validation e outras verificações no código.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As anotações do pacote io.swagger.v3.oas.annotations só alimentam o documento gerado. A rejeição de entrada ausente ou inválida vem do próprio Spring (regras de @RequestParam, @PathVariable) e da validação, como Bean Validation; documentar não substitui validar.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O springdoc-openapi só consegue produzir o documento OpenAPI se cada controlador e cada método estiverem anotados com @Tag e @Operation.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mesmo sem anotações Swagger, o springdoc examina os mapeamentos do Spring (@RestController, @GetMapping, @PathVariable, tipos de retorno) e gera caminhos, parâmetros e esquemas. @Tag e @Operation são opcionais e servem para enriquecer o documento com textos e agrupamentos.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento cuja primeira linha é swagger: \"2.0\" segue a versão 2.0 da especificação, anterior à OpenAPI 3.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No formato 2.0 o campo de versão se chama swagger e tem o valor \"2.0\"; a partir da 3.0, o campo passou a ser openapi, com valores como 3.0.3 ou 3.1.0. Campos como host, basePath e definitions também denunciam o formato antigo.",
+      "section": "5. Swagger 2.0 x OpenAPI 3, versionamento e contrato",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na OpenAPI 3.1, o campo paths deixou de ser obrigatório, desde que o documento contenha ao menos um entre paths, components e webhooks.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na 3.0, paths era obrigatório. A 3.1 passou a aceitar documentos que só tragam componentes reutilizáveis ou só descrevam webhooks, exigindo ao menos um desses três campos, além de openapi e info.",
+      "section": "5. Swagger 2.0 x OpenAPI 3, versionamento e contrato",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Renomear um campo existente na resposta de uma operação já utilizada por outros sistemas é, em regra, mudança compatível, porque o dado continua sendo enviado, apenas com outro nome.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Para o consumidor, renomear equivale a remover o campo antigo e criar um novo: o cliente que lê o nome anterior deixa de encontrá-lo e quebra. A saída usual é publicar nova versão, manter a antiga marcada como deprecated e dar prazo para migração.",
+      "section": "5. Swagger 2.0 x OpenAPI 3, versionamento e contrato",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa de um formato padronizado, legível por máquina e independente de linguagem para descrever caminhos, parâmetros e respostas de sua API HTTP. O que atende a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A OpenAPI Specification, escrita em JSON ou YAML.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O WSDL, que descreve as operações de serviços SOAP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O protocolo HTTP, que transporta as requisições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Swagger UI, que exibe a documentação no navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um arquivo de log com as chamadas já feitas à API.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A OpenAPI Specification é justamente o padrão para descrever APIs HTTP em JSON ou YAML. B descreve serviços SOAP, não APIs HTTP em geral; C apenas transporta mensagens; D é ferramenta que lê a descrição, não o formato; E registra o passado e não é contrato.",
+      "section": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre a relação histórica entre Swagger e OpenAPI, assinale a afirmação correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Swagger é o nome que a especificação recebeu a partir da versão 3.0.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A OpenAPI Initiative criou o padrão do zero em 2017, sem qualquer relação com o Swagger.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A especificação Swagger foi doada à OpenAPI Initiative; a 2.0 equivale à OpenAPI 2.0.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "OpenAPI é o nome comercial do Swagger UI mantido pela SmartBear.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Swagger e OpenAPI são especificações concorrentes e incompatíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A especificação Swagger foi doada em 2015 à OpenAPI Initiative, e a versão 2.0 é chamada também de OpenAPI 2.0. A inverte a história (OpenAPI é o nome a partir da 3.0); B nega a origem; D confunde especificação com ferramenta; E ignora que são o mesmo padrão em fases diferentes.",
+      "section": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ana publicou o documento OpenAPI de sua API, declarando que POST /peticoes exige token bearer. Quanto ao efeito desse documento, ele",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "bloqueia sozinho as chamadas feitas sem token.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "descreve a exigência, que o servidor precisa aplicar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "substitui o código do controlador da operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "criptografa as requisições enviadas à operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "dispensa testes, já que o servidor passa a obedecer ao contrato.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O documento OpenAPI informa o requisito de segurança aos consumidores e às ferramentas, mas quem verifica o token e recusa a chamada é o servidor. A e E atribuem ao documento poder de execução; C confunde descrição com implementação; D mistura documentação com criptografia de transporte, papel do HTTPS.",
+      "section": "1. Swagger, OpenAPI e o problema do contrato de API",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere o início de um documento:\n\nopenapi: 3.0.3\ninfo:\n  title: API de Processos\n  version: 1.4.0\n\nO campo que informa a versão da especificação seguida é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "o campo openapi, com o valor 3.0.3.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "o campo info.version, valor 1.4.0.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "o campo info.title, que nomeia o padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "o campo servers, onde se declara a versão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "o campo paths, pela primeira operação listada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O campo raiz openapi diz qual versão da especificação o documento segue. B é a versão do contrato da própria API, dada pela equipe; C é o nome da API; D lista URLs dos servidores; E reúne as operações e não carrega versão da especificação.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um documento OpenAPI 3, onde se definem esquemas de dados reutilizáveis que serão referenciados por $ref em várias operações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em definitions, no objeto raiz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em components.schemas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Em info.schemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em servers, junto às URLs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em cada resposta, sem reaproveitamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Na OpenAPI 3, os esquemas reutilizáveis ficam em components.schemas e são referenciados como '#/components/schemas/Nome'. A descreve o Swagger 2.0; C não existe; D é lugar de URLs; E nega a reutilização, que é exatamente o papel de components.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Carla documenta a chamada GET /processos/{numero}?incluirPartes=true, enviada com o cabeçalho X-Tribunal. Os valores de in para numero, incluirPartes e X-Tribunal são, respectivamente,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "path, query e header.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "query, path e header.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "path, body e cookie.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "body, query e header.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "path, query e cookie.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O trecho entre chaves no caminho é parâmetro path; o que vem depois de ? é query; o cabeçalho HTTP é header. B inverte os dois primeiros; C e D usam body, que no OpenAPI 3 não é valor de in (o corpo vai em requestBody); E troca header por cookie.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o objeto raiz de um documento OpenAPI 3.0, assinale a opção correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "servers é obrigatório e deve listar ao menos duas URLs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "info exige title e version, e paths é obrigatório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "components é obrigatório e precisa conter securitySchemes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "security é obrigatório e deve exigir OAuth 2.0.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "tags é obrigatório para que as operações sejam válidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Na versão 3.0 são obrigatórios openapi, info (com title e version) e paths. servers é opcional (omitido, presume-se o servidor relativo /); components, security e tags também são opcionais, e nenhum mecanismo de segurança específico é imposto.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento OpenAPI 3 define components.securitySchemes.chaveApi (type: apiKey, in: header, name: X-API-Key), mas nem o objeto raiz nem as operações possuem o campo security. Nesse cenário,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "todas as operações passam a exigir a chave automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "o esquema fica só definido e não é exigido em operação alguma.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "o documento é inválido, pois apiKey só pode ir em query.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "a chave passa a ser exigida só nas operações POST e PUT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "o Swagger UI passa a bloquear todas as chamadas feitas sem a chave informada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Esquemas em components só passam a valer quando exigidos em security, global ou por operação. A presume aplicação automática; C erra, pois apiKey aceita header, query ou cookie; D inventa regra por método; E atribui ao Swagger UI um bloqueio que ele não faz.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na OpenAPI 3.1, cujo Schema Object segue o JSON Schema 2020-12, qual declaração representa uma propriedade de texto que também aceita nulo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "type: [string, 'null']",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "type: string-or-null",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "nullable: required",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "type: string, optional: null",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "in: null",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. Alinhada ao JSON Schema 2020-12, a 3.1 expressa nulo como tipo, numa lista de tipos. A forma nullable: true era da 3.0, e C ainda usa valor sem sentido; B e D inventam sintaxe; E confunde esquema com a localização de parâmetros.",
+      "section": "2. Estrutura do documento OpenAPI 3",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Diego quer escrever um documento OpenAPI em YAML vendo os erros de estrutura acusados enquanto digita e uma pré-visualização ao lado. A ferramenta mais adequada é o",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Swagger Editor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Swagger Codegen.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Springfox.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eureka Server.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Maven Surefire.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O Swagger Editor existe para escrever e validar documentos OpenAPI com pré-visualização. B gera código a partir de um documento pronto; C é biblioteca Spring legada que gera documento do código; D é registro de serviços do Spring Cloud; E executa testes no Maven.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ferramenta da família Swagger cuja finalidade principal é gerar clientes (SDKs) e esqueletos de servidor a partir de um documento OpenAPI é o",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Swagger UI.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Swagger Editor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Swagger Codegen.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "OpenAPI Initiative.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JSON Schema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O Swagger Codegen lê o contrato e gera código de cliente, stubs de servidor e documentação. A exibe e testa; B escreve e valida; D é a organização que mantém a especificação, não uma ferramenta; E é o vocabulário de validação usado nos esquemas.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de gerar um esqueleto de servidor Java com o OpenAPI Generator, a conduta adequada da equipe é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "considerar a API pronta, porque a regra de negócio também foi gerada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "implementar a regra de negócio fora do código que será regenerado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "apagar o documento OpenAPI, que deixa de ter utilidade após a geração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "editar só o código gerado e nunca mais regenerá-lo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "publicar o Swagger UI no lugar do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O stub traz interfaces e modelos, não a lógica; implementá-la em classes separadas evita perder o trabalho quando o código for regenerado após mudanças no contrato. A superestima o gerador; C descarta a fonte da verdade; D congela o contrato; E confunde documentação com serviço.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o Swagger UI, assinale a afirmação correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gera esqueletos de servidor em várias linguagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Try it out envia requisições reais ao servidor declarado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Funciona sem documento OpenAPI, lendo o banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui o servidor da API quando este está fora do ar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impede, por si só, o acesso à API de usuários não autenticados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O Swagger UI renderiza o documento e, no Try it out, dispara chamadas HTTP verdadeiras ao servidor de servers. A é papel dos geradores; C erra porque ele depende do documento; D erra porque, sem a API no ar, a chamada falha; E erra porque ele não faz controle de acesso.",
+      "section": "3. Swagger UI, Swagger Editor, Codegen e OpenAPI Generator",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na abordagem code-first de documentação de APIs,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "o contrato é escrito antes e o código é gerado dele.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "o documento OpenAPI é gerado a partir do código da API.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "não existe documento OpenAPI em nenhuma etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "o Swagger Editor passa a ser obrigatório para escrever o código da API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "o consumidor escreve o servidor a partir do mock.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Em code-first o código nasce primeiro e o contrato é derivado dele, como faz o springdoc-openapi. A descreve o design-first; C erra porque o documento existe, só que gerado; D não se aplica, pois ninguém precisa escrever o YAML; E inverte papéis entre consumidor e provedor.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Eduardo adicionou o starter springdoc-openapi-starter-webmvc-ui a uma aplicação Spring Boot 3 e não alterou nenhuma propriedade. Em que endereço padrão ele abre o Swagger UI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "/swagger-ui.html",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "/v3/api-docs",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "/actuator/swagger",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "/openapi/editor",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "/api/swagger.json",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O springdoc serve a interface em /swagger-ui.html, que redireciona para /swagger-ui/index.html. B é onde fica o documento JSON, não a interface; C, D e E não são endereços padrão do springdoc, e a interface pode ser movida pela propriedade springdoc.swagger-ui.path.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No springdoc-openapi, um endpoint interno de manutenção não deve aparecer no documento gerado. Qual anotação cumpre esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Hidden",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "@Operation(hidden = false)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@Tag",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@Schema",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@ApiResponse",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. @Hidden, aplicada à classe ou ao método, retira o item do documento. B, com hidden = false, mantém a operação visível; C agrupa operações; D documenta modelos de dados; E descreve uma resposta da operação. Esconder do documento não protege o endpoint, que continua acessível.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto legado com Springfox usa @Api na classe e @ApiOperation nos métodos, do pacote io.swagger.annotations. Na migração para o springdoc-openapi, as anotações correspondentes de io.swagger.v3.oas.annotations são, respectivamente,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Tag e @Operation.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "@Schema e @Hidden.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@Parameter e @Tag.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@Operation e @ApiResponse.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@OpenAPI e @Path.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. @Api, que agrupava e descrevia o controlador, corresponde a @Tag; @ApiOperation, que descrevia o método, corresponde a @Operation. B mistura modelo e ocultação; C troca níveis; D desloca @Operation para a classe; E cita nomes que não são as anotações de agrupamento e operação desse pacote.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num DTO, Eduardo escreveu @Schema(description = \"CPF da parte\", example = \"00000000000\") sobre o campo cpf. Sobre essa anotação, é correto dizer que ela",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "enriquece o esquema do documento, sem validar o valor recebido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "rejeita automaticamente, com erro 400, o CPF com dígito verificador inválido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "torna o campo obrigatório em todas as operações da API.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "criptografa o campo antes de gravá-lo no banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "faz o springdoc deixar de gerar o restante do documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. @Schema acrescenta descrição e exemplo ao esquema publicado. B atribui à documentação uma validação que exigiria Bean Validation ou regra própria; C confunde descrição com obrigatoriedade; D mistura documentação e criptografia; E inventa efeito colateral inexistente.",
+      "section": "4. Design-first, code-first e springdoc-openapi no Spring Boot",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao converter um documento Swagger 2.0 para OpenAPI 3, os campos host, basePath e schemes dão lugar a",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "servers.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "components.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "definitions.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "securityDefinitions.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "info.contact.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. No OpenAPI 3, o endereço da API é declarado como lista de URLs em servers, o que permite vários ambientes e variáveis. B reúne peças reutilizáveis; C e D são campos do próprio Swagger 2.0; E guarda dados de contato do responsável pela API.",
+      "section": "5. Swagger 2.0 x OpenAPI 3, versionamento e contrato",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Swagger 2.0, o corpo de uma requisição POST era declarado como parâmetro in: body. No OpenAPI 3, ele passa a ser declarado em",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "requestBody, com content por tipo de mídia.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "parameters, mantendo in: body e schema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "components.bodies, campo exclusivo dele.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "responses, sob o código de status 201.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "headers, num cabeçalho Content-Body.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A 3.0 criou o requestBody, com content separado por tipo de mídia (application/json, por exemplo). B repete a forma antiga, que deixou de valer; C cita campo inexistente (o reutilizável é requestBodies); D é lugar de respostas; E inventa cabeçalho.",
+      "section": "5. Swagger 2.0 x OpenAPI 3, versionamento e contrato",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fernanda precisa mudar o tipo do campo classe, de string para objeto, numa API v1 consumida por vários órgãos. Qual providência preserva os consumidores atuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar o tipo na v1 e subir apenas o info.version.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar a mudança numa v2 e manter a v1, marcada como deprecated, por um prazo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alterar o tipo na v1, já que mudança de tipo é compatível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover a v1 imediatamente e avisar os órgãos depois.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar a primeira linha do documento para openapi: 3.1.0.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Mudar o tipo é incompatível; versões paralelas com aviso de depreciação dão tempo de migração. A só troca o rótulo do contrato, sem proteger quem consome; C classifica errado a mudança; D quebra todos de surpresa; E muda a versão da especificação, não a API.",
+      "section": "5. Swagger 2.0 x OpenAPI 3, versionamento e contrato",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OpenAPI Specification v3.1.0",
+      "publisher": "OpenAPI Initiative",
+      "reference": "Objetos OpenAPI, Info, Server, Paths, Operation, Parameter, Request Body, Components, Schema, Security Scheme",
+      "url": "https://spec.openapis.org/oas/v3.1.0",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenAPI Specification v3.0.3",
+      "publisher": "OpenAPI Initiative",
+      "reference": "Estrutura do documento e campos obrigatórios na versão 3.0",
+      "url": "https://spec.openapis.org/oas/v3.0.3",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenAPI Specification 2.0 (Swagger 2.0)",
+      "publisher": "OpenAPI Initiative",
+      "reference": "Campos swagger, host, basePath, definitions, securityDefinitions",
+      "url": "https://spec.openapis.org/oas/v2.0",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What Is OpenAPI? / Swagger tools documentation",
+      "publisher": "SmartBear (swagger.io)",
+      "reference": "Relação entre Swagger e OpenAPI, Swagger UI, Swagger Editor e Swagger Codegen",
+      "url": "https://swagger.io/docs/specification/about/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "springdoc-openapi",
+      "publisher": "springdoc.org",
+      "reference": "Dependências, endereços padrão, propriedades e anotações",
+      "url": "https://springdoc.org/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "OpenAPI Generator",
+      "publisher": "OpenAPI Generator project",
+      "reference": "Geradores de clientes, servidores e documentação; origem como fork do Swagger Codegen",
+      "url": "https://openapi-generator.tech/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}
