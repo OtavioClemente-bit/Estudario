@@ -1,0 +1,1924 @@
+{
+  "id": "informatica.spring-batch-jobs-steps",
+  "subject": "Informática",
+  "title": "Spring Batch: organização de trabalhos e etapas de processamento",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Spring Batch: jobs e steps",
+    "Organização de jobs no Spring Batch",
+    "Etapas de processamento no Spring Batch",
+    "Trabalhos batch com Spring Batch",
+    "Fluxos de jobs e steps em Java",
+    "Configuração de jobs e etapas batch",
+    "Spring Batch Job e Step",
+    "Execução e retomada de jobs Spring Batch",
+    "Fluxos e interoperabilidade: spring Batch: organização de trabalhos e etapas de processamento (jobs e steps)."
+  ],
+  "scope": {
+    "covers": "Organização de trabalhos e etapas no Spring Batch: Job, Step, JobInstance, JobExecution, StepExecution e JobParameters; JobLauncher e JobRepository; etapas orientadas a chunk e tasklet; ItemReader, ItemProcessor e ItemWriter; transações e pontos de commit; encadeamento sequencial, transições por status, decider, Flow, Split e JobStep; persistência de metadados, reinício e retomada; startLimit e allowStartIfComplete; configuração Java e XML nos conceitos estáveis.",
+    "excludes": "Catálogo completo de leitores e gravadores, particionamento e execução distribuída, configuração de infraestrutura de Spring Boot, agendamento externo, tuning de desempenho e detalhes de versões não necessários para compreender Job e Step."
+  },
+  "theoryTitle": "Como o Spring Batch organiza e executa trabalhos",
+  "chapters": [
+    {
+      "title": "1. Do trabalho lógico à execução registrada",
+      "markdown": "### O problema que este assunto resolve\n\nUm processamento em lote costuma combinar várias operações: carregar dados, validar resultados e produzir uma saída. O Spring Batch organiza esse roteiro como um **Job**, composto por uma ou mais **Steps**. O Job representa o trabalho lógico; cada Step executa uma unidade de processamento que pode ser registrada, monitorada e retomada.\n\n> **Siglas e termos deste capítulo**\n> - **Job**: definição do trabalho batch, normalmente composta por etapas e regras de fluxo.\n> - **Step**: unidade de execução dentro de um Job.\n> - **JobParameters**: valores que identificam e parametrizam uma execução, como data de referência e arquivo de entrada.\n> - **JobInstance**: ocorrência lógica de um Job definida pelo nome do Job e pelos parâmetros identificadores.\n> - **JobExecution**: tentativa concreta de executar uma JobInstance; uma mesma instância pode ter mais de uma tentativa quando reiniciada.\n> - **JobRepository**: repositório de metadados que registra instâncias e execuções de Jobs e Steps.\n\n### Identidade, tentativa e persistência\n\nConsidere um `fechamentoDiario` executado para a data de referência 18/11. O nome do Job e o conjunto de parâmetros identificadores determinam a instância lógica daquele fechamento. Se a execução falhar e for reiniciada com os mesmos parâmetros, há uma nova tentativa, isto é, outro `JobExecution` da mesma instância. Uma data diferente, quando usada como parâmetro identificador, representa outra instância lógica. Parâmetros não identificadores podem fornecer configuração sem criar por si sós uma instância distinta.\n\nO `JobLauncher` inicia um Job com seus parâmetros. Ele usa o `JobRepository` para obter ou criar a execução registrada. Durante a execução, o JobRepository recebe os estados e metadados das execuções do Job e de cada Step. Isso permite consultar o que ocorreu e apoiar reinícios. O repositório não é o mecanismo que realiza a regra de negócio nem substitui os dados de saída: ele guarda metadados de execução.\n\n| Conceito | O que responde | Exemplo no fechamento diário |\n| --- | --- | --- |\n| Job | Qual roteiro será executado? | `fechamentoDiario` |\n| JobInstance | Qual rodada lógica? | Fechamento da data de referência |\n| JobExecution | Qual tentativa da rodada? | Primeira tentativa ou reinício |\n| StepExecution | Qual execução de uma etapa? | Tentativa da etapa de importar lançamentos |\n| JobRepository | Onde ficam os metadados? | Registro de estado, início, fim e contexto |\n\n### Como cai na prova\n\n- Se o enunciado fala da **definição do fluxo**, procure Job; para a unidade executável interna, Step.\n- Não confunda instância lógica com tentativa: um reinício pode criar novo JobExecution para a mesma JobInstance.\n- JobRepository persiste metadados de execução; não é leitor, processador, gravador nem banco de negócio por definição.\n- JobLauncher é a porta de entrada para lançar um Job com JobParameters; ele não descreve as etapas do fluxo."
+    },
+    {
+      "title": "2. O que uma Step executa: chunk e tasklet",
+      "markdown": "### A unidade de trabalho\n\nUma Step concentra a execução de uma tarefa do Job e seus colaboradores. Em um processamento orientado a itens, o padrão **chunk** lê itens, opcionalmente os transforma e grava um grupo de itens dentro de uma unidade transacional. Em uma configuração típica, `ItemReader` fornece itens, `ItemProcessor` aplica transformação ou validação e `ItemWriter` grava a saída. O processador é opcional: um item pode seguir do leitor diretamente ao gravador.\n\n> **Siglas e termos deste capítulo**\n> - **Chunk**: grupo de itens tratado como unidade de processamento e commit.\n> - **ItemReader**: fornece itens de entrada, em geral um por vez.\n> - **ItemProcessor**: transforma ou valida um item; pode indicar que ele não deve ser escrito.\n> - **ItemWriter**: recebe itens processados em lote e produz a saída.\n> - **Tasklet**: estratégia de Step que executa uma tarefa, como uma operação única ou um laço controlado pelo próprio trabalho.\n> - **PlatformTransactionManager**: componente Spring que controla transações da etapa.\n\n### O limite do chunk e o commit\n\nO tamanho do chunk define quantos itens são processados antes do commit daquela unidade. Se for configurado um chunk de 50, o Step reúne o trabalho do grupo e, ao concluir a unidade com sucesso, confirma a transação correspondente. O commit periódico limita a quantidade de trabalho transacional pendente; não significa que o Job inteiro só confirme no final.\n\nUma Step pode ser orientada a chunk ou usar um Tasklet. O Tasklet é útil quando a tarefa não se encaixa naturalmente em leitura e gravação item a item, como limpar uma área de preparação ou executar uma operação controlada. Não significa que o Job deixou de ter Steps: o Tasklet é uma forma de implementar a tarefa dentro de uma Step.\n\nO gerenciador de transações coordena a transação de processamento. A documentação alerta para um caso de consistência: se o repositório de metadados e o banco de processamento não participarem da mesma transação, uma falha entre a gravação do resultado e a atualização do metadado pode levar à reexecução e duplicidade. Idempotência ou coordenação transacional apropriada ajudam a lidar com esse risco.\n\n| Componente | Papel em uma Step de importação |\n| --- | --- |\n| ItemReader | Lê o próximo registro da origem |\n| ItemProcessor | Valida, converte ou filtra o registro |\n| ItemWriter | Persiste ou envia o grupo de itens |\n| TransactionManager | Abre e confirma a transação da unidade |\n| JobRepository | Registra execução, estado e contexto |\n\n### Como cai na prova\n\n- Chunk associa grupo de itens e ponto de commit; não é uma coleção de Jobs.\n- ItemProcessor pode ser omitido, e um item rejeitado pela lógica de processamento pode não chegar ao gravador.\n- Tasklet e chunk são estilos de execução de uma Step, não níveis acima do Job.\n- O intervalo de commit não é prazo nem número máximo de Steps."
+    },
+    {
+      "title": "3. Encadeamento, decisões e composição de fluxos",
+      "markdown": "### Do primeiro passo ao próximo caminho\n\nO Job define como as Steps se sucedem. No caso simples, a configuração inicia uma Step e encadeia as seguintes com `next`: importar, validar e consolidar. A execução sequencial é adequada quando uma etapa depende do resultado anterior. O Spring Batch também permite declarar transições com base no status de saída, para encaminhar sucessos e falhas a caminhos diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **ExitStatus**: resultado de fluxo produzido por uma Step, usado para avaliar transições.\n> - **BatchStatus**: estado de execução mantido pelo framework, como iniciado, concluído ou falho.\n> - **JobExecutionDecider**: componente que toma uma decisão de fluxo a partir do contexto da execução.\n> - **Flow**: sequência ou composição nomeada de Steps e transições que pode ser reutilizada.\n> - **Split**: composição de fluxos independentes que podem ser executados em paralelo.\n> - **JobStep**: Step que lança outro Job, criando dependência entre trabalhos.\n\n### Transições e caminhos alternativos\n\nAs transições podem reagir a resultados como `COMPLETED` e `FAILED`. Por exemplo, uma Step de validação pode seguir para a carga quando concluída, ou direcionar a falha para um caminho de encerramento controlado. A correspondência da transição é feita pelo status de saída e pelas regras configuradas; a palavra `next` em um encadeamento simples não deve ser confundida com uma decisão condicional.\n\nQuando a escolha depende de lógica além do estado de uma Step, um `JobExecutionDecider` pode selecionar o próximo caminho. Para reaproveitar um roteiro em mais de um Job, declara-se um Flow e o Job o incorpora. Já Split agrupa fluxos separados, potencialmente concorrentes; só é apropriado quando esses caminhos podem ocorrer sem dependência sequencial que exija aguardar um resultado intermediário.\n\nUm JobStep é diferente de simplesmente reutilizar um Flow: ele inicia uma execução de outro Job, com parâmetros que podem ser extraídos do contexto da Step. Isso ajuda a modularizar processos maiores e monitorar dependências entre Jobs.\n\n| Necessidade | Recurso de fluxo |\n| --- | --- |\n| A→B→C em sequência | `start` e `next` |\n| Escolher caminho conforme resultado | Transições por status ou Decider |\n| Reutilizar sequência de Steps | Flow |\n| Executar ramos independentes em paralelo | Split com fluxos |\n| Lançar outro Job como parte do roteiro | JobStep |\n\n### Como cai na prova\n\n- `next` descreve encadeamento; uma transição por status trata resultados diferentes.\n- Decider representa lógica decisória explícita, não uma Step de leitura/gravação.\n- Split permite concorrência entre fluxos; não transforma automaticamente etapas dependentes em paralelas com segurança.\n- JobStep executa outro Job; Flow reutiliza um fluxo de Steps dentro da composição."
+    },
+    {
+      "title": "4. Metadados, falhas e reinício de uma execução",
+      "markdown": "### Retomar com contexto\n\nO registro persistido de JobExecution, StepExecution e contexto de execução permite ao Spring Batch distinguir o que foi iniciado, concluído ou interrompido. Em um reinício da mesma JobInstance, Steps concluídas com sucesso são normalmente ignoradas. Uma etapa que falhou pode ser executada novamente conforme a política de reinício e o estado persistido. Assim, retomar não é simplesmente repetir cegamente todo o Job.\n\n> **Siglas e termos deste capítulo**\n> - **StepExecution**: tentativa concreta de executar uma Step, associada a uma JobExecution.\n> - **ExecutionContext**: estado que pode ser persistido para apoiar a continuação do processamento.\n> - **Restart**: nova tentativa de uma JobInstance já executada, permitida pela configuração e pelo estado.\n> - **Idempotência**: propriedade de repetir uma operação sem produzir efeitos duplicados indevidos.\n> - **startLimit**: limite de quantas vezes uma Step pode ser iniciada para a instância.\n> - **allowStartIfComplete**: opção que permite iniciar de novo uma Step que já terminou com sucesso.\n\n### Exceções às regras usuais\n\nUma Step concluída costuma ser pulada ao reiniciar o Job. Se a rotina precisa sempre rodar novamente, por exemplo uma validação ou limpeza que deve ocorrer em cada tentativa, `allowStartIfComplete(true)` altera esse comportamento. Essa opção deve refletir a semântica da tarefa: repetir a etapa pode ser correto para uma validação, mas perigoso para uma operação que duplique lançamentos.\n\n`startLimit` controla quantas vezes uma Step pode ser iniciada. Atingir o limite pode impedir uma tentativa adicional e gerar erro de limite excedido; não é um número de itens nem o intervalo de commit. O limite é uma proteção operacional para etapas cuja repetição requer atenção.\n\nO reinício depende de identidade e estado coerentes. Alterar parâmetros identificadores pode criar outra JobInstance em vez de retomar a anterior. Por isso, ao desenhar uma operação reiniciável, identifique corretamente a rodada lógica, persista o estado necessário e projete efeitos externos para tolerar reexecuções quando não houver atomicidade comum entre metadados e dados de negócio.\n\n### Como cai na prova\n\n- Uma Step COMPLETED é normalmente ignorada no restart; `allowStartIfComplete` permite que ela rode outra vez.\n- `startLimit` regula partidas da Step, não quantidade de itens processados.\n- Execução reiniciável exige metadados e contexto úteis; reexecutar pode repetir efeitos se a etapa não for segura.\n- Parâmetros identificadores diferentes podem representar uma instância lógica nova, e não a continuação da anterior."
+    },
+    {
+      "title": "5. Configuração e leitura prática de um Job",
+      "markdown": "### A definição em código e em XML\n\nO Spring Batch admite configuração Java por builders e configuração XML pelo namespace batch. Nos dois estilos, a ideia permanece: declarar o Job com nome, repositório e fluxo de Steps; configurar cada Step com a estratégia de execução e seus colaboradores. Em Java, exemplos atuais usam `JobBuilder` e `StepBuilder`; em XML, elementos como `<job>`, `<step>`, `<tasklet>` e `<chunk>` expressam a composição. O namespace XML está depreciado na linha Spring Batch 6 e tem remoção prevista para a 7; para código novo, considere a configuração Java adequada à versão adotada.\n\n> **Siglas e termos deste capítulo**\n> - **Builder**: API fluente que constrói uma definição de Job ou Step.\n> - **Bean**: objeto gerenciado pelo contêiner Spring e injetado como dependência.\n> - **Validator de parâmetros**: regra que verifica parâmetros obrigatórios e combinações antes da execução.\n> - **Identificador de Step**: nome estável que permite distinguir unidades e registrar execuções.\n> - **Concorrência**: execução simultânea de fluxos ou tarefas, sujeita a dependências e segurança dos componentes.\n\n### Exemplo conceitual\n\nUm Job de importação pode ter `lerArquivo`, `validarRegistros` e `publicarResumo`. O Job é configurado para iniciar a primeira Step e seguir para a próxima quando o resultado indicar conclusão. A primeira Step usa chunk com leitor de arquivo, processador de validação e gravador no banco; a última pode escrever o resumo. Um validador de JobParameters pode rejeitar a execução quando falta a data ou o caminho do arquivo.\n\nA estrutura declarada e a execução concreta são coisas diferentes. O bean Job descreve o trabalho, mas uma chamada de execução com parâmetros e o estado do repositório determinam a instância e a tentativa observadas. Também não se deve inferir que qualquer Split torna seguro compartilhar leitores, gravadores ou recursos: paralelismo exige analisar dependências, transações e concorrência dos colaboradores.\n\n### Como cai na prova\n\n- Em Java, JobBuilder compõe o Job; StepBuilder define uma Step e suas dependências.\n- JobParametersValidator valida parâmetros, não processa registros nem substitui o JobRepository.\n- Configurar fluxo paralelo não elimina a necessidade de avaliar concorrência e dependências.\n- XML e Java expressam os mesmos conceitos de composição, mas a situação do namespace XML depende da versão oficial usada."
+    }
+  ],
+  "summary": "No Spring Batch, um Job representa o trabalho lógico e é composto por Steps. O JobLauncher inicia o Job com JobParameters, enquanto o JobRepository persiste metadados de JobInstance, JobExecution, StepExecution e contexto. Uma Step pode processar itens em chunks com ItemReader, ItemProcessor opcional e ItemWriter, sob controle transacional, ou executar uma tarefa por Tasklet. O fluxo pode ser sequencial com next, condicional por status, decidido por JobExecutionDecider, reutilizado como Flow, dividido em ramos concorrentes com Split ou encadear outro Job por JobStep. Em reinícios, Steps concluídas normalmente são puladas; allowStartIfComplete permite repeti-las e startLimit limita partidas. A identidade dos parâmetros, o contexto persistido e a idempotência dos efeitos são essenciais para retomada segura. A configuração pode usar builders Java ou XML; o namespace XML foi depreciado no Spring Batch 6.",
+  "flashcards": [
+    {
+      "front": "Qual é a relação entre Job e Step?",
+      "back": "Job define o trabalho batch e seu fluxo; Step é uma unidade executável que compõe esse trabalho."
+    },
+    {
+      "front": "Para que serve JobLauncher?",
+      "back": "Para iniciar um Job com JobParameters, obtendo uma execução registrada pelo repositório."
+    },
+    {
+      "front": "O que o JobRepository persiste?",
+      "back": "Metadados de Jobs, instâncias, execuções, Steps e contextos necessários ao acompanhamento e reinício."
+    },
+    {
+      "front": "O que define uma JobInstance?",
+      "back": "O Job lógico e seus parâmetros identificadores, que representam uma rodada lógica."
+    },
+    {
+      "front": "Como JobExecution difere de JobInstance?",
+      "back": "JobInstance é a rodada lógica; JobExecution é uma tentativa concreta de executá-la."
+    },
+    {
+      "front": "Qual é o papel do StepExecution?",
+      "back": "Registrar uma execução concreta de uma Step dentro de uma execução de Job."
+    },
+    {
+      "front": "O que JobParameters pode conter?",
+      "back": "Valores como data de referência, caminho de entrada e outros parâmetros identificadores ou de configuração."
+    },
+    {
+      "front": "Qual é a função de ItemReader?",
+      "back": "Fornecer os itens de entrada à Step, geralmente um item por vez."
+    },
+    {
+      "front": "Qual é a função de ItemProcessor?",
+      "back": "Transformar ou validar um item antes da gravação; ele é opcional."
+    },
+    {
+      "front": "Qual é a função de ItemWriter?",
+      "back": "Receber os itens processados e gravar ou encaminhar a saída em grupo."
+    },
+    {
+      "front": "O que o tamanho do chunk controla?",
+      "back": "Quantos itens formam a unidade de processamento antes do commit transacional."
+    },
+    {
+      "front": "Quando uma Tasklet é adequada?",
+      "back": "Quando a Step executa uma tarefa que não se expressa naturalmente como leitura, processamento e gravação de itens."
+    },
+    {
+      "front": "Como next difere de uma transição por status?",
+      "back": "next encadeia a etapa seguinte; uma transição condiciona o caminho ao resultado da execução."
+    },
+    {
+      "front": "Para que serve JobExecutionDecider?",
+      "back": "Para escolher um caminho do fluxo com base em lógica decisória explícita."
+    },
+    {
+      "front": "O que é Flow?",
+      "back": "Um fluxo nomeado de Steps e transições que pode ser composto e reutilizado por Jobs."
+    },
+    {
+      "front": "O que Split permite?",
+      "back": "Compor fluxos independentes que podem ser executados concorrentemente."
+    },
+    {
+      "front": "O que faz JobStep?",
+      "back": "Executa outro Job como parte de um Job maior, com parâmetros derivados conforme configuração."
+    },
+    {
+      "front": "O que costuma ocorrer com uma Step concluída no restart?",
+      "back": "Ela é normalmente ignorada, salvo se allowStartIfComplete estiver habilitado."
+    },
+    {
+      "front": "Para que serve startLimit?",
+      "back": "Limitar quantas vezes uma Step pode ser iniciada; não limita itens nem commits."
+    },
+    {
+      "front": "Por que uma etapa reiniciável deve considerar idempotência?",
+      "back": "Porque uma falha entre a gravação do resultado e a persistência do metadado pode causar reexecução e efeitos duplicados."
+    }
+  ],
+  "tips": [
+    "Separe a rodada lógica (JobInstance) da tentativa concreta (JobExecution); essa distinção resolve muitas questões de reinício.",
+    "Desenhe o pipeline da Step como entrada, transformação opcional e saída: Reader → Processor → Writer.",
+    "Associe chunk ao grupo de itens e ao commit transacional, não à quantidade de Steps do Job.",
+    "Use next para sequência simples e transições ou Decider quando o caminho depende do resultado.",
+    "Lembre que Step COMPLETED é pulada no restart por padrão; verifique allowStartIfComplete quando a etapa deve repetir.",
+    "Ao avaliar paralelismo, verifique dependências de dados, transações e segurança concorrente dos componentes compartilhados."
+  ],
+  "traps": [
+    "Tratar JobExecution como sinônimo de JobInstance: uma instância lógica pode ter várias tentativas registradas.",
+    "Afirmar que ItemProcessor é obrigatório: a configuração de chunk pode enviar os itens do leitor diretamente ao gravador.",
+    "Dizer que Tasklet substitui Job ou Step: Tasklet é uma estratégia de execução dentro de uma Step.",
+    "Confundir Flow com JobStep: Flow compõe Steps reutilizáveis; JobStep lança outro Job.",
+    "Supor que toda Step concluída será repetida no reinício: o padrão é ignorá-la, a menos que a opção apropriada esteja ativa.",
+    "Confundir startLimit com tamanho do chunk: um limita partidas da Step, o outro define itens por unidade transacional."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que um reinício pode criar novo JobExecution sem criar outra JobInstance.",
+      "answer": "A JobInstance representa a rodada definida pelo Job e parâmetros identificadores; o reinício é uma nova tentativa concreta da mesma rodada."
+    },
+    {
+      "question": "Descreva o caminho de um item em uma Step orientada a chunk.",
+      "answer": "O ItemReader fornece o item, o ItemProcessor opcional o transforma ou valida e o ItemWriter recebe os itens para produzir a saída."
+    },
+    {
+      "question": "Que responsabilidade cabe ao JobRepository durante a execução?",
+      "answer": "Persistir e fornecer metadados de instâncias, execuções, Steps e contextos que apoiam monitoramento e retomada."
+    },
+    {
+      "question": "Quando escolher uma transição por status em vez de apenas next?",
+      "answer": "Quando o próximo caminho precisa variar conforme o resultado da etapa, como seguir para tratamento específico após uma falha."
+    },
+    {
+      "question": "Diferencie Flow, Split e JobStep.",
+      "answer": "Flow é um fluxo reutilizável; Split reúne fluxos independentes para possível execução paralela; JobStep inicia outro Job como etapa."
+    },
+    {
+      "question": "Qual é o efeito de allowStartIfComplete em uma Step concluída?",
+      "answer": "Permite que a Step seja iniciada novamente ao reiniciar o Job, embora o comportamento normal seja ignorá-la."
+    },
+    {
+      "question": "O que startLimit protege e o que ele não mede?",
+      "answer": "Limita o número de partidas de uma Step; não mede registros processados nem tamanho de chunk."
+    },
+    {
+      "question": "Por que separar transação do negócio e metadados pode causar duplicidade?",
+      "answer": "Uma falha entre confirmar a saída e registrar o estado pode levar a uma reexecução que repita efeitos; idempotência ou coordenação transacional mitigam o risco."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Instância lógica confundida com tentativa",
+      "summary": "JobInstance identifica a rodada por Job e parâmetros identificadores; JobExecution registra uma tentativa. Reiniciar pode criar nova execução sem mudar a instância."
+    },
+    {
+      "key": "e2",
+      "title": "Papéis do pipeline trocados",
+      "summary": "Reader fornece itens, Processor os transforma ou filtra, Writer grava a saída; Processor pode ser omitido."
+    },
+    {
+      "key": "e3",
+      "title": "Chunk, Tasklet e Step misturados",
+      "summary": "Chunk é processamento agrupado com commits; Tasklet implementa uma tarefa; ambos são estilos usados dentro de uma Step."
+    },
+    {
+      "key": "e4",
+      "title": "Composição e transição confundidas",
+      "summary": "next encadeia, status condiciona, Decider escolhe, Flow reutiliza, Split permite ramos concorrentes e JobStep lança outro Job."
+    },
+    {
+      "key": "e5",
+      "title": "Reinício sem considerar estado e repetição",
+      "summary": "Steps concluídas normalmente são puladas; allowStartIfComplete altera isso; startLimit conta partidas; efeitos repetidos exigem estratégia segura."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No modelo do Spring Batch, um Job é composto por unidades chamadas Steps, que executam partes do trabalho batch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Job descreve o trabalho e seu fluxo; Steps são as unidades de execução que o compõem. A definição pode combinar várias etapas em sequência ou em outros arranjos de fluxo.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JobExecution representa a definição lógica do processamento, enquanto JobInstance representa cada tentativa de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. JobInstance é a rodada lógica identificada pelo Job e pelos parâmetros identificadores; JobExecution é uma tentativa concreta dessa rodada.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JobLauncher inicia um Job com parâmetros, e JobRepository mantém metadados das instâncias e execuções.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O launcher solicita a execução com JobParameters e o repositório oferece persistência dos metadados usados pelo framework.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando há reinício de uma JobInstance, o framework necessariamente apaga o histórico anterior e inicia outra instância lógica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O reinício aproveita o histórico registrado e representa outra JobExecution da instância lógica existente, se a configuração permitir.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um parâmetro identificador diferente pode fazer com que a solicitação corresponda a uma nova JobInstance, em vez de retomar a rodada anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A identidade lógica depende dos parâmetros identificadores; mudar um deles pode distinguir uma nova rodada do Job.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um processamento de itens configurado com chunk, qual descrição apresenta corretamente o percurso típico dos dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Writer busca a origem, o Reader valida os registros e o Processor confirma a transação ao final do Job.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Reader fornece itens, o Processor pode transformá-los e o Writer recebe itens para produzir a saída.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O Processor lê diretamente os parâmetros do Job, e o Repository encaminha cada item ao banco de destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Repository fornece registros, o Launcher os transforma e cada Step grava um único item sem leitor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Launcher lê a entrada, o Writer calcula as regras de negócio e o Reader registra o resultado persistido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Reader fornece os itens, o Processor é o ponto opcional de transformação ou validação e o Writer recebe a saída em grupos. Launcher e Repository cuidam da execução e dos metadados, não do percurso dos itens de negócio.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Step de chunk pode ser configurada sem ItemProcessor, encaminhando os itens do leitor diretamente ao gravador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O processador é opcional; quando não há transformação intermediária, o item lido pode seguir ao Writer. A etapa continua sendo orientada a itens mesmo sem essa operação no meio do pipeline.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Configurar um tamanho de chunk define quantos itens são reunidos antes do commit da unidade transacional correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O intervalo de chunk determina o grupo processado antes do commit, e não a quantidade de etapas do Job. A configuração organiza commits periódicos para a unidade de processamento de itens.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Tasklet é uma alternativa de implementação de Step para uma tarefa que não precisa seguir o processamento item a item em chunks.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Tasklet executa uma tarefa dentro da Step e pode atender operações como limpeza ou ação controlada que não se modela naturalmente como fluxo de itens. A Step continua inserida no Job e sujeita ao fluxo e ao registro da execução.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o JobRepository e o banco de negócio usam transações separadas, uma falha entre a gravação do resultado e a atualização do metadado pode permitir reexecução e duplicidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação alerta que os dados processados podem ter sido confirmados antes de o repositório registrar o avanço. Idempotência ou coordenação transacional podem mitigar os efeitos repetidos.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário combina melhor com uma Tasklet em vez de um pipeline de itens por chunk?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformar cada linha lida, mantendo um item correspondente e gravando grupos de registros no destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar uma rotina única que limpa uma área temporária antes da carga principal do Job.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Validar cada registro de entrada com regras individuais e encaminhar somente os válidos ao Writer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ler muitos arquivos em sequência, convertendo cada registro e gravando lotes no banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reunir milhares de itens em grupos transacionais com um limite fixo de commit por chunk.",
+          "correct": false
+        }
+      ],
+      "explanation": "Limpar uma área temporária é uma tarefa que pode ser executada como ação de uma Step via Tasklet. Os demais cenários descrevem naturalmente leitura, processamento e gravação de itens em chunks.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao encadear Steps com next, a configuração expressa um fluxo sequencial simples; a decisão baseada no resultado requer transições apropriadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. next configura sequência; caminhos alternativos dependentes do resultado são declarados por transições ou lógica de decisão.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um JobExecutionDecider pode selecionar o próximo caminho com base em uma regra decisória explícita do fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Decider permite escolher uma transição a partir de lógica de decisão, complementando o encadeamento linear. Ele pode avaliar dados da execução para determinar qual caminho do fluxo deve ocorrer.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Flow é utilizado para dividir fluxos independentes em execução paralela, e Split é utilizado para reutilizar uma sequência dentro de vários Jobs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Flow representa uma sequência ou composição reutilizável; Split reúne fluxos separados que podem executar em paralelo.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JobStep permite que um Job maior lance outro Job como uma de suas etapas, com parâmetros obtidos conforme configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. JobStep representa uma etapa que executa outro Job; um extrator pode converter valores do contexto em parâmetros do Job lançado.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transição condicionada a COMPLETED ou FAILED pode encaminhar o fluxo conforme o resultado da Step anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As transições do fluxo podem reagir ao status de saída da Step e selecionar destinos distintos. Assim, sucesso e falha podem seguir caminhos diferentes em vez de usar somente um encadeamento linear.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa reutilizar em dois Jobs as mesmas etapas de preparação e validação, sem iniciar um Job filho separado. Qual recurso representa melhor essa composição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar um Flow com as Steps comuns e referenciá-lo nos dois Jobs que precisam do mesmo roteiro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar um JobStep em cada Job para executar novamente o mesmo fluxo como uma execução filha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar um Split para executar duas cópias concorrentes de cada Step compartilhada entre os Jobs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar um Decider que copie a definição das Steps e as injete automaticamente nos outros Jobs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar somente next entre Steps globais para que os Jobs herdem qualquer caminho configurado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Flow externaliza e permite reutilizar uma composição de Steps dentro de diferentes Jobs. JobStep é adequado quando se deseja lançar outro Job, não apenas compartilhar uma definição de fluxo.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um reinício, uma Step marcada como COMPLETED é normalmente ignorada, salvo configuração que permita iniciá-la novamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O comportamento normal é pular Steps concluídas; allowStartIfComplete(true) é a opção que altera essa regra para a etapa configurada.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção allowStartIfComplete(true) permite que uma Step concluída volte a executar durante um reinício do Job.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa opção é indicada para etapas que precisam ser executadas de novo, como certas validações ou rotinas de limpeza.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "startLimit define o máximo de itens de entrada que uma Step pode processar antes de interromper o chunk.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. startLimit limita quantas vezes uma Step pode ser iniciada. A quantidade de itens por unidade transacional é determinada pelo tamanho do chunk.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ExecutionContext persistido pode guardar estado necessário para apoiar a retomada de um Job ou de suas Steps.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contexto de execução armazena estado serializável que auxilia a continuação após interrupções, em conjunto com os metadados persistidos.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Habilitar reinício torna desnecessário avaliar duplicidade de efeitos externos, pois o repositório sempre confirma os dados de negócio junto com os metadados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Metadados e dados de negócio podem usar transações distintas. Uma falha entre suas confirmações pode levar a nova execução e efeitos repetidos; idempotência ou transação coordenada deve ser considerada.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Step configurada com startLimit igual a um pode impedir uma segunda partida quando o limite já tiver sido consumido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O limite controla o número de inícios da Step, e nova tentativa após esgotá-lo pode lançar erro de limite excedido.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em configuração Java, qual combinação de recursos expressa adequadamente um Job sequencial com Steps declaradas como beans?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JobBuilder compõe o Job com start e next, enquanto StepBuilder configura cada unidade de execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "StepBuilder compõe o Job com start e next, enquanto JobBuilder configura leitores e gravadores individuais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JobRepository compõe o fluxo por start e next, enquanto JobLauncher instancia cada ItemProcessor do Job.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ItemReader configura a lista de Steps, enquanto ItemWriter define os parâmetros identificadores do Job.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JobExecutionDecider constrói os beans e JobParametersValidator conecta as transações de cada Step.",
+          "correct": false
+        }
+      ],
+      "explanation": "JobBuilder é usado para construir a composição do Job, e StepBuilder para definir cada etapa e seus colaboradores. As demais alternativas trocam os papéis de construção, persistência, dados e validação.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um JobParametersValidator pode verificar se parâmetros obrigatórios estão presentes antes que a execução prossiga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O validador permite impor requisitos e combinações válidas para os parâmetros recebidos pelo Job, rejeitando a solicitação antes que o processamento de negócio comece quando faltar um valor obrigatório.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring Batch atual, o namespace XML batch permanece a forma recomendada sem ressalvas para projetos novos, pois não está depreciado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação oficial informa que o namespace XML foi depreciado na linha Spring Batch 6 e está previsto para remoção na 7. A configuração Java por builders é a forma atual ilustrada para composição.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Split deve ser avaliado com atenção às dependências e à segurança concorrente dos colaboradores usados nos fluxos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Split permite executar fluxos em paralelo, mas não elimina dependências de dados nem garante que componentes compartilhados sejam seguros para acesso concorrente.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A definição de um bean Job já representa, por si só, uma tentativa concreta de execução com todos os seus parâmetros e estado persistido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O bean descreve a definição do trabalho. A execução concreta ocorre quando o Job é lançado com parâmetros e tem estado registrado pelo JobRepository.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa executar importação e validação em sequência e só produzir o relatório se a validação terminar com sucesso. Qual desenho de fluxo atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar Split para executar importação, validação e relatório simultaneamente, sem observar resultados intermediários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Encadear importação e validação e usar transição condicionada ao resultado antes de seguir ao relatório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar JobStep para executar cada registro de entrada como um Job filho antes de finalizar o Reader.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas startLimit para que o relatório seja iniciado somente quando a validação for concluída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar Flow como substituto do JobRepository para registrar a conclusão das duas primeiras tarefas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sequência respeita a dependência e a transição por resultado garante que o relatório siga o caminho de sucesso. Split não é adequado para tarefas dependentes executadas simultaneamente; os outros recursos têm papéis distintos.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Step COMPLETED precisa rodar novamente em cada reinício para refazer uma verificação de consistência. Qual ajuste expressa diretamente esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir allowStartIfComplete(true) na Step de verificação para permitir nova execução após conclusão anterior.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir startLimit(1) na Step de verificação para forçar a repetição em cada reinício do Job.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir um novo ItemProcessor no JobRepository para reabrir todas as Steps já concluídas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir um novo JobParametersValidator para apagar o estado concluído antes da verificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir chunk(1) para que a Step concluída seja tratada automaticamente como pendente.",
+          "correct": false
+        }
+      ],
+      "explanation": "allowStartIfComplete é a opção própria para executar novamente uma Step que já terminou com sucesso. startLimit pode restringir partidas; chunk e os componentes de validação não reabrem estado concluído.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação de startLimit(2) é compatível com o controle de reinício de uma Step?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A Step pode iniciar no máximo duas vezes para a instância, e nova partida pode exceder o limite configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Step processa dois itens por chunk e confirma a transação depois da segunda gravação em cada rodada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Job pode ter exatamente duas Steps, e qualquer terceira etapa é ignorada sem registro no repositório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O JobLauncher cria duas JobInstances idênticas e alterna sua execução no mesmo contexto persistido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O JobRepository conserva somente as duas últimas execuções e remove metadados mais antigos da etapa.",
+          "correct": false
+        }
+      ],
+      "explanation": "startLimit limita quantas vezes a Step pode ser iniciada; não controla itens, número de etapas, instâncias criadas ou retenção de histórico.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo possui duas tarefas independentes que podem avançar em paralelo, seguidas de uma consolidação que depende de ambas. Qual estrutura representa a necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar Split com os dois fluxos independentes e seguir à consolidação depois da composição paralela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Configurar next entre as três tarefas para que a consolidação execute antes das duas tarefas independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar JobStep para que cada uma das tarefas independentes altere o estado da outra durante a leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar um Decider sem destinos de fluxo para iniciar as tarefas simultaneamente e aguardar a gravação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar allowStartIfComplete nas tarefas para converter sua execução sequencial em paralelismo concorrente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Split reúne fluxos que podem executar em paralelo; a etapa de consolidação deve vir após a conclusão dos ramos. Os outros mecanismos não criam esse paralelismo coordenado.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Step deve ler itens e gravar o resultado, sem alterar seu conteúdo antes da saída. Qual configuração conceitual é suficiente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar ItemReader e ItemWriter na Step, podendo omitir o ItemProcessor quando não há transformação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Configurar somente ItemProcessor e JobLauncher, pois o repositório fornece automaticamente entrada e saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar somente JobRepository e Tasklet, pois cada metadado persistido é convertido em registro de saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar ItemWriter como origem e ItemReader como destino, deixando o processador confirmar o chunk.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar ItemReader e Decider, pois a decisão do Job substitui a gravação dos itens lidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reader e Writer bastam para o fluxo básico de leitura e gravação quando não se exige transformação. O Processor é opcional, e os componentes de execução não substituem essas funções.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente deve manter os metadados de execução para consulta e apoio ao reinício do Job?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JobRepository, que persiste registros de instâncias, execuções e etapas durante o processamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ItemProcessor, que registra instâncias e tentativas enquanto aplica as regras de negócio a cada item.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JobLauncher, que conserva os resultados de negócio e substitui o repositório após cada chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ItemWriter, que guarda o estado de todo o fluxo e define a identidade lógica das execuções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JobExecutionDecider, que armazena de modo permanente todos os parâmetros e resultados das Steps.",
+          "correct": false
+        }
+      ],
+      "explanation": "JobRepository é o mecanismo de persistência dos metadados batch. Launcher inicia, Processor transforma, Writer produz saída e Decider direciona fluxo.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer validar a presença de `dataReferencia` e `arquivoEntrada` antes de permitir o início do processamento. Qual mecanismo atende diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Associar JobParametersValidator ao Job para verificar os parâmetros exigidos antes da execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Associar ItemWriter ao Job para rejeitar os parâmetros ausentes ao gravar o último chunk.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Associar startLimit ao Job para validar os nomes dos parâmetros após cada tentativa de Step.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Associar JobStep ao Job para inferir os parâmetros a partir dos arquivos já processados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar Split ao Job para eliminar parâmetros obrigatórios e calcular a data durante a execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "JobParametersValidator é o mecanismo que verifica requisitos e combinações de parâmetros no momento de execução. Os demais recursos têm responsabilidades distintas.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve a diferença entre executar outro Job por JobStep e inserir um Flow reutilizável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JobStep inicia uma execução de outro Job; Flow compõe Steps e transições reutilizáveis no fluxo do Job.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JobStep apenas agrupa Steps locais; Flow sempre inicia um Job independente com novos parâmetros identificadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JobStep é o mecanismo de chunk; Flow é o mecanismo que confirma transações do ItemWriter.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JobStep escolhe o próximo caminho por ExitStatus; Flow mantém somente os metadados no repositório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JobStep executa ramos simultâneos; Flow limita o número de tentativas de uma Step concluída.",
+          "correct": false
+        }
+      ],
+      "explanation": "JobStep é uma Step que lança um Job separado. Flow externaliza uma composição de Steps, como se suas etapas fossem inseridas no fluxo do Job que o referencia.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma falha, qual combinação favorece retomada consistente quando a Step grava em um sistema cuja transação não inclui o JobRepository?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Persistir o contexto necessário e tornar os efeitos da etapa idempotentes, ou coordenar as transações usadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover os parâmetros identificadores e elevar o chunk para que a saída seja confirmada antes da leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar sempre como uma JobInstance diferente, para que o histórico anterior seja associado aos novos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o ItemWriter por um Decider e confiar que o JobRepository reverterá qualquer gravação externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir allowStartIfComplete em todas as Steps, para que o fluxo repita somente as operações já confirmadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com transações separadas, pode haver gravação do resultado sem atualização correspondente do repositório. Contexto persistido apoia retomada, enquanto idempotência ou coordenação transacional controla efeitos duplicados.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual enunciado explica corretamente o papel de StepExecution em relação ao JobExecution?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "StepExecution registra a execução de uma etapa dentro de uma tentativa concreta do Job.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "StepExecution representa a definição estática do Job que pode ser compartilhada por qualquer instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "StepExecution identifica a rodada lógica independente dos parâmetros usados pelo JobLauncher.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "StepExecution armazena o algoritmo de transformação que substitui o ItemProcessor da etapa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "StepExecution controla exclusivamente o agendamento externo e não possui estado no repositório batch.",
+          "correct": false
+        }
+      ],
+      "explanation": "StepExecution é o registro da execução concreta de uma etapa e pertence ao contexto de uma execução de Job. A definição estática é Step; a rodada é JobInstance; a tentativa é JobExecution.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Step concluída não deve ser repetida, mas uma Step que falhou precisa sempre ser ignorada em qualquer reinício. Qual afirmação é correta sobre essa regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Steps concluídas são normalmente puladas, enquanto o estado de falha e as configurações determinam o tratamento no restart.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Steps concluídas são sempre repetidas, enquanto as que falharam ficam permanentemente bloqueadas pelo JobRepository.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todas as Steps são sempre refeitas, e a execução anterior é eliminada quando se inicia o mesmo Job.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente o tamanho do chunk determina quais Steps serão retomadas, independentemente do estado persistido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra depende apenas de JobParameters não identificadores e ignora o resultado da tentativa anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Errado. O comportamento de reinício usa estados persistidos e configuração. Steps concluídas normalmente são ignoradas; uma etapa interrompida ou falha pode ser retomada segundo a política do Job e os dados registrados. Não existe regra geral de ignorar toda falha ou repetir indiscriminadamente todas as etapas.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração XML de Job, qual relação entre elementos representa adequadamente um processamento de itens por chunk?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O elemento job contém step, que pode conter tasklet com chunk associado ao reader e ao writer.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O elemento chunk contém job, que por sua vez usa reader como repositório de execução da Step.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O elemento reader contém step, que usa job-repository como gravador de registros processados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O elemento tasklet contém JobLauncher, que define o JobParameters e monta o fluxo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O elemento writer contém JobExecution, que instancia um novo Job para cada item da entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura XML do namespace batch expressa Job, Step e Tasklet com Chunk, que referencia os colaboradores de leitura e gravação. O repositório mantém metadados, não registros de saída do Writer.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa de validação retorna um resultado de saída distinto para que o Job siga para correção ou publicação conforme o resultado. Qual recurso se aplica diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar transições no fluxo que correspondam ao status de saída e indiquem destinos diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho do chunk para que o Writer escolha sozinho entre os dois próximos Jobs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir startLimit em cada destino, pois esse limite interpreta o status e seleciona o próximo caminho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir um JobRepository separado para cada status, deixando o JobLauncher escolher a transição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir allowStartIfComplete na validação, fazendo a Step ignorar seu resultado e criar outro fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Transições mapeadas ao resultado da Step permitem encaminhar sucesso e falha a destinos diferentes. Chunk, limites de início e repositórios não fazem essa seleção de fluxo.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre parâmetros identificadores e reinício é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter os parâmetros identificadores da rodada ajuda a localizar a mesma JobInstance para uma tentativa de reinício.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar qualquer parâmetro não identificador sempre cria outra JobInstance e elimina a execução anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JobParameters existem apenas dentro do ItemProcessor e não participam da identidade da execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar parâmetros iguais obriga o JobRepository a iniciar várias JobInstances simultâneas para o mesmo Job.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O JobLauncher ignora parâmetros na retomada e escolhe uma instância apenas pelo nome da primeira Step.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os parâmetros identificadores participam da identidade lógica da JobInstance. Manter essa identidade permite solicitar a mesma rodada, enquanto uma diferença identificadora pode definir outra instância.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ItemProcessor identifica um registro inválido e precisa evitar sua escrita, sem interromper necessariamente todos os outros itens. Que comportamento pode expressar essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar null para o item processado, indicando que ele não deve ser encaminhado ao ItemWriter.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retornar um JobExecution vazio para que o JobRepository descarte todas as Steps seguintes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lançar um JobParametersValidator para remover o registro da origem antes da leitura do próximo item.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar allowStartIfComplete no ItemWriter para que o registro seja ignorado na próxima JobInstance.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acionar um Split no ItemReader para transferir o registro inválido a um fluxo concorrente do Job.",
+          "correct": false
+        }
+      ],
+      "explanation": "No contrato documentado do ItemProcessor, retornar null indica que o item não deve ser escrito. Isso filtra aquele item, diferentemente de falhar ou descartar todo o Job.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cuidado é necessário ao transformar fluxos sequenciais em execução paralela com Split?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar que os ramos não dependem de resultados intermediários uns dos outros e revisar o uso concorrente dos recursos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantir que todos os ramos compartilhem o mesmo Reader mutável, pois o Split serializa automaticamente cada acesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover todas as transações para depois do Job, já que fluxos paralelos não admitem transações por Step.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar cada Step por uma JobInstance com parâmetros iguais para que o repositório sincronize os resultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir allowStartIfComplete em todos os ramos, pois essa opção controla bloqueios entre tarefas concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paralelismo é adequado aos ramos independentes e requer avaliar a segurança de acesso a recursos compartilhados. Split não serializa automaticamente componentes nem substitui o desenho transacional.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração de uma Step, PlatformTransactionManager coordena transações do processamento, enquanto JobRepository armazena metadados de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São papéis distintos: o gerenciador controla commits transacionais e o repositório persiste informações de execução batch. Separar esses papéis ajuda a entender consistência entre os dados processados e o histórico do Job.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência pode ocorrer ao configurar allowStartIfComplete(true) em uma Step que gera lançamentos financeiros sem proteção contra repetição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A Step pode executar de novo após ter sido concluída, podendo duplicar lançamentos se o efeito não for idempotente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Step será automaticamente executada uma única vez, porque a opção converte a conclusão em limite de início.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O JobRepository desfará os lançamentos anteriores e confirmará somente a gravação da nova tentativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ItemProcessor será ignorado e cada registro será enviado ao Writer com chave única gerada pelo framework.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O JobParametersValidator criará uma nova JobInstance e impedirá a repetição da Step concluída.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção manda repetir a etapa concluída no reinício; não desfaz efeitos anteriores nem fornece idempotência. Uma gravação financeira precisa de proteção de negócio contra duplicidade.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação que usa builders Java, qual dependência é associada normalmente à definição de Job para persistir suas execuções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "JobRepository, passado ao JobBuilder e utilizado pelo framework ao iniciar e registrar o Job.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ItemWriter, passado ao JobBuilder para armazenar o histórico de parâmetros e o estado das Steps.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JobExecutionDecider, passado ao JobBuilder para substituir a persistência de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PlatformTransactionManager, passado apenas ao JobBuilder como repositório de identidade lógica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JobParametersValidator, passado ao JobBuilder para gravar os resultados de negócio no banco batch.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração de Job requer o JobRepository para persistência de metadados. TransactionManager controla transações de processamento, e Writer e Validator não substituem o repositório.",
+      "section": "5. Configuração e leitura prática de um Job",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração que usa `start(stepA).next(stepB).next(stepC)` declara, por si só, que stepC deve executar mesmo quando stepB falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O encadeamento simples expressa sequência; comportamento específico em caso de falha deve ser definido por transições apropriadas e pelo fluxo configurado.",
+      "section": "3. Encadeamento, decisões e composição de fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Step orientada a chunk pode usar ItemReader, ItemProcessor e ItemWriter, e cada um deles tem papel distinto no processamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Reader fornece a entrada, Processor aplica transformação opcional e Writer entrega a saída do grupo processado. A etapa orientada a chunk organiza esses itens em unidades transacionais de processamento, com commits periódicos definidos para o grupo.",
+      "section": "2. O que uma Step executa: chunk e tasklet",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade de persistir o ExecutionContext de uma Step quando o processamento precisa ser retomável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conservar estado de execução que permita localizar o progresso e continuar o trabalho depois de uma interrupção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar exclusivamente os itens finais, substituindo o banco de destino e o ItemWriter do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir a ordem das Steps em tempo de compilação, impedindo que o Job use transições condicionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar novos parâmetros identificadores automaticamente para cada item que ainda não foi escrito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar somente mensagens de log, sem relação com persistência de progresso ou recuperação de estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "ExecutionContext mantém estado persistido relevante à continuação, apoiando a capacidade de retomar Jobs e Steps. Ele não substitui o armazenamento de saída nem define sozinho o fluxo.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual par de componentes identifica corretamente o iniciador de Job e o mecanismo de persistência do histórico batch?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JobLauncher inicia a execução; JobRepository persiste os metadados e estados batch.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JobRepository inicia a execução; ItemProcessor persiste os metadados e estados batch.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ItemWriter inicia a execução; JobParametersValidator persiste os metadados e estados batch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JobExecutionDecider inicia a execução; PlatformTransactionManager persiste a identidade da instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "StepBuilder inicia a execução; ItemReader persiste os metadados e estados batch.",
+          "correct": false
+        }
+      ],
+      "explanation": "JobLauncher é a interface de lançamento e JobRepository fornece a persistência dos objetos e estados de execução batch. O primeiro inicia; o segundo registra o histórico consultado para monitorar e retomar o trabalho.",
+      "section": "1. Do trabalho lógico à execução registrada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Step de carga já concluiu com sucesso; no reinício, a equipe não habilitou allowStartIfComplete. Qual expectativa corresponde ao padrão documentado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A Step concluída será normalmente ignorada, e o fluxo poderá continuar conforme os metadados e a configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Step concluída será sempre executada novamente, pois o JobRepository não distingue sucesso de falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A Step será removida permanentemente do Job e não poderá aparecer em qualquer execução posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A Step será executada somente se o tamanho do último chunk tiver sido igual ao valor de startLimit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A Step será repetida em paralelo com a próxima etapa para compensar o estado de sucesso já registrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No reinício, uma Step COMPLETED é pulada por padrão. allowStartIfComplete reexecuta a etapa, por exemplo para validar novamente dados antes de seguir no fluxo.",
+      "section": "4. Metadados, falhas e reinício de uma execução",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The Domain Language of Batch",
+      "publisher": "Spring",
+      "reference": "Definições de Job, JobInstance, JobExecution, StepExecution, ExecutionContext, JobRepository, JobLauncher e componentes de item.",
+      "url": "https://docs.spring.io/spring-batch/reference/domain.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring a Job",
+      "publisher": "Spring",
+      "reference": "Composição e configuração de Jobs, JobRepository, reinício e validação de parâmetros.",
+      "url": "https://docs.spring.io/spring-batch/reference/job/configuring-job.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring a Step",
+      "publisher": "Spring",
+      "reference": "Configuração de Step orientada a chunk, dependências, transações e colaboradores Reader e Writer.",
+      "url": "https://docs.spring.io/spring-batch/reference/step/chunk-oriented-processing/configuring.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Controlling Step Flow",
+      "publisher": "Spring",
+      "reference": "Encadeamento, transições por resultado, Decider, Split, Flow e JobStep.",
+      "url": "https://docs.spring.io/spring-batch/reference/step/controlling-flow.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring a Step for Restart",
+      "publisher": "Spring",
+      "reference": "startLimit, allowStartIfComplete e comportamento das Steps durante reinício.",
+      "url": "https://docs.spring.io/spring-batch/reference/step/chunk-oriented-processing/restart.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

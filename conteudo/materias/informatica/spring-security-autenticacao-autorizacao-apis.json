@@ -1,0 +1,2086 @@
+{
+  "id": "informatica.spring-security-autenticacao-autorizacao-apis",
+  "subject": "Informática",
+  "title": "Spring Security: autenticação e autorização de APIs",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Spring Security para APIs REST",
+    "Autenticação e autorização no Spring Security",
+    "Configuração do Spring Security em APIs",
+    "Segurança de endpoints Spring",
+    "Proteção de APIs com Bearer tokens",
+    "Spring Security Resource Server OAuth2",
+    "Autenticação JWT com Spring Security",
+    "Autorização HTTP no Spring Security",
+    "Controle de acesso a APIs Spring",
+    "SecurityFilterChain e regras de acesso"
+  ],
+  "scope": {
+    "covers": "Configuração de segurança de APIs Servlet com Spring Security: SecurityFilterChain, filtros, SecurityContext, autenticação e autorização; regras HTTP por rota e método, papéis, authorities e escopos; Resource Server com Bearer JWT e token opaco; validação de tokens; autorização por método; CSRF, CORS, sessões e senhas; avaliação de configurações e erros comuns.",
+    "excludes": "Implementação de servidor de autorização completo, OAuth 2 em profundidade, segurança reativa WebFlux, criptografia interna de JWT e detalhes específicos de versões."
+  },
+  "theoryTitle": "Autenticação e autorização de APIs com Spring Security",
+  "chapters": [
+    {
+      "title": "1. Requisições e contexto de segurança",
+      "markdown": "### O problema que este assunto resolve\nUma API precisa saber quem chama e o que a identidade pode fazer. Spring Security integra essas decisões ao processamento HTTP por filtros. A aplicação declara uma ou mais SecurityFilterChain, geralmente montadas com HttpSecurity, aplicadas antes de o pedido chegar ao controller.\n\n> **Siglas e termos deste capítulo**\n> - **Autenticação**: verificação da identidade apresentada.\n> - **Autorização**: decisão de permitir uma ação.\n> - **Filter**: componente Servlet que examina requisição e resposta.\n> - **SecurityContext**: contexto da autenticação corrente.\n> - **Principal**: identidade representada no Authentication.\n> - **GrantedAuthority**: permissão associada, como ROLE_ADMIN ou SCOPE_orders.read.\n\n### Cadeia e regras\nFilterChainProxy seleciona a primeira SecurityFilterChain cujo matcher se aplica. A cadeia pode carregar contexto, proteger contra ataques, autenticar e autorizar. Se nenhuma cadeia casar, as proteções daquela configuração não cobrem a requisição; dividir cadeias por caminho exige cobrir também os demais caminhos. Após autenticação, Authentication com principal e authorities fica no SecurityContextHolder. Isso prova identidade, não acesso irrestrito.\n\nsecurityMatcher escolhe as requisições que entram na cadeia; requestMatchers seleciona regras HTTP dentro dela. Em authorizeHttpRequests as regras são ordenadas: matchers específicos devem vir antes de anyRequest. permitAll libera sem exigir identidade; authenticated exige identidade; hasAuthority e hasRole exigem permissões. Uma regra final denyAll nega o não previsto.\n\n| Pergunta | Exemplo | Etapa |\n| --- | --- | --- |\n| Quem chama? | Validar token | Autenticação |\n| Pode apagar? | Exigir authority de escrita | Autorização |\n\n### Como cai na prova\nAutenticação e autorização são distintas. securityMatcher escolhe cadeia; requestMatchers escolhe regras. A ordem importa e a ausência de cadeia correspondente pode deixar caminho fora das proteções."
+    },
+    {
+      "title": "2. Mecanismos de autenticação de APIs",
+      "markdown": "### O problema que este assunto resolve\nO mecanismo deve corresponder ao cliente e à forma como envia credenciais. Spring Security oferece formulário e sessão, HTTP Basic, Bearer token e provedores customizados. Aceitar um token não basta: sua autenticidade e seus atributos devem ser validados.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP Basic**: usuário e senha codificados no cabeçalho, sem cifrar o canal.\n> - **Bearer token**: credencial apresentada como token de acesso.\n> - **JWT**: token estruturado e assinado; o conteúdo não é necessariamente cifrado.\n> - **Token opaco**: valor sem conteúdo interpretável localmente, validado por introspecção.\n> - **AuthenticationManager**: coordena autenticação e delega a provedores.\n> - **PasswordEncoder**: verifica senha contra hash adaptativo armazenado.\n\n### Basic, JWT e opaco\nHTTP Basic envia credenciais no cabeçalho Authorization em cada chamada e deve trafegar sob TLS. Formulário costuma manter sessão por cookie. Resource Server protege recursos e valida tokens que podem ser emitidos por serviço separado. BearerTokenAuthenticationFilter extrai o token e inicia autenticação; sucesso põe identidade no contexto. Falha aciona AuthenticationEntryPoint, normalmente com resposta 401.\n\nPara JWT, JwtDecoder verifica assinatura; validadores examinam claims como issuer (iss) e tempo (exp, nbf). issuer-uri identifica o emissor esperado e pode orientar descoberta de metadados e chaves. Decodificar não é validar. Para token opaco, OpaqueTokenIntrospector consulta o emissor para saber se está ativo e obter atributos.\n\nScopes podem virar authorities com prefixo SCOPE_: orders.read pode virar SCOPE_orders.read. Os dois são Bearer, mas têm validações diferentes.\n\n| Mecanismo | Validação característica | Cuidado |\n| --- | --- | --- |\n| Basic | Conferir credenciais | Proteger com TLS |\n| JWT | Decoder, assinatura e claims | Não confiar só na decodificação |\n| Opaco | Introspecção remota | Considerar resposta do emissor |\n\n### Como cai na prova\nResource Server não precisa emitir tokens. JWT usa JwtDecoder; token opaco usa introspector. Scope convertido em SCOPE_ só dá acesso quando uma regra o exige."
+    },
+    {
+      "title": "3. Autorização HTTP e por método",
+      "markdown": "### O problema que este assunto resolve\nApós autenticar, a API aplica menor privilégio: leitor consulta, operador altera e administrador administra. Regras HTTP protegem rotas; segurança de método verifica também condições de domínio, como se pedido pertence ao usuário.\n\n> **Siglas e termos deste capítulo**\n> - **Role**: convenção de authority com prefixo ROLE_.\n> - **Scope**: permissão associada a token, comumente mapeada em SCOPE_.\n> - **hasRole**: conveniência que normalmente acrescenta ROLE_.\n> - **hasAuthority**: compara literalmente a authority informada.\n> - **Method security**: autorização aplicada à invocação de método.\n> - **403 Forbidden**: identidade conhecida sem permissão suficiente.\n\n### Restringir operações\nPode-se exigir SCOPE_orders.read para GET e SCOPE_orders.write para POST ou DELETE. hasRole(ADMIN) normalmente busca ROLE_ADMIN; hasAuthority compara exatamente o valor informado. Para um scope convertido em SCOPE_orders.read, exija essa authority, não um papel de nome parecido.\n\nMethod security, habilitada por configuração como EnableMethodSecurity, protege métodos de serviço e pode considerar principal, argumentos e dados de domínio. A autorização baseada em proxy intercepta chamadas que passam pelo proxy Spring; autoinvocação dentro da mesma instância pode não acionar a interceptação. Regras HTTP e de serviço complementam-se. Esconder botão no cliente nunca substitui controle do servidor.\n\nFalha de autenticação costuma resultar em 401. Identidade autenticada sem authority recebe normalmente 403. AuthenticationEntryPoint trata o primeiro caso; AccessDeniedHandler, o segundo. A API pode personalizar o corpo sem confundir os estados.\n\n### Como cai na prova\nhasRole e hasAuthority diferem no prefixo. Papéis e escopos não são sinônimos. Use o serviço para conferir propriedade do recurso e não confie em controles da interface cliente."
+    },
+    {
+      "title": "4. Proteções complementares e avaliação",
+      "markdown": "### O problema que este assunto resolve\nUma API pode autenticar corretamente e ainda falhar por CSRF, CORS, sessão ou senhas mal configurados. Avaliar segurança pede seguir cliente, credencial, transporte, regra e operação ponta a ponta.\n\n> **Siglas e termos deste capítulo**\n> - **CSRF**: falsificação de requisição que explora credenciais enviadas automaticamente pelo navegador.\n> - **CORS**: política de compartilhamento entre origens aplicada pelo navegador.\n> - **TLS**: proteção do canal, por exemplo HTTPS.\n> - **Stateless**: servidor não mantém sessão de autenticação entre requisições.\n> - **BCrypt/Argon2**: funções adaptativas para hash de senha.\n> - **Negação por padrão**: permitir somente o explicitamente autorizado.\n\n### CSRF, CORS e sessão\nCSRF é relevante quando o navegador envia automaticamente cookie de sessão ou credencial semelhante. API que recebe Bearer explicitamente no cabeçalho tem premissa diferente, mas endpoint que aceita cookie ainda requer avaliação de CSRF. CORS controla quais origens de navegador podem ler respostas e fazer requisições; não autentica nem autoriza e não impede clientes fora do navegador. Com credenciais, não se deve liberar origem curinga indiscriminadamente.\n\nSessionCreationPolicy.STATELESS evita manter sessão HTTP para autenticação; ainda é preciso validar cada token e autorizar operações. Stateless não torna JWT confiável por si só. PasswordEncoder verifica senha contra hash adaptativo; não recupera senha original. Não guardar senha em texto puro. Basic e tokens devem trafegar por TLS; segredos não devem estar no código.\n\nTeste token ausente, malformado, expirado, emissor incorreto, escopo insuficiente, rota não mapeada e propriedade do recurso. Verifique status 401/403 e interação com CORS/CSRF.\n\n### Como cai na prova\nCSRF depende de como credenciais chegam; CORS é política de navegador. Stateless não elimina validação ou autorização. Senha é verificada contra hash, não decifrada."
+    }
+  ],
+  "summary": "Spring Security protege APIs Servlet por SecurityFilterChain e filtros. Autenticação estabelece Authentication no SecurityContext; autorização decide por matchers, papéis, authorities e scopes. securityMatcher seleciona a cadeia e requestMatchers as regras, cuja ordem importa. Resource Server valida JWT com JwtDecoder e claims ou token opaco com OpaqueTokenIntrospector. Scopes podem virar SCOPE_; hasRole normalmente aplica ROLE_, hasAuthority compara literalmente. Regras HTTP podem ser complementadas com method security. Falha de autenticação costuma dar 401 e falta de permissão 403. CSRF depende de credenciais automáticas; CORS não substitui controle de acesso; stateless não dispensa validação. Senhas requerem PasswordEncoder adaptativo e credenciais TLS.",
+  "flashcards": [
+    {
+      "front": "O que autenticação responde?",
+      "back": "Quem é o chamador; verifica a identidade apresentada."
+    },
+    {
+      "front": "O que autorização responde?",
+      "back": "Se o chamador pode executar ação ou acessar recurso."
+    },
+    {
+      "front": "Para que serve SecurityFilterChain?",
+      "back": "Define filtros para requisições correspondentes ao seu matcher."
+    },
+    {
+      "front": "O que securityMatcher escolhe?",
+      "back": "Requisições atendidas por uma SecurityFilterChain."
+    },
+    {
+      "front": "O que requestMatchers escolhe?",
+      "back": "Regras HTTP dentro da cadeia selecionada."
+    },
+    {
+      "front": "Onde fica a autenticação corrente?",
+      "back": "No SecurityContext acessível pelo SecurityContextHolder."
+    },
+    {
+      "front": "Qual o papel de AuthenticationManager?",
+      "back": "Coordenar a autenticação e delegar a provedores."
+    },
+    {
+      "front": "HTTP Basic cifra credenciais?",
+      "back": "Não; codifica no cabeçalho e requer TLS."
+    },
+    {
+      "front": "O que faz BearerTokenAuthenticationFilter?",
+      "back": "Extrai o token Bearer e inicia sua autenticação."
+    },
+    {
+      "front": "Qual componente valida JWT?",
+      "back": "JwtDecoder e validadores de assinatura e claims."
+    },
+    {
+      "front": "Como se valida token opaco?",
+      "back": "Por OpaqueTokenIntrospector e introspecção."
+    },
+    {
+      "front": "O que issuer-uri identifica?",
+      "back": "O emissor esperado, conferido com o claim iss."
+    },
+    {
+      "front": "O que significa SCOPE_orders.read?",
+      "back": "Authority derivada do escopo orders.read."
+    },
+    {
+      "front": "Diferença entre hasRole e hasAuthority?",
+      "back": "hasRole normalmente acrescenta ROLE_; hasAuthority compara literalmente."
+    },
+    {
+      "front": "O que method security protege?",
+      "back": "Invocações de métodos de serviço."
+    },
+    {
+      "front": "Quando costuma ocorrer 401?",
+      "back": "Quando falta autenticação válida."
+    },
+    {
+      "front": "Quando costuma ocorrer 403?",
+      "back": "Quando falta permissão suficiente à identidade."
+    },
+    {
+      "front": "CORS autentica?",
+      "back": "Não; regula compartilhamento para origens de navegador."
+    },
+    {
+      "front": "Quando avaliar CSRF?",
+      "back": "Quando navegador envia credenciais automaticamente, como cookies."
+    },
+    {
+      "front": "O que faz PasswordEncoder?",
+      "back": "Verifica senha contra hash adaptativo armazenado."
+    }
+  ],
+  "tips": [
+    "Siga qual cadeia casa antes de avaliar suas regras.",
+    "Coloque matchers específicos antes de anyRequest.",
+    "Confira prefixos ROLE_ e SCOPE_ nas authorities.",
+    "Decodificar JWT não basta: valide assinatura e claims.",
+    "Pense em 401 para falha de autenticação e 403 para falta de autorização.",
+    "Avalie CSRF conforme cookies e CORS conforme clientes de navegador."
+  ],
+  "traps": [
+    "Confundir seleção de cadeia com seleção da regra de acesso.",
+    "Supor que autenticação válida permite todos os endpoints.",
+    "Usar papel onde a regra exige scope SCOPE_.",
+    "Confiar em JWT legível sem validar assinatura e claims.",
+    "Achar que CORS substitui autenticação ou autorização.",
+    "Desabilitar CSRF sem avaliar credenciais enviadas por cookie."
+  ],
+  "activeRecall": [
+    "Explique o percurso da requisição do filtro ao controller.",
+    "Diferencie securityMatcher de requestMatchers.",
+    "Compare Authentication e GrantedAuthority.",
+    "Compare validação de JWT e introspecção de token opaco.",
+    "Explique como scope se torna authority.",
+    "Dê exemplo de method security conferindo propriedade de objeto.",
+    "Diferencie respostas 401 e 403.",
+    "Justifique quando CSRF deve permanecer ativo numa API."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Identidade e permissão confundidas",
+      "summary": "Authentication estabelece identidade; autorização avalia authorities e condições de acesso separadamente."
+    },
+    {
+      "key": "e2",
+      "title": "Seleção de cadeia e regra trocadas",
+      "summary": "securityMatcher escolhe SecurityFilterChain; requestMatchers associa requisições a regras ordenadas."
+    },
+    {
+      "key": "e3",
+      "title": "Validação de token incompleta",
+      "summary": "JWT requer assinatura e claims válidos; token opaco requer introspecção. Decodificar não significa confiar."
+    },
+    {
+      "key": "e4",
+      "title": "Papéis e escopos misturados",
+      "summary": "hasRole normalmente aplica ROLE_; hasAuthority compara literalmente; scopes podem usar SCOPE_."
+    },
+    {
+      "key": "e5",
+      "title": "Proteções avaliadas fora de contexto",
+      "summary": "CSRF depende de credenciais automáticas, CORS é política de navegador e stateless não elimina validação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Autenticação e autorização são decisões diferentes: identificar o chamador e decidir se pode executar uma operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Autenticar verifica credenciais; autorizar compara identidade e permissões com a política do recurso. Uma chamada autenticada ainda pode ser negada.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição sem SecurityFilterChain correspondente recebe automaticamente as proteções declaradas em outra cadeia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A cadeia aplica-se quando seu matcher corresponde. Sem cadeia correspondente, aquelas proteções não cobrem a requisição.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Matchers específicos de autorização devem anteceder a regra abrangente anyRequest.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As regras são ordenadas e a primeira correspondente decide. Uma regra ampla anterior pode impedir que a específica tenha efeito.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "securityMatcher escolhe regras dentro da cadeia e requestMatchers seleciona a própria SecurityFilterChain.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. securityMatcher seleciona requisições para a cadeia; requestMatchers associa requisições às regras de autorização dentro dela.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Authentication autenticado pode conter principal e authorities consultados na autorização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O resultado de autenticação representa a identidade reconhecida e suas authorities, e fica associado ao SecurityContext corrente para ser consultado pelos componentes de autorização durante a requisição.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "HTTP Basic cifra usuário e senha no cabeçalho, então TLS é dispensável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Basic codifica as credenciais para transmiti-las no cabeçalho, mas não cifra o canal de comunicação. Sem TLS, um observador do tráfego pode recuperar usuário e senha.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um JWT legível ainda precisa ter assinatura e claims relevantes validados antes de ser aceito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Decodificar revela dados, mas não comprova autenticidade. Assinatura, emissor e validade temporal devem ser verificados.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Token opaco é validado por introspecção; JWT costuma ser decodificado e validado com JwtDecoder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. OpaqueTokenIntrospector consulta um serviço para obter o estado e os atributos de token opaco. Já JwtDecoder processa JWT, validando sua assinatura e trabalhando com os claims configurados.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "issuer-uri indica apenas a chave pública e não se relaciona ao claim iss do token.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. issuer-uri identifica o emissor que a aplicação espera e pode validar contra o claim iss. Uma URI JWK indica onde obter chaves públicas; são conceitos diferentes, e validar emissor não deve ser omitido.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Resource Server necessariamente emite todos os Bearer tokens que aceita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Resource Server protege recursos e valida os tokens recebidos; a emissão pode caber a um authorization server separado, que administra credenciais e concede tokens aos clientes.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Scopes nunca podem ser convertidos em authorities para as regras de acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O conversor comum pode transformar, por exemplo, orders.read em SCOPE_orders.read. Uma regra de autorização pode exigir precisamente essa authority para proteger determinada operação.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Token ausente ou inválido costuma acionar o fluxo de autenticação e resposta de não autenticado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Falha de credencial não estabelece identidade; AuthenticationEntryPoint costuma responder com desafio e status 401 em API.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Chamada autenticada sem authority suficiente costuma ser negada como proibida, por exemplo com status 403.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A aplicação reconheceu a identidade, mas a política não lhe concede aquela operação. Esse caso de acesso negado é diferente da ausência de autenticação e costuma produzir status 403.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CORS autentica uma origem e impede clientes fora do navegador de chamar a API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CORS controla compartilhamento entre origens para navegadores; não autentica e não bloqueia clientes não navegador.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Desabilitar CSRF pode ser adequado para Bearer explícito, mas depende de como cada cliente envia credenciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bearer explícito difere de cookie automático; endpoint usado por navegador com cookie ainda requer avaliação de CSRF.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A assinatura de um JWT cifra o conteúdo dos claims e impede que sejam lidos pelo portador do token.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A assinatura protege a integridade e permite validar quem emitiu o token, mas não oculta necessariamente seus claims. O conteúdo de um JWT assinado pode ser decodificado; não se deve colocar nele segredo que dependa de cifragem.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual a distinção entre securityMatcher e requestMatchers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O primeiro escolhe cadeia; o segundo escolhe regras internas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O primeiro valida JWT; o segundo transforma senha em hash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O primeiro escolhe banco de usuários; o segundo cria sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O primeiro configura CORS; o segundo seleciona métodos Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O primeiro escolhe controller; o segundo verifica chaves de assinatura.",
+          "correct": false
+        }
+      ],
+      "explanation": "securityMatcher delimita quais requisições serão atendidas pela SecurityFilterChain. Dentro da cadeia selecionada, requestMatchers relaciona caminhos e métodos às respectivas regras de autorização.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política tem rota pública, regras específicas e negação final. Qual ordem respeita precedência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar regras específicas antes de negar o restante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Regra abrangente primeiro, seguida de matchers específicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "permitAll para tudo e controles somente na interface cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Caminhos sem regra devem ser deixados para acesso implícito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a ordem porque todas as regras são sempre combinadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "As regras são ordenadas e a primeira correspondente decide. Matchers específicos precisam anteceder a regra abrangente; denyAll fecha o acesso que não tenha sido liberado explicitamente.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa o processamento comum de chamada protegida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cadeia filtra o pedido, autentica e então autoriza.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Controller escolhe filtros, CORS autentica e navegador autoriza.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorização cria senha antes da validação de credencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Matcher chama controller e só depois aplica filtros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Banco valida a rota e cria authorities automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cadeia correspondente processa a requisição antes do controller. Autenticação estabelece contexto; autorização aplica política.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação separou /api/** em cadeia própria. O que verificar para os demais caminhos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se outra cadeia protege requisições fora daquele matcher.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se todos os métodos HTTP foram removidos das respostas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se requestMatchers desativou assinatura de tokens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se qualquer JWT é aceito sem conferir issuer.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se controllers foram movidos para dentro dos filtros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma cadeia limitada a /api/** não cobre caminhos fora desse matcher. Deve haver outra política que proteja as demais requisições; se nenhuma cadeia casar, aquelas regras não são aplicadas.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Onde fica a autenticação corrente consultada na autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No SecurityContext corrente, acessível pelo holder.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No CorsConfigurationSource ligado ao navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No RequestMatcher associado ao caminho da rota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No PasswordEncoder associado à senha original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No AuthorizationManager que assina todos os tokens.",
+          "correct": false
+        }
+      ],
+      "explanation": "SecurityContext contém a autenticação atual, disponível pelo SecurityContextHolder durante o processamento. Os mecanismos de autorização consultam esse contexto para examinar principal e authorities.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia autenticação e autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação identifica; autorização permite a operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Autorização identifica senha; autenticação escolhe escopo do endpoint.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Login bem-sucedido libera automaticamente todas as rotas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rota pública exige provar identidade antes de qualquer chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O método HTTP sozinho decide acesso sem política configurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autenticação estabelece a identidade do cliente; autorização verifica se ele tem permissão para a operação. Um usuário válido pode, portanto, continuar sem acesso a certo recurso.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe chamada sem credencial Bearer válida. Qual tratamento é típico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acionar AuthenticationEntryPoint para negar sem credencial.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar ROLE_ADMIN para permitir investigação pelo controller.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar operação e consultar o emissor depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter falha em sucesso sem principal autenticado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder acesso com base na origem CORS da chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem autenticação válida não existe identidade confiável. AuthenticationEntryPoint inicia a resposta, geralmente 401 com desafio Bearer.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Serviço aceita Basic sobre HTTP sem TLS. Qual avaliação procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Basic não cifra credenciais; proteja o canal usando TLS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Codificação reversível protege contra leitura do tráfego.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Basic vira automaticamente JWT assinado pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rede privada dispensa proteção em qualquer transmissão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cabeçalho impede interceptação mesmo em texto claro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Basic apenas codifica credenciais no cabeçalho e não cifra a conexão. Sem TLS, alguém que observe a rede pode recuperar o usuário e a senha e reutilizá-los para autenticar chamadas.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que issuer-uri informa na configuração JWT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Emissor confiável esperado, comparado ao claim iss.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma rota pública que aceita qualquer token apresentado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A senha usada para criptografar os dados do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma opção que substitui assinatura e validade temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controller que deve emitir todos os tokens da API.",
+          "correct": false
+        }
+      ],
+      "explanation": "issuer-uri identifica a entidade emissora esperada e permite conferir o claim iss, além das outras validações necessárias.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que componente consulta o estado de token opaco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OpaqueTokenIntrospector consulta a introspecção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JwtDecoder, que verifica assinatura de todo token opaco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PasswordEncoder, que converte token em senha do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CorsConfigurationSource, que consulta o navegador cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SecurityContextHolder, que emite e revoga tokens.",
+          "correct": false
+        }
+      ],
+      "explanation": "OpaqueTokenIntrospector consulta o endpoint de introspecção para obter estado e atributos do token opaco. JwtDecoder, em contraste, processa JWT e verifica sua validade criptográfica e seus claims.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JWT ainda válido no tempo apresenta issuer diferente do configurado. Como tratar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rejeitar se o issuer do token não corresponder.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aceitar porque validade temporal torna issuer irrelevante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar iss antes de verificar a assinatura do token.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter issuer diretamente em papel administrativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar CORS como substituto da verificação do emissor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Issuer participa da confiança no token recebido. A validade temporal não torna aceitável um token de emissor diferente daquele configurado pela aplicação como confiável.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Token mapeou orders.read para SCOPE_orders.read. Qual regra exige essa authority?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigir a authority SCOPE_orders.read usando hasAuthority.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "hasRole com orders.read sem conversão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "permitAll seguido de verificação apenas no navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "authenticated, que exige todos os scopes disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "hasRole com SCOPE_orders.read para retirar o prefixo.",
+          "correct": false
+        }
+      ],
+      "explanation": "hasAuthority compara exatamente a string indicada. hasRole normalmente aplica ROLE_, de modo que não é a verificação apropriada para uma authority convertida com prefixo de scope SCOPE_.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual autoridade corresponde normalmente a hasRole(ADMIN)?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ROLE_ADMIN.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SCOPE_ADMIN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ADMIN_ROLE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AUTH_ADMIN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "USER_ADMIN.",
+          "correct": false
+        }
+      ],
+      "explanation": "hasRole normalmente antepõe ROLE_ ao nome fornecido, procurando ROLE_ADMIN. hasAuthority, por contraste, compara exatamente o valor literal configurado pelo desenvolvedor.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usuário autenticado tenta apagar pedido sem autoridade de escrita. Qual decisão tomar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Negar a exclusão porque falta authority de escrita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover autenticação porque a negação invalida o token.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aceitar se o cliente exibiu botão de apagar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tornar rota pública para distinguir leitura e escrita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder ROLE_ADMIN antes de executar a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autenticação foi estabelecida, mas falta autorização para apagar o pedido. O servidor deve negar a operação, normalmente com 403, sem confundir a falta de permissão com falha de credencial.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como impedir que leitor consulte pedido pertencente a outra pessoa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir no serviço se o pedido pertence ao principal atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar CORS para comparar proprietário e origem do navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar CSRF para conferir o dono no banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir toda rota e confiar no identificador da URL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar matcher HTTP que conhece automaticamente o proprietário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escopo geral de leitura não prova propriedade do objeto pedido. A camada de domínio deve comparar principal e pedido antes de retornar dados, mesmo que a regra HTTP já tenha aceitado o escopo de leitura.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que autoinvocação merece atenção em method security baseada em proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autoinvocação pode não passar pelo proxy de segurança Spring.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda chamada interna apaga o SecurityContext automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Anotação é avaliada pelo navegador após receber a resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Método interno converte authorities em scopes por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtros Servlet deixam de existir em chamadas Java internas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interceptação de segurança ocorre quando a invocação passa pelo proxy Spring. Uma chamada direta de um método a outro na mesma instância pode não atravessá-lo e, assim, não acionar a checagem anotada.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre falhas e status é usual numa API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "401 indica não autenticado; 403, usuário sem permissão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "403 para token ausente; 401 para escopo insuficiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "200 para ambos, pois cliente decide o controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "404 para credencial inválida; 301 para acesso proibido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "302 para todo erro, redirecionando cliente REST a formulário.",
+          "correct": false
+        }
+      ],
+      "explanation": "401 costuma indicar ausência ou falha de autenticação; 403 indica que o servidor reconheceu a identidade, mas ela não tem permissão suficiente para a operação solicitada.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Token de leitura é usado para GET e DELETE. Que revisão favorece menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar permissões de leitura e de escrita por operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter authority ampla, pois método HTTP impede qualquer abuso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover autenticação de DELETE e confiar no cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar CORS para converter leitura em permissão de remoção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder papel admin a todo token com algum scope.",
+          "correct": false
+        }
+      ],
+      "explanation": "Permissões distintas por operação aplicam menor privilégio. Um token que permite leitura não deve, por esse motivo, autorizar alteração ou exclusão de recursos.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "API deve responder JSON de erro em vez de redirecionar para login HTML. O que configurar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar handlers de autenticação e negação em formato REST.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar filtros e deixar o cliente criar a resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar JwtDecoder por CORS para formatar o erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar permitAll e pedir ao cliente que valide tokens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar formulário em cada endpoint e manter redirecionamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "AuthenticationEntryPoint e AccessDeniedHandler podem fornecer respostas adequadas às falhas REST sem redirecionamento para login HTML.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API stateless usa Bearer token a cada chamada. Qual consequência é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sem sessão persistente, validar token e autorizar cada chamada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qualquer JWT é confiável por não haver estado de sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assinatura e expiração deixam de ser verificadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Authorities tornam-se desnecessárias em todas as rotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tokens de outro emissor não podem mais ser rejeitados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stateless evita sessão HTTP persistente para autenticação entre chamadas. Cada credencial ainda deve ser validada, e cada operação continua sujeita às regras de autorização da API.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que papel CORS exerce quando JavaScript chama API de outra origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Controla compartilhamento entre origens no navegador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Autentica usuário sem credencial apresentada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui autorização e libera métodos solicitados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bloqueia chamadas de qualquer programa não navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Valida assinatura JWT pelo domínio da página.",
+          "correct": false
+        }
+      ],
+      "explanation": "CORS configura compartilhamento entre origens para navegadores. Não identifica clientes nem substitui controles do servidor.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SPA envia Bearer, mas outra rota aceita cookie de sessão. Como avaliar CSRF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Avaliar cada mecanismo; cookie automático mantém risco típico de CSRF.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar CSRF global porque existe uma rota Bearer.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Habilitar CORS curinga para impedir envio automático de cookies.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir escopo de leitura para impedir submissão forjada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar CSRF, que só verifica JWT e não sessões.",
+          "correct": false
+        }
+      ],
+      "explanation": "A exposição depende de como a credencial é enviada. Bearer explícito difere de cookie automático; uma rota baseada em cookie de sessão ainda requer avaliação e proteção contra requisições forjadas.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como armazenar senhas de usuários autenticados pelo Spring Security?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar hash adaptativo e verificar com PasswordEncoder.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar texto puro para o encoder decifrar depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar Base64 como hash irreversível com salt.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar a senha no claim sub de todo JWT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar hash rápido sem comparação no processo de login.",
+          "correct": false
+        }
+      ],
+      "explanation": "PasswordEncoder verifica a senha recebida contra hash adaptativo armazenado, sem recuperar o texto original. Guardar senha em claro ou cifrada de modo reversível expõe credenciais se o repositório de usuários for acessado indevidamente.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre CORS está correta para API usada por navegador e integração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CORS orienta navegadores; autorização do servidor continua necessária.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Origem permitida recebe automaticamente principal autenticado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CORS impede cliente de integração de chamar rota sem token.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Resposta CORS substitui scope em métodos de escrita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CORS verifica issuer e assinatura antes de responder.",
+          "correct": false
+        }
+      ],
+      "explanation": "Clientes que não são navegadores não dependem da política CORS para fazer chamadas. Navegadores também não ganham identidade por origem; todos os clientes precisam passar pelos controles do servidor.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que casos avaliam melhor um Resource Server JWT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar assinatura, validade, issuer e scope insuficiente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente acesso válido, sem testar falhas nem autorização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas origem CORS e nome do controller.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente criação de sessão, pois JWT dispensa validade temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sucesso em rota pública, que cobre todos os casos privados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Avalie falhas de autenticação, claims e decisão de autorização. Token válido sem scope necessário ainda deve ser recusado.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aplicação lê claim de papel sem validar assinatura nem issuer. Qual defeito principal existe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar assinatura e issuer antes de confiar nas authorities.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar CORS antes de qualquer leitura do controller.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Claims não podem ser usados nem em tokens validados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autorização deveria ocorrer antes da autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stateless exige conceder ROLE_ADMIN no primeiro pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Claims sustentam decisões apenas depois de validação confiável. Sem assinatura e issuer, atacante pode forjar authorities.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "API por cookie de sessão pretende desativar CSRF. Qual avaliação procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cookie automático exige avaliar proteção contra CSRF.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cookie nunca participa de CSRF porque só vai ao site original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CSRF protege Basic, mas não sessão por cookie.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CORS habilitado elimina submissão forjada em qualquer cenário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HTTPS impede navegador de enviar cookies automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "CSRF explora credenciais enviadas automaticamente pelo navegador. HTTPS protege transporte, mas não impede induzir navegador autenticado a enviar pedido.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "anyRequest autenticado aparece antes de /health permitAll. O que corrigir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar a regra pública de health antes da regra ampla.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover health porque rota pública é impossível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duplicar regra depois do controller para ganhar precedência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar permitAll por hasRole para acesso anônimo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar matcher depois que a resposta HTTP já saiu.",
+          "correct": false
+        }
+      ],
+      "explanation": "A primeira regra correspondente decide o acesso, por isso a regra específica para health deve anteceder a regra ampla que exige autenticação. Caso contrário, a exceção pública não será alcançada.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como evitar descoberta de metadados na inicialização e continuar validando issuer em JWT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar URI JWK direta e manter issuer-uri.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover issuer-uri e aceitar qualquer emissor com chave em cache.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar introspector opaco para decodificar JWT sem chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar CORS como endereço de chave pública.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar expiração apenas e ignorar assinatura.",
+          "correct": false
+        }
+      ],
+      "explanation": "A URI JWK informada diretamente indica onde obter chaves sem descoberta de metadados. Manter issuer-uri permite ainda conferir se o claim iss do JWT corresponde ao emissor esperado.",
+      "section": "2. Mecanismos de autenticação de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação pode ser alcançada por mais de uma rota. Por que reforçar autorização no serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proteger no serviço a operação chamada por várias rotas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela substitui toda validação do token nos filtros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Method security torna público qualquer endpoint que use o serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Anotações são verificadas por CORS no navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A verificação converte qualquer principal em administrador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autorização no serviço fica próxima da operação de domínio e pode cobrir diferentes rotas ou chamadores internos. Ela complementa autenticação e regras HTTP, não substituindo validação de credenciais.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe guarda senhas em texto puro e compara diretamente a entrada. Qual correção é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar hash adaptativo e validar com PasswordEncoder.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criptografar com chave fixa no código para recuperar depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover senha para claim sub de JWT antes do login.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Codificar em Base64 e dispensar proteção do repositório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar texto puro somente depois da autorização HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "PasswordEncoder verifica a entrada contra hash adaptativo guardado, sem precisar reconstruir a senha original. Armazenar texto puro ou cifra reversível deixa credenciais expostas se o repositório for comprometido.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que denyAll final faz com requisições sem regra permissiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nega requisições que não receberam permissão explícita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permite caminhos sem metadados de controller.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aceita todo token sem conferir authorities.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte caminhos ausentes em login público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desliga a cadeia depois da primeira chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "denyAll aplica negação por padrão às requisições sem permissão correspondente, reduzindo acesso acidental a novas rotas.",
+      "section": "1. Requisições e contexto de segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como diferem authenticated e exigência de authority específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma exige identidade; a outra exige authority específica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A primeira exige admin; a segunda libera usuários anônimos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas verificam apenas origem CORS do navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A primeira valida assinatura e a segunda verifica issuer.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A primeira cria sessão administrativa e a segunda remove filtros.",
+          "correct": false
+        }
+      ],
+      "explanation": "authenticated exige identidade, sem especificar permissão de negócio. Authority acrescenta uma condição específica de acesso.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JWT válido recebe 403 numa rota que o usuário deveria acessar. O que investigar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir authority mapeada e regra de rota prevalente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desligar assinatura para facilitar aceitação de scope.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar por 401, pois 403 sempre indica falha criptográfica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir todas as rotas e autorizar só no JavaScript.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover authority porque 403 confirma excesso de permissão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A negação pode resultar de authority incompatível, prefixo incorreto ou matcher anterior mais abrangente. Inspecione a decisão sem relaxar a validação criptográfica e de claims do JWT.",
+      "section": "3. Autorização HTTP e por método",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aplicação combina formulário por cookie e endpoints Bearer. Qual avaliação é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Avaliar cadeias por mecanismo e preservar atenção a CSRF nas rotas por cookie.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar CSRF global porque existe endpoint Bearer.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Forçar Basic em HTTP simples para uniformizar clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar permitAll porque clientes diferentes não compartilham authorities.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar só CORS e deixar tokens sem decoder.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mecanismos têm premissas diferentes. Cookie automático pode exigir CSRF; Bearer deve passar por validação e autorização.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "API habilita CORS com credenciais para uma origem. Que cuidado integrar à revisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir as origens permitidas e autorizar no servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Liberar curinga com credenciais, pois navegador ignora conflitos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar origem como prova de identidade e dispensar token.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Deixar métodos livres, pois CORS verifica papéis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover TLS porque CORS protege o segredo transmitido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Origem com credenciais requer política deliberada e limitada. Mesmo uma origem permitida não identifica usuário nem concede acesso ao recurso; autenticação e autorização continuam indispensáveis no servidor.",
+      "section": "4. Proteções complementares e avaliação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — Servlet Architecture",
+      "publisher": "Spring",
+      "reference": "FilterChainProxy, SecurityFilterChain, filtros e HttpSecurity",
+      "url": "https://docs.spring.io/spring-security/reference/servlet/architecture.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — Authorize HttpServletRequests",
+      "publisher": "Spring",
+      "reference": "authorizeHttpRequests, matchers, precedência e autorização",
+      "url": "https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — OAuth 2.0 Resource Server",
+      "publisher": "Spring",
+      "reference": "Resource Server, autenticação Bearer, JWT e token opaco",
+      "url": "https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/index.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — OAuth 2.0 Resource Server JWT",
+      "publisher": "Spring",
+      "reference": "JwtDecoder, issuer-uri, claims e scopes",
+      "url": "https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — Opaque Token",
+      "publisher": "Spring",
+      "reference": "Introspecção e OpaqueTokenIntrospector",
+      "url": "https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/opaque-token.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — Method Security",
+      "publisher": "Spring",
+      "reference": "Autorização e habilitação de segurança em métodos",
+      "url": "https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — Cross Site Request Forgery",
+      "publisher": "Spring",
+      "reference": "Proteção CSRF para aplicações web",
+      "url": "https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Security — Password Storage",
+      "publisher": "Spring",
+      "reference": "PasswordEncoder e armazenamento de senha",
+      "url": "https://docs.spring.io/spring-security/reference/features/authentication/password-storage.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}
