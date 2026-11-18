@@ -46,7 +46,8 @@ fun StreakSaveHost() {
     if (Store.demo || Store.load != br.com.estudario.web.data.LoadState.Ready) return
     val streak = Progress.of(Store.data).streak
     val recent = streak.protectedDays.filter { Queries.todayDate().toEpochDays() - it.toEpochDays() <= 7 }.map { it.toString() }
-    val pending = recent.filter { it !in SavedDays.seen() }
+    // Também pula o dia salvo cuja cena já apareceu no app (lista "celebrated" da conta).
+    val pending = recent.filter { it !in SavedDays.seen() && !br.com.estudario.web.data.Prefs.wasCelebrated(br.com.estudario.domain.Celebrated.streakSaved(it)) }
     var open by remember(pending.joinToString()) { mutableStateOf(pending.isNotEmpty()) }
     if (!open || pending.isEmpty()) return
     val savedDate = pending.maxOrNull()?.let { kotlinx.datetime.LocalDate.parse(it) }
@@ -59,7 +60,9 @@ fun StreakSaveHost() {
         Queries.weekdayShort[d.dayOfWeek.ordinal].take(1).uppercase() + flag
     }
     StreakSaveScene(streak.current, streak.freezes, savedDate?.let { Queries.weekdayShort[it.dayOfWeek.ordinal].replaceFirstChar { c -> c.uppercase() } + ", " + Queries.shortDate(it) } ?: "", semana) {
-        SavedDays.mark(pending); open = false
+        SavedDays.mark(pending)
+        br.com.estudario.web.data.Prefs.markCelebrated(pending.map(br.com.estudario.domain.Celebrated::streakSaved))
+        open = false
     }
 }
 

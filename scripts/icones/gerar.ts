@@ -27,6 +27,7 @@ const NAMES: Record<string, string[]> = {
   Pause: ["pause", "pause_circle"],
   EyeOff: ["visibility_off"],
   Cross: ["close", "cancel", "clear"],
+  Widgets: ["widgets", "dashboard_customize"],
   Trophy: ["emoji_events"],
   Medal: ["workspace_premium", "military_tech"],
   Bulb: ["lightbulb", "tips_and_updates"],

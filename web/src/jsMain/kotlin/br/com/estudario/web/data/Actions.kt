@@ -433,6 +433,19 @@ object Actions {
         )
     }
 
+    /**
+     * Flashcard que a pessoa monta de um trecho da teoria: vira cartão de memorização (RECUPERACAO) do
+     * tópico, já guardado no Caderno (o mesmo registro que o app grava pelo leitor de teoria).
+     */
+    fun addOwnFlashcard(data: Snapshot, topicId: Long, front: String, back: String): Snapshot =
+        data.append(
+            Keys.SNIPPETS,
+            jsonOf(
+                "id" to data.nextId(Keys.SNIPPETS), "topicId" to topicId, "kind" to "RECUPERACAO", "text" to front.trim().take(2000), "answer" to back.trim().take(4000).ifBlank { null },
+                "position" to 0, "favorite" to true, "createdAt" to now(), "updatedAt" to now(),
+            ),
+        )
+
     fun savedCardId(summaryId: Long, front: String, back: String): String =
         "flashcard:$summaryId:" + br.com.estudario.text.Sha256.digest("$front\u0000$back".encodeToByteArray()).let { bytes -> bytes.joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') } }.take(24)
 

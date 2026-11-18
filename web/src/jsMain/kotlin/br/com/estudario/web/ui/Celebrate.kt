@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import br.com.estudario.domain.Badge
+import br.com.estudario.domain.Celebrated
 import br.com.estudario.web.Route
 import br.com.estudario.web.Router
 import br.com.estudario.web.data.LoadState
@@ -103,10 +104,13 @@ fun CelebrationHost() {
         // Comemorado em qualquer aparelho da conta não se repete aqui (emblema ganho no celular).
         val known = readSet(KEY_BADGES)?.plus(br.com.estudario.web.data.Prefs.syncedSet("celebratedBadges"))
         if (known == null || !ready) { if (known == null || earned.containsAll(known)) write(KEY_BADGES, (earned + known.orEmpty()).sorted().joinToString(",")); return@LaunchedEffect }
-        val fresh = earned - known
-        if (fresh.isEmpty()) return@LaunchedEffect
-        write(KEY_BADGES, (known + fresh).sorted().joinToString(","))
-        br.com.estudario.web.data.Prefs.addSynced("celebratedBadges", known + fresh)
+        val missing = earned - known
+        if (missing.isEmpty()) return@LaunchedEffect
+        // ...nem o que o app já mostrou (lista "celebrated" da conta, chave "badge:<id>").
+        val fresh = missing.filterNot { br.com.estudario.web.data.Prefs.wasCelebrated(Celebrated.badge(it)) }.toSet()
+        write(KEY_BADGES, (known + missing).sorted().joinToString(","))
+        br.com.estudario.web.data.Prefs.addSynced("celebratedBadges", known + missing)
+        br.com.estudario.web.data.Prefs.markCelebrated(missing.map(Celebrated::badge))
         view.progress.earnedBadges.filter { it.badge.id in fresh }.sortedBy { it.badge.tier }.forEach { CelebrationQueue.items += Celebration.NewBadge(it.badge) }
     }
     LaunchedEffect(todayDone, ready) {
@@ -126,6 +130,10 @@ fun CelebrationHost() {
             Store.data.executions.filter { it.completedAt >= start }.maxOfOrNull { it.completedAt },
         ).maxOrNull()
         if (lastActivity != null && kotlin.js.Date.now() - lastActivity > 15 * 60_000.0) return@LaunchedEffect
+        // Dia já comemorado no app e sincronizado: não repete aqui.
+        val dayKey = Celebrated.day(Queries.todayEpoch())
+        if (br.com.estudario.web.data.Prefs.wasCelebrated(dayKey)) return@LaunchedEffect
+        br.com.estudario.web.data.Prefs.markCelebrated(listOf(dayKey))
         val letters = listOf("S", "T", "Q", "Q", "S", "S", "D")
         val week = view.streak.week.filter { !it.future }.takeLast(7).map { letters[it.date.dayOfWeek.ordinal] to it.done }
         // A sequência vem antes dos emblemas; se algo já está na tela, ela entra logo depois dele.
@@ -138,10 +146,12 @@ fun CelebrationHost() {
         val known = readSet(KEY_PIECES)?.plus(br.com.estudario.web.data.Prefs.syncedSet("celebratedPieces"))
         // primeira vez neste navegador (ou ainda carregando): o que já estava liberado entra sem festa
         if (known == null || !ready) { if (known == null) write(KEY_PIECES, owned.sorted().joinToString(",")); return@LaunchedEffect }
-        val fresh = owned - known
-        if (fresh.isEmpty()) return@LaunchedEffect
-        write(KEY_PIECES, (known + fresh).sorted().joinToString(","))
-        br.com.estudario.web.data.Prefs.addSynced("celebratedPieces", known + fresh)
+        val missing = owned - known
+        if (missing.isEmpty()) return@LaunchedEffect
+        val fresh = missing.filterNot { br.com.estudario.web.data.Prefs.wasCelebrated(Celebrated.piece(it)) }.toSet()
+        write(KEY_PIECES, (known + missing).sorted().joinToString(","))
+        br.com.estudario.web.data.Prefs.addSynced("celebratedPieces", known + missing)
+        br.com.estudario.web.data.Prefs.markCelebrated(missing.map(Celebrated::piece))
         // Muitas de uma vez (a primeira vez com o armário por área): o presente mostra as 6 mais raras; as
         // outras aparecem como NOVO no armário.
         val pieces = br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }.sortedByDescending { it.rarity.ordinal }.take(6)
@@ -151,6 +161,10 @@ fun CelebrationHost() {
         val seen = runCatching { localStorage.getItem(KEY_LEVEL) }.getOrNull()?.toIntOrNull()
         write(KEY_LEVEL, level.toString())
         if (!ready || seen == null || level <= seen) return@LaunchedEffect
+        // Subida já comemorada no app e sincronizada: não repete aqui.
+        val levelKey = Celebrated.level(level)
+        if (br.com.estudario.web.data.Prefs.wasCelebrated(levelKey)) return@LaunchedEffect
+        br.com.estudario.web.data.Prefs.markCelebrated(listOf(levelKey))
         CelebrationQueue.items += Celebration.LevelUp(level, view.progress.levelTitle, view.progress.totalXp)
     }
 

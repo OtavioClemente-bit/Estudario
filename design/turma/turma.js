@@ -717,6 +717,17 @@ export const TURMA = {
     ],
     face: [50, 52, 0.62, "worried", { mouth: false }],
   }) },
+  Widgets: { anim: "hop", about: "Widgets: grade de quadradinhos, um deles sorrindo", draw: () => ({
+    body: [
+      solid(rr(54, 8, 38, 38, 11), "sky"),
+      solid(rr(8, 54, 38, 38, 11), "green"),
+      solid(rr(54, 54, 38, 38, 11), "amber"),
+      solid(rr(6, 6, 42, 42, 12), "indigo"),
+      shine("M14 16v12"),
+      shine("M62 16v8"),
+    ],
+    face: [27, 25, 0.62, "happy"],
+  }) },
   Idioma: { anim: "wiggle", about: "Idiomas: balões conversando", draw: () => ({
     body: [
       solid(rr(40, 6, 54, 40, 14) + "M80 44l8 12-18-10z", "coral"),

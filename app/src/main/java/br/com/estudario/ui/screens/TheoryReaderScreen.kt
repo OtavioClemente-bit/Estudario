@@ -65,6 +65,9 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     var viewingId by remember { mutableStateOf<Long?>(null) }
     // Grifo tocado sem nota: cor, anotar ou tirar.
     var markActionsId by remember { mutableStateOf<Long?>(null) }
+    // Trecho selecionado com "Grifar": a folha das cores e ações; e o flashcard sendo montado.
+    var selectionSheet by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    var cardFor by remember { mutableStateOf<String?>(null) }
     var selected by remember(theoryId) { mutableStateOf<Int?>(null) }
     var reportIndex by remember { mutableStateOf<Int?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -98,6 +101,38 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
 
     reportIndex?.let { index ->
         br.com.estudario.ui.components.ReportErrorDialog(br.com.estudario.data.remote.ReportKind.THEORY, blocks.getOrElse(index) { "" }, theory.title, null, onDismiss = { reportIndex = null })
+    }
+    // Grifar um trecho numa cor: troca o grifo que ele cobre (a nota que ele tinha vem junto).
+    fun markWith(index: Int, quote: String, color: Int, message: String?) {
+        markHintSeen = true
+        readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply()
+        selected = null
+        val block = blocks.getOrElse(index) { "" }
+        val blockMarks = marks.filter { it.blockIndex == index }
+        val old = blockMarks.filter { it.quote == quote || br.com.estudario.text.MarkOverlap.overlaps(block, it.quote, quote) }
+        old.forEach { viewModel.deleteTheoryMark(it) }
+        viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = old.firstOrNull { it.note.isNotBlank() }?.note.orEmpty(), color = color))
+        scope.launch { snackbar.showSnackbar(message ?: "Grifado em ${br.com.estudario.ui.components.MarkColors.of(color).label}. Está no Caderno de estudo.") }
+    }
+    selectionSheet?.let { (index, quote) ->
+        val block = blocks.getOrElse(index) { "" }
+        val current = marks.firstOrNull { it.blockIndex == index && (it.quote == quote || br.com.estudario.text.MarkOverlap.overlaps(block, it.quote, quote)) }?.color
+        MarkSelectionSheet(
+            quote, current,
+            onColor = { c -> selectionSheet = null; markWith(index, quote, c, null) },
+            onNote = { selectionSheet = null; editing = index to quote },
+            onCard = { selectionSheet = null; cardFor = quote },
+            onReview = { selectionSheet = null; markWith(index, quote, 2, "Mandado para a revisão: volta em Grifos de hoje até você lembrar.") },
+            onCopy = { selectionSheet = null; clipboard.setText(androidx.compose.ui.text.AnnotatedString(plainPreview(quote))); scope.launch { snackbar.showSnackbar("Trecho copiado.") } },
+            onDismiss = { selectionSheet = null },
+        )
+    }
+    cardFor?.let { quote ->
+        QuoteFlashcardSheet(quote, onDismiss = { cardFor = null }) { front, back ->
+            viewModel.saveSnippet(br.com.estudario.data.local.TopicSnippetEntity(topicId = theory.topicId, kind = br.com.estudario.data.local.SnippetKind.RECUPERACAO, text = front, isFavorite = true, answer = back.ifBlank { null }))
+            cardFor = null
+            scope.launch { snackbar.showSnackbar("Flashcard criado. Está nos Salvos do Caderno.") }
+        }
     }
     markActionsId?.let { id ->
         val m = marks.firstOrNull { it.id == id }
@@ -306,13 +341,9 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                                 highlightColor = highlighter.copy(alpha = .45f),
                                 highlightColors = blockMarks.filter { it.color != 0 }.associate { it.quote to br.com.estudario.ui.components.MarkColors.of(it.color).color.copy(alpha = .38f).let { c -> android.graphics.Color.argb((c.alpha * 255).toInt(), (c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt()) } },
                                 onSelectColor = { quote, color ->
-                                    markHintSeen = true
-                                    readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply()
-                                    selected = null
-                                    val old = blockMarks.filter { it.quote == quote || br.com.estudario.text.MarkOverlap.overlaps(block, it.quote, quote) }
-                                    old.forEach { viewModel.deleteTheoryMark(it) }
-                                    viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = old.firstOrNull { it.note.isNotBlank() }?.note.orEmpty(), color = color))
-                                    scope.launch { snackbar.showSnackbar("Grifado: ${br.com.estudario.ui.components.MarkColors.of(color).label}. Fica no Caderno de estudo.") }
+                                    // "Grifar" no menu da seleção: abre a folha com as cores e as ações do trecho.
+                                    if (color < 0) selectionSheet = index to quote
+                                    else markWith(index, quote, color, null)
                                 },
                                 onSelectText = { quote, withNote ->
                                     markHintSeen = true
@@ -499,7 +530,7 @@ private fun MarkActionsSheet(mark: TheoryMarkEntity, onColor: (Int) -> Unit, onN
                         Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(12.dp).background(tone.color, RoundedCornerShape(50)))
                             Spacer(Modifier.width(6.dp))
-                            Text(tone.label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                            Text(tone.label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
                     }
                 }

@@ -67,11 +67,37 @@ object Prefs {
     /** Soma [values] à lista da conta (o app recebe na próxima sincronização). */
     fun addSynced(name: String, values: Set<String>) {
         if (syncedSet(name).containsAll(values)) return
-        Store.update { data ->
-            val current = (synced(data)[name] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
-            val list = kotlinx.serialization.json.JsonArray((current + values).filter { it.isNotBlank() }.distinct().sorted().map { JsonPrimitive(it) })
-            data.withObject(SYNCED_KEY, JsonObject(synced(data) + (name to list)))
-        }
+        // A mudança é refeita por cima da versão da conta quando outro aparelho publicou antes
+        // (Store): por isso soma ao que está lá em vez de gravar a lista daqui.
+        Store.update { data -> withSynced(data, name, values) }
+    }
+
+    /** [data] com [values] somados à lista [name] da conta (união: nada some). */
+    fun withSynced(data: Snapshot, name: String, values: Set<String>): Snapshot {
+        val current = (synced(data)[name] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+        val list = kotlinx.serialization.json.JsonArray((current + values).filter { it.isNotBlank() }.distinct().sorted().map { JsonPrimitive(it) })
+        return data.withObject(SYNCED_KEY, JsonObject(synced(data) + (name to list)))
+    }
+
+    private fun syncedSetIn(data: Snapshot, name: String): Set<String> = (synced(data)[name] as? kotlinx.serialization.json.JsonArray)
+        ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }?.toSet().orEmpty()
+
+    /**
+     * As animações já vistas em qualquer aparelho da conta (chaves de [br.com.estudario.domain.Celebrated],
+     * as mesmas do app), contando as listas antigas de emblemas e peças.
+     */
+    fun celebratedIn(data: Snapshot): Set<String> = br.com.estudario.domain.Celebrated.all(
+        syncedSetIn(data, br.com.estudario.domain.Celebrated.SYNCED),
+        syncedSetIn(data, br.com.estudario.domain.Celebrated.LEGACY_BADGES),
+        syncedSetIn(data, br.com.estudario.domain.Celebrated.LEGACY_PIECES),
+    )
+
+    fun wasCelebrated(key: String): Boolean = key in celebratedIn(Store.data)
+
+    /** Grava que a animação apareceu (o app recebe na próxima sincronização e não repete). */
+    fun markCelebrated(keys: Collection<String>) {
+        if (Store.demo || keys.isEmpty()) return
+        addSynced(br.com.estudario.domain.Celebrated.SYNCED, keys.toSet())
     }
 
     /** Grava campos soltos na foto da conta (ex.: o fundo do caderno), sem mexer no resto. */

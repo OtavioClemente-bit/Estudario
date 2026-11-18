@@ -46,7 +46,10 @@ private var tourOpen by mutableStateOf<Boolean?>(null)
 
 fun replayTour() { tourOpen = true; br.com.estudario.web.Router.go(br.com.estudario.web.Route.Home) }
 
-private fun markSeen() { runCatching { localStorage.setItem(TOUR_KEY, "1") } }
+private fun markSeen() {
+    runCatching { localStorage.setItem(TOUR_KEY, "1") }
+    br.com.estudario.web.data.Prefs.markCelebrated(listOf(br.com.estudario.domain.Celebrated.tour("boas-vindas")))
+}
 
 /** O primeiro elemento do seletor que está de fato na tela (o menu lateral some no celular). */
 private fun visibleTarget(selector: String?): Element? {
@@ -59,7 +62,9 @@ private fun visibleTarget(selector: String?): Element? {
 
 @Composable
 fun WelcomeTour() {
-    if (tourOpen == null) tourOpen = runCatching { localStorage.getItem(TOUR_KEY) == null }.getOrDefault(false)
+    // Visto em outro navegador da mesma conta (lista "celebrated" da conta): não abre de novo.
+    if (tourOpen == null) tourOpen = runCatching { localStorage.getItem(TOUR_KEY) == null }.getOrDefault(false) &&
+        !br.com.estudario.web.data.Prefs.wasCelebrated(br.com.estudario.domain.Celebrated.tour("boas-vindas"))
     if (tourOpen != true) return
     var index by remember { mutableIntStateOf(0) }
     // Muda a cada rolagem ou redimensionamento, para o holofote acompanhar o alvo.

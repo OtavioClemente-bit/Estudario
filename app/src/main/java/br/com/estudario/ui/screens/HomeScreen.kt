@@ -139,10 +139,12 @@ fun HomeScreen(
     val profile by viewModel.profile.collectAsState()
     val streak by viewModel.streak.collectAsState()
     // O Folha salvou a sequência num dia sem estudo: a cena aparece uma vez por dia salvo.
-    val savePrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    val savePrefsContext = androidx.compose.ui.platform.LocalContext.current
+    val savePrefs = savePrefsContext.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
     val savedRecently = streak?.protectedDays.orEmpty().filter { java.time.LocalDate.now().toEpochDay() - it.toEpochDays() <= 7 }.map { it.toString() }
     var savedSeen by remember { mutableStateOf(savePrefs.getStringSet("streak_saved_seen", emptySet()).orEmpty()) }
-    val savedPending = savedRecently.filter { it !in savedSeen }
+    // Também pula o dia salvo cuja cena já apareceu no site (lista "celebrated" da conta).
+    val savedPending = savedRecently.filter { it !in savedSeen && !br.com.estudario.data.sync.CelebratedStore.has(savePrefsContext, br.com.estudario.domain.Celebrated.streakSaved(it)) }
     // Só depois de conferir a conta: o dia "sem estudo" pode ter sido estudado no site e ainda não ter
     // chegado aqui (antes a cena aparecia ao abrir e gastava o marca-página de um dia estudado).
     val cloudSync = (androidx.compose.ui.platform.LocalContext.current.applicationContext as br.com.estudario.EstudarioApplication).cloudSync
@@ -167,6 +169,7 @@ fun HomeScreen(
         ) {
             savedSeen = savedSeen + savedPending
             savePrefs.edit().putStringSet("streak_saved_seen", savedSeen).apply()
+            br.com.estudario.data.sync.CelebratedStore.mark(savePrefsContext, savedPending.map(br.com.estudario.domain.Celebrated::streakSaved))
         }
     }
     // Os avisos do Folha (revisão do dia, sequência em risco): sem a permissão do Android nada chega
@@ -443,6 +446,7 @@ fun HomeScreen(
                 }
             }
         }
+
 
         // O "Depois" saiu do Início (poluía e confundia, sobretudo no dia livre, quando listava as tarefas de
         // amanhã); o próximo passo fica na missão do dia e o resto no Plano. Igual ao site.

@@ -42,12 +42,16 @@ fun FolhaGiftHost(viewModel: AppViewModel, enabled: Boolean) {
     val queue = remember { mutableStateListOf<List<FolhaItem>>() }
     LaunchedEffect(progress) {
         val summary = progress ?: return@LaunchedEffect
-        val owned = FolhaWardrobe.items.filter { (it.badgeId != null || it.level != null || it.collection != null || it.days != null) && FolhaWardrobe.unlocked(it, summary) }
+        val owned = FolhaWardrobe.items.filter { (it.badgeId != null || it.level != null || it.collection != null || it.days != null || it.owner != null) && FolhaWardrobe.unlocked(it, summary) }
         val seen = FolhaGiftSeen.read(context)
         if (seen == null) { FolhaGiftSeen.write(context, owned.map { it.key() }.toSet()); return@LaunchedEffect }
-        val fresh = owned.filter { it.key() !in seen }
+        // Também pula o que o site já comemorou (lista "celebrated" da conta, chave "piece:SLOT:id").
+        val fresh = owned.filter { it.key() !in seen && !br.com.estudario.data.sync.CelebratedStore.has(context, br.com.estudario.domain.Celebrated.piece(it.key())) }
+        val missing = owned.filter { it.key() !in seen }
+        if (missing.isEmpty()) return@LaunchedEffect
+        FolhaGiftSeen.write(context, seen + missing.map { it.key() })
+        br.com.estudario.data.sync.CelebratedStore.mark(context, missing.map { br.com.estudario.domain.Celebrated.piece(it.key()) })
         if (fresh.isEmpty()) return@LaunchedEffect
-        FolhaGiftSeen.write(context, seen + fresh.map { it.key() })
         // Muitas de uma vez (a primeira vez com o armário por área): o presente mostra as 6 mais raras.
         queue += fresh.sortedByDescending { it.rarity.ordinal }.take(6)
     }

@@ -144,8 +144,10 @@ fun TopicSavedPanel(
     onOpenTheory: (theoryId: Long, block: Int) -> Unit,
     onOpenTopic: (Long) -> Unit,
     onTrainFavorites: (Long) -> Unit,
+    // Na página do tópico os grifos (e as notas deles) ficam em "Seus grifos": aqui não se repetem.
+    withMarks: Boolean = true,
 ) {
-    val saved = rememberSavedByTopic(viewModel)[topicId]
+    val saved = rememberSavedByTopic(viewModel)[topicId]?.let { s -> if (withMarks) s else SavedOfTopic(emptyList(), s.questions, s.tips, s.traps, s.cards, s.decks, s.notes) }
     val topics by viewModel.topics.collectAsState()
     val place = topics.firstOrNull { it.id == topicId }?.title ?: "Geral"
     val scheme = MaterialTheme.colorScheme
@@ -182,7 +184,7 @@ fun TopicSavedPanel(
         if (saved == null || saved.total == 0) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(scheme.surfaceVariant.copy(alpha = 0.5f)).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Outlined.TipsAndUpdates, null, tint = Accent)
-                Text("Na teoria, selecione um trecho e toque em Grifar. Nas questões, dicas, pegadinhas e flashcards, toque na estrela para guardar. Tudo deste tópico aparece aqui.", fontSize = 15.sp, lineHeight = 22.sp, color = scheme.onSurfaceVariant)
+                Text("Nas questões, dicas, pegadinhas e flashcards, toque na estrela para guardar. Na teoria, selecione um trecho e crie um flashcard. Tudo deste tópico aparece aqui (os grifos ficam em Seus grifos).", fontSize = 15.sp, lineHeight = 22.sp, color = scheme.onSurfaceVariant)
             }
             return@Column
         }
@@ -327,7 +329,8 @@ fun SavedOnlyPage(viewModel: AppViewModel, topicId: Long, onOpenTheory: (Long, I
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(t?.title ?: "Geral", fontWeight = FontWeight.Black, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
         if (t == null) Text("O que você guardou sem um tópico do edital.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        TopicSavedPanel(viewModel, topicId, onOpenTheory, onOpenTopic, onTrainFavorites)
+        TopicMarksPanel(viewModel, topicId, onOpenTheory, onOpenTopic)
+        TopicSavedPanel(viewModel, topicId, onOpenTheory, onOpenTopic, onTrainFavorites, withMarks = false)
         if (t != null) OutlinedButton(onClick = { onOpenTopic(topicId) }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.MenuBook, null); Spacer(Modifier.width(6.dp)); Text("Abrir o tópico") }
     }
 }

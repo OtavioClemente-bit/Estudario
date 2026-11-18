@@ -142,6 +142,8 @@ internal fun GameScene(
     stageExtra: (@Composable BoxScope.(Float, androidx.compose.ui.unit.Dp) -> Unit)? = null,
     /** O Folha da fala: o humor, e se ele aparece ali (na sequência ele fica do lado da fênix, no palco). */
     folhaMood: FolhaMood = FolhaMood.PROUD, folhaInLine: Boolean = true,
+    /** Botão secundário abaixo do principal (o "Ver conquistas" do site). */
+    ghost: String? = null, onGhost: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -358,6 +360,14 @@ internal fun GameScene(
                             .clickable(onClick = onPrimary).padding(horizontal = 34.dp, vertical = 15.dp),
                         contentAlignment = Alignment.Center,
                     ) { Text(primary, color = Color(0xFF2B1600), fontWeight = FontWeight.Black, fontSize = 16.sp) }
+                }
+                if (ghost != null) Appear(t, 3.0f) {
+                    Box(
+                        Modifier.widthIn(min = 210.dp).clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.06f))
+                            .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(16.dp))
+                            .clickable(onClick = onGhost).padding(horizontal = 30.dp, vertical = 13.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(ghost, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
                 }
             }
         }
@@ -655,7 +665,10 @@ private const val FORGE_REVEAL = 4.35f
  * carimbada; depois o letreiro e os prêmios. Quando cai mais de um de uma vez, cada um ganha a sua cena.
  */
 @Composable
-fun BadgeCelebrationScreen(badges: List<br.com.estudario.domain.Badge>, onClose: () -> Unit) {
+fun BadgeCelebrationScreen(
+    badges: List<br.com.estudario.domain.Badge>, onClose: () -> Unit,
+    progress: br.com.estudario.domain.ProgressEngine.ProgressSummary? = null, onTrophies: (() -> Unit)? = null,
+) {
     if (badges.isEmpty()) return
     var index by remember(badges) { androidx.compose.runtime.mutableIntStateOf(0) }
     val badge = badges.getOrNull(index) ?: return
@@ -676,11 +689,21 @@ fun BadgeCelebrationScreen(badges: List<br.com.estudario.domain.Badge>, onClose:
             hex(rank.light), hex(rank.mid), hex(rank.dark), sound = null, stamp = tier.uppercase() + "!",
             from = "BLOQUEADO", to = "DESBLOQUEADO", word = "CONQUISTA!",
             sub = "${badge.name} · emblema $tier" + if (badges.size > 1) "  (${index + 1}/${badges.size})" else "",
-            loot = listOf(
-                GameLoot(Glyph.Trophy, "O QUE VOCÊ FEZ", badge.requirement, gold = true),
-                GameLoot(Glyph.Medal, "FAIXA", "$tier · ${badge.tier} de 6"),
-                GameLoot(Glyph.Star, "CATEGORIA", badge.category.label),
-            ),
+            // os mesmos prêmios do site: sala de troféus, faixa e o próximo emblema
+            loot = buildList {
+                val known = progress != null && progress.badges.isNotEmpty()
+                if (known) add(GameLoot(Glyph.Trophy, "SALA DE TROFÉUS", "${progress!!.earnedBadges.size} de ${progress.badges.size} emblemas", gold = true))
+                else add(GameLoot(Glyph.Trophy, "O QUE VOCÊ FEZ", badge.requirement, gold = true))
+                add(GameLoot(Glyph.Medal, "FAIXA", "$tier · ${badge.tier} de 6"))
+                val next = progress?.nextBadges?.firstOrNull { nb -> nb.badge.id != badge.id && badges.none { it.id == nb.badge.id } }
+                if (next != null) add(GameLoot(Glyph.Flag, "PRÓXIMO EMBLEMA", "${next.badge.name} · faltam ${next.remaining} ${next.badge.unit}"))
+                else add(GameLoot(Glyph.Star, "CATEGORIA", badge.category.label))
+            },
+            // o que a pessoa fez, logo abaixo do nome (como no site)
+            middle = if (progress != null && progress.badges.isNotEmpty()) { _ ->
+                Text(badge.requirement, Modifier.widthIn(max = 380.dp), color = Color.White.copy(alpha = 0.72f), fontSize = 14.sp, textAlign = TextAlign.Center)
+            } else null,
+            ghost = if (onTrophies != null) "Ver conquistas" else null, onGhost = { onClose(); onTrophies?.invoke() },
             line = when (badge.tier) {
                 in 1..2 -> "Saiu quentinha da forja! Cada emblema é prova de que você está indo."
                 in 3..4 -> "Essa deu trabalho de martelar! Pouca gente chega aqui."

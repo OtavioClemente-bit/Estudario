@@ -1114,15 +1114,19 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
             FolhaMood.ECSTATIC -> { drawFlames(t, small); drawCelebration(t, small) }
             FolhaMood.HAPPY -> drawCelebration(t, small)
             FolhaMood.PROUD -> drawSparkles(t, small)
-            FolhaMood.SLEEPY -> drawZzz(t, small)
-            FolhaMood.DIZZY -> drawDizzyStars(t)
-            FolhaMood.FOCUS -> if (!small) drawFocusMarks(t)
             else -> {}
         }
         drawAura(t, look.aura, small, f.burst, behind = false)
         if (look.aura == "holofote") drawSpotLamps(t)
         drawBurst(f.burst)
         f.life?.let { drawLife(t, it, small) }
+        // como no site: o zzz, as estrelinhas da tontura e as marcas do foco ficam por cima da aura
+        when (mood) {
+            FolhaMood.SLEEPY -> drawZzz(t, small)
+            FolhaMood.DIZZY -> drawDizzyStars(t)
+            FolhaMood.FOCUS -> if (!small) drawFocusMarks(t)
+            else -> {}
+        }
     }
 }
 
@@ -4229,7 +4233,7 @@ private fun DrawScope.drawEyewear(p: PoseValues, small: Boolean, kind: String, t
 private val NECK_ZOOM = mapOf("borboleta" to floatArrayOf(50f, 83.4f, 1.35f), "medalha" to floatArrayOf(25.6f, 73.2f, 1.4f), "roseta" to floatArrayOf(24.5f, 78.4f, 1.45f),
     "medalha-militar" to floatArrayOf(25f, 71.6f, 1.4f), "balanca" to floatArrayOf(24.8f, 72.4f, 1.5f), "broche" to floatArrayOf(23.5f, 79.6f, 1.55f), "flor" to floatArrayOf(76.5f, 79.6f, 1.45f), "caneta" to floatArrayOf(26f, 70f, 1.3f),
     "cruz-saude" to floatArrayOf(24.5f, 77f, 1.4f), "divisas" to floatArrayOf(24.5f, 75.5f, 1.35f), "brasao" to floatArrayOf(24.5f, 76f, 1.4f), "leao" to floatArrayOf(24.5f, 77f, 1.4f),
-    "selo" to floatArrayOf(24.5f, 75.5f, 1.35f), "parlamentar" to floatArrayOf(24.5f, 77f, 1.4f), "estrelinha" to floatArrayOf(24.5f, 77.5f, 1.35f), "postits" to floatArrayOf(24.5f, 76f, 1.3f), "sininho" to floatArrayOf(50f, 83f, 2f), "plaqueta" to floatArrayOf(50f, 83.5f, 1.25f), "perolas" to floatArrayOf(50f, 80f, 1.08f))
+    "selo" to floatArrayOf(24.5f, 75.5f, 1.35f), "parlamentar" to floatArrayOf(24.5f, 77f, 1.4f), "estrelinha" to floatArrayOf(24.5f, 77.5f, 1.35f), "postits" to floatArrayOf(24.5f, 76f, 1.3f), "sininho" to floatArrayOf(50f, 83f, 2f), "plaqueta" to floatArrayOf(50f, 83.5f, 1.25f), "perolas" to floatArrayOf(50f, 80f, 1.08f), "colar-artur" to floatArrayOf(50f, 80f, 1.08f))
 
 private fun DrawScope.drawNeckwear(t: Float, small: Boolean, kind: String) {
     val z = NECK_ZOOM[kind]
@@ -4690,6 +4694,41 @@ private fun DrawScope.drawNeckwearRaw(t: Float, small: Boolean, kind: String) {
             note(21f, 72.5f, -0.18f, Color(0xFFFFF3A0), Color(0xFFFFD84A), Color(0x8C785A0A))
             note(27.6f, 74.6f, 0.14f, Color(0xFFFFD1E3), Color(0xFFFF8FB8), Color(0x80962850))
             note(22.6f, 79.4f, -0.06f + sin(t * 2.2f) * 0.14f, Color(0xFFD2FBE6), Mint, Color(0x8C146446))
+        }
+        "colar-artur" -> {
+            // colar do Artur (presente exclusivo, um só no Estudário): cordão preto de couro que desce dos
+            // ombros em U por baixo da boca e, bem no meio, atravessa uma conta vermelha (a corda entra por um
+            // lado e sai pelo outro). Na conta, espinhos gravados em volta, como um entalhe, sem ponta saindo.
+            val cord = Path().apply { moveTo(16f, 66f); cubicTo(20f, 92f, 80f, 92f, 84f, 66f) }
+            val w = if (small) 2.4f else 1.7f
+            val cap = androidx.compose.ui.graphics.StrokeCap.Round
+            translate(0.35f, 0.55f) { drawPath(cord, Color(0x47140A1E), style = Stroke(w, cap = cap)) }
+            drawPath(cord, Color(0xFF121216), style = Stroke(w, cap = cap))
+            if (!small) translate(-0.15f, -0.35f) { drawPath(cord, Color(0x40FFFFFF), style = Stroke(0.35f, cap = cap)) }
+            fun bz(u: Float): Offset { val a = (1 - u).pow(3); val b = 3 * u * (1 - u).pow(2); val c = 3 * u * u * (1 - u); val d = u.pow(3); return Offset(a * 16f + b * 20f + c * 80f + d * 84f, a * 66f + b * 92f + c * 92f + d * 66f) }
+            val run = (t * 0.22f) % 1.3f
+            if (run in 0.04f..0.42f || run in 0.58f..0.96f) { val g1 = bz(run); drawCircle(Color.White.copy(alpha = 0.55f), if (small) 0.8f else 0.55f, g1 + Offset(-0.2f, -0.4f)) }
+            // a conta: no ponto mais baixo do U, a corda passa por dentro dela
+            val c = bz(0.5f); val r = if (small) 4.6f else 4f
+            drawCircle(Color(0x47140A1E), r, c + Offset(0.45f, 0.65f))
+            drawCircle(Brush.radialGradient(0f to Color(0xFFFF8A80), 0.35f to Color(0xFFEE2B36), 0.78f to Color(0xFFB0111B), 1f to Color(0xFF6A0610), center = c + Offset(-r * 0.3f, -r * 0.42f), radius = r * 1.35f), r, c)
+            // os furos por onde a corda entra e sai (as duas pontas da conta)
+            drawOval(Color(0xFF121216), c + Offset(-r - 0.35f, -0.95f), Size(1.5f, 1.9f))
+            drawOval(Color(0xFF121216), c + Offset(r - 1.15f, -0.95f), Size(1.5f, 1.9f))
+            // espinhos gravados: gotas finas em volta da conta, apontando para fora, num vermelho mais escuro,
+            // só desenhadas na superfície (nenhuma sai da bola)
+            if (!small) for (i in 0 until 8) {
+                val ang = (i * 45f + 22.5f) / 180f * PIf
+                val dx = cos(ang); val dy = sin(ang)
+                val base = c + Offset(dx * r * 0.42f, dy * r * 0.42f); val tip = c + Offset(dx * r * 0.86f, dy * r * 0.86f)
+                val nx = -dy * 0.42f; val ny = dx * 0.42f
+                val thorn = Path().apply { moveTo(base.x + nx, base.y + ny); quadraticBezierTo((base.x + tip.x) / 2 + nx * 0.6f, (base.y + tip.y) / 2 + ny * 0.6f, tip.x, tip.y); quadraticBezierTo((base.x + tip.x) / 2 - nx * 0.6f, (base.y + tip.y) / 2 - ny * 0.6f, base.x - nx, base.y - ny); close() }
+                drawPath(thorn, Color(0xA6560208))
+                drawPath(thorn, Color(0x33FFB3B3), style = Stroke(0.12f))
+            }
+            drawCircle(Color(0xFF3A0508), r, c, style = Stroke(if (small) 0.6f else 0.35f))
+            drawArc(Color.White.copy(alpha = 0.45f), 200f, 70f, false, c - Offset(r * 0.72f, r * 0.72f), Size(r * 1.44f, r * 1.44f), style = Stroke(if (small) 0.6f else 0.4f, cap = cap))
+            drawCircle(Color.White.copy(alpha = 0.9f), r * 0.2f, c + Offset(-r * 0.36f, -r * 0.46f))
         }
         "perolas" -> {
             // colar de pérolas: o fio desce dos ombros em U por baixo da boca, cada pérola com o reflexo rosado e o

@@ -83,8 +83,8 @@ fun ProfileAvatar(
                 Text(
                     initials.ifBlank { "?" },
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (size.value / 2.6f).sp,
+                    fontWeight = FontWeight.Black,
+                    fontSize = (size.value / 2.9f).sp,
                 )
             }
         }
@@ -127,7 +127,7 @@ fun PresetAvatarArt(avatar: PresetAvatar, size: Dp, modifier: Modifier = Modifie
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(avatar.top, avatar.bottom))),
         contentAlignment = Alignment.Center,
     ) {
-        if (avatar.glyph == null) br.com.estudario.ui.assistant.Folha(size * 0.86f)
-        else br.com.estudario.ui.brand.BrandIcon(avatar.glyph, size = size * 0.62f)
+        if (avatar.glyph == null) br.com.estudario.ui.assistant.Folha(size * 0.8f)
+        else br.com.estudario.ui.brand.BrandIcon(avatar.glyph, size = size * 0.64f)
     }
 }

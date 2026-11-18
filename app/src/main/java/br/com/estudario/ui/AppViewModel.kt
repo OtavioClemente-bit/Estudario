@@ -473,7 +473,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // foi há mais tempo (no site ou em outro aparelho, chegada pela sincronização), o dia
                 // já foi comemorado lá e não conta de novo.
                 if (celebrationsMuted() || !dayJustStarted()) return@collect
-                _celebration.value = StreakCelebration(summary, celebrationReason(summary), progress.value?.xpToday ?: 0)
+                // Comemorado no site (ou em outro aparelho) e já sincronizado: não repete aqui.
+                val dayKey = br.com.estudario.domain.Celebrated.day(today)
+                if (br.com.estudario.data.sync.CelebratedStore.has(app, dayKey)) return@collect
+                br.com.estudario.data.sync.CelebratedStore.mark(app, listOf(dayKey))
+                _celebration.value =StreakCelebration(summary, celebrationReason(summary), progress.value?.xpToday ?: 0)
             }
         }
     }
@@ -492,7 +496,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val backfill = conhecidos.isEmpty() || celebrationsMuted()
                 conhecidos = conhecidos + novos
                 app.preferences.markBadgesEarned(novos)
-                if (!backfill) _badgeUnlock.value = summary.earnedBadges.filter { it.badge.id in novos }.map { it.badge }
+                if (backfill) return@collect
+                val store = br.com.estudario.data.sync.CelebratedStore
+                val mostrar = novos.filterNot { store.has(app, br.com.estudario.domain.Celebrated.badge(it)) }.toSet()
+                store.mark(app, novos.map(br.com.estudario.domain.Celebrated::badge))
+                if (mostrar.isNotEmpty()) _badgeUnlock.value = summary.earnedBadges.filter { it.badge.id in mostrar }.map { it.badge }
             }
         }
     }
@@ -532,7 +540,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 app.preferences.setSeenLevel(summary.level)
                 // Nível que cai (raro) ou primeira leitura: só registra.
                 if (before == 0 || summary.level < before || quiet) return@collect
-                _levelUp.value = LevelUp(
+                // Subida já comemorada no site (ou em outro aparelho) e sincronizada: não repete aqui.
+                val levelKey = br.com.estudario.domain.Celebrated.level(summary.level)
+                if (br.com.estudario.data.sync.CelebratedStore.has(app, levelKey)) return@collect
+                br.com.estudario.data.sync.CelebratedStore.mark(app, listOf(levelKey))
+                _levelUp.value =LevelUp(
                     level = summary.level,
                     title = summary.levelTitle,
                     newTitle = ProgressEngine.levelTitle(before) != summary.levelTitle,
@@ -716,13 +728,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Abre o guia só se ainda não foi visto e nenhum outro guia estiver aberto. */
     fun maybeStartTour(id: TourId) {
         val seen = seenTours.value ?: return
-        if (_activeTour.value == null && id.name !in seen && id !in closedTours) startTour(id)
+        if (_activeTour.value == null && id.name !in seen && id !in closedTours &&
+            !br.com.estudario.data.sync.CelebratedStore.has(app, br.com.estudario.domain.Celebrated.tour(id.name))) startTour(id)
     }
     fun stopTour() {
         val tour = _activeTour.value ?: return
         closedTours += tour
         _activeTour.value = null
         _tourTargetBounds.value = null
+        br.com.estudario.data.sync.CelebratedStore.mark(app, listOf(br.com.estudario.domain.Celebrated.tour(tour.name)))
         launchCatching { app.preferences.markTourSeen(tour.name) }
     }
     fun advanceTour() {

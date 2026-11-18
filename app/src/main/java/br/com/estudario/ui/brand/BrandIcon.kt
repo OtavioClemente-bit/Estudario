@@ -116,6 +116,7 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "VolumeUp", "VolumeOff", "MusicNote" -> Glyph.Speaker
     "Coffee", "LocalCafe" -> Glyph.Coffee
     "Checkroom" -> Glyph.Armario
+    "Widgets", "DashboardCustomize" -> Glyph.Widgets
     "Check", "Done", "DoneAll" -> Glyph.Check
     "PanTool", "BackHand", "FrontHand" -> Glyph.Hand
     "WavingHand" -> Glyph.Wave

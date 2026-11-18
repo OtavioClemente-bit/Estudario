@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checkroom
@@ -161,23 +163,108 @@ private fun DrawerHeader(profile: UserProfile, level: Int?, totalXp: Int?, onOpe
             )
         }
         Spacer(Modifier.height(EstudarioSpacing.tight))
-        ProfileAvatar(profile.photoPath, profile.initials, 56.dp)
-        Text(
-            profile.displayName,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        )
-        Text(
-            when {
-                level != null && totalXp != null -> "Nível $level · ${totalXp} XP"
-                profile.signedIn -> profile.email
-                else -> "Conta local"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        )
+        if (level != null && totalXp != null) {
+            DrawerPlayerCard(profile, level, totalXp)
+        } else {
+            ProfileAvatar(profile.photoPath, profile.initials, 56.dp)
+            Text(
+                profile.displayName,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Text(
+                if (profile.signedIn) profile.email else "Conta local",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * O cartão de jogador do menu (igual ao do site): fundo nas cores do metal do nível, foto com o brasão
+ * no canto, pílula "Nível N", título do posto, barra de XP até o próximo nível e um brilho que passa.
+ */
+@Composable
+private fun DrawerPlayerCard(profile: UserProfile, level: Int, totalXp: Int) {
+    val rank = br.com.estudario.domain.LevelCrest.rank(level)
+    fun hex(s: String) = androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(s))
+    val light = hex(rank.light); val mid = hex(rank.mid); val dark = hex(rank.dark)
+    val floor = br.com.estudario.domain.ProgressEngine.xpForLevel(level)
+    val ceiling = br.com.estudario.domain.ProgressEngine.xpForLevel(level + 1)
+    val need = (ceiling - floor).coerceAtLeast(1)
+    val into = (totalXp - floor).coerceIn(0, need)
+    val fraction = into.toFloat() / need
+    val shine by androidx.compose.animation.core.rememberInfiniteTransition(label = "pcShine").animateFloat(
+        initialValue = -0.4f, targetValue = 1.4f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(3600, delayMillis = 1800)),
+        label = "pcShineX",
+    )
+    val shape = RoundedCornerShape(16.dp)
+    val white = androidx.compose.ui.graphics.Color.White
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(mid, dark)), shape)
+            .border(1.5.dp, light.copy(alpha = 0.7f), shape)
+            .drawBehind {
+                // o brilho em faixa diagonal que atravessa o cartão de tempos em tempos
+                val x = size.width * shine
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        listOf(white.copy(alpha = 0f), white.copy(alpha = 0.28f), white.copy(alpha = 0f)),
+                        start = androidx.compose.ui.geometry.Offset(x - 60f, 0f),
+                        end = androidx.compose.ui.geometry.Offset(x + 60f, size.height),
+                    ),
+                )
+            }
+            .semantics { contentDescription = "Perfil: nível $level, ${rank.title}, $totalXp XP" }
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // como no site (.pc-photo): moldura de 3 no metal claro, contorno de 2 no escuro e o brasão
+            // saindo pelo canto de baixo, com sombrinha
+            Box(Modifier.size(62.dp)) {
+                Box(
+                    Modifier.align(Alignment.TopStart)
+                        .border(2.dp, dark, androidx.compose.foundation.shape.CircleShape).padding(2.dp)
+                        .border(3.dp, light, androidx.compose.foundation.shape.CircleShape),
+                ) {
+                    ProfileAvatar(profile.photoPath, profile.initials, 52.dp)
+                }
+                br.com.estudario.ui.profile.LevelCrestImage(level, 30.dp, Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    profile.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+                    color = white,
+                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Text(
+                    "Nível $level",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+                    color = dark,
+                    modifier = Modifier.background(light, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+                Text(rank.title, style = MaterialTheme.typography.bodySmall, color = white.copy(alpha = 0.92f), maxLines = 1)
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.28f))) {
+                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(RoundedCornerShape(50)).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(light, white))))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("$into/$need XP", style = MaterialTheme.typography.labelSmall, color = white)
+                Text("$totalXp XP no total", style = MaterialTheme.typography.labelSmall, color = white.copy(alpha = 0.85f))
+            }
+        }
     }
 }
 
@@ -284,6 +371,7 @@ fun estudarioDrawerSections(
     onPlans: () -> Unit = {},
     onSimulations: () -> Unit = {},
     onWardrobe: () -> Unit = {},
+    onWidgets: () -> Unit = {},
 ): List<DrawerSection> = listOf(
     DrawerSection(
         "Estudos",
@@ -315,6 +403,7 @@ fun estudarioDrawerSections(
             DrawerEntry("Planos e assinatura", Icons.Outlined.WorkspacePremium, onPlans),
             DrawerEntry("Ajustes", Icons.Outlined.Tune, onSettings, "more"),
             DrawerEntry("Notificações", Icons.Outlined.NotificationsActive, onNotifications, "notifications"),
+            DrawerEntry("Widgets", Icons.Outlined.Widgets, onWidgets, "widgets"),
             DrawerEntry("Agenda do celular", Icons.Outlined.CalendarMonth, onSyncCalendar, "agenda"),
             DrawerEntry("Como usar o app", Icons.Outlined.HelpOutline, onHelp),
         ),

@@ -646,8 +646,11 @@ fun NotebookPageScreen(
                 item(key = "blank-go") { Button(onClick = { onTheory(topicId) }, Modifier.padding(horizontal = 8.dp)) { Text("Abrir o tópico") } }
             }
             else -> {
-                item(key = "saved") { TopicSavedPanel(viewModel, topicId, onOpenTheory, onTheory, onTrainFavorites) }
-                notebookPage(page, page.topic, subjects.firstOrNull { it.id == page.topic.subjectId }?.name.orEmpty(), now, onTheory, onTrain)
+                // Primeiro o caderno; depois o que a pessoa guardou: os grifos (uma vez só, por cor) e os outros salvos.
+                notebookPage(page, page.topic, subjects.firstOrNull { it.id == page.topic.subjectId }?.name.orEmpty(), now, onTheory, onTrain) {
+                    item(key = "my-marks") { TopicMarksPanel(viewModel, topicId, onOpenTheory, onTheory) }
+                    item(key = "saved") { TopicSavedPanel(viewModel, topicId, onOpenTheory, onTheory, onTrainFavorites, withMarks = false) }
+                }
             }
         }
     }
@@ -730,6 +733,7 @@ private fun PaperPart(content: @Composable ColumnScope.() -> Unit) {
 private fun androidx.compose.foundation.lazy.LazyListScope.notebookPage(
     page: NotebookPage, topic: StudyNotebook.Topic, subjectName: String, now: Long,
     onTheory: (Long) -> Unit, onTrain: (Long) -> Unit,
+    saved: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {},
 ) {
     val map = page.map
     val quotes = page.quotes
@@ -807,12 +811,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.notebookPage(
             }
         }
     }
-    if (topic.marks.isNotEmpty()) item(key = "marks") {
-        PaperPart {
-            Section("SEUS GRIFOS")
-            topic.marks.take(8).forEach { m -> MarkQuote(m) }
-        }
-    }
     if (topic.notes.isNotEmpty()) item(key = "notes") { PaperPart { topic.notes.take(3).forEach { PostIt(it) } } }
     if (map.tips.isNotEmpty()) item(key = "tips") {
         PaperPart {
@@ -835,6 +833,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.notebookPage(
             }
         }
     }
+    saved()
     item(key = "end") {
         PaperPart {
             PageActions(topic.id, page.hasQuestions, onTheory, onTrain)

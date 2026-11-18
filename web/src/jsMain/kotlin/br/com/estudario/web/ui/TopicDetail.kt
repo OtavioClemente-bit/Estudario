@@ -610,6 +610,7 @@ private fun TheoryReader(theory: Theory) {
     // Clique num trecho já grifado: a barrinha oferece tirar o grifo ali mesmo.
     var clickedMark by remember(theory.id) { mutableStateOf<Triple<Long, Double, Double>?>(null) }
     var noteFor by remember(theory.id) { mutableStateOf<TextPick?>(null) }
+    var cardFor by remember(theory.id) { mutableStateOf<TextPick?>(null) }
     var editMarkNote by remember(theory.id) { mutableStateOf<br.com.estudario.web.data.TheoryMark?>(null) }
     // Botão direito na teoria: o menu do Estudário (grifar nas cores, nota, fixar na tela, copiar...).
     var ctxMenu by remember(theory.id) { mutableStateOf<Pair<TheoryContext, TextPick?>?>(null) }
@@ -712,9 +713,9 @@ private fun TheoryReader(theory: Theory) {
             window.removeEventListener("scroll", hide)
         }
     }
-    fun saveMark(p: TextPick, note: String, color: Int = 0) {
-        if (Store.demo) Toast.show("Entre com sua conta para grifar e guardar no Caderno.")
-        else {
+    fun saveMark(p: TextPick, note: String, color: Int = 0, message: String? = null) {
+        // Na demonstração o grifo vale só nesta aba (o Store não envia nada), para dar para experimentar.
+        run {
             // Seleção de vários parágrafos: um grifo em cada um (a nota vai no primeiro).
             val parts = p.parts.ifEmpty { listOf(p.block to p.quote) }
             // Grifar de novo por cima de um grifo (faltou uma letra, trecho maior ou menor) troca o antigo
@@ -734,7 +735,9 @@ private fun TheoryReader(theory: Theory) {
             }
             Toast.show(
                 when {
-                    replaced > 0 -> "Grifo atualizado no Caderno de estudo"
+                    message != null -> message
+                    replaced > 0 -> "Grifo atualizado: ${MarkColors.of(color).label}"
+                    parts.size == 1 && note.isBlank() -> "Grifado em ${MarkColors.of(color).label} · está no Caderno de estudo"
                     parts.size > 1 -> "${parts.size} trechos grifados e salvos no Caderno de estudo"
                     else -> "Grifo salvo no Caderno de estudo"
                 },
@@ -938,26 +941,40 @@ private fun TheoryReader(theory: Theory) {
         }
     }
     // Com a folha de anotação aberta, a barra de grifo some (antes ficava por cima e tapava a folha).
-    picked?.takeIf { noteFor == null }?.let { p ->
-        Div({
-            classes("grifo-bar")
-            attr("style", "left:${p.x}px;top:${(p.y - 54).coerceAtLeast(8.0)}px")
-            // Clicar na barra não pode desfazer a seleção antes de salvar.
-            addEventListener("mousedown") { it.preventDefault() }
-        }) {
-            // Uma cor para cada intenção: o que cai muito, o que já entendeu, o que precisa revisar.
-            MarkColors.all.forEach { tone ->
-                Button({ classes("grifo-btn", "tone"); attr("title", "Grifar: ${tone.label}"); onClick { saveMark(p, "", tone.id) } }) {
-                    Span({ classes("tone-dot"); attr("style", "background:${tone.hex}") }); Text(tone.label)
-                }
-            }
-            Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null; window.asDynamic().getSelection()?.removeAllRanges() } }) { Icon("edit_note"); Text("Grifar com nota") }
-            Button({ classes("grifo-btn"); attr("title", "Abre o trecho numa janelinha por cima da página"); onClick {
+    picked?.takeIf { noteFor == null && cardFor == null }?.let { p ->
+        // Uma cor para cada intenção (com o nome visível), e as ações do trecho: anotar, flashcard,
+        // mandar para a revisão, copiar e fixar.
+        val current = p.overlapIds.firstNotNullOfOrNull { id -> theoryMarks.firstOrNull { it.id == id }?.color }
+        MarkSelectionBar(
+            p.x, p.y, current,
+            onColor = { c -> saveMark(p, "", c) },
+            onNote = { noteFor = p; picked = null; window.asDynamic().getSelection()?.removeAllRanges() },
+            onCard = { cardFor = p; picked = null; window.asDynamic().getSelection()?.removeAllRanges() },
+            onReview = { saveMark(p, "", 2, "Mandado para a revisão: volta em Grifos de hoje até você lembrar") },
+            onCopy = {
+                runCatching { window.navigator.asDynamic().clipboard.writeText(p.parts.ifEmpty { listOf(p.block to p.quote) }.joinToString("\n\n") { it.second }) }
+                Toast.show("Trecho copiado")
+                window.asDynamic().getSelection()?.removeAllRanges(); picked = null
+            },
+            onPin = {
                 val md = pinMarkdown(p, blocks)
                 if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser")
                 window.asDynamic().getSelection()?.removeAllRanges(); picked = null
-            } }) { Icon("push_pin"); Text("Fixar") }
-        }
+            },
+            onClose = { window.asDynamic().getSelection()?.removeAllRanges(); picked = null },
+        )
+    }
+    cardFor?.let { p ->
+        QuoteFlashcardModal(
+            quote = p.parts.ifEmpty { listOf(p.block to p.quote) }.joinToString(" ") { it.second },
+            place = theory.title.ifBlank { "Teoria" },
+            onDismiss = { cardFor = null },
+            onSave = { front, back ->
+                Store.update { Actions.addOwnFlashcard(it, theory.topicId, front, back) }
+                cardFor = null
+                Toast.show("Flashcard criado · está nos Salvos do Caderno")
+            },
+        )
     }
     // Grifar com nota abre a folha de caderno; a nota vai para Anotações no Caderno de estudo.
     ctxMenu?.let { (ctx, pick) ->

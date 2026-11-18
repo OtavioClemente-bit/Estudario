@@ -150,11 +150,6 @@ private fun MarkdownTextView(
             }
             view.linksClickable = linksEnabled
             view.movementMethod = if (linksEnabled) LinkMovementMethod.getInstance() else null
-            // Guarda onde o dedo tocou: no clique, um trecho grifado abre a nota dele.
-            if (onHighlightTap != null) view.setOnTouchListener { v, e ->
-                if (e.action == android.view.MotionEvent.ACTION_DOWN) touchAt[v as TextView] = floatArrayOf(e.x, e.y)
-                false
-            } else view.setOnTouchListener(null)
             if (onSelectText != null) view.customSelectionActionModeCallback = highlightActions(view, onSelectText, onSelectColor)
             // Segurar o trecho é o gesto de marcar: o TextView recebe o toque, então o aviso vem dele.
             if (onLongPress != null && !selectable) {
@@ -164,14 +159,32 @@ private fun MarkdownTextView(
                 view.setOnLongClickListener(null)
             }
             // Toque simples seleciona o trecho (na leitura da teoria). Link continua abrindo normalmente.
-            if (onTap != null || onHighlightTap != null) view.setOnClickListener {
-                if (view.selectionStart != -1 && view.selectionStart != view.selectionEnd) return@setOnClickListener
-                val hit = if (onHighlightTap == null) null else touchAt[view]?.let { (x, y) ->
-                    val offset = view.getOffsetForPosition(x, y)
-                    paintedRanges[view].orEmpty().firstOrNull { offset in it.first }?.second
+            // Texto selecionável ganha foco no primeiro toque e só "clica" no segundo: por isso era
+            // preciso tocar duas vezes. O toque é reconhecido aqui, direto, sem depender do clique.
+            view.setOnClickListener(null)
+            if (onTap != null || onHighlightTap != null) {
+                fun handleTap(x: Float, y: Float) {
+                    if (view.selectionStart != -1 && view.selectionStart != view.selectionEnd) return
+                    val hit = if (onHighlightTap == null) null else {
+                        val offset = view.getOffsetForPosition(x, y)
+                        paintedRanges[view].orEmpty().firstOrNull { offset in it.first }?.second
+                    }
+                    if (hit != null) onHighlightTap?.invoke(hit) else onTap?.invoke()
                 }
-                if (hit != null) onHighlightTap?.invoke(hit) else onTap?.invoke()
-            } else view.setOnClickListener(null)
+                val detector = android.view.GestureDetector(view.context, object : android.view.GestureDetector.SimpleOnGestureListener() {
+                    override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                        // Toque em link: o link abre e o bloco não muda.
+                        val content = view.text as? android.text.Spanned
+                        if (content != null && view.linksClickable) {
+                            val offset = view.getOffsetForPosition(e.x, e.y)
+                            if (content.getSpans(offset, offset, android.text.style.ClickableSpan::class.java).isNotEmpty()) return false
+                        }
+                        view.post { handleTap(e.x, e.y) }
+                        return false
+                    }
+                })
+                view.setOnTouchListener { _, e -> detector.onTouchEvent(e); false }
+            } else view.setOnTouchListener(null)
         },
     )
 }
@@ -229,7 +242,6 @@ private fun studyMarkwon(context: Context, colors: ColorScheme, textSizeSp: Floa
 }
 
 private val paintedRanges = java.util.WeakHashMap<TextView, List<Pair<IntRange, String>>>()
-private val touchAt = java.util.WeakHashMap<TextView, FloatArray>()
 
 /**
  * Pinta de marca-texto, no próprio texto, cada trecho grifado (achado mesmo com espaços e quebras
@@ -262,17 +274,16 @@ internal fun findQuote(plain: String, quote: String): IntRange? {
 private fun highlightActions(view: TextView, onSelect: (String, Boolean) -> Unit, onColor: ((String, Int) -> Unit)? = null) = object : android.view.ActionMode.Callback {
     override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
         if (onColor != null) {
-            // Grifar já na cor: amarelo cai muito, verde entendi, rosa revisar.
-            menu.add(android.view.Menu.NONE, MENU_COLOR_BASE + 0, 0, "Cai muito").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
-            menu.add(android.view.Menu.NONE, MENU_COLOR_BASE + 1, 1, "Entendi").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
-            menu.add(android.view.Menu.NONE, MENU_COLOR_BASE + 2, 2, "Revisar").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            // "Grifar" abre a folha do grifo (cores com nome, anotar, flashcard, revisão, copiar): o app avisa com
+            // a cor -1 em onColor. O menu do sistema fica curto e o resto do acabamento é nosso.
+            menu.add(android.view.Menu.NONE, MENU_MORE, 0, "Grifar").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
         } else menu.add(android.view.Menu.NONE, MENU_HIGHLIGHT, 0, "Grifar").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
         menu.add(android.view.Menu.NONE, MENU_HIGHLIGHT_NOTE, 3, "Grifar com nota").setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
         return true
     }
     override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
     override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
-        val color = (item.itemId - MENU_COLOR_BASE).takeIf { it in 0..2 }
+        val color = if (item.itemId == MENU_MORE) -1 else (item.itemId - MENU_COLOR_BASE).takeIf { it in 0..9 }
         if (item.itemId != MENU_HIGHLIGHT && item.itemId != MENU_HIGHLIGHT_NOTE && color == null) return false
         val start = minOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
         val end = maxOf(view.selectionStart, view.selectionEnd).coerceAtMost(view.text.length)
@@ -289,6 +300,7 @@ private fun highlightActions(view: TextView, onSelect: (String, Boolean) -> Unit
 private const val MENU_HIGHLIGHT = 0x6772_01
 private const val MENU_HIGHLIGHT_NOTE = 0x6772_02
 private const val MENU_COLOR_BASE = 0x6772_10
+private const val MENU_MORE = 0x6772_03
 
 /**
  * Ajusta o que as IAs costumam escrever para o que o leitor entende: `\( \)` e `\[ \]` viram

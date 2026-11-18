@@ -84,12 +84,14 @@
     const ranges = [];
     const green = [];
     const pink = [];
+    const blue = [];
+    const lilac = [];
     const noted = [];
     const byId = [];
     for (const m of marks || []) {
       const el = document.getElementById(`tb-${theoryId}-${m.block}`);
       const r = el && rangeFor(el, m.quote);
-      if (r) { (m.color === 1 ? green : m.color === 2 ? pink : ranges).push(r); if (m.note) noted.push(r); if (m.id != null) byId.push({ id: m.id, range: r }); }
+      if (r) { (m.color === 1 ? green : m.color === 2 ? pink : m.color === 3 ? blue : m.color === 4 ? lilac : ranges).push(r); if (m.note) noted.push(r); if (m.id != null) byId.push({ id: m.id, range: r }); }
     }
     marksOf[theoryId] = byId;
     const key = `${NAME}-${theoryId}`;
@@ -97,10 +99,10 @@
     else CSS.highlights.delete(key);
     // Um nome só para o CSS: junta todos os leitores abertos.
     const all = [];
-    for (const [k, h] of CSS.highlights) if (k.startsWith(NAME + "-") && !k.startsWith(NAME + "-nota") && !k.startsWith(NAME + "-verde") && !k.startsWith(NAME + "-rosa")) for (const r of h) all.push(r);
+    for (const [k, h] of CSS.highlights) if (k.startsWith(NAME + "-") && !k.startsWith(NAME + "-nota") && !k.startsWith(NAME + "-verde") && !k.startsWith(NAME + "-rosa") && !k.startsWith(NAME + "-azul") && !k.startsWith(NAME + "-lilas")) for (const r of h) all.push(r);
     if (all.length) CSS.highlights.set(NAME, new Highlight(...all)); else CSS.highlights.delete(NAME);
     // As outras cores do grifo (entendi = verde, revisar = rosa), cada uma na sua camada.
-    for (const [suffix, list] of [["verde", green], ["rosa", pink]]) {
+    for (const [suffix, list] of [["verde", green], ["rosa", pink], ["azul", blue], ["lilas", lilac]]) {
       const k = NAME + "-" + suffix + "-" + theoryId;
       if (list.length) CSS.highlights.set(k, new Highlight(...list)); else CSS.highlights.delete(k);
       const merged = [];

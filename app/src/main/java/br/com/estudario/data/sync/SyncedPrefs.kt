@@ -21,7 +21,7 @@ object SyncedPrefs {
     const val SNAPSHOT_KEY = "userPrefs"
     private const val FOLHA_PREFS = "folha_look"
     /** Lista na foto -> chave em folha_look (as mesmas de WardrobeScreen e FolhaGift). */
-    private val folhaSets = mapOf("wardrobeSeen" to "vistos", "celebratedPieces" to "celebrated", "flashDecks" to br.com.estudario.data.FlashDeckLog.KEY, "wardrobeEarned" to br.com.estudario.data.FolhaLookStore.KEY_OWNED)
+    private val folhaSets = mapOf("wardrobeSeen" to "vistos", "celebratedPieces" to "celebrated", "flashDecks" to br.com.estudario.data.FlashDeckLog.KEY, "wardrobeEarned" to br.com.estudario.data.FolhaLookStore.KEY_OWNED, br.com.estudario.domain.Celebrated.SYNCED to CelebratedStore.KEY)
     private const val BADGES = "celebratedBadges"
 
     private fun app(context: Context) = context.applicationContext as EstudarioApplication
@@ -80,5 +80,26 @@ object SyncedPrefs {
         val named = listOf(a, b).filter { it.optString("userName").isNotBlank() }.maxByOrNull { it.optLong("userNameUpdatedAt", 0L) }
         if (named != null) out.put("userName", named.optString("userName")).put("userNameUpdatedAt", named.optLong("userNameUpdatedAt", 0L))
         return out
+    }
+}
+
+/**
+ * As animações que aparecem uma vez só (chaves de [br.com.estudario.domain.Celebrated], as mesmas do site).
+ * Vai na foto da conta como "celebrated" (SyncedPrefs): visto lá, não se repete aqui, e vice-versa.
+ */
+object CelebratedStore {
+    const val KEY = "celebrated_keys"
+    private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("folha_look", Context.MODE_PRIVATE)
+    private fun list(context: Context, key: String): Set<String> =
+        prefs(context).getString(key, null)?.split(",")?.filter { it.isNotBlank() }?.toSet().orEmpty()
+
+    /** Visto aqui ou em outro aparelho da conta (inclui a lista antiga das peças do presente). */
+    fun has(context: Context, key: String): Boolean =
+        key in br.com.estudario.domain.Celebrated.all(list(context, KEY), legacyPieces = list(context, "celebrated"))
+
+    fun mark(context: Context, keys: Collection<String>) {
+        val current = list(context, KEY)
+        if (current.containsAll(keys)) return
+        prefs(context).edit().putString(KEY, br.com.estudario.domain.Celebrated.merge(current, keys.toSet()).joinToString(",")).apply()
     }
 }

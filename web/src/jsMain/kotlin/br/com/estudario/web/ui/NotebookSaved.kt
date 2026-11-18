@@ -80,7 +80,8 @@ private object SavedNav { val open = androidx.compose.runtime.mutableStateMapOf<
 @Composable
 fun TopicSavedPanel(topicId: Long) {
     val data = Store.data
-    val saved = remember(data) { savedByTopic(data) }[topicId]
+    // Os grifos (e as notas deles) ficam em "Seus grifos", logo acima: aqui não se repetem.
+    val saved = remember(data) { savedByTopic(data) }[topicId]?.let { s -> SavedOfTopic(emptyList(), s.questions, s.tips, s.traps, s.cards, s.decks, s.notes) }
     val topicTitle = data.topics.firstOrNull { it.id == topicId }?.title ?: "Geral"
     Div({ classes("nbs") ; attr("id", "salvos") }) {
         Div({ classes("nbs-head") }) {
@@ -93,7 +94,7 @@ fun TopicSavedPanel(topicId: Long) {
         if (saved == null || saved.total == 0) {
             Div({ classes("nbs-empty") }) {
                 Icon("tips_and_updates")
-                P { Text("Na teoria, selecione um trecho e toque em Grifar. Nas questões, dicas, pegadinhas e flashcards, toque na estrela para guardar. Tudo deste tópico aparece aqui.") }
+                P { Text("Nas questões, dicas, pegadinhas e flashcards, toque na estrela para guardar. Na teoria, selecione um trecho e crie um flashcard. Tudo deste tópico aparece aqui (os grifos ficam em Seus grifos).") }
             }
             return@Div
         }

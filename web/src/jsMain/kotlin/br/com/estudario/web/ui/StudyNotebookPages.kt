@@ -435,6 +435,7 @@ fun NotebookPageScreen(topicId: Long) {
             Span({ classes("cb-crumb") }) { Text((subjectName ?: "Caderno").uppercase()) }
             H2 { Text(raw?.title ?: "Geral") }
             if (raw == null) P({ classes("small", "muted") }) { Text("O que você guardou sem um tópico do edital.") }
+            TopicMarksSection(topicId)
             TopicSavedPanel(topicId)
             if (raw != null) Div({ classes("cb-foot") }) { Btn("Ler a teoria", { Router.go(Route.Topic(topicId)) }, style = "outline", icon = "menu_book") }
         }
@@ -466,7 +467,7 @@ fun NotebookPageScreen(topicId: Long) {
         Div({ classes("cb-chips") }) {
             topic.lastSeenAt?.let { Span { Text("visto ${sinceLabel(it, now)}") } }
             topic.lastPracticeAt?.let { Span { Text("treinou ${sinceLabel(it, now)}") } }
-            if (topic.marks.isNotEmpty()) Span { Text("${topic.marks.size} ${if (topic.marks.size == 1) "grifo" else "grifos"}") }
+            if (topic.marks.isNotEmpty()) Button({ classes("cb-chip-link"); attr("title", "Ir para Seus grifos"); onClick { kotlinx.browser.document.getElementById("seus-grifos")?.asDynamic()?.scrollIntoView(kotlin.js.json("behavior" to "smooth", "block" to "start")) } }) { Text("${topic.marks.size} ${if (topic.marks.size == 1) "grifo" else "grifos"} ↓") }
             if (topic.notes.isNotEmpty()) Span { Text("${topic.notes.size} ${if (topic.notes.size == 1) "nota" else "notas"}") }
             if (topic.wrongQuestions.isNotEmpty()) Span({ classes("w") }) { Text("${topic.wrongQuestions.size} ${if (topic.wrongQuestions.size == 1) "erro" else "erros"} para refazer") }
         }
@@ -480,7 +481,6 @@ fun NotebookPageScreen(topicId: Long) {
             }
             if (firm != StudyNotebook.Firmness.FIRM && hasQuestions) Btn("Treinar 5", { Router.go(Route.Quiz("topico-${topic.id}-5-c")) }, style = "primary", small = true)
         }
-        TopicSavedPanel(topic.id)
         if (thin) Div({ classes("cb-thin") }) {
             Icon("info", filled = true)
             Span { Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.") }
@@ -519,10 +519,6 @@ fun NotebookPageScreen(topicId: Long) {
                 }
             }
         }
-        if (quotes.isNotEmpty()) {
-            H4 { Icon("bookmark"); Text("SEUS GRIFOS") }
-            topic.marks.take(8).forEachIndexed { i, m -> key(i) { MarkQuote(m) } }
-        }
         topic.notes.take(3).forEach { note -> Div({ classes("cb-postit") }) { Text(note) } }
         if (map.tips.isNotEmpty()) {
             H4 { Icon("lightbulb"); Text("DICAS DE PROVA") }
@@ -540,6 +536,9 @@ fun NotebookPageScreen(topicId: Long) {
                 map.cards.forEachIndexed { i, (q, a) -> key(i) { MiniCard(q, a) } }
             }
         }
+        // Primeiro o caderno; depois o que a pessoa guardou: os grifos (uma vez só, por cor) e os outros salvos.
+        TopicMarksSection(topic.id)
+        TopicSavedPanel(topic.id)
         Div({ classes("cb-foot") }) {
             Btn("Ler a teoria", { Router.go(Route.Topic(topic.id)) }, style = "outline", icon = "menu_book")
             if (hasQuestions) Btn("Treinar 5 questões", { Router.go(Route.Quiz("topico-${topic.id}-5-c")) }, style = "primary", icon = "quiz")

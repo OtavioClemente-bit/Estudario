@@ -7,11 +7,15 @@ import androidx.compose.ui.graphics.Color
  * entendeu e rosa para o que precisa revisar. O número fica no campo color do grifo.
  */
 object MarkColors {
-    data class Tone(val id: Int, val label: String, val color: Color)
+    data class Tone(val id: Int, val label: String, val color: Color, val hint: String = "")
+    // As três primeiras são as de sempre (grifos antigos continuam nelas); azul e lilás vieram depois.
+    // Rosa (Revisar) é a que entra nas revisões: volta todo dia em "Grifos de hoje" até você lembrar.
     val all = listOf(
-        Tone(0, "Cai muito", Color(0xFFF2B300)),
-        Tone(1, "Entendi", Color(0xFF22A06B)),
-        Tone(2, "Revisar", Color(0xFFE5487A)),
+        Tone(0, "Cai muito", Color(0xFFF2B300), "O que mais cai na prova"),
+        Tone(1, "Entendi", Color(0xFF22A06B), "Conceito que você já domina"),
+        Tone(2, "Revisar", Color(0xFFE5487A), "Volta nas revisões até você lembrar"),
+        Tone(3, "Lei e artigo", Color(0xFF2F7BEA), "Texto de lei, artigo, prazo"),
+        Tone(4, "Pegadinha", Color(0xFF8B5CF6), "Onde a banca costuma pegar"),
     )
     fun of(id: Int): Tone = all.firstOrNull { it.id == id } ?: all[0]
 
