@@ -47,8 +47,17 @@ object Store {
     /** A conta também decide os presentes exclusivos do armário do Folha (FolhaWardrobe.owner). */
     var session: AuthSession?
         get() = sessionState
-        private set(value) { sessionState = value; br.com.estudario.domain.FolhaWardrobe.setAccount(value?.email) }
-    init { br.com.estudario.domain.FolhaWardrobe.setAccount(Auth.session?.email) }
+        private set(value) { sessionState = value; br.com.estudario.domain.FolhaWardrobe.setAccount(accountEmail(value)) }
+    init { br.com.estudario.domain.FolhaWardrobe.setAccount(accountEmail(Auth.session)) }
+
+    /** O e-mail da conta: o da sessão ou, se ela veio sem (sessão antiga), o que está dentro do token. */
+    private fun accountEmail(s: AuthSession?): String? = s?.email?.takeIf { it.isNotBlank() } ?: s?.accessToken?.let { token ->
+        runCatching {
+            val part = token.split(".")[1].replace("-", "+").replace("_", "/")
+            val json = kotlinx.browser.window.atob(part + "=".repeat((4 - part.length % 4) % 4))
+            Regex(""""email"\s*:\s*"([^"]+)"""").find(json)?.groupValues?.get(1)
+        }.getOrNull()
+    }
 
     /** Demonstração local: nada é enviado para a conta. */
     var demo by mutableStateOf(false)
