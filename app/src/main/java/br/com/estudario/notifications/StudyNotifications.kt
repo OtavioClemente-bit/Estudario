@@ -217,10 +217,12 @@ object StudyNotificationCoordinator {
         val p = context.getSharedPreferences("study_nudges", Context.MODE_PRIVATE)
         val today = java.time.LocalDate.now().toEpochDay()
         val late = runCatching {
-            val plan = app.database.plannerDao().plansOnce().firstOrNull { it.active && !it.archived } ?: return@runCatching emptyList()
+            val primary = app.database.dao().competitionsOnce().firstOrNull { it.isPrimary }?.id
+            val plan = br.com.estudario.domain.planner.PlanRules.activePlan(
+                app.database.plannerDao().plansOnce().map { br.com.estudario.domain.planner.PlanRules.PlanRef(it, it.active, it.archived, it.competitionId) }, primary,
+            ) ?: return@runCatching emptyList()
             app.database.plannerDao().tasksOnce().filter {
-                it.planId == plan.id && it.scheduledEpochDay < today &&
-                    (it.status == br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA || it.status == br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
+                it.planId == plan.id && br.com.estudario.domain.planner.PlanRules.isOverdue(it.scheduledEpochDay, it.status.name, today)
             }
         }.getOrDefault(emptyList())
         if (late.isEmpty()) { p.edit().remove("overdue_at").apply(); return }

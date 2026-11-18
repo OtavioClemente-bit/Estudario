@@ -150,16 +150,15 @@ fun StatsScreen() {
     CompetitionTabs()
     var days by remember { mutableStateOf(30) }
     val seed = rememberSeed()
-    val span = if (days == 0) (activity.keys.minOfOrNull { today.toEpochDay() - it.toEpochDay() }?.toInt()?.plus(1) ?: 1).coerceAtLeast(7) else days
-    val window = (0 until span).map { today.minusDays(it) }
-    val windowSet = window.toSet()
-    val previousSet = if (days == 0) emptySet() else (span until span * 2).map { today.minusDays(it) }.toSet()
-    val attempts = data.attempts.filter { Queries.dateOf(it.answeredAt) in windowSet }
-    val previous = data.attempts.filter { Queries.dateOf(it.answeredAt) in previousSet }
-    val accuracy = if (attempts.isEmpty()) null else percent(attempts.count { it.correct }, attempts.size)
-    val delta = if (accuracy != null && previous.size >= 5) accuracy - percent(previous.count { it.correct }, previous.size) else null
-    val minutes = window.sumOf { activity[it]?.minutes ?: 0 }
-    val activeDays = window.count { activity[it]?.hasAnything == true }
+    // Mesma conta do app (StudyPerformanceEvaluator, no shared): período, acerto, horas, dias ativos, ritmo, matérias e plano.
+    val period = br.com.estudario.domain.performance.StudyPerformancePeriod.entries.first { (it.days ?: 0) == days }
+    val result = Queries.performance(data, period, subjects.mapTo(hashSetOf()) { it.id })
+    val current = result.current
+    val accuracy = current.accuracyPercent
+    val delta = result.accuracyDelta
+    val minutes = current.studyMinutes.toInt()
+    val activeDays = current.activeDays
+    val points = result.rhythm.days.associateBy { it.date }
 
     PageHead("Desempenho", "Seu estudo em números") {
         Div({ classes("st2-period") }) {
@@ -195,7 +194,7 @@ fun StatsScreen() {
                     Text(when { d > 0 -> "+$d pontos"; d < 0 -> "$d pontos"; else -> "estável" } + " vs. antes")
                 }
             }
-            Span({ classes("small") }) { Text("${attempts.count { it.correct }} certas de ${attempts.size}") }
+            Span({ classes("small") }) { Text("${current.correctAttempts} certas de ${current.attempts}") }
         }
         Div({ classes("stats-folha") }) { FolhaTalking(FolhaLines.forStats(accuracy, seed), 72) }
     }
@@ -203,40 +202,40 @@ fun StatsScreen() {
     // ---------- números-chave
     Div({ classes("kpis") }) {
         Kpi("schedule", Queries.minutesLabel(minutes), "estudadas", "#5B5BD6")
-        Kpi("quiz", "${attempts.size}", "questões", "#0E9AA7")
-        Kpi("calendar_month", if (days == 0) "$activeDays" else "$activeDays/$span", "dias ativos", "#8E4EC6")
+        Kpi("quiz", "${current.attempts}", "questões", "#0E9AA7")
+        Kpi("calendar_month", if (days == 0) "$activeDays" else "$activeDays/$days", "dias ativos", "#8E4EC6")
         Kpi("local_fire_department", "${streak.current}", "sequência", "#E8590C")
     }
 
     // ---------- ritmo diário
     Card(extra = "pad-lg") {
-        val shown = window.take(minOf(span, 31)).reversed()
-        val max = shown.maxOf { activity[it]?.minutes ?: 0 }.coerceAtLeast(30)
+        val rhythm = result.rhythm
+        val shown = rhythm.days.map { it.date }
+        val max = rhythm.days.maxOfOrNull { it.minutes }?.coerceAtLeast(30) ?: 30
         Div({ classes("panel-title") }) {
             H3 { Text("Seu ritmo") }
-            P({ classes("small", "muted") }) { Text("Últimos ${shown.size} dias · ${shown.count { activity[it]?.hasAnything == true }} de ${shown.size} com estudo") }
+            P({ classes("small", "muted") }) { Text("${result.dailyActivityLabel} · ${rhythm.activeDays} de ${shown.size} com estudo") }
         }
         // Destaques do período e o dia apontado (passar o mouse ou tocar numa barra).
-        val studiedDays = shown.filter { (activity[it]?.minutes ?: 0) > 0 }
-        val average = if (studiedDays.isEmpty()) 0 else studiedDays.sumOf { activity[it]!!.minutes } / studiedDays.size
-        val best = studiedDays.maxByOrNull { activity[it]!!.minutes }
+        val average = rhythm.averageMinutes
+        val best = rhythm.bestDay?.date
         var hovered by remember(shown.size) { mutableStateOf<kotlinx.datetime.LocalDate?>(null) }
         Div({ classes("rhythm-stats") }) {
             Div({ classes("rstat") }) { Span { Text("Média por dia de estudo") }; B { Text(if (average > 0) Queries.minutesLabel(average) else "--") } }
-            Div({ classes("rstat") }) { Span { Text("Melhor dia") }; B { Text(best?.let { "${Queries.minutesLabel(activity[it]!!.minutes)} · ${Queries.shortDate(it)}" } ?: "--") } }
-            Div({ classes("rstat") }) { Span { Text("Total no período") }; B { Text(Queries.minutesLabel(shown.sumOf { activity[it]?.minutes ?: 0 })) } }
+            Div({ classes("rstat") }) { Span { Text("Melhor dia") }; B { Text(rhythm.bestDay?.let { "${Queries.minutesLabel(it.minutes)} · ${Queries.shortDate(it.date)}" } ?: "--") } }
+            Div({ classes("rstat") }) { Span { Text("Total no gráfico") }; B { Text(Queries.minutesLabel(rhythm.totalMinutes)) } }
         }
         Div({ classes("rhythm"); onMouseLeave { hovered = null } }) {
             if (average > 0) I({ classes("ravg"); attr("style", "bottom:${average * 100 / max}%") }) { Span { Text("média") } }
             hovered?.let { date ->
                 val day = activity[date]
-                val value = day?.minutes ?: 0
-                val acc = day?.takeIf { it.questions > 0 }?.let { percent(it.correct, it.questions) }
+                val value = points[date]?.minutes ?: 0
+                val acc = points[date]?.accuracyPercent
                 val index = shown.indexOf(date)
                 val leftPct = (index * 100.0 + 50.0) / shown.size
                 Div({ classes(*listOfNotNull("rtip", if (leftPct > 70) "right" else if (leftPct < 30) "left" else null).toTypedArray()); attr("style", "left:${leftPct}%") }) {
                     Div({ classes("rtip-date") }) { Text(Queries.weekdayShort[date.isoDayOfWeek - 1].replaceFirstChar { it.uppercase() } + ", " + Queries.shortDate(date) + if (date == today) " · hoje" else if (date == best) " · melhor dia" else "") }
-                    B({ classes("rtip-main") }) { Text(if (value > 0) Queries.minutesLabel(value) else if (day?.hasAnything == true) "Estudou" else "Sem estudo") }
+                    B({ classes("rtip-main") }) { Text(if (value > 0) Queries.minutesLabel(value) else if ((points[date]?.eventCount ?: 0) > 0) "Estudou, sem tempo cronometrado" else "Sem estudo") }
                     if (day != null && day.focusMinutes > 0) Div({ classes("rtip-row") }) { Icon("timer"); Text("Foco: ${Queries.minutesLabel(day.focusMinutes)}") }
                     if (day != null && day.questionMinutes > 0) Div({ classes("rtip-row") }) { Icon("quiz"); Text("Em questões: ${Queries.minutesLabel(day.questionMinutes)}") }
                     if (day != null && day.questions > 0) Div({ classes("rtip-row") }) { Icon("check_circle"); Text("${day.questions} ${if (day.questions == 1) "questão" else "questões"}" + (acc?.let { " · $it% de acerto" } ?: "")) }
@@ -247,9 +246,9 @@ fun StatsScreen() {
             }
             shown.forEachIndexed { index, date ->
                 val day = activity[date]
-                val value = day?.minutes ?: 0
-                val active = day?.hasAnything == true
-                val acc = day?.takeIf { it.questions > 0 }?.let { percent(it.correct, it.questions) }
+                val value = points[date]?.minutes ?: 0
+                val active = (points[date]?.eventCount ?: 0) > 0
+                val acc = points[date]?.accuracyPercent
                 // Passar o mouse: o dia inteiro, o tempo (foco e questões) e o que foi feito.
                 val tip = buildList {
                     add("${Queries.shortDate(date)}: ${if (value > 0) Queries.minutesLabel(value) + " de estudo" else "sem tempo cronometrado"}")
@@ -283,16 +282,19 @@ fun StatsScreen() {
     Div({ classes("grid", "cols-2") }) {
         // ---------- edital em rosca
         val leaves = Queries.leafTopics(data, subjects.mapTo(hashSetOf()) { it.id })
-        if (leaves.isNotEmpty()) Card(extra = "pad-lg") {
-            val theoryIds = data.theories.mapTo(hashSetOf()) { it.topicId }
-            val studied = leaves.count(Queries::isStudied)
-            val withMaterial = leaves.count { !Queries.isStudied(it) && it.id in theoryIds }
-            val remaining = (leaves.size - studied - withMaterial).coerceAtLeast(0)
+        val coverage = br.com.estudario.domain.performance.EditalCoverage.of(
+            leaves.map { br.com.estudario.domain.performance.CoverageTopic(it.id, it.parentTopicId, Queries.isStudied(it)) },
+            data.theories.mapTo(hashSetOf()) { it.topicId },
+        )
+        if (coverage.total > 0) Card(extra = "pad-lg") {
+            val studied = coverage.studied
+            val withMaterial = coverage.withMaterial
+            val remaining = coverage.remaining
             Div({ classes("panel-title") }) { H3 { Text("Seu edital") }; P({ classes("small", "muted", "clamp-2") }) { Text(competition?.name.orEmpty()) } }
             Div({ classes("row"); attr("style", "gap:20px;align-items:center") }) {
                 Div({ classes("donut-wrap", "sm") }) {
-                    Donut(listOf(percent(studied, leaves.size) to "#2FA36B", percent(withMaterial, leaves.size) to "var(--primary)"), 100, 120, 18, "var(--soft-2)")
-                    Div({ classes("donut-center") }) { B { Text("${percent(studied, leaves.size)}%") }; Span { Text("estudado") } }
+                    Donut(listOf(coverage.studiedPercent to "#2FA36B", coverage.withMaterialPercent to "var(--primary)"), 100, 120, 18, "var(--soft-2)")
+                    Div({ classes("donut-center") }) { B { Text("${coverage.studiedPercent}%") }; Span { Text("estudado") } }
                 }
                 Div({ classes("stack", "tight") }) {
                     DonutLegend("#2FA36B", "$studied", "estudados")
@@ -302,13 +304,11 @@ fun StatsScreen() {
             }
         }
         // ---------- plano do período
-        val plan = Queries.activePlan(data)
-        val planTasks = plan?.let { p -> data.tasks.filter { it.planId == p.id && kotlinx.datetime.LocalDate.fromEpochDays(it.day) in windowSet && it.status != "REPROGRAMADA" && it.status != "CANCELADA" } }.orEmpty()
-        if (planTasks.isNotEmpty()) Card(extra = "pad-lg") {
-            val done = planTasks.count { it.status == "CONCLUIDA" }
-            val missed = planTasks.count { it.status == "NAO_REALIZADA" || (it.day < today.toEpochDay() && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO")) }
-            val pending = (planTasks.size - done - missed).coerceAtLeast(0)
-            val pct = percent(done, planTasks.size)
+        if (current.plannedTasks > 0) Card(extra = "pad-lg") {
+            val done = current.completedTasks
+            val missed = current.missedTasks
+            val pending = (current.plannedTasks - done - missed).coerceAtLeast(0)
+            val pct = current.taskCompletionPercent ?: 0
             Div({ classes("panel-title") }) { H3 { Text("Plano de estudos") }; P({ classes("small", "muted") }) { Text("Tarefas do período") } }
             Div({ classes("row"); attr("style", "gap:10px") }) {
                 Icon("event_available")
@@ -329,27 +329,27 @@ fun StatsScreen() {
     }
 
     // ---------- matérias e tópicos
-    val bySubject = attempts.groupBy { topics[questions[it.questionId]?.topicId]?.subjectId }
-    val ranked = subjects.mapNotNull { s -> bySubject[s.id]?.takeIf { it.isNotEmpty() }?.let { list -> Triple(s, list.size, percent(list.count { it.correct }, list.size)) } }.sortedByDescending { it.third }
-    val byTopic = attempts.groupBy { questions[it.questionId]?.topicId }.mapNotNull { (id, list) ->
-        val topic = topics[id] ?: return@mapNotNull null
-        if (list.size < 3) null else Triple(topic, list.size, percent(list.count { it.correct }, list.size))
-    }.sortedByDescending { it.third }
+    val subjectById = subjects.associateBy { it.id }
+    val ranked = result.subjects.mapNotNull { s -> subjectById[s.subjectId]?.let { Triple(it, s, s.accuracyPercent) } }.sortedByDescending { it.third }
+    val byTopic = result.subjects.flatMap { it.topics }.filter { it.hasSufficientSample }
+        .mapNotNull { t -> topics[t.topicId]?.let { Triple(it, t.attempts, t.accuracyPercent) } }
+        .sortedByDescending { it.third }
     Div({ classes("grid", "cols-2") }) {
         Card(extra = "pad-lg") {
             Div({ classes("panel-title") }) { H3 { Text("Acerto por matéria") }; P({ classes("small", "muted") }) { Text("Da mais forte para a mais fraca") } }
             if (ranked.isEmpty()) P({ classes("muted", "small") }) { Text("Resolva questões para ver seu acerto por matéria.") }
             Div({ classes("stack", "st2-subjects") }) {
-                ranked.forEach { (subject, count, rate) ->
+                ranked.forEach { (subject, perf, rate) ->
+                    val count = perf.attempts
                     key(subject.id) {
-                        val color = accuracyColor(if (count >= 5) rate else null)
+                        val color = accuracyColor(if (perf.hasSufficientSample) rate else null)
                         Button({ classes("st2-subj"); attr("type", "button"); attr("title", "Treinar ${subject.name}"); onClick { Router.go(Route.Quiz("m-smart~s-${subject.id}~t--1~b-all~d-all~n-15")) } }) {
                             Div({ classes("row", "between") }) {
                                 B({ classes("small", "clamp-2") }) { Text(subject.name) }
                                 B({ classes("nowrap"); attr("style", "color:$color") }) { Text("$rate%") }
                             }
                             Div({ classes("bar") }) { Span({ attr("style", "width:${rate.coerceAtLeast(3)}%;background:$color") }) }
-                            Span({ classes("xs", "muted") }) { Text(if (count >= 5) "${count * rate / 100} de $count certas" else "Poucos dados · $count resposta(s)") }
+                            Span({ classes("xs", "muted") }) { Text(if (perf.hasSufficientSample) "${perf.correct} de $count certas" else "Poucos dados · $count resposta(s)") }
                         }
                     }
                 }
@@ -370,6 +370,15 @@ fun StatsScreen() {
             Card {
                 Div({ classes("panel-title") }) { H3 { Text("Constância") }; P({ classes("small", "muted") }) { Text("${streak.activeDays} dias com estudo · recorde de ${streak.best} seguidos") } }
                 ActivityCalendar(streak.calendar, streak.goal, tone = "fire")
+            }
+        }
+    }
+    // ---------- próximos ajustes (as mesmas recomendações do app)
+    if (result.recommendations.isNotEmpty()) Card(extra = "pad-lg") {
+        Div({ classes("panel-title") }) { H3 { Text("Próximos ajustes") } }
+        Div({ classes("stack", "tight") }) {
+            result.recommendations.forEach { r ->
+                Div { B({ classes("small") }) { Text(r.message) }; P({ classes("xs", "muted") }) { Text(r.evidence) } }
             }
         }
     }

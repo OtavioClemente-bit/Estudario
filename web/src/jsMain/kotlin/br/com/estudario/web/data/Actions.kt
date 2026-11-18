@@ -209,7 +209,8 @@ object Actions {
             var id = next.nextId(Keys.REVIEWS)
             // como o app (que ignora a etapa repetida): etapa que o tópico já tem não é criada de novo
             val existing = data.reviews.filter { it.topicId == topicId }.mapTo(HashSet()) { it.stage }
-            val reviews = ReviewIntervals.days.mapIndexed { index, days -> index to days }.filter { (index, _) -> index + 1 !in existing }.map { (index, days) ->
+            // os dias escolhidos no app (revisão padrão ou intensiva), como o app faz ao marcar estudado
+            val reviews = AccountSettings.reviewIntervals(data).mapIndexed { index, days -> index to days }.filter { (index, _) -> index + 1 !in existing }.map { (index, days) ->
                 jsonOf("id" to id++, "topicId" to topicId, "stage" to index + 1, "dueAt" to startOfDayInDays(days), "completedAt" to null, "ignoredAt" to null, "perceivedDifficulty" to null, "questionCorrect" to 0, "questionTotal" to 0)
             }
             next = next.appendAll(mapOf(Keys.REVIEWS to reviews))

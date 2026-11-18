@@ -122,7 +122,7 @@ fun PlanScreen() {
                 P({ classes("small", "muted"); attr("style", "margin-top:8px") }) { Text("$earned XP conquistados · até +$possible se fechar tudo.") }
             }
             // As atrasadas de dias anteriores, aqui mesmo em Hoje (antes era preciso voltar dia a dia).
-            val overdueTasks = planTasks.filter { it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }.sortedBy { it.day }
+            val overdueTasks = Queries.overdueTasks(data, plan.id, todayEpoch)
             // As revisões espaçadas vencidas até hoje aparecem no próprio plano, para ninguém esquecer delas.
             val dueReviews = Queries.dueReviews(data).size
             if (dayOffset == 0 && dueReviews > 0) Button({ classes("plan-review-card"); onClick { Router.go(Route.Reviews) } }) {
@@ -288,7 +288,7 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
     val pct = percent(done, total)
     val today = load.filter { it.day == todayEpoch }
     val todayDone = today.count { it.status == "CONCLUIDA" }
-    val overdue = load.count { it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
+    val overdue = load.count { br.com.estudario.domain.planner.PlanRules.isOverdue(it.day, it.status, todayEpoch) }
     val daysToExam = plan.exam?.let { it - todayEpoch }?.takeIf { it >= 0 }
     // Previsão do edital inteiro (as tarefas marcadas só cobrem as próximas 4 semanas).
     val prediction = rememberForecast(Store.data, plan)

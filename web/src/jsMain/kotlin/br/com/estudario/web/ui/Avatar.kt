@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import br.com.estudario.domain.ProfileImage
 import br.com.estudario.web.data.Store
 import kotlinx.browser.document
 import kotlinx.browser.localStorage
@@ -28,7 +29,7 @@ import org.w3c.files.get
 private data class PresetAvatar(val key: String, val label: String, val top: String, val bottom: String, val glyph: String?)
 
 private val PRESETS = listOf(
-    PresetAvatar("folha", "Folha", "#6C5CFF", "#3326CE", null),
+    PresetAvatar("folha", "Folha", "#2F5BD3", "#3326CE", null),
     PresetAvatar("capelo", "Formatura", "#34D399", "#0E8F63", "school"),
     PresetAvatar("lampada", "Ideia", "#FFC857", "#E08A00", "lightbulb"),
     PresetAvatar("alvo", "Foco", "#FF8A7A", "#D9443A", "gps_fixed"),
@@ -52,13 +53,35 @@ private val PRESETS = listOf(
  */
 object AvatarChoice {
     private const val KEY = "estudario.avatar"
-    var value by mutableStateOf(runCatching { localStorage.getItem(KEY) }.getOrNull())
-        private set
+    private const val KEY_AT = "estudario.avatar.updatedAt"
+    private var local by mutableStateOf(runCatching { localStorage.getItem(KEY) }.getOrNull())
+    private var localAt by mutableStateOf(runCatching { localStorage.getItem(KEY_AT)?.toLongOrNull() }.getOrNull() ?: 0L)
+
+    /**
+     * A imagem de agora: a da conta ("avatar" em userPrefs, a mesma do app, ProfileImage) ou a deste
+     * navegador, a escolhida por último. null = a foto do Google (ou as iniciais).
+     */
+    val value: String?
+        get() {
+            val synced = br.com.estudario.web.data.Prefs.synced(Store.data)
+            val cloud = (synced[ProfileImage.KEY] as? kotlinx.serialization.json.JsonPrimitive)?.content
+            val cloudAt = (synced[ProfileImage.UPDATED_AT] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0L
+            val picked = ProfileImage.pick(cloud to cloudAt, (local ?: ProfileImage.GOOGLE) to localAt)?.first
+            return picked?.takeIf { it != ProfileImage.GOOGLE }
+        }
     var picking by mutableStateOf(false)
     fun set(v: String?) {
-        value = v
-        runCatching { if (v == null) localStorage.removeItem(KEY) else localStorage.setItem(KEY, v) }
-            .onFailure { Toast.show("Não consegui guardar a imagem neste navegador.") }
+        val value = v ?: ProfileImage.GOOGLE
+        val at = kotlin.js.Date.now().toLong()
+        local = v; localAt = at
+        runCatching {
+            if (v == null) localStorage.removeItem(KEY) else localStorage.setItem(KEY, v)
+            localStorage.setItem(KEY_AT, at.toString())
+        }
+        // Vai para a conta: o app mostra a mesma imagem na próxima sincronização.
+        if (ProfileImage.normalize(value) != null && !Store.demo) {
+            br.com.estudario.web.data.Prefs.setSyncedFields(mapOf(ProfileImage.KEY to kotlinx.serialization.json.JsonPrimitive(value), ProfileImage.UPDATED_AT to kotlinx.serialization.json.JsonPrimitive(at)))
+        } else if (ProfileImage.normalize(value) == null) Toast.show("Essa imagem é grande demais para guardar na conta.")
     }
 }
 
@@ -143,7 +166,7 @@ fun AvatarPickerHost() {
                 }
             }
             if (AvatarChoice.value != null) Button({ classes("gx-ghost"); attr("type", "button"); onClick { AvatarChoice.set(null); close() } }) { Text(if (Store.session?.avatarUrl != null) "Voltar para a foto da conta" else "Remover imagem") }
-            P({ classes("gx-note") }) { Text("A imagem fica guardada neste navegador.") }
+            P({ classes("gx-note") }) { Text("A imagem fica na sua conta: aparece igual no app e no site.") }
         }
     }
 }

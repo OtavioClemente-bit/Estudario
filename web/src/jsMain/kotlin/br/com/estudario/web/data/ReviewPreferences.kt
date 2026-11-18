@@ -16,6 +16,7 @@ object ReviewPreferences {
     fun save(options: ReviewPracticeOptions) {
         val next = options.bounded()
         window.localStorage.setItem(KEY, next.encode())
+        AccountSettings.changed(br.com.estudario.domain.SyncedSettings.REVIEW_PRACTICE, next.encode())
         value = next
     }
 }

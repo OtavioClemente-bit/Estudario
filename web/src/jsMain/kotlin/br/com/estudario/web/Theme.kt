@@ -15,6 +15,8 @@ object Theme {
     fun set(value: String) {
         mode = value
         runCatching { localStorage.setItem(KEY, value) }
+        // Vai para a conta: o app usa o mesmo tema (e o tema escolhido no app chega aqui).
+        br.com.estudario.web.data.AccountSettings.changed(br.com.estudario.domain.SyncedSettings.THEME, value)
         apply()
     }
 

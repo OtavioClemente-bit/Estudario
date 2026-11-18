@@ -36,7 +36,7 @@ object FocusMode {
     private const val SAFETY_WORK = "focus_safety_net"
 
     /** Teto de uma sessão: passou disso, foi esquecida aberta e o app encerra sozinho. */
-    const val MAX_MINUTES = 240
+    const val MAX_MINUTES = br.com.estudario.domain.FocusRules.MAX_SESSION_MINUTES
 
     fun hasDndAccess(context: Context): Boolean =
         context.getSystemService(NotificationManager::class.java)?.isNotificationPolicyAccessGranted == true

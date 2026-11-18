@@ -522,7 +522,7 @@ private fun AttentionPanel(data: Snapshot, planId: String?) {
     val due = Queries.dueReviews(data)
     val errors = notebookErrors(data)
     val todayEpoch = Queries.todayEpoch()
-    val overdue = if (planId == null) emptyList() else data.tasks.filter { it.planId == planId && it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
+    val overdue = if (planId == null) emptyList() else Queries.overdueTasks(data, planId, todayEpoch)
     val questions = data.questions.associateBy { it.id }
     val weak = data.attempts.groupBy { questions[it.questionId]?.topicId }
         .filterKeys { it != null }
@@ -943,7 +943,7 @@ private const val OVERDUE_LATER = "estudario.atrasadas.depois"
 @Composable
 private fun HomeOverdue(data: Snapshot, planId: String) {
     val todayEpoch = Queries.todayEpoch()
-    val late = data.tasks.filter { it.planId == planId && it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
+    val late = Queries.overdueTasks(data, planId, todayEpoch)
         .sortedWith(compareBy({ it.day }, { it.type }))
     if (late.isEmpty()) return
     var hidden by remember(todayEpoch) { mutableStateOf(runCatching { kotlinx.browser.localStorage.getItem(OVERDUE_LATER) }.getOrNull() == todayEpoch.toString()) }

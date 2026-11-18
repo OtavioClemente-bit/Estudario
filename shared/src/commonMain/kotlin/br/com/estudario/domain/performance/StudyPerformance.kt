@@ -94,6 +94,17 @@ data class DailyActivityPoint(
 }
 data class PerformanceRecommendation(val message: String, val evidence: String)
 
+/** O cartão "Seu ritmo": os dias do gráfico e os destaques, iguais no app e no site. */
+data class RhythmSummary(
+    val days: List<DailyActivityPoint>,
+    /** Dias do gráfico com alguma atividade (questão, revisão, sessão, foco ou tarefa). */
+    val activeDays: Int,
+    /** Média de minutos só dos dias que tiveram tempo de estudo. */
+    val averageMinutes: Int,
+    val bestDay: DailyActivityPoint?,
+    val totalMinutes: Int,
+)
+
 data class StudyPerformanceResult(
     val period: StudyPerformancePeriod,
     val current: WindowMetrics,
@@ -107,10 +118,20 @@ data class StudyPerformanceResult(
     val subjects: List<SubjectPerformance>,
     val recommendations: List<PerformanceRecommendation>,
     val streakThroughToday: Int,
+    /** Variação do acerto contra o período anterior; só existe com pelo menos MIN_SAMPLE respostas lá. */
+    val accuracyDelta: Int? = null,
+    val rhythm: RhythmSummary = RhythmSummary(emptyList(), 0, 0, null, 0),
 )
 
 /** Deterministic evaluation over recorded events. It deliberately does not infer a global score or retention. */
 object StudyPerformanceEvaluator {
+    /** Respostas mínimas para colorir uma matéria/tópico e entrar em "Pontos fortes / Para reforçar". */
+    const val MIN_SAMPLE = 5
+    /** Respostas mínimas para virar recomendação de reforço. */
+    const val RECOMMENDATION_SAMPLE = 10
+    /** O gráfico de ritmo mostra no máximo estes dias (os mais recentes). */
+    const val RHYTHM_DAYS = 30
+
     private data class Window(val start: Instant?, val end: Instant, val startDate: LocalDate?) {
         fun includes(at: Instant): Boolean = (start == null || at >= start) && at < end
         fun includes(date: LocalDate, zone: TimeZone): Boolean =
@@ -122,6 +143,8 @@ object StudyPerformanceEvaluator {
         period: StudyPerformancePeriod,
         today: LocalDate,
         zone: TimeZone,
+        /** Matérias do edital mostrado (acerto por matéria, tópicos e recomendações); null = todas. */
+        subjectIds: Set<Long>? = null,
     ): StudyPerformanceResult {
         val end = today.plusDays(1).startOfDay(zone)
         val startDate = period.days?.let { today.minusDays(it - 1L) }
@@ -131,11 +154,13 @@ object StudyPerformanceEvaluator {
             Window(previousStartDate!!.startOfDay(zone), startDate.startOfDay(zone), previousStartDate)
         } else null
 
-        val current = measure(input, currentWindow, zone)
-        val previous = previousWindow?.let { measure(input, it, zone) }
-        val subjectMetrics = subjects(input.attempts.filter { currentWindow.includes(it.answeredAt) })
+        val current = measure(input, currentWindow, zone, today)
+        val previous = previousWindow?.let { measure(input, it, zone, today) }
+        val subjectMetrics = subjects(
+            input.attempts.filter { currentWindow.includes(it.answeredAt) && (subjectIds == null || it.subjectId in subjectIds) },
+        )
         val recommendations = buildList {
-            subjectMetrics.filter { it.hasSufficientSample && it.accuracyPercent < 70 }.forEach {
+            subjectMetrics.filter { it.attempts >= RECOMMENDATION_SAMPLE && it.accuracyPercent < 70 }.forEach {
                 add(
                     PerformanceRecommendation(
                         message = "Reforce ${it.name}",
@@ -153,7 +178,7 @@ object StudyPerformanceEvaluator {
             }
         }
 
-        val activityStart = startDate ?: today.minusDays(29)
+        val activityStart = startDate ?: today.minusDays(RHYTHM_DAYS - 1L)
         val activityEndDate = today
         val eventCounts = linkedMapOf<LocalDate, Int>()
         fun record(at: Instant) {
@@ -187,6 +212,18 @@ object StudyPerformanceEvaluator {
         val dailyActivity = generateSequence(activityStart) { date -> date.plusDays(1).takeIf { it <= activityEndDate } }
             .map { DailyActivityPoint(it, eventCounts[it] ?: 0, dayAttempts[it] ?: 0, dayCorrect[it] ?: 0, (dayMinutes[it] ?: 0).toInt()) }
             .toList()
+        val rhythmDays = dailyActivity.takeLast(RHYTHM_DAYS)
+        val studiedDays = rhythmDays.filter { it.minutes > 0 }
+        val rhythm = RhythmSummary(
+            days = rhythmDays,
+            activeDays = rhythmDays.count { it.eventCount > 0 },
+            averageMinutes = if (studiedDays.isEmpty()) 0 else studiedDays.sumOf { it.minutes } / studiedDays.size,
+            bestDay = studiedDays.maxByOrNull { it.minutes },
+            totalMinutes = rhythmDays.sumOf { it.minutes },
+        )
+        val accuracyDelta = current.accuracyPercent?.let { now ->
+            previous?.takeIf { it.attempts >= MIN_SAMPLE }?.accuracyPercent?.let { now - it }
+        }
 
         return StudyPerformanceResult(
             period = period,
@@ -197,14 +234,16 @@ object StudyPerformanceEvaluator {
             previousStartInclusive = previousWindow?.start,
             previousEndExclusive = previousWindow?.end,
             dailyActivity = dailyActivity,
-            dailyActivityLabel = if (period == StudyPerformancePeriod.ALL) "Últimos 30 dias" else "No período selecionado",
+            dailyActivityLabel = "Últimos ${rhythmDays.size} dias",
             subjects = subjectMetrics,
             recommendations = recommendations,
             streakThroughToday = streak(input, today, zone),
+            accuracyDelta = accuracyDelta,
+            rhythm = rhythm,
         )
     }
 
-    private fun measure(input: StudyPerformanceInput, window: Window, zone: TimeZone): WindowMetrics {
+    private fun measure(input: StudyPerformanceInput, window: Window, zone: TimeZone, today: LocalDate): WindowMetrics {
         val attempts = input.attempts.filter { window.includes(it.answeredAt) }
         val tasks = input.tasks.filter {
             it.planId in input.activePlanIds && window.includes(it.scheduledDate, zone) &&
@@ -233,8 +272,9 @@ object StudyPerformanceEvaluator {
             reviews = reviews,
             plannedTasks = tasks.size,
             completedTasks = completed,
-            missedTasks = tasks.count { it.status == PlanTaskStatus.NAO_REALIZADA },
-            inProgressTasks = tasks.count { it.status == PlanTaskStatus.EM_ANDAMENTO },
+            // Perdida: marcada como não feita, ou de um dia que já passou e ficou por fazer.
+            missedTasks = tasks.count { it.isMissed(today) },
+            inProgressTasks = tasks.count { it.status == PlanTaskStatus.EM_ANDAMENTO && !it.isMissed(today) },
             accuracyPercent = attempts.size.takeIf { it > 0 }?.let { correct * 100 / it },
             taskCompletionPercent = tasks.size.takeIf { it > 0 }?.let { completed * 100 / it },
             plannedMinutes = tasks.fold(0L) { total, task -> saturatingAdd(total, task.plannedMinutes.coerceAtLeast(0).toLong()) },
@@ -245,6 +285,10 @@ object StudyPerformanceEvaluator {
             },
         )
     }
+
+    private fun PerformancePlannedTask.isMissed(today: LocalDate): Boolean =
+        status == PlanTaskStatus.NAO_REALIZADA ||
+            (scheduledDate < today && (status == PlanTaskStatus.PLANEJADA || status == PlanTaskStatus.EM_ANDAMENTO))
 
     private fun sessionMinutes(sessions: List<PerformanceSession>): Long {
         val seconds = sessions.fold(0L) { total, session -> saturatingAdd(total, session.durationSeconds.coerceAtLeast(0)) }
@@ -263,7 +307,7 @@ object StudyPerformanceEvaluator {
                     attempts = topicEvents.size,
                     correct = correct,
                     accuracyPercent = correct * 100 / topicEvents.size,
-                    hasSufficientSample = topicEvents.size >= 10,
+                    hasSufficientSample = topicEvents.size >= MIN_SAMPLE,
                 )
             }.sortedWith(compareBy<TopicPerformance> { it.accuracyPercent }.thenBy { it.name })
             val correct = events.count { it.correct }
@@ -273,7 +317,7 @@ object StudyPerformanceEvaluator {
                 attempts = events.size,
                 correct = correct,
                 accuracyPercent = correct * 100 / events.size,
-                hasSufficientSample = events.size >= 10,
+                hasSufficientSample = events.size >= MIN_SAMPLE,
                 topics = topicMetrics,
             )
         }

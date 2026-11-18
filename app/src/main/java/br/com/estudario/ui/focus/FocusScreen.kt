@@ -117,6 +117,7 @@ fun FocusScreen(
     val history by viewModel.focusSessions.collectAsState()
     val keepScreenOn by viewModel.focusKeepScreenOn.collectAsState()
     val wantsDnd by viewModel.focusDoNotDisturb.collectAsState()
+    val focusPrefs by viewModel.focusPrefs.collectAsState()
     val scope = rememberCoroutineScope()
     var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
     var dndGranted by remember { mutableStateOf(FocusMode.hasDndAccess(context)) }
@@ -281,6 +282,22 @@ fun FocusScreen(
                     } else {
                         FocusSubjectPicker(subjectOptions, selectedIds) { id ->
                             selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                        }
+                    }
+                    // Aviso de tempo, o mesmo do site (e sincronizado com ele): só avisa, o tempo continua subindo.
+                    Text("Aviso de tempo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.FilterChip(
+                            selected = !focusPrefs.alertOn,
+                            onClick = { viewModel.setFocusPrefs(focusPrefs.copy(alertOn = false)) },
+                            label = { Text("Sem aviso") },
+                        )
+                        (br.com.estudario.domain.FocusRules.PRESETS + focusPrefs.minutes).distinct().sorted().forEach { minutes ->
+                            androidx.compose.material3.FilterChip(
+                                selected = focusPrefs.alertOn && focusPrefs.minutes == minutes,
+                                onClick = { viewModel.setFocusPrefs(focusPrefs.copy(alertOn = true, minutes = minutes)) },
+                                label = { Text("$minutes min") },
+                            )
                         }
                     }
                     Button(

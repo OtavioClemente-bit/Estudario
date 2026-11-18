@@ -135,6 +135,9 @@ class CloudSyncService(
         val base = prefs.getLong(KEY_BASE_REVISION, -1L).takeIf { it >= 0 } ?: return@withContext false
         val cleanAt = prefs.getLong(KEY_CLEAN_AT, 0L)
         if (cleanAt == 0L || prefs.getLong(KEY_LOCAL_CHANGED_AT, 0L) >= cleanAt) return@withContext false
+        // O que não mora no banco (meta, tema, leitura, armário do Folha...) não avisa o banco quando
+        // muda: antes, trocar só um ajuste nunca subia para a conta e o site ficava diferente do app.
+        if (prefs.getString(KEY_SIDE_SHA, null) != sha256Hex(sideParts().toString())) return@withContext false
         fetchHead().revision == base
     }
 
@@ -142,7 +145,8 @@ class CloudSyncService(
         val userId = auth.currentUserId() ?: throw SyncAuthException()
         // Trocar de conta no mesmo aparelho começa do zero: a base da outra conta não vale aqui.
         if (prefs.getString(KEY_USER, null) != userId) {
-            prefs.edit().putString(KEY_USER, userId).remove(KEY_BASE_REVISION).remove(KEY_BASE_SHA).remove(KEY_CLEAN_AT).apply()
+            prefs.edit().putString(KEY_USER, userId).remove(KEY_BASE_REVISION).remove(KEY_BASE_SHA).remove(KEY_CLEAN_AT).remove(KEY_SIDE_SHA).apply()
+            runCatching { extrasFile().delete() }
         }
         // O que mudar daqui para frente fica para a próxima rodada (a foto abaixo é deste instante).
         val startedAt = System.currentTimeMillis()
@@ -173,7 +177,7 @@ class CloudSyncService(
             }
         }
         val now = System.currentTimeMillis()
-        prefs.edit().putLong(KEY_LAST_SYNC, now).putLong(KEY_CLEAN_AT, startedAt).apply()
+        prefs.edit().putLong(KEY_LAST_SYNC, now).putLong(KEY_CLEAN_AT, startedAt).putString(KEY_SIDE_SHA, lastSideSha).apply()
         CloudSyncStatus.Done(now, action)
     }
 
@@ -182,9 +186,39 @@ class CloudSyncService(
     // texto eram dezenas de MB e o celular ficava sem memória no meio da sincronização).
     private suspend fun canonicalSnapshot(): String = backup.exportJson().apply {
         remove("exportedAt")
+        val side = sideParts()
+        side.keys().forEach { put(it, side.get(it)) }
+        lastSideSha = sha256Hex(side.toString())
+        lastProducedKeys = keys().asSequence().toSet()
+        // Partes da foto que esta versão do app não conhece (criadas pelo site ou por um app mais novo):
+        // voltam como vieram, em vez de sumirem no próximo envio daqui.
+        topLevelExtras().let { extra -> extra.keys().forEach { key -> if (!has(key)) put(key, extra.get(key)) } }
+    }.toString()
+
+    /** O que vai na foto sem morar no banco: o visual do Folha e os ajustes da pessoa (userPrefs). */
+    private suspend fun sideParts(): JSONObject = JSONObject().apply {
         br.com.estudario.data.FolhaLookStore.toJson(context)?.let { put(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY, it) }
         put(SyncedPrefs.SNAPSHOT_KEY, SyncedPrefs.toJson(context))
-    }.toString()
+    }
+
+    /** Resumo das partes fora do banco na última foto montada (gravado quando a rodada termina). */
+    @Volatile private var lastSideSha: String? = null
+
+    /** Partes que a exportação deste app produz (as demais da foto recebida são guardadas à parte). */
+    @Volatile private var lastProducedKeys: Set<String>? = null
+
+    private fun extrasFile() = File(context.filesDir, "sync-extras.json")
+
+    private fun topLevelExtras(): JSONObject =
+        runCatching { extrasFile().takeIf { it.exists() }?.readText()?.let(::JSONObject) }.getOrNull() ?: JSONObject()
+
+    /** Guarda as partes de [root] (foto recebida ou juntada) que a exportação deste app não produz. */
+    private fun rememberTopLevelExtras(root: JSONObject) {
+        val produced = lastProducedKeys ?: return
+        val extra = JSONObject()
+        root.keys().forEach { key -> if (key != "exportedAt" && key !in produced) extra.put(key, root.get(key)) }
+        runCatching { extrasFile().writeText(extra.toString()) }
+    }
 
     private suspend fun isLocalEmpty(): Boolean =
         database.dao().competitionsOnce().isEmpty() && database.plannerDao().plansOnce().isEmpty()
@@ -221,6 +255,7 @@ class CloudSyncService(
             )
             restoring = true
             try { backup.restore(merged) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
+            rememberTopLevelExtras(merged)
             merged.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY) to merged.optJSONObject(SyncedPrefs.SNAPSHOT_KEY)
         }
         br.com.estudario.data.FolhaLookStore.applyRemote(context, look)
@@ -290,6 +325,7 @@ class CloudSyncService(
         restoring = true
         val root = SnapshotMerge.withoutStaleCopies(JSONObject(text))
         try { backup.restore(root) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
+        rememberTopLevelExtras(root)
         br.com.estudario.data.FolhaLookStore.applyRemote(context, root.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
         SyncedPrefs.applyRemote(context, root.optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair
@@ -357,6 +393,8 @@ class CloudSyncService(
         private const val KEY_LAST_SYNC = "last_sync"
         /** Início da última rodada completa: mudança local depois disso pede outra rodada. */
         private const val KEY_CLEAN_AT = "clean_at"
+        /** Resumo das partes fora do banco (userPrefs, visual do Folha) na última rodada completa. */
+        private const val KEY_SIDE_SHA = "side_sha"
 
         /** Resumo SHA-256 pelo próprio Android (nativo; o cálculo em Kotlin levava segundos em 10 MB). */
         internal fun sha256Hex(text: String): String =

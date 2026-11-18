@@ -260,11 +260,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StudyPerformanceInput())
 
-    val studyPerformance: StateFlow<StudyPerformanceUiState> = combine(performanceInput, performancePeriod) { input, period ->
+    val studyPerformance: StateFlow<StudyPerformanceUiState> = combine(performanceInput, performancePeriod, competitions, subjects) { input, period, competitionList, subjectList ->
         val zone = ZoneId.systemDefault()
+        // Acerto por matéria e recomendações só do edital principal, como no site (aba do concurso, que começa no principal).
+        val primary = competitionList.firstOrNull { it.isPrimary } ?: competitionList.firstOrNull()
+        val primarySubjects = primary?.let { p -> subjectList.filter { it.competitionId == p.id }.mapTo(hashSetOf()) { it.id } }
         StudyPerformanceUiState(
             selectedPeriod = period,
-            result = StudyPerformanceEvaluator.evaluate(input, period, LocalDate.now(zone).toKotlinLocalDate(), zone.toKotlinTimeZone()),
+            result = StudyPerformanceEvaluator.evaluate(input, period, LocalDate.now(zone).toKotlinLocalDate(), zone.toKotlinTimeZone(), primarySubjects),
         )
     }.flowOn(Dispatchers.Default)
         .stateIn(
@@ -331,12 +334,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val planTaskTypes = app.database.plannerDao().taskTypes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** (total de tópicos, tópicos já estudados) do concurso principal, base do emblema de edital. */
+    /**
+     * (total de tópicos, tópicos já estudados) do concurso principal, base do emblema de edital. A conta
+     * é a do shared (ProgressInputs.syllabus, a mesma do site): só os tópicos finais, sem os tópicos-pai.
+     */
     private val syllabus: StateFlow<Pair<Int, Int>> = combine(competitions, subjects, topics) { contests, allSubjects, allTopics ->
         val primary = contests.firstOrNull { it.isPrimary } ?: contests.firstOrNull()
         val ids = allSubjects.filter { it.competitionId == primary?.id }.mapTo(hashSetOf()) { it.id }
-        val scoped = allTopics.filter { it.subjectId in ids }
-        scoped.size to scoped.count { it.status != TopicStatus.NAO_ESTUDADO }
+        br.com.estudario.domain.ProgressInputs.syllabus(
+            br.com.estudario.domain.ProgressInputs.Sources(
+                topics = allTopics.map { br.com.estudario.domain.ProgressInputs.TopicRow(it.id, it.subjectId, it.parentTopicId, it.status != TopicStatus.NAO_ESTUDADO) },
+                primarySubjectIds = ids,
+            ),
+        )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0 to 0)
 
     /** As contagens dos emblemas de foco, caderno, erros e horário (Madrugador e Coruja). */
@@ -362,16 +372,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // Uma tarefa pode ter vários registros (parciais e o final). Antes cada um pagava o XP
             // base de novo, e registrar 1 minuto várias vezes virava farm: agora a tarefa é uma só,
             // com o tempo e os acertos somados, no dia do último registro.
-            val planWork = bundle.executions.filter { it.taskId != null }.groupBy { it.taskId!! }.mapNotNull { (taskId, runs) ->
-                val type = typeById[taskId] ?: return@mapNotNull null
-                ProgressEngine.PlanWork(
-                    date = br.com.estudario.time.epochMillisToDate(runs.maxOf { it.completedAt }, zone.toKotlinTimeZone()),
-                    type = type,
-                    minutes = runs.sumOf { it.actualMinutes },
-                    correct = runs.sumOf { it.correctAnswers },
-                    questions = runs.sumOf { it.questionsDone },
-                )
-            }
+            val planWork = br.com.estudario.domain.ProgressInputs.planWork(
+                br.com.estudario.domain.ProgressInputs.Sources(
+                    executions = bundle.executions.map { br.com.estudario.domain.ProgressInputs.Execution(it.taskId, it.completedAt, it.actualMinutes, it.questionsDone, it.correctAnswers) },
+                    taskTypes = typeById,
+                ),
+                zone.toKotlinTimeZone(),
+            )
             ProgressEngine.evaluate(
                 ProgressEngine.ProgressInput(
                     today = br.com.estudario.time.today(),
@@ -576,7 +583,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val user = drive.userInfo(token)
             app.preferences.setUserEmail(user.email)
             if (app.preferences.userName.first().isBlank() && user.name.isNotBlank()) app.preferences.setUserName(user.name, manual = false)
-            if (app.preferences.userPhotoPath.first() == null) user.pictureUrl?.let { saveGooglePhoto(it) }
+            user.pictureUrl?.let { saveGooglePhoto(it) }
             when (action) {
                 GoogleAction.SIGN_IN -> TransferState.Done(
                     "Conta conectada",
@@ -622,20 +629,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun saveGooglePhoto(url: String) {
-        val target = File(app.filesDir, "profile_${System.currentTimeMillis()}.jpg")
-        if (drive.downloadPhoto(url, target)) {
-            withContext(Dispatchers.IO) { deleteOldPhotos(target.name) }
-            app.preferences.setUserPhotoPath(target.absolutePath)
-        }
+        val target = File(app.filesDir, br.com.estudario.data.sync.ProfileImageSync.GOOGLE_FILE)
+        // Sempre guarda a foto do Google (para voltar a ela, aqui ou pelo site); só a mostra se não há outra escolha.
+        if (drive.downloadPhoto(url, target) && app.preferences.userPhotoPath.first() == null) app.preferences.setUserPhotoPath(target.absolutePath)
     }
 
     fun consumeCelebration() { _celebration.value = null }
     fun setUserName(value: String) = launchCatching { app.preferences.setUserName(value) }
     fun setDailyGoal(value: Int) = launchCatching { app.preferences.setDailyGoalQuestions(value) }
     /** Avatar do Estudário no lugar da foto; apaga a foto antiga para não ocupar espaço. */
-    fun setProfileAvatar(path: String) = launchCatching { app.preferences.setUserPhotoPath(path); withContext(Dispatchers.IO) { deleteOldPhotos(null) } }
+    fun setProfileAvatar(path: String) = launchCatching {
+        app.preferences.setUserPhotoPath(path); withContext(Dispatchers.IO) { deleteOldPhotos(null) }
+        br.com.estudario.data.sync.ProfileImageSync.recordChoice(app, path)
+    }
 
-    fun clearProfilePhoto() = launchCatching { app.preferences.setUserPhotoPath(null); withContext(Dispatchers.IO) { deleteOldPhotos(null) } }
+    /** Volta para a foto da conta Google (ou as iniciais), aqui e, pela conta, no site. */
+    fun clearProfilePhoto() = launchCatching {
+        val google = File(app.filesDir, br.com.estudario.data.sync.ProfileImageSync.GOOGLE_FILE).takeIf { it.exists() }?.absolutePath
+        app.preferences.setUserPhotoPath(google); withContext(Dispatchers.IO) { deleteOldPhotos(null) }
+        br.com.estudario.data.sync.ProfileImageSync.recordChoice(app, br.com.estudario.domain.ProfileImage.GOOGLE)
+    }
 
     /** Copia a foto escolhida para dentro do app, reduzida, o URI da galeria não sobrevive ao reinício. */
     fun setProfilePhoto(uri: Uri) = launchCatching {
@@ -652,12 +665,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             target.absolutePath
         }
         if (path == null) _transfer.value = TransferState.Error("Não foi possível ler essa imagem. Escolha outra foto.")
-        else app.preferences.setUserPhotoPath(path)
+        else {
+            app.preferences.setUserPhotoPath(path)
+            // A mesma foto vai para a conta (pequena), e o site passa a mostrar ela também.
+            br.com.estudario.data.sync.ProfileImageSync.encodePhoto(path)?.let { br.com.estudario.data.sync.ProfileImageSync.recordChoice(app, it) }
+        }
     }
 
-    private fun deleteOldPhotos(keep: String?) {
-        app.filesDir.listFiles { file -> file.name.startsWith("profile_") && file.name != keep }?.forEach { it.delete() }
-    }
+    /** A foto do Google fica guardada à parte, para poder voltar a ela. */
+    private fun deleteOldPhotos(keep: String?) = br.com.estudario.data.sync.ProfileImageSync.deleteChosenPhotos(app, keep)
 
     private fun dailyActivity(
         answers: List<QuestionAttemptEntity>,
@@ -666,49 +682,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         focusSessions: List<FocusSessionEntity>,
         executions: List<StudyTaskExecutionEntity>,
         questionSessions: List<QuestionSessionEntity> = emptyList(),
-    ): List<DailyActivity> {
-        val zone = ZoneId.systemDefault()
-        fun day(epochMillis: Long): LocalDate = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
-        val rows = HashMap<LocalDate, DailyActivity>()
-        fun merge(date: LocalDate, block: (DailyActivity) -> DailyActivity) {
-            rows[date] = block(rows[date] ?: DailyActivity(date.toKotlinLocalDate()))
-        }
-        answers.forEach { attempt -> merge(day(attempt.answeredAt)) { it.copy(questions = it.questions + 1, correct = it.correct + if (attempt.correct) 1 else 0) } }
-        history.forEach { review -> merge(day(review.reviewedAt)) { it.copy(reviews = it.reviews + 1) } }
-        // "Tópico estudado" vale uma vez por tópico, no dia da primeira sessão dele. Antes cada
-        // sessão do modo foco num tópico contava como tópico novo (+25 XP a cada uma).
-        val firstSessionIds = sessions.filter { it.topicId != 0L }.groupBy { it.topicId }
-            .mapTo(hashSetOf()) { (_, rows) -> rows.minBy { it.completedAt }.id }
-        sessions.forEach { session ->
-            merge(day(session.completedAt)) {
-                it.copy(
-                    studySessions = it.studySessions + if (session.id in firstSessionIds) 1 else 0,
-                )
-            }
-        }
-        focusSessions.groupBy { day(it.completedAt) }.forEach { (date, rowsForDay) ->
-            val totalSeconds = rowsForDay.sumOf { it.durationSeconds.coerceAtLeast(0L) }
-            val freeSeconds = rowsForDay.asSequence().filter { it.origin == FocusSessionOrigin.LIVRE }
-                .sumOf { it.durationSeconds.coerceAtLeast(0L) }
-            val totalMinutes = (totalSeconds / 60L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-            val freeMinutes = (freeSeconds / 60L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-            merge(date) {
-                it.copy(
-                    focusSessions = it.focusSessions + rowsForDay.size,
-                    focusMinutes = it.focusMinutes + totalMinutes,
-                    freeFocusMinutes = it.freeFocusMinutes + freeMinutes,
-                )
-            }
-        }
-        executions.forEach { execution -> merge(day(execution.completedAt)) { it.copy(planTasks = it.planTasks + 1) } }
-        // O tempo do dia: foco + baterias de questões, contando uma vez só o que se sobrepõe (StudyTime, igual no site).
-        val tz = kotlinx.datetime.TimeZone.currentSystemDefault()
-        val questionSpans = questionSessions.mapNotNull { br.com.estudario.domain.StudyTime.questions(it.startedAt, it.completedAt, it.questionCount) }
-        val spans = focusSessions.mapNotNull { br.com.estudario.domain.StudyTime.focus(it.completedAt, it.durationSeconds) } + questionSpans
-        br.com.estudario.domain.StudyTime.minutesByDay(spans, tz).forEach { (date, m) -> merge(date.toJavaLocalDate()) { it.copy(minutes = m) } }
-        br.com.estudario.domain.StudyTime.minutesByDay(questionSpans, tz).forEach { (date, m) -> merge(date.toJavaLocalDate()) { it.copy(questionMinutes = m) } }
-        return rows.values.toList()
-    }
+    ): List<DailyActivity> = br.com.estudario.domain.DailyActivityBuilder.build(
+        // Mesma regra do site (Queries.dailyActivity): o cálculo mora no shared.
+        answers = answers.map { br.com.estudario.domain.DailyActivityBuilder.Answer(it.answeredAt, it.correct) },
+        reviewedAt = history.map { it.reviewedAt },
+        sessions = sessions.map { br.com.estudario.domain.DailyActivityBuilder.Session(it.id, it.topicId, it.completedAt) },
+        focusSessions = focusSessions.map { br.com.estudario.domain.DailyActivityBuilder.Focus(it.completedAt, it.durationSeconds, it.origin == FocusSessionOrigin.LIVRE) },
+        executionsCompletedAt = executions.map { it.completedAt },
+        questionRuns = questionSessions.map { br.com.estudario.domain.DailyActivityBuilder.QuestionRun(it.startedAt, it.completedAt, it.questionCount) },
+        zone = kotlinx.datetime.TimeZone.currentSystemDefault(),
+    )
 
     val seenTours: StateFlow<Set<String>?> = app.preferences.seenTours.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -832,6 +815,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (!session.active) return@combine null
         val pending = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
         session.taskId?.let { id -> tasks.firstOrNull { it.id == id }?.plannedMinutes }
+            // Foco livre (ou começado no site): o aviso escolhido, guardado na própria sessão.
+            ?: session.plannedMinutes
             ?: session.topicId?.let { topic ->
                 val today = LocalDate.now().toEpochDay()
                 tasks.filter { it.topicId == topic && it.scheduledEpochDay == today && it.status in pending }.sumOf { it.plannedMinutes }
@@ -951,13 +936,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (focusSession.value.paused) FocusSessionManager.resume(app) else FocusSessionManager.pause(app)
     }
     private val uiPrefs = app.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
-    private val _focusClockHidden = kotlinx.coroutines.flow.MutableStateFlow(uiPrefs.getBoolean("focus_hide_clock", false))
-    /** Esconde os números do cronômetro (quem fica ansioso vendo o tempo subir). Lembrado entre sessões. */
-    val focusClockHidden: StateFlow<Boolean> = _focusClockHidden
-    fun toggleFocusClockHidden() {
-        val value = !_focusClockHidden.value
-        _focusClockHidden.value = value
-        uiPrefs.edit().putBoolean("focus_hide_clock", value).apply()
+    /**
+     * Preferências do foco, as mesmas do site ("userPrefs" da foto): o aviso de tempo do foco livre e
+     * a contagem escondida. Sem nada gravado ainda, vale a contagem escondida antiga deste aparelho.
+     */
+    val focusPrefs: StateFlow<br.com.estudario.domain.FocusPrefs> = app.preferences.focusPrefs
+        .map { if (it.updatedAt == 0L) it.copy(clockHidden = uiPrefs.getBoolean("focus_hide_clock", false)) else it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, br.com.estudario.domain.FocusPrefs())
+    /** Esconde os números do cronômetro (quem fica ansioso vendo o tempo subir). Lembrado entre sessões e aparelhos. */
+    val focusClockHidden: StateFlow<Boolean> = focusPrefs.map { it.clockHidden }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, uiPrefs.getBoolean("focus_hide_clock", false))
+    fun toggleFocusClockHidden() = setFocusPrefs(focusPrefs.value.copy(clockHidden = !focusPrefs.value.clockHidden))
+    fun setFocusPrefs(value: br.com.estudario.domain.FocusPrefs) = launchCatching {
+        app.preferences.setFocusPrefs(value.copy(updatedAt = System.currentTimeMillis()))
+        br.com.estudario.data.sync.CloudSyncWorker.syncSoon(app, delaySeconds = 20)
     }
     fun clearLastFocus() = launchCatching { app.preferences.clearLastFocus() }
     fun setFocusDoNotDisturb(value: Boolean) = launchCatching { app.preferences.setFocusDoNotDisturb(value) }

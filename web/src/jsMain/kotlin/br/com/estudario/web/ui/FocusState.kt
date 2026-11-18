@@ -7,6 +7,9 @@ import br.com.estudario.web.data.Actions
 import br.com.estudario.web.data.Keys
 import br.com.estudario.web.data.Store
 import br.com.estudario.web.data.jsonOf
+import br.com.estudario.domain.FocusRules
+import br.com.estudario.domain.FocusRunning
+import br.com.estudario.web.data.Prefs
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlin.js.Date
@@ -17,6 +20,10 @@ import kotlin.js.Date
  * tempo planejado, ao alcançá-lo avisa uma vez, e a sessão continua contando.
  */
 object TopicFocus {
+    /** Identidade da sessão, a mesma no app (FocusRunning.sessionId) e na linha do histórico. */
+    var sessionId by mutableStateOf("")
+    /** Matérias da sessão (o app permite várias; o site guarda todas as que vierem de lá). */
+    var subjectList by mutableStateOf<List<Long>>(emptyList())
     var topicId by mutableStateOf<Long?>(null)
     var taskId by mutableStateOf<String?>(null)
     var subjectId by mutableStateOf<Long?>(null)
@@ -29,11 +36,11 @@ object TopicFocus {
     var now by mutableStateOf(0L)
 
     /** Contagem escondida (o tempo distrai): some da barra, do título da aba, do tópico e do Modo foco. Fica neste navegador. */
-    var clockHidden by mutableStateOf(runCatching { window.localStorage.getItem("estudario.focusbar.hidden") == "1" }.getOrDefault(false))
-        private set
+    /** Contagem escondida: a mesma do app (preferência de foco da conta, FocusSync.kt). */
+    val clockHidden: Boolean get() = Prefs.focusPrefs().clockHidden
     fun setClockHidden(value: Boolean) {
-        clockHidden = value
         runCatching { window.localStorage.setItem("estudario.focusbar.hidden", if (value) "1" else "0") }
+        Prefs.setFocusPrefs(Prefs.focusPrefs().copy(clockHidden = value))
         if (active) document.title = if (value) "Foco · Estudário" else "${clock()} · Foco · Estudário"
     }
     var timeUpSeen by mutableStateOf(false)
@@ -57,7 +64,7 @@ object TopicFocus {
     /** Desconta o tempo parado como pausa. */
     fun discountIdle() {
         val gap = idleGap ?: return
-        if (active) { pausedTotal += gap.coerceAtMost(elapsedMs); rev = Date.now().toLong(); persist() }
+        if (active) { pausedTotal += gap.coerceAtMost(elapsedMs); rev = Date.now().toLong(); persist(); publish() }
         idleGap = null
     }
 
@@ -79,7 +86,7 @@ object TopicFocus {
         (window.localStorage.getItem(DONE_KEY) ?: "").split(',').mapNotNull { it.trim().toLongOrNull() }
     }.getOrDefault(emptyList())
 
-    private fun isDone(started: Long): Boolean = started > 0 && (started in doneList() || Store.data.focusSessions.any { it.startedAt == started })
+    private fun isDone(started: Long): Boolean = started > 0 && (started in doneList() || Store.data.focusSessions.any { it.startedAt == started || (sessionId.isNotBlank() && it.id == sessionId) })
 
     private fun markDone(started: Long) {
         runCatching { window.localStorage.setItem(DONE_KEY, (doneList().filter { it != started } + started).takeLast(60).joinToString(",")) }
@@ -93,11 +100,14 @@ object TopicFocus {
         ticker = null
         document.title = "Estudário"
         topicId = null; taskId = null; subjectId = null; title = ""; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L
+        sessionId = ""; subjectList = emptyList()
     }
 
     /** Copia o foco guardado (de outra janela) para esta. */
     private fun adopt(o: dynamic, keepRunning: Boolean) {
         val started = (o.startedAt as? Number)?.toLong() ?: return
+        sessionId = (o.sessionId as? String)?.takeIf { it.isNotBlank() } ?: "web-$started"
+        subjectList = (o.subjectIds as? String).orEmpty().split(',').mapNotNull { it.trim().toLongOrNull() }
         topicId = (o.topicId as? Number)?.toLong()
         taskId = o.taskId as? String
         subjectId = (o.subjectId as? Number)?.toLong()
@@ -124,6 +134,7 @@ object TopicFocus {
             val savedStart = (saved?.startedAt as? Number)?.toLong() ?: 0L
             if (saved != null && savedRev > rev && !isDone(savedStart)) { adopt(saved, keepRunning = true); return }
             val o: dynamic = js("({})")
+            o.sessionId = sessionId; o.subjectIds = subjectList.joinToString(",")
             o.topicId = topicId?.toDouble(); o.taskId = taskId; o.subjectId = subjectId?.toDouble(); o.title = title
             o.startedAt = startedAt.toDouble(); o.pausedAt = pausedAt?.toDouble(); o.pausedTotal = pausedTotal.toDouble()
             o.plannedMinutes = plannedMinutes; o.timeUpSeen = timeUpSeen; o.lastSeen = Date.now(); o.rev = rev.toDouble()
@@ -135,12 +146,70 @@ object TopicFocus {
         ticker?.let { window.clearInterval(it) }
         ticker = window.setInterval({
             now = Date.now().toLong()
+            // Esquecido aberto além do teto (o mesmo do app): encerra e salva sozinho.
+            if (running && elapsedMinutes >= FocusRules.MAX_SESSION_MINUTES) {
+                stop()
+                Toast.show("O foco ficou aberto por ${FocusRules.MAX_SESSION_MINUTES / 60} horas e foi encerrado sozinho.")
+                return@setInterval
+            }
             document.title = if (clockHidden) "Foco · Estudário" else "${clock()} · Foco · Estudário"
             persist()
         }, 1000)
     }
 
+    // ---------------------------------------------------------------- o mesmo foco no app
+    // A sessão vai na foto da conta ("focusRunning" em userPrefs, FocusSync.kt) a cada mexida. Quando
+    // a foto muda (o celular começou, pausou, continuou ou encerrou), esta janela fica igual.
+
+    /** A sessão desta janela no formato da conta. */
+    private fun running(): FocusRunning? = if (!active) null else FocusRunning(
+        sessionId = sessionId.ifBlank { "web-$startedAt" }, startedAt = startedAt, title = title.ifBlank { FocusRules.DEFAULT_TITLE },
+        subjectIds = subjectList.ifEmpty { listOfNotNull(subjectId) }, origin = FocusRules.origin(taskId, topicId),
+        topicId = topicId, taskId = taskId, plannedMinutes = plannedMinutes,
+        pausedAt = pausedAt ?: 0L, pausedMillis = pausedTotal, updatedAt = rev,
+    )
+
+    private fun publish(r: FocusRunning? = running()) {
+        if (r == null || Store.demo) return
+        Prefs.setSyncedFields(mapOf(FocusRules.KEY_RUNNING to kotlinx.serialization.json.JsonObject(Prefs.fieldsJson(r.fields()))))
+    }
+
+    private fun remoteRunning(): FocusRunning? =
+        (Prefs.synced(Store.data)[FocusRules.KEY_RUNNING] as? kotlinx.serialization.json.JsonObject)?.let { FocusRunning.from(Prefs.getter(it)) }
+
+    private var lastData: Any? = null
+    private var lastEndedHere: String? = null
+
+    private fun watchAccount() {
+        if (Store.data === lastData) return
+        lastData = Store.data
+        val remote = remoteRunning() ?: return
+        val saved = Store.data.focusSessions.mapTo(hashSetOf()) { it.id }
+        when (val d = FocusRunning.reconcile(running(), remote, Date.now().toLong(), { it in saved }, lastEndedHere)) {
+            FocusRunning.Remote.Keep -> Unit
+            is FocusRunning.Remote.Adopt -> {
+                val r = d.running
+                val isNew = r.sessionId != sessionId
+                val o: dynamic = js("({})")
+                o.sessionId = r.sessionId; o.subjectIds = r.subjectIds.joinToString(",")
+                o.topicId = r.topicId?.toDouble(); o.taskId = r.taskId; o.subjectId = r.subjectIds.firstOrNull()?.toDouble()
+                o.title = r.title; o.plannedMinutes = r.plannedMinutes; o.timeUpSeen = !isNew && timeUpSeen
+                o.startedAt = r.startedAt.toDouble(); o.pausedAt = r.pausedAt.takeIf { it > 0L }?.toDouble(); o.pausedTotal = r.pausedMillis.toDouble()
+                o.rev = r.updatedAt.toDouble(); o.lastSeen = Date.now()
+                adopt(o, keepRunning = true)
+                if (isNew) Toast.show("Foco começado no outro aparelho: o tempo segue aqui também.")
+            }
+            FocusRunning.Remote.EndedElsewhere -> {
+                markDone(startedAt)
+                dropLocal()
+                runCatching { window.localStorage.removeItem(SAVE_KEY) }
+                Toast.show("Este foco foi encerrado no outro aparelho.")
+            }
+        }
+    }
+
     init {
+        window.setInterval({ runCatching { watchAccount() } }, 3000)
         runCatching {
             val o: dynamic = readSaved() ?: return@runCatching
             val started = (o.startedAt as? Number)?.toLong() ?: return@runCatching
@@ -187,6 +256,8 @@ object TopicFocus {
         topicId = id
         this.taskId = taskId
         this.subjectId = subjectId ?: id?.let { tid -> Store.data.topics.firstOrNull { it.id == tid }?.subjectId }
+        subjectList = listOfNotNull(this.subjectId)
+        sessionId = Actions.newSessionId()
         title = name
         this.plannedMinutes = plannedMinutes
         startedAt = Date.now().toLong()
@@ -197,13 +268,14 @@ object TopicFocus {
         rev = startedAt
         startTicker()
         persist()
+        publish()
     }
 
     /** Compatível com a chamada antiga do tópico. */
     fun start(id: Long, name: String) = start(id, name, null, null, null)
 
-    fun pause() { if (running) { pausedAt = Date.now().toLong(); rev = Date.now().toLong(); persist() } }
-    fun resume() { pausedAt?.let { pausedTotal += Date.now().toLong() - it; pausedAt = null; rev = Date.now().toLong(); persist() } }
+    fun pause() { if (running) { pausedAt = Date.now().toLong(); rev = Date.now().toLong(); persist(); publish() } }
+    fun resume() { pausedAt?.let { pausedTotal += Date.now().toLong() - it; pausedAt = null; rev = Date.now().toLong(); persist(); publish() } }
 
     /** O último encerrar não salvou porque esse foco já estava salvo (outra janela ou atualização). */
     private var lastStopWasDuplicate = false
@@ -223,6 +295,12 @@ object TopicFocus {
         markDone(startedAt)
         val end = Date.now().toLong()
         val seconds = elapsedMs / 1000
+        // O outro aparelho fica sabendo que acabou (e não salva de novo).
+        val ended = running()?.end(end)
+        val savedId = ended?.sessionId ?: Actions.newSessionId()
+        val savedSubjects = subjectList.ifEmpty { listOfNotNull(subjectId) }
+        lastEndedHere = savedId
+        sessionId = ""; subjectList = emptyList()
         val id = topicId
         val savedTask = taskId
         val savedTitle = title
@@ -233,18 +311,19 @@ object TopicFocus {
         document.title = "Estudário"
         topicId = null; taskId = null; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L
         persist()
-        if (seconds < 60) { Toast.show("Foco encerrado (menos de 1 minuto não conta)"); return 0 }
+        publish(ended)
+        if (!FocusRules.counts(seconds)) { Toast.show("Foco encerrado (menos de 1 minuto não conta)"); return 0 }
         som("foco_fim")
         Store.update {
             // Última trava: o histórico não aceita duas sessões que começaram no mesmo instante.
-            if (it.focusSessions.any { s -> s.startedAt == savedStart }) return@update it
+            if (it.focusSessions.any { s -> s.startedAt == savedStart || s.id == savedId }) return@update it
             it.append(
                 Keys.FOCUS_SESSIONS,
                 jsonOf(
-                    "id" to Actions.newSessionId(), "title" to savedTitle.ifBlank { "Sessão de foco" }, "startedAt" to savedStart, "completedAt" to end,
-                    "durationSeconds" to seconds, "subjectIds" to (savedSubject?.toString() ?: ""),
+                    "id" to savedId, "title" to savedTitle.ifBlank { FocusRules.DEFAULT_TITLE }, "startedAt" to savedStart, "completedAt" to end,
+                    "durationSeconds" to seconds, "subjectIds" to savedSubjects.sorted().joinToString(","),
                     // Os mesmos valores do app (FocusSessionOrigin: LIVRE, MATERIA, PLANO); outro valor quebrava a restauração lá.
-                    "origin" to when { savedTask != null -> "PLANO"; id != null -> "MATERIA"; else -> "LIVRE" },
+                    "origin" to FocusRules.origin(savedTask, id),
                     "topicId" to id, "taskId" to savedTask,
                 ),
             )

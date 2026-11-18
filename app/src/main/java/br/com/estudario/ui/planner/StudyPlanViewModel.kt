@@ -55,8 +55,10 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
                 .debounce(150)
                 .collectLatest { (plans, contests, section) ->
                     val primary = contests.firstOrNull { it.isPrimary }?.id
-                    val plan = plans.firstOrNull { it.active && !it.archived && (primary == null || it.competitionId == primary) }
-                        ?: plans.firstOrNull { it.active && !it.archived }
+                    // Mesma escolha do site (PlanRules.activePlan).
+                    val plan = br.com.estudario.domain.planner.PlanRules.activePlan(
+                        plans.map { br.com.estudario.domain.planner.PlanRules.PlanRef(it, it.active, it.archived, it.competitionId) }, primary,
+                    )
                     if (plan == null) {
                         _state.value = ActivePlanUiState(selectedSection = section, allPlans = plans)
                         return@collectLatest
@@ -69,6 +71,9 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                     val (loaded, roadmap) = withContext(Dispatchers.Default) { load(plan.id, plans, section) }
                     _state.update { loaded.copy(message = it.message) }
+                    // Feito fora do plano (Treinar, Caderno, tópico aberto pelo edital): fecha a tarefa
+                    // atrasada em vez de acusar atraso. Se fechou alguma, as tarefas mudam e isto relê.
+                    runCatching { closeDoneElsewhere(loaded) }
                     // O mapa do edital simula o plano inteiro até a prova (segundos com muito histórico):
                     // vem depois, para a missão do dia e o plano aparecerem na hora.
                     val projection = withContext(Dispatchers.Default) { runCatching { roadmap() }.getOrNull() } ?: return@collectLatest
@@ -246,7 +251,8 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             // sem conseguir resolver as questões do bloco.
             else -> Unit
         }
-        return available.coerceAtMost(task.plannedQuestions.coerceAtLeast(1))
+        // Conta já com o complemento de questões acertadas, para o número bater com o do plano.
+        return planTaskQuestionIds(task.topicId, task.subjectId, questions, topics, pendingErrors, task.plannedQuestions.coerceAtLeast(1)).size
     }
     fun complete(taskId: String, input: CompleteTaskInput) = launch("Registrando e reorganizando") {
         br.com.estudario.ui.brand.EstudarioSom.play(getApplication(), "concluir")
@@ -281,6 +287,65 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     /** Arrastar no mês (pago): o estudo fica fixado no dia escolhido. */
     fun moveTask(taskId: String, date: LocalDate) = launch("Mudando o dia") { service.moveTask(taskId, date) }
     fun swapTasks(a: String, b: String) = launch("Trocando de dia") { service.swapTasks(a, b) }
+    /** Tarefas já verificadas nesta sessão: evita conferir de novo a cada releitura. */
+    private val checkedElsewhere = hashSetOf<String>()
+
+    /**
+     * A pessoa resolveu as questões do tópico pelo Treinar ou estudou o tópico pelo edital, depois do
+     * dia da tarefa: o plano não sabia e a tarefa ficava "atrasada" para sempre. Bateria fecha quando
+     * há pelo menos as questões planejadas daquele tópico respondidas desde o dia dela; teoria fecha
+     * quando o tópico foi marcado como estudado desde o dia dela.
+     */
+    private suspend fun closeDoneElsewhere(current: ActivePlanUiState) {
+        val plan = current.activePlan ?: return
+        val today = current.today.toEpochDay()
+        val late = current.tasks.filter {
+            it.entity.planId == plan.id && it.entity.topicId != null && it.entity.scheduledEpochDay < today &&
+                it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) && it.entity.id !in checkedElsewhere
+        }
+        if (late.isEmpty()) return
+        late.forEach { checkedElsewhere += it.entity.id }
+        val zone = ZoneId.systemDefault()
+        val closed = withContext(Dispatchers.IO) {
+            val dao = app.database.dao()
+            val allQuestions = dao.questionsOnce()
+            val topicOf = allQuestions.associate { it.question.id to it.question.topicId }
+            // Tópico com menos questões que o plano pediu: respondê-las todas já fecha a bateria.
+            val inTopic = allQuestions.filter { !it.question.isHidden && it.question.simulationId == null }.groupingBy { it.question.topicId }.eachCount()
+            val attempts = dao.attemptsOnce()
+            val topics = dao.topicsOnce().associateBy { it.id }
+            var count = 0
+            for (row in late) {
+                val task = row.entity
+                val since = LocalDate.ofEpochDay(task.scheduledEpochDay).atStartOfDay(zone).toInstant().toEpochMilli()
+                runCatching {
+                    when (task.type) {
+                        br.com.estudario.domain.planner.PlanTaskType.QUESTIONS -> {
+                            val done = attempts.filter { it.answeredAt >= since && topicOf[it.questionId] == task.topicId }
+                            val needed = task.plannedQuestions.coerceAtLeast(1).coerceAtMost((inTopic[task.topicId] ?: 0).coerceAtLeast(1))
+                            if (done.distinctBy { it.questionId }.size >= needed || done.size >= task.plannedQuestions.coerceAtLeast(1)) {
+                                val first = done.minOf { it.answeredAt }
+                                executions.completeFromQuestionQuiz(task.id, CompleteTaskInput(startedAt = first, completedAt = maxOf(first, done.maxOf { it.answeredAt }), actualMinutes = 0, questions = done.size, correct = done.count { it.correct }))
+                                count++
+                            }
+                        }
+                        br.com.estudario.domain.planner.PlanTaskType.THEORY -> {
+                            val topic = topics[task.topicId!!]
+                            val studiedAt = topic?.lastStudiedAt
+                            if (topic != null && topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO && studiedAt != null && studiedAt >= since) {
+                                executions.completeFromTopic(task.id, CompleteTaskInput(startedAt = studiedAt, completedAt = studiedAt, actualMinutes = 0))
+                                count++
+                            }
+                        }
+                        else -> Unit
+                    }
+                }
+            }
+            count
+        }
+        if (closed > 0) service.replan(plan.id, ReplanReason.TASK_COMPLETED)
+    }
+
     suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null, type: br.com.estudario.domain.planner.PlanTaskType = br.com.estudario.domain.planner.PlanTaskType.THEORY): PlannerTaskUi? {
         val current = state.first { !it.loading }
         return matchingPendingTopicTask(current, topicId, preferredTaskId, type)

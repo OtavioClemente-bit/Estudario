@@ -112,6 +112,8 @@ fun App() {
     // O fundo do caderno escolhido no app (ou em outro navegador) chega pela conta.
     val syncedPrefs = br.com.estudario.web.data.Prefs.synced(Store.data)
     androidx.compose.runtime.LaunchedEffect(syncedPrefs["paperUpdatedAt"]) { br.com.estudario.web.Paper.adopt(syncedPrefs) }
+    // Tema, explicação, placar, revisão e leitura escolhidos no app (ou em outro navegador).
+    androidx.compose.runtime.LaunchedEffect(syncedPrefs[br.com.estudario.domain.SyncedSettings.SETTINGS_AT]) { br.com.estudario.web.data.AccountSettings.adopt(syncedPrefs) }
     // o plano da conta libera as peças de assinante do Folha
     androidx.compose.runtime.LaunchedEffect(Unit) { br.com.estudario.web.data.Entitlements.restoreTier(); br.com.estudario.web.data.Entitlements.load() }
     androidx.compose.runtime.LaunchedEffect(loading) {

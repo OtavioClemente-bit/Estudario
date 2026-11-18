@@ -31,7 +31,8 @@ fun FocusScreen() {
     val pending = plan?.let { Queries.tasksOn(data, it.id, Queries.todayEpoch()) }.orEmpty().filter { it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO" }
     var taskId by remember { mutableStateOf(pending.firstOrNull()?.id) }
     var alertMinutes by remember { mutableStateOf(Prefs.focusMinutes) }
-    var alertOn by remember { mutableStateOf(true) }
+    // O aviso é o mesmo do app (preferência de foco da conta).
+    val alertOn = Prefs.focusPrefs().alertOn
     val task = pending.firstOrNull { it.id == taskId }
     val active = TopicFocus.active
     val goal = if (active) TopicFocus.plannedMinutes else task?.minutes ?: if (alertOn) alertMinutes else null
@@ -74,8 +75,8 @@ fun FocusScreen() {
                 ) { taskId = it }
             }
             if (task == null) GxSection("notifications", "Aviso de tempo", "O aviso não encerra nada: o tempo continua subindo até você parar.", "#FFC94D") {
-                GxSwitchRow("Avisar quando der o tempo", if (alertOn) "Eu aviso depois de ${Queries.minutesLabel(alertMinutes)}" else "Sem aviso: foco livre", alertOn) { alertOn = it }
-                if (alertOn) GxCounter(alertMinutes, { alertMinutes = it; Prefs.focusMinutes = it }, min = 5, max = 180, step = 5, unit = "minutos", chips = listOf(25, 50, 90), label = "Avisar depois de")
+                GxSwitchRow("Avisar quando der o tempo", if (alertOn) "Eu aviso depois de ${Queries.minutesLabel(alertMinutes)}" else "Sem aviso: foco livre", alertOn) { Prefs.setFocusPrefs(Prefs.focusPrefs().copy(alertOn = it)) }
+                if (alertOn) GxCounter(alertMinutes, { alertMinutes = it; Prefs.focusMinutes = it }, min = 5, max = 180, step = 5, unit = "minutos", chips = br.com.estudario.domain.FocusRules.PRESETS, label = "Avisar depois de")
             }
             Div({ classes("gx-go", "row") }) {
                 Div({ classes("gx-go-sum") }) {

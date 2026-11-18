@@ -22,8 +22,15 @@ object Queries {
     fun primaryCompetition(data: Snapshot): Competition? =
         data.competitions.firstOrNull { it.primary } ?: data.competitions.firstOrNull()
 
-    fun activePlan(data: Snapshot): StudyPlan? =
-        data.plans.firstOrNull { it.active && !it.archived } ?: data.plans.firstOrNull { !it.archived }
+    /** Mesma escolha do app (PlanRules.activePlan): o ativo do concurso principal, senão o primeiro ativo. */
+    fun activePlan(data: Snapshot): StudyPlan? = br.com.estudario.domain.planner.PlanRules.activePlan(
+        data.plans.map { br.com.estudario.domain.planner.PlanRules.PlanRef(it, it.active, it.archived, it.competitionId) },
+        data.competitions.firstOrNull { it.primary }?.id,
+    )
+
+    /** Tarefas atrasadas do plano (PlanRules.isOverdue), da mais antiga para a mais nova. */
+    fun overdueTasks(data: Snapshot, planId: String, todayEpoch: Long = todayEpoch()): List<PlanTask> =
+        data.tasks.filter { it.planId == planId && br.com.estudario.domain.planner.PlanRules.isOverdue(it.day, it.status, todayEpoch) }.sortedBy { it.day }
 
     /**
      * As tarefas do dia que valem. Ao replanejar, a tarefa antiga vira REPROGRAMADA e entra uma cópia
@@ -90,31 +97,45 @@ object Queries {
     }
 
     /** Mesmo cálculo de AppViewModel.dailyActivity no Android. */
-    fun dailyActivity(data: Snapshot): List<DailyActivity> {
-        val rows = HashMap<LocalDate, DailyActivity>()
-        fun merge(date: LocalDate, block: (DailyActivity) -> DailyActivity) { rows[date] = block(rows[date] ?: DailyActivity(date)) }
-        data.attempts.forEach { attempt -> merge(dateOf(attempt.answeredAt)) { it.copy(questions = it.questions + 1, correct = it.correct + if (attempt.correct) 1 else 0) } }
-        data.reviewHistory.forEach { review -> merge(dateOf(review.reviewedAt)) { it.copy(reviews = it.reviews + 1) } }
-        val firstSessionIds = data.sessions.filter { it.topicId != 0L }.groupBy { it.topicId }.mapTo(hashSetOf()) { (_, rows) -> rows.minBy { it.completedAt }.id }
-        data.sessions.forEach { session ->
-            merge(dateOf(session.completedAt)) {
-                it.copy(studySessions = it.studySessions + if (session.id in firstSessionIds) 1 else 0)
-            }
-        }
-        data.focusSessions.groupBy { dateOf(it.completedAt) }.forEach { (date, rowsForDay) ->
-            val totalMinutes = (rowsForDay.sumOf { it.durationSeconds.coerceAtLeast(0L) } / 60L).toInt()
-            val freeMinutes = (rowsForDay.filter { it.origin == "LIVRE" }.sumOf { it.durationSeconds.coerceAtLeast(0L) } / 60L).toInt()
-            merge(date) {
-                it.copy(focusSessions = it.focusSessions + rowsForDay.size, focusMinutes = it.focusMinutes + totalMinutes, freeFocusMinutes = it.freeFocusMinutes + freeMinutes)
-            }
-        }
-        data.executions.forEach { execution -> merge(dateOf(execution.completedAt)) { it.copy(planTasks = it.planTasks + 1) } }
-        // O tempo do dia: foco + baterias de questões, contando uma vez só o que se sobrepõe (StudyTime).
-        val questionSpans = data.questionSessions.mapNotNull { br.com.estudario.domain.StudyTime.questions(it.startedAt, it.completedAt, it.questionCount) }
-        val spans = data.focusSessions.mapNotNull { br.com.estudario.domain.StudyTime.focus(it.completedAt, it.durationSeconds) } + questionSpans
-        br.com.estudario.domain.StudyTime.minutesByDay(spans, zone).forEach { (date, m) -> merge(date) { it.copy(minutes = m) } }
-        br.com.estudario.domain.StudyTime.minutesByDay(questionSpans, zone).forEach { (date, m) -> merge(date) { it.copy(questionMinutes = m) } }
-        return rows.values.toList()
+    fun dailyActivity(data: Snapshot): List<DailyActivity> = br.com.estudario.domain.DailyActivityBuilder.build(
+        answers = data.attempts.map { br.com.estudario.domain.DailyActivityBuilder.Answer(it.answeredAt, it.correct) },
+        reviewedAt = data.reviewHistory.map { it.reviewedAt },
+        sessions = data.sessions.map { br.com.estudario.domain.DailyActivityBuilder.Session(it.id, it.topicId, it.completedAt) },
+        focusSessions = data.focusSessions.map { br.com.estudario.domain.DailyActivityBuilder.Focus(it.completedAt, it.durationSeconds, it.origin == "LIVRE") },
+        executionsCompletedAt = data.executions.map { it.completedAt },
+        questionRuns = data.questionSessions.map { br.com.estudario.domain.DailyActivityBuilder.QuestionRun(it.startedAt, it.completedAt, it.questionCount) },
+        zone = zone,
+    )
+
+    /** A tela Desempenho: o mesmo StudyPerformanceEvaluator do app, sobre os mesmos dados da foto. */
+    fun performance(
+        data: Snapshot,
+        period: br.com.estudario.domain.performance.StudyPerformancePeriod,
+        subjectIds: Set<Long>?,
+    ): br.com.estudario.domain.performance.StudyPerformanceResult {
+        val topics = data.topics.associateBy { it.id }
+        val subjects = data.subjects.associateBy { it.id }
+        val questionTopic = data.questions.associate { it.id to it.topicId }
+        fun at(ms: Long) = kotlin.time.Instant.fromEpochMilliseconds(ms)
+        val input = br.com.estudario.domain.performance.StudyPerformanceInput(
+            attempts = data.attempts.map { a ->
+                val topic = questionTopic[a.questionId]?.let { topics[it] }
+                br.com.estudario.domain.performance.PerformanceAttempt(at(a.answeredAt), a.correct, topic?.subjectId, topic?.subjectId?.let { subjects[it]?.name }, topic?.id, topic?.title)
+            },
+            reviews = data.reviewHistory.map { br.com.estudario.domain.performance.PerformanceReview(at(it.reviewedAt)) },
+            studySessions = data.sessions.map { br.com.estudario.domain.performance.PerformanceSession(at(it.completedAt), it.durationSeconds) } +
+                data.focusSessions.map { br.com.estudario.domain.performance.PerformanceSession(at(it.completedAt), it.durationSeconds) },
+            questionSessions = data.questionSessions.map { br.com.estudario.domain.performance.PerformanceSession(at(it.completedAt), it.durationSeconds) },
+            activePlanIds = data.plans.filter { it.active && !it.archived }.mapTo(linkedSetOf()) { it.id },
+            tasks = data.tasks.mapNotNull { t ->
+                val status = runCatching { br.com.estudario.domain.planner.PlanTaskStatus.valueOf(t.status) }.getOrNull() ?: return@mapNotNull null
+                br.com.estudario.domain.performance.PerformancePlannedTask(t.planId, LocalDate.fromEpochDays(t.day), t.minutes, status)
+            },
+            executions = data.executions.map { br.com.estudario.domain.performance.PerformanceExecution(it.planId, at(it.completedAt), it.minutes) },
+            studySpans = data.focusSessions.mapNotNull { br.com.estudario.domain.StudyTime.focus(it.completedAt, it.durationSeconds) } +
+                data.questionSessions.mapNotNull { br.com.estudario.domain.StudyTime.questions(it.startedAt, it.completedAt, it.questionCount) },
+        )
+        return br.com.estudario.domain.performance.StudyPerformanceEvaluator.evaluate(input, period, todayDate(), zone, subjectIds)
     }
 
     fun streak(data: Snapshot): StreakSummary = StreakEngine.summarize(dailyActivity(data), DailyGoal.DEFAULT, todayDate())

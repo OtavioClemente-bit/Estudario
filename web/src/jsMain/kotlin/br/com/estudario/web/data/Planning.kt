@@ -198,7 +198,7 @@ object Planning {
     private val PENDING = setOf("PLANEJADA", "EM_ANDAMENTO")
 
     /** Atrasadas: o que ficou de dias que passaram e não foi feito. */
-    fun overdue(data: Snapshot, planId: String) = data.tasks.filter { it.planId == planId && it.day < Queries.todayEpoch() && it.status in PENDING }
+    fun overdue(data: Snapshot, planId: String) = Queries.overdueTasks(data, planId)
 
     /** "Encaixar nos próximos dias": as atrasadas voltam na frente e o resto se reorganiza no ritmo do edital. */
     fun fitOverdue(data: Snapshot, planId: String): Snapshot {

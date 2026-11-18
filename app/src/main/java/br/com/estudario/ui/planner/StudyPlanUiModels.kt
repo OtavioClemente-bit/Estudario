@@ -85,7 +85,7 @@ data class ActivePlanUiState(
     val upcomingWeekTasks get() = currentTasks.filter { it.entity.scheduledEpochDay in (today.toEpochDay() + 1)..(today.toEpochDay() + 7) }
     /** "Hoje não vou conseguir" marcado para hoje. */
     val todayOff get() = dayOverrides.any { it.epochDay == today.toEpochDay() && it.unavailable }
-    val overdueTasks get() = if (!syncFresh) emptyList() else tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
+    val overdueTasks get() = if (!syncFresh) emptyList() else tasks.filter { br.com.estudario.domain.planner.PlanRules.isOverdue(it.entity.scheduledEpochDay, it.entity.status.name, LocalDate.now().toEpochDay()) }.sortedBy { it.entity.scheduledEpochDay }
     val todayCompletionPercent: Int get() = todayTasks.plannedLoadCompletionPercent()
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val weekTasks get() = currentTasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) in weekStart..weekStart.plusDays(6) }

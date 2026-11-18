@@ -71,7 +71,7 @@ class StudyPerformanceEvaluatorTest {
         val start = today.minusDays(29).startOfDay(zone)
         val subjectEvents = (1..10).map { index ->
             PerformanceAttempt(start.plusSeconds(index.toLong()), correct = index >= 8, subjectId = 10, subjectName = "Matemática", topicId = 20, topicName = "Álgebra")
-        } + (1..9).map { index ->
+        } + (1..4).map { index ->
             PerformanceAttempt(start.plusSeconds(100 + index.toLong()), correct = false, subjectId = 11, subjectName = "Direito", topicId = 21, topicName = "Princípios")
         }
         val result = StudyPerformanceEvaluator.evaluate(
@@ -81,7 +81,7 @@ class StudyPerformanceEvaluatorTest {
             zone,
         )
 
-        assertEquals(19, result.current.attempts)
+        assertEquals(14, result.current.attempts)
         assertEquals(10, result.subjects.first { it.subjectId == 10L }.attempts)
         assertTrue(result.subjects.first { it.subjectId == 10L }.hasSufficientSample)
         assertFalse(result.subjects.first { it.subjectId == 11L }.hasSufficientSample)

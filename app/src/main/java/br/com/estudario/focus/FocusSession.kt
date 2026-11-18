@@ -9,6 +9,8 @@ import br.com.estudario.EstudarioApplication
 import br.com.estudario.data.local.FocusSessionEntity
 import br.com.estudario.data.local.FocusSessionOrigin
 import br.com.estudario.data.preferences.FocusSessionPrefs
+import br.com.estudario.domain.FocusRules
+import br.com.estudario.domain.FocusRunning
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,9 +47,17 @@ object FocusSessionManager {
             taskId != null -> app.database.plannerDao().task(taskId)?.subjectId?.let(::setOf).orEmpty()
             else -> emptySet()
         }
-        app.preferences.startFocusSession(startedAt, title, resolvedSubjectIds, origin, topicId, taskId, previousFilter)
+        // A meta da sessão segue a regra do site (FocusRules): a tarefa do plano manda; foco livre usa o
+        // aviso escolhido; num tópico, quem calcula é o plano do dia (AppViewModel.focusPlannedMinutes).
+        val taskMinutes = taskId?.let { app.database.plannerDao().task(it)?.plannedMinutes }
+        val planned = if (taskMinutes == null && origin != FocusSessionOrigin.LIVRE) null
+            else FocusRules.plannedMinutes(taskMinutes, app.preferences.focusPrefs.first())
+        app.preferences.startFocusSession(startedAt, title, resolvedSubjectIds, origin, topicId, taskId, previousFilter, planned)
+        syncSoon(context)
         FocusMode.showOngoing(context, title, startedAt, dndOn = previousFilter != FocusSessionPrefs.FILTER_UNKNOWN)
         FocusMode.scheduleSafetyNet(context)
+        // O widget de Foco acompanha o que acontece no app.
+        br.com.estudario.ui.widget.WidgetUpdater.focus(context)
         return startedAt
     }
 
@@ -75,15 +85,21 @@ object FocusSessionManager {
             topicId = session.topicId,
             taskId = session.taskId,
         )
+        // Menos de 1 minuto não entra no histórico (igual no site). O id da linha é o da sessão em
+        // andamento, o mesmo que o site usaria: encerrada nos dois, a foto fica com uma linha só.
+        val counts = FocusRules.counts(studiedSeconds)
+        val ended = session.toRunning()?.end(completedAt)
         FocusSessionStopCoordinator(
-            save = { app.focusSessionRepository.recordOnce(it) },
+            save = { if (counts) app.focusSessionRepository.recordOnce(it) },
             clearActive = {
-                app.preferences.clearFocusSession(minutes, session.taskId)
+                app.preferences.clearFocusSession(minutes, session.taskId, ended)
                 FocusMode.restoreDnd(context, session.previousFilter)
                 FocusMode.clearOngoing(context)
                 FocusMode.cancelSafetyNet(context)
             },
         ).finish(history)
+        br.com.estudario.ui.widget.WidgetUpdater.focus(context)
+        syncSoon(context)
         return minutes
     }
 
@@ -96,7 +112,7 @@ object FocusSessionManager {
         val session = app.preferences.focusSession.first()
         if (!session.active) return
         val minutes = session.elapsedMinutes()
-        if (minutes >= FocusMode.MAX_MINUTES) {
+        if (minutes >= FocusRules.MAX_SESSION_MINUTES) {
             stop(context)
             FocusMode.notifyAutoClosed(context, minutes)
         } else {
@@ -110,6 +126,7 @@ object FocusSessionManager {
         val app = context.applicationContext as EstudarioApplication
         app.preferences.pauseFocusSession(System.currentTimeMillis())
         showFor(context, app.preferences.focusSession.first())
+        syncSoon(context)
     }
 
     /** Desconta um tempo parado do foco e atualiza a notificação. */
@@ -117,16 +134,55 @@ object FocusSessionManager {
         val app = context.applicationContext as EstudarioApplication
         app.preferences.discountFocusSession(millis)
         showFor(context, app.preferences.focusSession.first())
+        syncSoon(context)
     }
 
     suspend fun resume(context: Context) {
         val app = context.applicationContext as EstudarioApplication
         app.preferences.resumeFocusSession(System.currentTimeMillis())
         showFor(context, app.preferences.focusSession.first())
+        syncSoon(context)
+    }
+
+    /**
+     * A sessão que veio da conta (o site ou outro celular). Começada lá, aparece aqui com o mesmo
+     * cronômetro (sem ligar o Não Perturbe, que só quem começou liga); pausada ou retomada lá, fica
+     * igual aqui; encerrada lá, some daqui sem salvar de novo (a linha do histórico vem na foto).
+     */
+    suspend fun applyRemote(context: Context, remote: FocusRunning?) {
+        if (remote == null) return
+        val app = context.applicationContext as EstudarioApplication
+        val local = app.preferences.focusSession.first()
+        val savedIds = app.database.dao().focusSessionsOnce().mapTo(hashSetOf()) { it.id }
+        val lastEnded = app.preferences.focusEnded.first()?.sessionId
+        val now = System.currentTimeMillis()
+        when (val decision = FocusRunning.reconcile(local.toRunning(), remote, now, { it in savedIds }, lastEnded)) {
+            FocusRunning.Remote.Keep -> Unit
+            is FocusRunning.Remote.Adopt -> {
+                val same = local.active && local.sessionId == decision.running.sessionId
+                app.preferences.adoptFocusSession(decision.running, sameSession = same)
+                if (!same) FocusMode.scheduleSafetyNet(context)
+                showFor(context, app.preferences.focusSession.first())
+            }
+            FocusRunning.Remote.EndedElsewhere -> {
+                val mine = local.toRunning() ?: return
+                app.preferences.dropFocusSession(if (remote.sessionId == mine.sessionId) remote else mine.end(now))
+                FocusMode.restoreDnd(context, local.previousFilter)
+                FocusMode.clearOngoing(context)
+                FocusMode.cancelSafetyNet(context)
+                br.com.estudario.ui.widget.WidgetUpdater.focus(context)
+            }
+        }
+    }
+
+    /** O outro aparelho fica sabendo logo (começar, pausar, continuar, encerrar). */
+    private fun syncSoon(context: Context) {
+        runCatching { br.com.estudario.data.sync.CloudSyncWorker.syncSoon(context.applicationContext, delaySeconds = 2) }
     }
 
     /** Notificação coerente com o estado: cronômetro com base descontando as pausas, ou "pausado". */
     private fun showFor(context: Context, session: FocusSessionPrefs) {
+        br.com.estudario.ui.widget.WidgetUpdater.focus(context)
         if (!session.active) return
         val now = System.currentTimeMillis()
         FocusMode.showOngoing(

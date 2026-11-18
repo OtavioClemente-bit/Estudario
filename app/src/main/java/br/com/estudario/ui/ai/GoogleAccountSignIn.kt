@@ -41,7 +41,7 @@ object GoogleAccountSignIn {
         val prefs = app.preferences
         prefs.setUserEmail(email)
         google.displayName?.takeIf { it.isNotBlank() && prefs.userName.first().isBlank() }?.let { prefs.setUserName(it, manual = false) }
-        if (prefs.userPhotoPath.first() == null) google.profilePictureUri?.let { savePhoto(app, it.toString()) }
+        google.profilePictureUri?.let { savePhoto(app, it.toString()) }
         email
     }
 
@@ -115,9 +115,9 @@ object GoogleAccountSignIn {
     }
 
     private suspend fun savePhoto(app: EstudarioApplication, url: String) {
-        val target = File(app.filesDir, "profile_${System.currentTimeMillis()}.jpg")
+        val target = File(app.filesDir, br.com.estudario.data.sync.ProfileImageSync.GOOGLE_FILE)
         val saved = withContext(Dispatchers.IO) { runCatching { GoogleDriveBackupService().downloadPhoto(url, target) }.getOrDefault(false) }
-        if (saved) app.preferences.setUserPhotoPath(target.absolutePath)
+        if (saved && app.preferences.userPhotoPath.first() == null) app.preferences.setUserPhotoPath(target.absolutePath)
     }
 
     const val CANCELLED = "Login cancelado."

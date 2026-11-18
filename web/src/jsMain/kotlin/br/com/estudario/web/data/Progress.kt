@@ -133,21 +133,63 @@ object Prefs {
     /** Mostrar a explicação logo após responder (como no app). */
     var explanationRightAway: Boolean
         get() = read("estudario.explain") != "0"
-        set(value) = write("estudario.explain", if (value) "1" else "0")
+        set(value) { write("estudario.explain", if (value) "1" else "0"); AccountSettings.changed(br.com.estudario.domain.SyncedSettings.EXPLAIN_RIGHT_AWAY, br.com.estudario.domain.SyncedSettings.flag(value)) }
 
     /** O relógio no placar das questões (Ajustes). */
     var hudTimer: Boolean
         get() = read("estudario.hud.tempo") != "0"
-        set(value) = write("estudario.hud.tempo", if (value) "1" else "0")
+        set(value) { write("estudario.hud.tempo", if (value) "1" else "0"); AccountSettings.changed(br.com.estudario.domain.SyncedSettings.HUD_TIMER, br.com.estudario.domain.SyncedSettings.flag(value)) }
 
     /** As certas e erradas no placar das questões (Ajustes). */
     var hudScore: Boolean
         get() = read("estudario.hud.placar") != "0"
-        set(value) = write("estudario.hud.placar", if (value) "1" else "0")
+        set(value) { write("estudario.hud.placar", if (value) "1" else "0"); AccountSettings.changed(br.com.estudario.domain.SyncedSettings.HUD_SCORE, br.com.estudario.domain.SyncedSettings.flag(value)) }
+
+    /**
+     * Aviso de tempo e contagem escondida do modo foco, os mesmos do app (campos de "userPrefs",
+     * domain/FocusSync.kt): vale o mudado por último em qualquer aparelho. Sem nada na conta ainda,
+     * valem os antigos deste navegador.
+     */
+    fun focusPrefs(data: Snapshot = Store.data): br.com.estudario.domain.FocusPrefs =
+        br.com.estudario.domain.FocusPrefs.from(getter(synced(data))) ?: br.com.estudario.domain.FocusPrefs(
+            minutes = br.com.estudario.domain.FocusRules.clampMinutes(read("estudario.focus")?.toIntOrNull() ?: br.com.estudario.domain.FocusRules.DEFAULT_MINUTES),
+            clockHidden = read("estudario.focusbar.hidden") == "1",
+        )
+
+    fun setFocusPrefs(value: br.com.estudario.domain.FocusPrefs) {
+        if (Store.demo) return
+        setSyncedFields(fieldsJson(value.copy(updatedAt = kotlin.js.Date.now().toLong()).fields()))
+    }
 
     var focusMinutes: Int
-        get() = read("estudario.focus")?.toIntOrNull()?.coerceIn(5, 180) ?: 50
-        set(value) = write("estudario.focus", value.coerceIn(5, 180).toString())
+        get() = focusPrefs().minutes
+        set(value) = setFocusPrefs(focusPrefs().copy(minutes = value, alertOn = true))
+
+    /** Lê um bloco JSON da foto no formato que as regras de shared/ entendem. */
+    fun getter(o: JsonObject?): (String) -> Any? = { key ->
+        when (val v = o?.get(key)) {
+            is JsonPrimitive -> when {
+                v.isString -> v.content
+                v.content == "true" -> true
+                v.content == "false" -> false
+                else -> v.longOrNull ?: v.content.toDoubleOrNull()
+            }
+            is JsonObject -> v
+            else -> null
+        }
+    }
+
+    fun fieldsJson(fields: Map<String, Any?>): Map<String, kotlinx.serialization.json.JsonElement> = fields.mapValues { (_, v) ->
+        when (v) {
+            null -> kotlinx.serialization.json.JsonNull
+            is String -> JsonPrimitive(v)
+            is Boolean -> JsonPrimitive(v)
+            is Int -> JsonPrimitive(v)
+            is Long -> JsonPrimitive(v)
+            is Number -> JsonPrimitive(v.toDouble())
+            else -> JsonPrimitive(v.toString())
+        }
+    }
 }
 
 data class ProgressView(
@@ -164,41 +206,10 @@ object Progress {
     fun of(data: Snapshot): ProgressView {
         val goal = Prefs.goal()
         last?.let { if (lastData === data && lastGoal == goal) return it }
-        val today = Queries.todayDate()
-        val days = Queries.dailyActivity(data)
-        val streak = StreakEngine.summarize(days, goal, today)
-        val typeById = data.tasks.associate { it.id to it.type }
-        val planWork = data.executions.filter { it.taskId != null }.groupBy { it.taskId!! }.mapNotNull { (taskId, runs) ->
-            val type = typeById[taskId]?.let { runCatching { PlanTaskType.valueOf(it) }.getOrNull() } ?: return@mapNotNull null
-            ProgressEngine.PlanWork(Queries.dateOf(runs.maxOf { it.completedAt }), type, runs.sumOf { it.minutes }, runs.sumOf { it.correct }, runs.sumOf { it.questions })
-        }
-        val leaves = Queries.leafTopics(data)
-        val progress = ProgressEngine.evaluate(
-            ProgressEngine.ProgressInput(
-                today = today,
-                days = days,
-                goal = goal,
-                planWork = planWork,
-                bestStreak = streak.best,
-                currentStreak = streak.current,
-                totalQuestions = data.attempts.size,
-                correctQuestions = data.attempts.count { it.correct },
-                reviewsCompleted = data.reviewHistory.size,
-                topicsStudied = leaves.count(Queries::isStudied),
-                topicsTotal = leaves.size,
-                extras = run {
-                    val (early, late) = br.com.estudario.domain.BadgeExtras.hourDays(data.attempts.map { it.answeredAt } + data.focusSessions.map { it.startedAt } + data.sessions.map { it.startedAt } + data.reviewHistory.map { it.reviewedAt })
-                    br.com.estudario.domain.BadgeExtras(
-                        focusSessions = data.focusSessions.size,
-                        marks = data.theoryMarks.size + data.notes.size,
-                        errorsFixed = data.errors.count { it.retryCorrectCount > 0 },
-                        streakSaves = streak.protectedDays.size,
-                        earlyDays = early, lateDays = late,
-                        flashDecks = (Prefs.synced(data)["flashDecks"] as? kotlinx.serialization.json.JsonArray)?.size ?: 0,
-                    )
-                },
-            ),
-        )
+        // A mesma montagem do app (ProgressInputs, no shared): mesmas linhas da foto, mesmo resultado.
+        val result = br.com.estudario.domain.ProgressInputs.evaluate(sources(data), goal, Queries.todayDate(), Queries.zone)
+        val streak = result.streak
+        val progress = result.progress
         // Armário por área: a área do edital principal e as peças que a conta já ganhou. As que acabaram
         // de sair por dias estudados vão para a lista da conta (fora deste cálculo, para não refazer a foto
         // no meio dele), e ficam mesmo se o edital mudar.
@@ -208,6 +219,26 @@ object Progress {
         val keep = br.com.estudario.domain.FolhaWardrobe.toKeep(progress)
         if (keep.isNotEmpty() && !Store.demo && Store.session != null) kotlinx.browser.window.setTimeout({ Prefs.addSynced("wardrobeEarned", keep) }, 0)
         return ProgressView(streak, progress).also { lastData = data; lastGoal = goal; last = it }
+    }
+
+    /** As linhas da foto no formato comum (ProgressInputs), as mesmas que o app passa. */
+    fun sources(data: Snapshot): br.com.estudario.domain.ProgressInputs.Sources {
+        val primary = Queries.primaryCompetition(data)
+        return br.com.estudario.domain.ProgressInputs.Sources(
+            attempts = data.attempts.map { br.com.estudario.domain.ProgressInputs.Attempt(it.answeredAt, it.correct) },
+            reviews = data.reviewHistory.map { br.com.estudario.domain.ProgressInputs.Review(it.reviewedAt) },
+            sessions = data.sessions.map { br.com.estudario.domain.ProgressInputs.Session(it.id, it.topicId, it.startedAt, it.completedAt) },
+            focus = data.focusSessions.map { br.com.estudario.domain.ProgressInputs.Focus(it.startedAt, it.completedAt, it.durationSeconds, it.origin == "LIVRE") },
+            executions = data.executions.map { br.com.estudario.domain.ProgressInputs.Execution(it.taskId, it.completedAt, it.minutes, it.questions, it.correct) },
+            questionRuns = data.questionSessions.map { br.com.estudario.domain.ProgressInputs.QuestionRun(it.startedAt, it.completedAt, it.questionCount) },
+            taskTypes = data.tasks.mapNotNull { t -> runCatching { PlanTaskType.valueOf(t.type) }.getOrNull()?.let { t.id to it } }.toMap(),
+            topics = data.topics.map { br.com.estudario.domain.ProgressInputs.TopicRow(it.id, it.subjectId, it.parentTopicId, Queries.isStudied(it)) },
+            primarySubjectIds = data.subjects.filter { primary != null && it.competitionId == primary.id }.mapTo(hashSetOf()) { it.id },
+            marks = data.theoryMarks.size + data.notes.size,
+            errorsFixed = data.errors.count { it.retryCorrectCount > 0 },
+            flashDecks = (Prefs.synced(data)["flashDecks"] as? kotlinx.serialization.json.JsonArray)?.size ?: 0,
+            retiredPlanXp = (Prefs.synced(data)["retiredPlanXp"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
+        )
     }
 
     /** A área do edital principal (o nome do concurso e o cargo dos planos dele). */

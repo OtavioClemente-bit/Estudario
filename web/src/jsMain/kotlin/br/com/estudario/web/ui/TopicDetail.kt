@@ -1341,16 +1341,18 @@ object ReaderPrefs {
         private set
     var serif by mutableStateOf(read("estudario.reader.font") != "simples")
         private set
-    fun setSize(v: Int) { size = v.coerceIn(0, 3); write("estudario.reader.size", size.toString()) }
-    fun setSerif(v: Boolean) { serif = v; write("estudario.reader.font", if (v) "livro" else "simples") }
+    fun setSize(v: Int) { size = v.coerceIn(0, 3); write("estudario.reader.size", size.toString()); sync(br.com.estudario.domain.SyncedSettings.READER_SIZE, size.toString()) }
+    fun setSerif(v: Boolean) { serif = v; write("estudario.reader.font", if (v) "livro" else "simples"); sync(br.com.estudario.domain.SyncedSettings.READER_FONT, if (v) "livro" else "simples") }
+    /** A leitura vale na conta: o app usa a mesma letra, fonte, cor e modo só texto. */
+    private fun sync(name: String, value: String) = br.com.estudario.web.data.AccountSettings.changed(name, value)
     /** Cor da página de leitura: normal (a do site), sépia ou noite. */
     var tone by mutableStateOf(read("estudario.reader.tone")?.takeIf { it in setOf("normal", "sepia", "noite") } ?: "normal")
         private set
-    fun setTone(v: String) { tone = v; write("estudario.reader.tone", v) }
+    fun setTone(v: String) { tone = v; write("estudario.reader.tone", v); sync(br.com.estudario.domain.SyncedSettings.READER_TONE, v) }
     /** Só texto: nada se mexendo na tela (sem animações, sem o Folha piscando), para ler muito tempo. */
     var quiet by mutableStateOf(read("estudario.reader.quiet") == "1")
         private set
-    fun setQuiet(v: Boolean) { quiet = v; write("estudario.reader.quiet", if (v) "1" else "0") }
+    fun setQuiet(v: Boolean) { quiet = v; write("estudario.reader.quiet", if (v) "1" else "0"); sync(br.com.estudario.domain.SyncedSettings.READER_QUIET, if (v) "1" else "0") }
 }
 
 @Composable

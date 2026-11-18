@@ -45,6 +45,8 @@ class AppPreferences(private val context: Context) {
     private val userNameUpdatedAtKey = longPreferencesKey("user_name_updated_at")
     private val userEmailKey = stringPreferencesKey("user_email")
     private val userPhotoKey = stringPreferencesKey("user_photo_path")
+    private val syncedAvatarKey = stringPreferencesKey("synced_avatar")
+    private val syncedAvatarAtKey = longPreferencesKey("synced_avatar_updated_at")
     private val dailyGoalKey = intPreferencesKey("daily_goal_questions")
     private val retiredPlanXpKey = intPreferencesKey("retired_plan_xp")
     private val goalHistoryKey = stringPreferencesKey("daily_goal_history")
@@ -69,6 +71,14 @@ class AppPreferences(private val context: Context) {
     private val focusKeepScreenOnKey = booleanPreferencesKey("focus_keep_screen_on")
     private val lastFocusMinutesKey = intPreferencesKey("focus_last_minutes")
     private val lastFocusTaskKey = stringPreferencesKey("focus_last_task_id")
+    // O foco é o mesmo do site (FocusSync.kt): meta da sessão, última mexida, marca de encerrada e preferências.
+    private val focusPlannedKey = intPreferencesKey("focus_planned_minutes")
+    private val focusUpdatedAtKey = longPreferencesKey("focus_updated_at")
+    private val focusEndedKey = stringPreferencesKey("focus_ended_json")
+    private val focusAlertMinutesKey = intPreferencesKey("focus_alert_minutes")
+    private val focusAlertOnKey = booleanPreferencesKey("focus_alert_on")
+    private val focusClockHiddenKey = booleanPreferencesKey("focus_clock_hidden")
+    private val focusPrefsAtKey = longPreferencesKey("focus_prefs_updated_at")
     private val initialSetupKey = stringPreferencesKey("initial_setup_snapshot_v1")
     val darkTheme: Flow<Boolean> = context.dataStore.data.map { it[darkKey] ?: false }
     val editalPrompt: Flow<String> = context.dataStore.data.map { it[editalPromptKey] ?: PromptTemplates.EDITAL }
@@ -151,7 +161,68 @@ class AppPreferences(private val context: Context) {
             previousFilter = prefs[focusPreviousFilterKey] ?: FocusSessionPrefs.FILTER_UNKNOWN,
             pausedAt = prefs[focusPausedAtKey] ?: 0L,
             pausedMillis = prefs[focusPausedTotalKey] ?: 0L,
+            plannedMinutes = prefs[focusPlannedKey]?.takeIf { it > 0 },
+            updatedAt = prefs[focusUpdatedAtKey] ?: startedAt,
         )
+    }
+
+    /** A última sessão encerrada aqui (marca "focusRunning" com endedAt), para o outro aparelho saber. */
+    val focusEnded: Flow<br.com.estudario.domain.FocusRunning?> = context.dataStore.data.map { prefs ->
+        prefs[focusEndedKey]?.let { text -> runCatching { org.json.JSONObject(text) }.getOrNull() }
+            ?.let { o -> br.com.estudario.domain.FocusRunning.from { k -> if (o.isNull(k)) null else o.opt(k) } }
+    }
+
+    /** Aviso de tempo e contagem escondida, os mesmos do site ("userPrefs" da foto). */
+    val focusPrefs: Flow<br.com.estudario.domain.FocusPrefs> = context.dataStore.data.map { prefs ->
+        br.com.estudario.domain.FocusPrefs(
+            minutes = br.com.estudario.domain.FocusRules.clampMinutes(prefs[focusAlertMinutesKey] ?: br.com.estudario.domain.FocusRules.DEFAULT_MINUTES),
+            alertOn = prefs[focusAlertOnKey] ?: true,
+            clockHidden = prefs[focusClockHiddenKey] ?: false,
+            updatedAt = prefs[focusPrefsAtKey] ?: 0L,
+        )
+    }
+
+    /** Grava as preferências de foco; com [onlyIfNewer], só se vierem mais novas (da conta). */
+    suspend fun setFocusPrefs(value: br.com.estudario.domain.FocusPrefs, onlyIfNewer: Boolean = false) {
+        context.dataStore.edit { prefs ->
+            if (onlyIfNewer && value.updatedAt <= (prefs[focusPrefsAtKey] ?: 0L)) return@edit
+            prefs[focusAlertMinutesKey] = br.com.estudario.domain.FocusRules.clampMinutes(value.minutes)
+            prefs[focusAlertOnKey] = value.alertOn
+            prefs[focusClockHiddenKey] = value.clockHidden
+            prefs[focusPrefsAtKey] = value.updatedAt
+        }
+    }
+
+    /**
+     * Assume a sessão que veio do outro aparelho (começada, pausada ou retomada lá). O Não Perturbe
+     * não é ligado por isso: sem saber o filtro de antes, este aparelho nunca mexe às cegas.
+     */
+    suspend fun adoptFocusSession(r: br.com.estudario.domain.FocusRunning, sameSession: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[focusStartedAtKey] = r.startedAt
+            prefs[focusTitleKey] = r.title
+            prefs[focusTopicKey] = r.topicId ?: 0L
+            prefs[focusTaskKey] = r.taskId.orEmpty()
+            prefs[focusSessionIdKey] = r.sessionId
+            prefs[focusSubjectIdsKey] = r.subjectIds.filter { it > 0L }.sorted().joinToString(",")
+            prefs[focusOriginKey] = r.origin
+            if (!sameSession) prefs[focusPreviousFilterKey] = FocusSessionPrefs.FILTER_UNKNOWN
+            if (r.pausedAt > 0L) prefs[focusPausedAtKey] = r.pausedAt else prefs.remove(focusPausedAtKey)
+            prefs[focusPausedTotalKey] = r.pausedMillis
+            r.plannedMinutes?.let { prefs[focusPlannedKey] = it } ?: prefs.remove(focusPlannedKey)
+            prefs[focusUpdatedAtKey] = r.updatedAt
+        }
+    }
+
+    /** Some com a sessão encerrada no outro aparelho, sem salvar aqui (o histórico vem pela foto). */
+    suspend fun dropFocusSession(ended: br.com.estudario.domain.FocusRunning) {
+        context.dataStore.edit { prefs ->
+            listOf(focusStartedAtKey, focusTopicKey, focusPausedAtKey, focusPausedTotalKey, focusUpdatedAtKey).forEach { prefs.remove(it) }
+            listOf(focusTitleKey, focusTaskKey, focusSessionIdKey, focusSubjectIdsKey, focusOriginKey).forEach { prefs.remove(it) }
+            prefs.remove(focusPreviousFilterKey)
+            prefs.remove(focusPlannedKey)
+            prefs[focusEndedKey] = org.json.JSONObject(ended.fields().filterValues { it != null }).toString()
+        }
     }
     /** Ligar o Não Perturbe do sistema durante a sessão (respeitando as exceções da pessoa). */
     val focusDoNotDisturb: Flow<Boolean> = context.dataStore.data.map { it[focusDndKey] ?: true }
@@ -184,6 +255,7 @@ class AppPreferences(private val context: Context) {
         topicId: Long?,
         taskId: String?,
         previousFilter: Int,
+        plannedMinutes: Int? = null,
     ) {
         val sessionId = UUID.randomUUID().toString()
         context.dataStore.edit { prefs ->
@@ -197,20 +269,28 @@ class AppPreferences(private val context: Context) {
             prefs[focusPreviousFilterKey] = previousFilter
             prefs.remove(focusPausedAtKey)
             prefs.remove(focusPausedTotalKey)
+            if (plannedMinutes != null && plannedMinutes > 0) prefs[focusPlannedKey] = plannedMinutes else prefs.remove(focusPlannedKey)
+            prefs[focusUpdatedAtKey] = startedAt
         }
     }
 
     /** Pausa: o relógio para de contar a partir de [at], sem perder o que já foi estudado. */
     suspend fun pauseFocusSession(at: Long) {
         context.dataStore.edit { prefs ->
-            if ((prefs[focusStartedAtKey] ?: 0L) > 0L && (prefs[focusPausedAtKey] ?: 0L) == 0L) prefs[focusPausedAtKey] = at
+            if ((prefs[focusStartedAtKey] ?: 0L) > 0L && (prefs[focusPausedAtKey] ?: 0L) == 0L) {
+                prefs[focusPausedAtKey] = at
+                prefs[focusUpdatedAtKey] = at
+            }
         }
     }
 
     /** Desconta do foco um tempo parado (a pessoa disse que não estava estudando). */
     suspend fun discountFocusSession(millis: Long) {
         context.dataStore.edit { prefs ->
-            if ((prefs[focusStartedAtKey] ?: 0L) > 0L && millis > 0L) prefs[focusPausedTotalKey] = (prefs[focusPausedTotalKey] ?: 0L) + millis
+            if ((prefs[focusStartedAtKey] ?: 0L) > 0L && millis > 0L) {
+                prefs[focusPausedTotalKey] = (prefs[focusPausedTotalKey] ?: 0L) + millis
+                prefs[focusUpdatedAtKey] = System.currentTimeMillis()
+            }
         }
     }
 
@@ -221,13 +301,17 @@ class AppPreferences(private val context: Context) {
             if (pausedAt > 0L) {
                 prefs[focusPausedTotalKey] = (prefs[focusPausedTotalKey] ?: 0L) + (at - pausedAt).coerceAtLeast(0L)
                 prefs.remove(focusPausedAtKey)
+                prefs[focusUpdatedAtKey] = at
             }
         }
     }
 
     /** Encerra a sessão guardando o tempo medido, nada aqui depende do app estar aberto. */
-    suspend fun clearFocusSession(minutes: Int, taskId: String?) {
+    suspend fun clearFocusSession(minutes: Int, taskId: String?, ended: br.com.estudario.domain.FocusRunning? = null) {
         context.dataStore.edit { prefs ->
+            if (ended != null) prefs[focusEndedKey] = org.json.JSONObject(ended.fields().filterValues { it != null }).toString()
+            prefs.remove(focusPlannedKey)
+            prefs.remove(focusUpdatedAtKey)
             prefs.remove(focusStartedAtKey)
             prefs.remove(focusTitleKey)
             prefs.remove(focusTopicKey)
@@ -293,6 +377,20 @@ class AppPreferences(private val context: Context) {
     suspend fun setUserEmail(value: String) { context.dataStore.edit { it[userEmailKey] = value.trim() } }
     suspend fun setUserPhotoPath(value: String?) {
         context.dataStore.edit { prefs -> if (value.isNullOrBlank()) prefs.remove(userPhotoKey) else prefs[userPhotoKey] = value }
+    }
+
+    /**
+     * A imagem do perfil como vai para a conta (ProfileImage: "avatar:chave", "photo:data:…" ou "google")
+     * e quando foi escolhida. Vale a escolhida por último, no app ou no site.
+     */
+    suspend fun syncedAvatar(): Pair<String, Long> = context.dataStore.data.map { it[syncedAvatarKey].orEmpty() to (it[syncedAvatarAtKey] ?: 0L) }.first()
+    suspend fun setSyncedAvatar(value: String, updatedAt: Long) {
+        context.dataStore.edit { it[syncedAvatarKey] = value; it[syncedAvatarAtKey] = updatedAt }
+    }
+
+    /** XP de planos apagados em qualquer aparelho: fica o maior (só cresce, e somar contaria duas vezes). */
+    suspend fun applySyncedRetiredPlanXp(value: Int) {
+        if (value > 0) context.dataStore.edit { if (value > (it[retiredPlanXpKey] ?: 0)) it[retiredPlanXpKey] = value }
     }
     suspend fun setDailyGoalQuestions(value: Int) {
         context.dataStore.edit { prefs ->
@@ -376,7 +474,18 @@ data class FocusSessionPrefs(
     val pausedAt: Long = 0L,
     /** Soma das pausas já encerradas, descontada do tempo estudado. */
     val pausedMillis: Long = 0L,
+    /** Meta da sessão (tarefa do plano ou aviso escolhido); null = sem aviso. */
+    val plannedMinutes: Int? = null,
+    /** Última mexida (começar, pausar, continuar, descontar): entre aparelhos, vale a mais nova. */
+    val updatedAt: Long = startedAt,
 ) {
+    /** A mesma sessão no formato da foto (igual ao site, FocusSync.kt). */
+    fun toRunning(): br.com.estudario.domain.FocusRunning? = if (!active) null else br.com.estudario.domain.FocusRunning(
+        sessionId = sessionId.ifBlank { "legacy-$startedAt" }, startedAt = startedAt,
+        title = title.ifBlank { br.com.estudario.domain.FocusRules.DEFAULT_TITLE }, subjectIds = subjectIds.sorted(),
+        origin = origin.name, topicId = topicId, taskId = taskId, plannedMinutes = plannedMinutes,
+        pausedAt = pausedAt, pausedMillis = pausedMillis, updatedAt = updatedAt,
+    )
     val active: Boolean get() = startedAt > 0L
     val paused: Boolean get() = active && pausedAt > 0L
     /** Tempo estudado de verdade: do início até agora (ou até a pausa), menos as pausas. */

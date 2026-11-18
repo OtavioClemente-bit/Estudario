@@ -109,9 +109,11 @@ fun StatisticsScreen(viewModel: AppViewModel, onBack: () -> Unit, showInlineBack
         val parents = all.mapNotNull { it.parentTopicId }.toSet()
         all.filter { it.id !in parents }
     }
-    val withTheory = theories.map { it.topicId }.toSet()
-    val studied = editalTopics.count { it.status != TopicStatus.NAO_ESTUDADO }
-    val withMaterial = editalTopics.count { it.status == TopicStatus.NAO_ESTUDADO && it.id in withTheory }
+    // Mesma rosca do site (EditalCoverage, no shared).
+    val coverage = br.com.estudario.domain.performance.EditalCoverage.of(
+        editalTopics.map { br.com.estudario.domain.performance.CoverageTopic(it.id, it.parentTopicId, it.status != TopicStatus.NAO_ESTUDADO) },
+        theories.mapTo(hashSetOf()) { it.topicId },
+    )
     val empty = result.current.attempts == 0 && result.current.studySessions == 0 && result.current.questionSessions == 0 &&
         result.current.reviews == 0 && result.current.plannedTasks == 0
 
@@ -132,8 +134,8 @@ fun StatisticsScreen(viewModel: AppViewModel, onBack: () -> Unit, showInlineBack
         item { PeriodSelector(state, viewModel::selectStudyPerformancePeriod) }
         item { HeroCard(result) }
         item { KpiRow(result, streak?.current ?: result.streakThroughToday) }
-        item { RhythmCard(result.dailyActivity, result.dailyActivityLabel) }
-        if (editalTopics.isNotEmpty()) item { EditalCard(primary?.name.orEmpty(), editalTopics.size, studied, withMaterial) }
+        item { RhythmCard(result.rhythm, result.dailyActivityLabel) }
+        if (coverage.total > 0) item { EditalCard(primary?.name.orEmpty(), coverage.total, coverage.studied, coverage.withMaterial) }
         if (result.subjects.isNotEmpty()) item { SubjectsCard(result) }
         val allTopics = result.subjects.flatMap { it.topics }.filter { it.hasSufficientSample }
         if (allTopics.size >= 2) item { StrengthsCard(allTopics) }
@@ -200,8 +202,7 @@ private fun PanelTitle(title: String, subtitle: String? = null) {
 @Composable
 private fun HeroCard(result: StudyPerformanceResult) {
     val accuracy = result.current.accuracyPercent
-    val previous = result.previous?.accuracyPercent
-    val delta = if (accuracy != null && previous != null) accuracy - previous else null
+    val delta = result.accuracyDelta
     val tone = accuracyTone(accuracy)
     val progress = remember { Animatable(0f) }
     LaunchedEffect(accuracy) { progress.snapTo(0f); progress.animateTo((accuracy ?: 0) / 100f, tween(900, easing = FastOutSlowInEasing)) }
@@ -291,13 +292,12 @@ private fun Kpi(icon: ImageVector, value: String, label: String, color: Color, m
  * com estudo, e o melhor dia ganha a coroa.
  */
 @Composable
-private fun RhythmCard(points: List<DailyActivityPoint>, label: String) {
-    val days = points.takeLast(if (points.size > 31) 31 else points.size)
+private fun RhythmCard(rhythm: br.com.estudario.domain.performance.RhythmSummary, label: String) {
+    val days = rhythm.days
     val maxMinutes = (days.maxOfOrNull { it.minutes } ?: 0).coerceAtLeast(30)
-    val active = days.count { it.eventCount > 0 }
-    val studied = days.filter { it.minutes > 0 }
-    val average = if (studied.isEmpty()) 0 else studied.sumOf { it.minutes } / studied.size
-    val best = studied.maxByOrNull { it.minutes }
+    val active = rhythm.activeDays
+    val average = rhythm.averageMinutes
+    val best = rhythm.bestDay
     var selected by androidx.compose.runtime.remember(days.size) { androidx.compose.runtime.mutableStateOf<Int?>(days.lastIndex.takeIf { it >= 0 && days[it].eventCount > 0 }) }
     Panel {
         PanelTitle("Seu ritmo", "$label · $active de ${days.size} dias com estudo")
@@ -305,6 +305,7 @@ private fun RhythmCard(points: List<DailyActivityPoint>, label: String) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RhythmStat("Média por dia de estudo", if (average > 0) formatHours(average.toLong()) else "--", Modifier.weight(1f))
             RhythmStat("Melhor dia", best?.let { "${formatHours(it.minutes.toLong())} · ${shortDate(it)}" } ?: "--", Modifier.weight(1f))
+            RhythmStat("Total no gráfico", formatHours(rhythm.totalMinutes.toLong()), Modifier.weight(1f))
         }
         // O cartão do dia escolhido.
         val day = selected?.let { days.getOrNull(it) }

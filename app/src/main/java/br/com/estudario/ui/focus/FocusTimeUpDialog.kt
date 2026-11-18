@@ -54,7 +54,7 @@ import kotlin.math.sin
  * para nada: o relógio do foco continua contando.
  */
 @Composable
-fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit, onFinish: () -> Unit, onFinishAndComplete: (() -> Unit)? = null) {
+fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit, onFinish: () -> Unit, onFinishAndComplete: (() -> Unit)? = null, fromPlan: Boolean = true) {
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(Unit) { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
     Dialog(onDismissRequest = onContinue) {
@@ -67,7 +67,8 @@ fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit
                 CelebratingFolha()
                 Text("Deu o tempo planejado!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 Text(
-                    "Você já estudou os ${minutesText(plannedMinutes)} que o plano reservou para $title. Pode seguir, se estiver rendendo, ou encerrar e registrar.",
+                    if (fromPlan) "Você já estudou os ${minutesText(plannedMinutes)} que o plano reservou para $title. Pode seguir, se estiver rendendo, ou encerrar e registrar."
+                    else "Você já estudou os ${minutesText(plannedMinutes)} do aviso que escolheu. Pode seguir, se estiver rendendo, ou encerrar e registrar.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
