@@ -473,6 +473,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val recallSeen = remember(topicId) { androidx.compose.runtime.mutableStateSetOf<Long>() }
     val recallContext = androidx.compose.ui.platform.LocalContext.current
     val tipSnippets = topicSnippets.filter { it.kind != SnippetKind.RECUPERACAO }
+    var tipsAll by androidx.compose.runtime.saveable.rememberSaveable(topicId) { mutableStateOf(false) }
     val hasMaterial = topicTheories.isNotEmpty() || topicSummaries.isNotEmpty() || topicSnippets.isNotEmpty()
     if (apagarMaterial) {
         val context = androidx.compose.ui.platform.LocalContext.current
@@ -834,18 +835,15 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 if (tipSnippets.isEmpty()) item(key = "tips-empty") {
                     EmptyState("Sem dicas ainda", "Dicas e pegadinhas de banca vêm junto com o material gerado para este tópico.", "Gerar com o Estudário") { showContentPrompt = true }
                 } else item(key = "tips-header") { SectionHeader("Dicas e pegadinhas", "O que costuma decidir a questão. ★ guarda no Caderno.") }
-                // Um grupo para dicas e outro para pegadinhas: o desenho vai só no cabeçalho de cada grupo.
-                tipSnippets.sortedBy { it.kind }.groupBy { it.kind == SnippetKind.PEGADINHA }.forEach { (trap, group) ->
-                    item(key = "tip-group-$trap") { br.com.estudario.ui.components.TipGroupHeader(trap, group.size, Modifier.padding(top = 6.dp)) }
-                    group.forEach { snippet ->
-                        item(key = "tip-${snippet.id}") {
-                            br.com.estudario.ui.components.TipRow(
-                                text = snippet.text,
-                                trap = trap,
-                                favorite = snippet.isFavorite,
-                                onToggleFavorite = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) },
-                            )
-                        }
+                // Um cartão grande por vez (como o baralho de flashcards) ou todas numa coluna bem espaçada.
+                if (tipSnippets.isNotEmpty()) {
+                    val ordered = tipSnippets.sortedBy { it.kind == SnippetKind.PEGADINHA }
+                    val tipItems = ordered.map { br.com.estudario.ui.components.TipItem(it.id, it.text, it.answer, it.kind == SnippetKind.PEGADINHA, it.isFavorite) }
+                    val toggleTip: (br.com.estudario.ui.components.TipItem) -> Unit = { t -> ordered.firstOrNull { it.id == t.id }?.let { s -> viewModel.saveSnippet(s.copy(isFavorite = !s.isFavorite)) } }
+                    item(key = "tips-mode") { br.com.estudario.ui.components.TipModeSwitch(tipsAll, { tipsAll = it }) }
+                    if (!tipsAll) item(key = "tips-deck") { br.com.estudario.ui.components.TipDeck(tipItems, toggleTip, Modifier.padding(top = 4.dp)) }
+                    else tipItems.forEachIndexed { i, t ->
+                        item(key = "tip-${t.id}") { br.com.estudario.ui.components.TipBigCard(t, "${i + 1} de ${tipItems.size}", toggleTip, Modifier.padding(vertical = 10.dp)) }
                     }
                 }
             }

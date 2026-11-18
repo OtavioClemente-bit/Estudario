@@ -386,11 +386,8 @@ fun NotebookFlipScreen() {
 private fun FlipRecall(page: StudyNotebook.Page.Recall) {
     var flipped by remember(page) { mutableStateOf(false) }
     H3({ classes("cb-title") }) { Text("Tente lembrar antes de virar") }
-    Div({ classes("cb-index", *listOfNotNull(if (flipped) "on" else null).toTypedArray()); attr("role", "button"); attr("tabindex", "0"); onClick { flipped = !flipped } }) {
-        Div({ classes("cb-index-in") }) {
-            Div({ classes("cb-face", "front") }) { B { Inline(page.question) }; Span { Text("toque na ficha para ver a resposta") } }
-            Div({ classes("cb-face", "back") }) { Div { Markdown(page.answer, compact = true) } }
-        }
+    Div({ onKeyDown { if (it.key == "Enter" || it.key == " ") { it.preventDefault(); flipped = !flipped } } }) {
+        PaperFlashCard(page.question, page.answer, flipped, 0, 1, "Toque na ficha para ver a resposta", counter = "", compact = true) { flipped = !flipped }
     }
 }
 

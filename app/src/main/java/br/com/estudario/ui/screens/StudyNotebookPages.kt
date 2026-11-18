@@ -571,19 +571,12 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
 @Composable
 private fun ColumnScope.FlipRecall(page: StudyNotebook.Page.Recall) {
     var flipped by remember(page) { mutableStateOf(false) }
-    val angle by animateFloatAsState(if (flipped) 180f else 0f, tween(500), label = "ficha")
     Text("Tente lembrar antes de virar", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
-    Box(
-        Modifier.fillMaxWidth().heightIn(min = 200.dp).graphicsLayer { rotationX = angle; cameraDistance = 14 * density }
-            .clip(RoundedCornerShape(16.dp)).background(if (angle < 90f) CardBg else Color(0xFF332D78)).border(2.dp, LineC, RoundedCornerShape(16.dp))
-            .clickable { flipped = !flipped }.padding(18.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (angle < 90f) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(inkInline(page.question), fontWeight = FontWeight.Black, fontSize = 17.sp, color = Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Text("toque na ficha para ver a resposta", fontSize = 12.sp, color = Muted)
-        } else Text(inkInline(page.answer), Modifier.graphicsLayer { rotationX = 180f }, color = Color.White, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-    }
+    // A mesma ficha de caderno dos flashcards, com letra grande.
+    br.com.estudario.ui.components.NotebookPaperCard(
+        front = page.question, back = page.answer, flipped = flipped, onFlip = { flipped = !flipped },
+        frontHint = "Toque na ficha para ver a resposta", backHint = "Toque na ficha para voltar", minHeight = 240.dp,
+    )
 }
 
 @Composable

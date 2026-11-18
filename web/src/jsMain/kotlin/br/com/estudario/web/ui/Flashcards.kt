@@ -45,16 +45,21 @@ fun flashcardsOf(data: Snapshot, topicId: Long?, saved: Boolean = false, deckId:
  * sombra dura. Frente com a pergunta grande, verso com a resposta; vira em 3D ao tocar.
  */
 @Composable
-fun PaperFlashCard(front: String, back: String, flipped: Boolean, index: Int, total: Int, hint: String, onFlip: () -> Unit) {
-    Div({ classes(*listOfNotNull("pcard", if (flipped) "flipped" else null).toTypedArray()); attr("role", "button"); attr("aria-label", if (flipped) "Ver a pergunta" else "Ver a resposta"); onClick { onFlip() } }) {
+fun PaperFlashCard(
+    front: String, back: String, flipped: Boolean, index: Int, total: Int, hint: String,
+    frontTag: String = "Pergunta", backTag: String = "Resposta", counter: String? = null,
+    tagIcon: String? = null, extraClass: String? = null, compact: Boolean = false, onFlip: () -> Unit,
+) {
+    val count = counter ?: "${index + 1} de $total"
+    Div({ classes(*listOfNotNull("pcard", extraClass, if (compact) "compact" else null, if (flipped) "flipped" else null).toTypedArray()); attr("role", "button"); attr("tabindex", "0"); attr("aria-label", if (flipped) "Ver a pergunta" else "Ver a resposta"); onClick { onFlip() } }) {
         Div({ classes("pcard-inner") }) {
             Div({ classes("pcard-face", "front") }) {
-                Div({ classes("pcard-top") }) { Span({ classes("pcard-tag") }) { Text("Pergunta") }; Span({ classes("pcard-num") }) { Text("${index + 1} de $total") } }
+                Div({ classes("pcard-top") }) { Span({ classes("pcard-tag") }) { tagIcon?.let { Icon(it, filled = true) }; Text(frontTag) }; if (count.isNotBlank()) Span({ classes("pcard-num") }) { Text(count) } }
                 Div({ classes("pcard-q") }) { Inline(front) }
                 Span({ classes("pcard-hint") }) { Icon("touch_app"); Text(hint) }
             }
             Div({ classes("pcard-face", "back") }) {
-                Div({ classes("pcard-top") }) { Span({ classes("pcard-tag", "ok") }) { Text("Resposta") }; Span({ classes("pcard-num") }) { Text("${index + 1} de $total") } }
+                Div({ classes("pcard-top") }) { Span({ classes("pcard-tag", "ok") }) { Text(backTag) }; if (count.isNotBlank()) Span({ classes("pcard-num") }) { Text(count) } }
                 Div({ classes("pcard-ctx") }) { Inline(front) }
                 Div({ classes("pcard-a") }) { if (back.isBlank()) Inline(front) else Markdown(back) }
             }

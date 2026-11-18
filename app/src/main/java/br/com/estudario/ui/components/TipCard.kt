@@ -104,7 +104,7 @@ fun TipRow(text: String, trap: Boolean, favorite: Boolean, onToggleFavorite: () 
     }
 }
 
-enum class CalloutKind { TIP, TRAP }
+enum class CalloutKind { TIP, TRAP, WARN, SUMMARY }
 
 private val TRAP_WORDS = listOf("pegadinha", "atenção", "atencao", "cuidado", "não confunda", "nao confunda", "erro comum", "armadilha")
 private val TIP_WORDS = listOf("dica", "bizu", "macete", "lembre", "memorize", "resumindo", "na prova")
@@ -138,14 +138,20 @@ private fun boldCalloutKindOf(text: String): CalloutKind? {
 /** Tira o ">" de cada linha: o cartão já faz o papel da citação. */
 fun calloutBody(block: String): String = block.lines().joinToString("\n") { it.trimStart().removePrefix(">").removePrefix(" ") }
 
-/** Moldura de dica ou pegadinha no meio do texto de estudo: cartão claro com o ícone ao lado. */
+/**
+ * Dica, pegadinha, atenção ou resumo no meio do texto de estudo: fundo suave do tipo, cabeçalho com o
+ * desenho (ratoeira, lâmpada ou o Folha apontando) e o rótulo; o texto vem embaixo, em frases curtas.
+ */
 @Composable
-fun CalloutFrame(kind: CalloutKind, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val trap = kind == CalloutKind.TRAP
-    val (face, _, accent) = tipColors(trap)
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-    Row(modifier.fillMaxWidth().clip(shape).background(face).border(1.5.dp, accent.copy(alpha = 0.32f), shape).padding(start = 12.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
-        TipBadge(trap, 34.dp)
-        Column(Modifier.weight(1f)) { content() }
+fun CalloutFrame(kind: CalloutKind, label: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val pal = tipPalette(kind)
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+    Column(modifier.fillMaxWidth().padding(vertical = 10.dp).clip(shape).background(pal.bg).border(1.5.dp, pal.line, shape).padding(start = 6.dp, top = 16.dp, bottom = 6.dp)) {
+        Row(Modifier.padding(start = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            TipArt(kind, if (kind == CalloutKind.TIP || kind == CalloutKind.TRAP) 38.dp else 44.dp)
+            Spacer(Modifier.width(12.dp))
+            Text(label.uppercase(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = pal.ink, letterSpacing = androidx.compose.ui.unit.TextUnit(1.4f, androidx.compose.ui.unit.TextUnitType.Sp))
+        }
+        content()
     }
 }

@@ -289,7 +289,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                         verticalAlignment = Alignment.Top,
                     ) {
                         Box(Modifier.width(4.dp).fillMaxHeight().background(if (blockMarks.isNotEmpty()) highlighter else androidx.compose.ui.graphics.Color.Transparent))
-                        val callout = br.com.estudario.ui.components.calloutKindOf(block)
+                        val callout = remember(block) { br.com.estudario.ui.components.calloutInfoOf(block) }
                         val markdown: @Composable (Modifier, String) -> Unit = { m, text ->
                             br.com.estudario.ui.components.StudyMarkdown(
                                 text,
@@ -331,8 +331,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                             )
                         }
                         if (callout != null) {
-                            br.com.estudario.ui.components.CalloutFrame(callout, Modifier.weight(1f).padding(vertical = 4.dp)) {
-                                markdown(Modifier.padding(start = 10.dp, end = 12.dp, bottom = 8.dp), br.com.estudario.ui.components.calloutBody(block))
+                            br.com.estudario.ui.components.CalloutFrame(callout.kind, callout.label, Modifier.weight(1f).padding(vertical = 4.dp)) {
+                                markdown(Modifier.padding(start = 10.dp, end = 12.dp, bottom = 8.dp), br.com.estudario.ui.components.calloutParagraphs(callout))
                             }
                         } else {
                             markdown(Modifier.weight(1f).padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp), block)

@@ -56,6 +56,11 @@ import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.estudario.ui.theme.EstudarioShapes
@@ -211,72 +216,12 @@ fun FlashcardDeckDialog(
                 HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp), pageSpacing = 12.dp) { page ->
                     val card = cards[page]
                     val isFlipped = flipped[page] == true && card.back.isNotBlank()
-                    val rotation by animateFloatAsState(if (isFlipped) 180f else 0f, tween(450), label = "flip")
-                    // A ficha de caderno do Estudário: papel pautado com margem vermelha, borda de tinta e sombra dura.
-                    val night = br.com.estudario.ui.brand.isCadernoNight()
-                    val paper = if (night) androidx.compose.ui.graphics.Color(0xFF1E1D2B) else androidx.compose.ui.graphics.Color(0xFFFFFDF6)
-                    val rule = if (night) androidx.compose.ui.graphics.Color(0x299AA4FF) else androidx.compose.ui.graphics.Color(0x385B8DEF)
-                    val margin = if (night) androidx.compose.ui.graphics.Color(0x6BFF7A85) else androidx.compose.ui.graphics.Color(0x80E5484D)
-                    val cardShape = br.com.estudario.ui.brand.BrandCardShape
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .padding(top = 12.dp, bottom = 18.dp, end = 6.dp)
-                            .graphicsLayer { rotationY = rotation; cameraDistance = 12f * density }
-                            .cutPanel(cardShape, 6.dp)
-                            .clip(cardShape)
-                            .background(paper)
-                            .drawBehind {
-                                val step = 32.dp.toPx()
-                                var y = step + 14.dp.toPx()
-                                while (y < size.height) { drawRect(rule, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())); y += step }
-                                // margem: à esquerda na frente; no verso (espelhado) fica do mesmo lado depois do giro
-                                val mx = if (rotation > 90f) size.width - 30.dp.toPx() else 28.dp.toPx()
-                                drawRect(margin, androidx.compose.ui.geometry.Offset(mx, 0f), androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height))
-                            }
-                            .clickable(enabled = card.back.isNotBlank()) { flipped[page] = !(flipped[page] ?: false) },
-                    ) {
-                        // O verso é desenhado espelhado de volta para ler normalmente depois do giro.
-                        Box(Modifier.fillMaxSize().graphicsLayer { rotationY = if (rotation > 90f) 180f else 0f }.padding(start = 44.dp, end = 20.dp, top = 20.dp, bottom = 20.dp)) {
-                            Text(
-                                "${page + 1} de ${cards.size}",
-                                Modifier.align(Alignment.TopEnd),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            )
-                            if (rotation <= 90f) {
-                                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(if (card.back.isNotBlank()) "FRENTE" else "PARA REVISAR", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                    Spacer(Modifier.height(12.dp))
-                                    StudyMarkdown(card.front, Modifier.fillMaxWidth(), textSizeSp = if (card.back.isNotBlank()) 22f else 17f, centered = true)
-                                    if (card.back.isNotBlank()) {
-                                        Spacer(Modifier.height(28.dp))
-                                        Text("Tente lembrar a resposta antes de virar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                                        Spacer(Modifier.height(10.dp))
-                                        FlipHint("Toque no cartão para ver a resposta")
-                                    }
-                                }
-                            } else {
-                                // Verso como a frente: tudo no centro do cartão. A pergunta fica pequena em
-                                // cima, para lembrar o contexto; a resposta é o destaque.
-                                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("RESPOSTA", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                    Spacer(Modifier.height(10.dp))
-                                    Text(
-                                        plainFormulaText(card.front.replace("**", "")),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center,
-                                    )
-                                    androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 16.dp).fillMaxWidth(0.4f), color = MaterialTheme.colorScheme.outlineVariant)
-                                    StudyMarkdown(card.back, Modifier.fillMaxWidth(), textSizeSp = 19f, centered = true)
-                                    Spacer(Modifier.height(24.dp))
-                                    FlipHint("Toque no cartão para voltar à pergunta")
-                                }
-                            }
-                        }
-                    }
+                    NotebookPaperCard(
+                        front = card.front, back = card.back, flipped = isFlipped,
+                        onFlip = { flipped[page] = !(flipped[page] ?: false) },
+                        modifier = Modifier.padding(top = 12.dp, bottom = 18.dp, end = 6.dp),
+                        counter = "${page + 1} de ${cards.size}", fill = true,
+                    )
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0)) } }, enabled = pager.currentPage > 0, modifier = Modifier.weight(1f)) {
@@ -357,4 +302,104 @@ fun SummaryFlashcardDeck(viewModel: AppViewModel, summary: SummaryEntity, title:
         },
         deckKey = current.id.toString(),
     )
+}
+
+/**
+ * A ficha de caderno do Estudário, a mesma dos flashcards, da revisão espaçada e do caderno de estudo:
+ * papel pautado com margem vermelha, borda de tinta, sombra dura, etiqueta em cima e contador "N de M".
+ * Vira em 3D quando há verso. A pergunta vem grande (22sp) e a resposta confortável (19sp).
+ */
+@Composable
+fun NotebookPaperCard(
+    front: String,
+    back: String,
+    flipped: Boolean,
+    onFlip: () -> Unit,
+    modifier: Modifier = Modifier,
+    counter: String = "",
+    frontTag: String = "PERGUNTA",
+    backTag: String = "RESPOSTA",
+    frontHint: String = "Toque no cartão para ver a resposta",
+    backHint: String? = "Toque no cartão para voltar à pergunta",
+    highlight: androidx.compose.ui.graphics.Color? = null,
+    fill: Boolean = false,
+    minHeight: androidx.compose.ui.unit.Dp = 280.dp,
+    questionSp: Float = 22f,
+    answerSp: Float = 19f,
+    frontExtra: (@Composable () -> Unit)? = null,
+) {
+    val canFlip = back.isNotBlank()
+    val rotation by animateFloatAsState(if (flipped && canFlip) 180f else 0f, tween(450), label = "paper-flip")
+    val night = br.com.estudario.ui.brand.isCadernoNight()
+    val paper = if (night) androidx.compose.ui.graphics.Color(0xFF1E1D2B) else androidx.compose.ui.graphics.Color(0xFFFFFDF6)
+    val rule = if (night) androidx.compose.ui.graphics.Color(0x299AA4FF) else androidx.compose.ui.graphics.Color(0x385B8DEF)
+    val margin = if (night) androidx.compose.ui.graphics.Color(0x6BFF7A85) else androidx.compose.ui.graphics.Color(0x80E5484D)
+    val cardShape = br.com.estudario.ui.brand.BrandCardShape
+    val size = if (fill) Modifier.fillMaxSize() else Modifier.fillMaxWidth().heightIn(min = minHeight)
+    Box(
+        modifier
+            .then(size)
+            .graphicsLayer { rotationY = rotation; cameraDistance = 12f * density }
+            .cutPanel(cardShape, 6.dp)
+            .clip(cardShape)
+            .background(paper)
+            .then(if (highlight != null) Modifier.border(3.dp, highlight, cardShape) else Modifier)
+            .drawBehind {
+                val step = 32.dp.toPx()
+                var y = step + 14.dp.toPx()
+                while (y < this.size.height) { drawRect(rule, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Size(this.size.width, 1.dp.toPx())); y += step }
+                // margem: à esquerda na frente; no verso (espelhado) fica do mesmo lado depois do giro
+                val mx = if (rotation > 90f) this.size.width - 30.dp.toPx() else 28.dp.toPx()
+                drawRect(margin, androidx.compose.ui.geometry.Offset(mx, 0f), androidx.compose.ui.geometry.Size(2.dp.toPx(), this.size.height))
+            }
+            .clickable(enabled = canFlip) { onFlip() }
+            .semantics { contentDescription = if (flipped) "Voltar à pergunta" else "Ver a resposta" },
+    ) {
+        val scrollMod = if (fill) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxWidth()
+        Column(
+            Modifier.then(if (fill) Modifier.fillMaxSize() else Modifier.fillMaxWidth().heightIn(min = minHeight))
+                .graphicsLayer { rotationY = if (rotation > 90f) 180f else 0f }
+                .padding(start = 44.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val isBack = rotation > 90f
+                val tagColor = if (isBack) androidx.compose.ui.graphics.Color(0xFF3FBF8F) else highlight ?: MaterialTheme.colorScheme.primary
+                Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp), color = tagColor.copy(alpha = 0.18f)) {
+                    Text(
+                        if (isBack) backTag else if (canFlip) frontTag else "PARA REVISAR",
+                        Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                if (counter.isNotBlank()) Text(counter, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            }
+            Column(
+                scrollMod.padding(top = 14.dp),
+                verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (rotation <= 90f) {
+                    if (!fill) Spacer(Modifier.height(10.dp))
+                    StudyMarkdown(front, Modifier.fillMaxWidth(), textSizeSp = if (canFlip) questionSp else 17f, centered = true)
+                    frontExtra?.invoke()
+                    if (canFlip) {
+                        Spacer(Modifier.height(24.dp))
+                        FlipHint(frontHint)
+                    }
+                } else {
+                    // Verso: a pergunta pequena em cima, para lembrar o contexto; a resposta é o destaque.
+                    Text(
+                        plainFormulaText(front.replace("**", "")),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 14.dp).fillMaxWidth(0.4f), color = MaterialTheme.colorScheme.outlineVariant)
+                    StudyMarkdown(back, Modifier.fillMaxWidth(), textSizeSp = answerSp, centered = true)
+                    if (backHint != null) { Spacer(Modifier.height(22.dp)); FlipHint(backHint) }
+                }
+            }
+        }
+    }
 }

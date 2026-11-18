@@ -409,7 +409,7 @@ fun ReviewSessionScreen(
                         MixKind.RECALL -> Glyph.Brain to "DE MEMÓRIA"
                         MixKind.CLOZE -> Glyph.Bookmark to "SEU GRIFO"
                     }
-                    ReviewFlipCard(card.front, card.back, glyph, if (again) "$tag · SEGUNDA CHANCE" else "$tag · ${index + 1} DE ${recall.size}", if (card.kind == MixKind.CLOZE) "O QUE FALTAVA" else "RESPOSTA", again, flipped) { flipped = !flipped }
+                    ReviewFlipCard(card.front, card.back, glyph, if (again) "$tag · SEGUNDA CHANCE" else tag, if (card.kind == MixKind.CLOZE) "O QUE FALTAVA" else "RESPOSTA", again, flipped, counter = if (again) "${index - recall.size + 1} de ${extra.size}" else "${index + 1} de ${recall.size}") { flipped = !flipped }
                 }
                 item {
                     val somCtx = androidx.compose.ui.platform.LocalContext.current
@@ -986,47 +986,20 @@ private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage:
  * no verso (índigo), virando em 3D. Tocar vira e desvira.
  */
 @Composable
-private fun ReviewFlipCard(question: String, answer: String, glyph: Glyph, tag: String, backTag: String, highlight: Boolean, flipped: Boolean, onToggle: () -> Unit) {
-    val angle by androidx.compose.animation.core.animateFloatAsState(if (flipped) 180f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 260f), label = "rv-flip")
-    val density = androidx.compose.ui.platform.LocalDensity.current.density
-    val front = angle <= 90f
-    val shape = RoundedCornerShape(24.dp)
-    Box(
-        Modifier.fillMaxWidth().heightIn(min = 260.dp)
-            .graphicsLayer { rotationY = angle; cameraDistance = 14f * density }
-            .clip(shape)
-            .background(if (front) MaterialTheme.colorScheme.surface else Color(0xFF231C86))
-            .then(if (front && highlight) Modifier.background(Color(0xFFFF8A3D).copy(alpha = 0.08f)) else Modifier)
-            .then(if (front) Modifier.border(if (highlight) 3.dp else 2.dp, if (highlight) Color(0xFFFF8A3D) else MaterialTheme.colorScheme.outlineVariant, shape) else Modifier)
-            .clickable(onClick = onToggle)
-            .semantics { contentDescription = if (flipped) "Voltar à pergunta" else "Ver a resposta" },
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 26.dp).graphicsLayer { rotationY = if (front) 0f else 180f },
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            if (front) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    BrandIcon(glyph, size = 30.dp)
-                    Text(tag, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFC98A0B))
-                }
-                br.com.estudario.ui.components.StudyInlineText(question, style = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Center, lineHeight = 28.sp), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Outlined.TouchApp, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Toque para ver a resposta", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else {
-                Text(backTag, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFFFB421))
-                // o verso é índigo nos dois temas: o texto da resposta vai em branco
-                val scheme = MaterialTheme.colorScheme
-                MaterialTheme(colorScheme = scheme.copy(onSurface = Color.White, onSurfaceVariant = Color(0xFFD9D5FF), onBackground = Color.White, primary = Color(0xFFFFD27A))) {
-                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides Color.White) {
-                        if (answer.isBlank()) Text("Este material não trouxe a resposta. Confira na teoria do tópico.", color = Color.White)
-                        else MarkdownText(answer)
-                    }
-                }
-            }
-        }
-    }
+private fun ReviewFlipCard(question: String, answer: String, glyph: Glyph, tag: String, backTag: String, highlight: Boolean, flipped: Boolean, counter: String = "", onToggle: () -> Unit) {
+    // A mesma ficha de caderno dos flashcards: papel pautado, margem vermelha, borda de tinta e letra grande.
+    br.com.estudario.ui.components.NotebookPaperCard(
+        front = question,
+        back = answer.ifBlank { "Este material não trouxe a resposta. Confira na teoria do tópico." },
+        flipped = flipped,
+        onFlip = onToggle,
+        counter = counter,
+        frontTag = tag,
+        backTag = backTag,
+        highlight = if (highlight) Color(0xFFFF8A3D) else null,
+        minHeight = 300.dp,
+        questionSp = 23f,
+        answerSp = 19f,
+        frontExtra = { Spacer(Modifier.height(12.dp)); BrandIcon(glyph, size = 30.dp) },
+    )
 }

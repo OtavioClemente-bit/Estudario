@@ -622,23 +622,17 @@ fun ReviewSessionScreen(reviewId: Long) {
                 }
                 else if (card.hard) Div({ classes("rv-flag", "hard") }) { Icon("error"); Text("Você esqueceu este na última revisão") }
                 key("$index-${card.key}") {
-                    Div({
-                        classes(*listOfNotNull("rv-flip", "rv-kind-${card.kind.name.lowercase()}", if (again) "rv-again" else null, if (flipped) "on" else null).toTypedArray())
-                        attr("role", "button"); attr("tabindex", "0"); attr("aria-label", if (flipped) "Voltar à pergunta" else "Ver a resposta")
-                        onClick { flipped = !flipped }
-                        onKeyDown { if (it.key == "Enter" || it.key == " ") { it.preventDefault(); flipped = !flipped } }
-                    }) {
-                        Div({ classes("rv-flip-in") }) {
-                            Div({ classes("rv-face", "front") }) {
-                                Span({ classes("rv-face-tag") }) { Icon(kindIcon, filled = true); Text(if (again) "$kindTag · SEGUNDA CHANCE" else "$kindTag · ${index + 1} DE ${recall.size}") }
-                                Div({ classes("rv-face-text") }) { Inline(card.front) }
-                                Span({ classes("rv-face-tap") }) { Icon("touch_app"); Text("Clique para ver a resposta") }
-                            }
-                            Div({ classes("rv-face", "back") }) {
-                                Span({ classes("rv-face-tag") }) { Text(if (card.kind == MixKind.CLOZE) "O QUE FALTAVA" else "RESPOSTA") }
-                                Div({ classes("rv-face-text") }) { Markdown(card.back) }
-                            }
-                        }
+                    // Mesmo cartão de caderno dos flashcards (PaperFlashCard), com a etiqueta do tipo de cartão.
+                    Div({ onKeyDown { if (it.key == "Enter" || it.key == " ") { it.preventDefault(); flipped = !flipped } } }) {
+                        PaperFlashCard(
+                            front = card.front, back = card.back, flipped = flipped, index = index, total = recall.size,
+                            hint = "Clique para ver a resposta",
+                            frontTag = if (again) "$kindTag · segunda chance" else kindTag,
+                            backTag = if (card.kind == MixKind.CLOZE) "O que faltava" else "Resposta",
+                            counter = if (again) "${index - recall.size + 1} de ${extra.size}" else "${index + 1} de ${recall.size}",
+                            tagIcon = kindIcon,
+                            extraClass = if (again) "pcard-again" else null,
+                        ) { flipped = !flipped }
                     }
                 }
                 if (flipped) P({ classes("rv-hint"); attr("style", "margin-bottom:-4px") }) { B { Text("Você lembrou antes de virar o cartão?") } }
