@@ -45,6 +45,12 @@ function conferir(id: string): string[] | null {
   if (fc < (velho.flashcards ?? []).length - 8) erros.push("muitos flashcards antigos sumiram; troque só os genéricos ou repetidos");
   const moji = /Ã[\u0080-¿]|â€|Â[\u0080-¿]/g;
   if ((JSON.stringify(novo).match(moji)?.length ?? 0) > (JSON.stringify(velho).match(moji)?.length ?? 0)) erros.push('texto com acento corrompido (ex.: "Ã©" no lugar de "é"); reescreva esses trechos em UTF-8');
+  // Repetição (19/11: a amostra achou 15–30% de cartões quase iguais): frente nova parecida demais com outra.
+  const velhas = new Set((velho.flashcards ?? []).map((c: Json) => c.front));
+  const frentes = (novo.flashcards ?? []).map((c: Json) => ({ f: String(c.front), s: new Set(stems(c.front + " " + c.back)) }));
+  const iguais: string[] = [];
+  frentes.forEach((a: any, i: number) => { if (velhas.has(a.f)) return; for (const b of frentes.slice(0, i)) { const inter = [...a.s].filter((x) => b.s.has(x)).length; if (inter / Math.max(1, Math.min(a.s.size, b.s.size)) >= 0.8) { iguais.push(`"${a.f}" ≈ "${b.f}"`); break; } } });
+  if (iguais.length) erros.push(`cartões quase iguais (troque por cartões sobre outro ponto do tópico): ${iguais.slice(0, 5).join("; ")}`);
   for (const t of faltando(id, novo)) erros.push(`o tópico "${t}" ainda tem menos de ${MIN_POR_TOPICO} cartões/itens que usam as palavras dele`);
   const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, `${SAIDA}/${id}.json`], stdout: "piped", stderr: "piped" }).outputSync();
   const saida = (new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr)).trim();
