@@ -1,0 +1,2277 @@
+{
+  "id": "ciberseguranca.protecao-containers-integracao-servicos-ia",
+  "subject": "Cibersegurança",
+  "title": "Privacidade e proteção operacional: contêineres e serviços de IA",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Privacidade e proteção de contêineres e IA",
+    "Proteção operacional de containers e IA",
+    "Segurança de contêineres com inteligência artificial",
+    "Interfaces seguras para serviços de IA",
+    "Segurança de APIs de serviços de inteligência artificial",
+    "Privacidade na integração com modelos de IA",
+    "Contêineres seguros integrados a serviços de IA",
+    "Proteção de dados em APIs de inteligência artificial",
+    "Integração segura de aplicações com serviços de IA",
+    "Segurança operacional de aplicações com IA",
+    "Privacidade em contêineres e serviços de IA",
+    "Interfaces de IA, contêineres e proteção operacional"
+  ],
+  "scope": {
+    "covers": "Proteção operacional e privacidade em aplicações conteinerizadas integradas a serviços de inteligência artificial: isolamento, imagens, segredos, privilégios, rede, identidade, governança de dados, autenticação, autorização, validação de entradas e saídas, prompt injection, SSRF, consumo de recursos, logs, retenção, incidentes e controles sobre ferramentas e fornecedores.",
+    "excludes": "Administração completa de Kubernetes, legislação de proteção de dados em seus detalhes, treinamento matemático de modelos, avaliação de desempenho estatístico e configuração específica de um provedor comercial."
+  },
+  "theoryTitle": "Defesa operacional de contêineres e integrações com IA",
+  "chapters": [
+    {
+      "title": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "markdown": "### O problema que este assunto resolve\n\nUm contêiner empacota uma aplicação e suas dependências, mas não cria por si só uma fronteira de segurança completa. Em contêineres Linux usuais, processos compartilham o kernel do host; namespaces separam visões de recursos e cgroups contabilizam ou limitam consumo. Portanto, uma imagem confiável executada com privilégios excessivos ainda pode ameaçar o nó, outros serviços e dados montados. O NIST organiza a análise ao longo de imagem, registro, orquestrador e contêiner em execução, e recomenda tratar os riscos em todas essas camadas.\n\n> **Siglas e termos deste capítulo**\n> - **Imagem**: artefato imutável usado como molde para criar contêineres.\n> - **Registro (registry)**: serviço que armazena e distribui imagens.\n> - **Digest**: identificador ligado ao conteúdo exato de uma imagem.\n> - **Runtime**: componentes que iniciam e isolam contêineres.\n> - **Cgroup**: mecanismo de contabilização e limitação de recursos de processos.\n> - **SBOM**: inventário dos componentes de software presentes em um artefato.\n\n### Da construção à execução\n\nConstrua imagens em pipeline controlado, partindo de bases mantidas e necessárias. Atualize o sistema e bibliotecas, remova ferramentas e arquivos que não são usados, faça varredura de vulnerabilidades e examine a origem dos componentes. Um scanner encontra falhas conhecidas, mas não prova que o artefato está livre de falhas. Preserve inventário e proveniência para relacionar o que foi construído com o que foi implantado. Fixar o digest da imagem aprovada impede que uma tag mutável passe a apontar silenciosamente para conteúdo diferente entre teste e produção.\n\nProteja o registro com autenticação, autorização por repositório e transporte seguro. Separe quem publica de quem apenas consome imagens, remova artefatos obsoletos segundo política e verifique a integridade na implantação. Não baixe imagens aleatórias por conveniência. Assinaturas e atestações podem apoiar a verificação de origem, mas só são úteis se a política validar a identidade do emissor e o processo de construção esperado.\n\nSegredos não pertencem à imagem. Senhas, tokens e chaves gravados no Dockerfile, no código, nos argumentos de construção ou em variáveis permanentes podem aparecer em camadas, histórico ou logs. Remover o arquivo em uma camada posterior não apaga necessariamente o conteúdo das camadas anteriores. Injete credenciais em tempo de execução por mecanismo de segredos, limite o acesso ao serviço e faça rotação quando houver exposição. Evite imprimir cabeçalhos de autorização, tokens ou prompts sensíveis em logs de depuração.\n\n### Reduzir privilégios e caminhos de fuga\n\nExecute o processo como usuário não privilegiado, remova capabilities que não sejam necessárias, evite modo privilegiado e mantenha a raiz do sistema de arquivos somente leitura quando a aplicação permitir. Se precisar gravar, ofereça um volume dedicado com permissões estritas. Montagens do host, em especial o socket de administração do runtime, dão acesso de alto impacto e não devem ser disponibilizadas a uma aplicação comum. Evite compartilhar namespaces do host e limite interfaces e portas expostas.\n\nDefina limites de CPU e memória para reduzir risco de esgotamento do nó; eles protegem disponibilidade, não corrigem falhas de autorização ou vazamento de dados. Atualize kernel, runtime e orquestrador, pois atualizar apenas a imagem da aplicação não corrige vulnerabilidade do kernel compartilhado. Separe cargas de sensibilidades diferentes e aplique políticas de rede para reduzir comunicação lateral.\n\n| Camada | Risco concreto | Controle operacional |\n| --- | --- | --- |\n| Imagem | Biblioteca vulnerável ou segredo embutido | Revisar origem, varrer, reconstruir e não inserir credenciais |\n| Registro | Publicação ou leitura não autorizada | Autenticar, restringir papéis e usar transporte protegido |\n| Execução | Processo privilegiado ou montagem ampla | Usuário não root, capacidades mínimas e volumes estritos |\n| Host e cluster | Kernel, runtime ou API de administração expostos | Atualizar, restringir operadores e monitorar alterações |\n\n### Como cai na prova\n\n- Contêiner não equivale a máquina virtual com kernel independente: o compartilhamento do kernel torna o host e o runtime relevantes.\n- Tag é um apontador que pode mudar; digest identifica o conteúdo referenciado.\n- Scanner, assinatura e limite de recursos têm funções diferentes; nenhum deles substitui os demais controles.\n- Segredo apagado em etapa posterior ainda pode persistir em camada anterior da imagem."
+    },
+    {
+      "title": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "markdown": "### O problema que este assunto resolve\n\nAo chamar um modelo externo, uma aplicação pode transmitir texto do usuário, documentos, identificadores, registros internos e contexto recuperado de bases corporativas. A privacidade depende do fluxo completo: coleta, preparação, envio, processamento pelo fornecedor, retorno, registro e descarte. O fato de a interface ser uma API ou de o modelo ser chamado por um contêiner não torna o conteúdo anônimo nem define automaticamente como o fornecedor o utilizará.\n\n> **Siglas e termos deste capítulo**\n> - **Dado pessoal**: informação relacionada a pessoa identificada ou identificável.\n> - **Minimização**: limitar a entrada aos dados necessários à tarefa.\n> - **DLP**: controles para detectar ou impedir saída não autorizada de dados.\n> - **RAG**: geração apoiada por recuperação de documentos ou registros externos.\n> - **Retenção**: período e condições em que dados ou registros permanecem armazenados.\n> - **Pseudonimização**: substituir identificadores diretos por valores indiretos; não equivale a anonimização.\n\n### Desenhar o fluxo antes de habilitar a chamada\n\nMapeie quais componentes recebem a solicitação, que campos são acrescentados ao prompt, quais fontes RAG são consultadas, para onde a requisição é enviada e que registros são retidos. Classifique os dados e estabeleça quais categorias podem sair do ambiente. Use somente os campos necessários; remova identificadores e conteúdo irrelevante antes do envio. Se a tarefa puder ser feita com estatísticas ou dados sintéticos, não envie registros identificáveis. Pseudonimização reduz exposição, mas ainda pode permitir associação com uma pessoa quando há dados auxiliares.\n\nAvalie o serviço e suas condições operacionais antes de integrar: finalidade de uso, retenção de entradas e saídas, uso para treinamento, localização e subprocessadores quando relevantes, controles de acesso, disponibilidade, resposta a incidente, exclusão e exportação. Essas respostas precisam ser verificadas na configuração e no contrato aplicável, não presumidas pelo nome do produto. Separe ambientes de teste e produção; não use dados reais em testes por simples conveniência.\n\nA aplicação intermediária deve ser o ponto de aplicação das regras. Um usuário não deve escolher livremente o endpoint, o modelo ou os parâmetros de rede. Armazene chaves do provedor em cofre ou mecanismo equivalente, use identidade própria por ambiente e serviço, conceda escopo mínimo e rotacione credenciais. Configure limites de orçamento e taxa por usuário ou operação. Se houver suspeita de vazamento, revogue a chave e examine chamadas, permissões e registros.\n\n### Registros sem reproduzir o dado sensível\n\nLogs ajudam a detectar abuso e reconstruir incidentes, mas podem virar uma segunda cópia de prompts, respostas e segredos. Registre identificador de requisição, horário, serviço, decisão de política, latência, volume, resultado técnico e identidade de serviço, evitando texto integral por padrão. Quando o conteúdo for necessário para diagnóstico, reduza acesso, limite retenção, proteja armazenamento e registre também quem consultou. Remova ou masque tokens, dados pessoais e documentos sigilosos antes de registrar. Não confunda observabilidade com captura indiscriminada de conteúdo.\n\nNo RAG, a base recuperada também é uma fronteira de dados: indexação, filtros de acesso e contexto enviado ao modelo precisam respeitar a autorização do usuário. A aplicação deve filtrar documentos antes de montar o contexto, evitando que uma pergunta em uma conta obtenha trechos autorizados apenas para outra. A resposta do modelo não deve ganhar autoridade maior que a fonte ou o usuário que a consultou.\n\n### Como cai na prova\n\n- A análise de privacidade inclui prompt, contexto recuperado, fornecedor, telemetria, retenção e resposta; a chamada externa não termina no envio.\n- Pseudonimizar é reduzir associação direta, não provar anonimização.\n- A minimização ocorre antes de enviar; apagar depois não desfaz a exposição já ocorrida.\n- Logs de conteúdo podem replicar o mesmo dado sensível que se pretendia proteger."
+    },
+    {
+      "title": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "markdown": "### O problema que este assunto resolve\n\nA integração com IA costuma atravessar uma API de entrada, um componente intermediário e uma API do provedor. Cada fronteira pode aceitar entradas maliciosas, expor credenciais, buscar destinos internos ou permitir consumo excessivo. O OWASP API Security Top 10 destaca, entre outros riscos, falhas de autenticação, autorização por objeto e propriedade, consumo irrestrito de recursos, SSRF, configuração insegura, inventário incompleto e consumo inseguro de APIs de terceiros. Esses riscos também se aplicam a um serviço que encaminha prompts ou resultados de modelo.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface de programação usada por sistemas para trocar solicitações e respostas.\n> - **SSRF**: falsificação de requisição do lado do servidor; induz a aplicação a consultar destino inesperado.\n> - **TLS**: protocolo que protege comunicação em trânsito e autentica o servidor conforme a validação de certificados.\n> - **Rate limit**: limite de frequência ou volume de chamadas.\n> - **Timeout**: prazo máximo local para aguardar uma operação.\n> - **Circuit breaker**: mecanismo que interrompe temporariamente chamadas repetidamente falhas.\n\n### Autenticação e autorização na aplicação\n\nAutenticar identifica quem chama; autorizar decide quais operações e dados essa identidade pode acessar. Verifique autorização no servidor em toda leitura ou alteração, inclusive ao recuperar conversas, documentos, configurações ou histórico por identificador. Não aceite como prova de autorização um ID enviado pelo cliente. Restrinja funções administrativas e separe credenciais entre desenvolvimento, teste e produção. Nunca inclua a chave do provedor em código entregue ao navegador ou aplicativo móvel: o cliente pode ser inspecionado e a chave copiada.\n\nUse TLS na conexão ao serviço, valide certificados e fixe uma lista de destinos confiáveis. Não permita que o usuário informe URL arbitrária para o backend buscar documentos ou executar ações: valide esquema, hostname, porta e resolução, bloqueie endereços locais e metadados de nuvem e revalide redirecionamentos. Isso reduz SSRF, embora a validação da aplicação deva ser combinada com saída de rede restrita no contêiner.\n\nDefina limite de tamanho de entrada, duração, número de tokens ou unidades cobradas, concorrência e chamadas por identidade. Faça timeout e trate falha do fornecedor de modo controlado; não repita indefinidamente solicitações caras. Orçamentos, cotas e circuit breaker ajudam a conter negação de serviço e custo inesperado. Diferencie erro temporário de resposta válida e evite expor ao usuário detalhes internos do provedor.\n\n### Tratar respostas como dados não confiáveis\n\nUma saída do modelo pode ser inventada, conter instruções hostis, código perigoso, HTML ativo ou conteúdo que viola o formato esperado. Valide o esquema, o tamanho, os campos e os valores permitidos antes de armazenar, exibir ou executar qualquer resultado. Escape conteúdo ao renderizar em HTML; use consultas parametrizadas ao interagir com banco; não concatene texto do modelo em comandos de shell. Para ações estruturadas, aceite apenas operações permitidas e parâmetros que passem por validação determinística.\n\nInventarie endpoints e versões de API, inclusive integrações indiretas e ambientes de teste. Revise as configurações de CORS, depuração, erros, cabeçalhos e permissões; remova endpoints antigos. Dados recebidos de uma API de terceiro não são confiáveis só por virem de um fornecedor conhecido: valide formato, limites, assinatura ou autenticidade quando aplicável e comportamento em caso de indisponibilidade.\n\n| Risco na interface | Exemplo | Defesa central |\n| --- | --- | --- |\n| Autorização por objeto falha | Usuário troca o ID e lê outra conversa | Checagem no servidor para cada objeto |\n| SSRF | URL de documento aponta para serviço interno | Destinos permitidos e egress restrito |\n| Consumo excessivo | Repetição de prompts longos gera custo elevado | Cotas, tamanho máximo, timeout e rate limit |\n| Terceiro inseguro | Resposta inesperada é tratada como instrução | Validar, limitar e não executar diretamente |\n\n### Como cai na prova\n\n- A chave da API fica no backend; ocultá-la no código cliente é inviável.\n- TLS protege o canal, mas não substitui autorização, validação de entrada ou controle do destino.\n- Rate limit e limite de tamanho reduzem abuso de recursos, mas não validam conteúdo nem identidade.\n- Saída de modelo precisa ser validada antes de virar HTML, consulta, comando ou ação."
+    },
+    {
+      "title": "4. Prompt injection, ferramentas e resposta operacional",
+      "markdown": "### O problema que este assunto resolve\n\nModelos de linguagem interpretam instruções e dados no mesmo fluxo textual; não existe uma separação infalível entre instrução confiável e conteúdo citado. Prompt injection ocorre quando conteúdo controlado por atacante tenta fazer o modelo ignorar regras, revelar contexto ou agir fora do propósito. A variante indireta pode vir de página, arquivo ou resultado de busca que o sistema recuperou. Filtros de palavras ou uma instrução inicial pedindo ao modelo que ignore ataques não são barreira suficiente.\n\n> **Siglas e termos deste capítulo**\n> - **Prompt injection**: entrada que tenta alterar instruções seguidas pelo modelo ou induzir ação indevida.\n> - **Injeção indireta**: instrução maliciosa introduzida por conteúdo externo recuperado ou processado.\n> - **Excesso de agência**: agente recebe ferramentas ou permissões além do que a tarefa exige.\n> - **Human-in-the-loop**: revisão humana antes de uma ação relevante ou irreversível.\n> - **Egress**: tráfego de saída de um workload para outros destinos.\n> - **Kill switch**: meio operacional de interromper rapidamente uma integração ou agente.\n\n### Separar geração de decisão e execução\n\nO modelo deve propor ou classificar; código determinístico aplica regras de autorização e decide se a operação é permitida. Se o sistema usa ferramentas, registre cada ferramenta disponível, finalidade, parâmetros e identidade usada. Exponha ao agente apenas ferramentas necessárias à tarefa e credenciais com escopo mínimo. Uma ferramenta de consulta não deve ganhar permissão de escrita por conveniência; uma ferramenta que envia pagamentos ou altera cadastro exige controles mais fortes que uma resposta informativa.\n\nUse validação de esquema e listas permitidas para nome da ferramenta, argumentos, destinatários e recursos. Confirme autorização do usuário independentemente da sugestão do modelo. Para ações externas, destrutivas, financeiras ou que divulguem dados, exija confirmação humana quando o risco justificar e apresente o efeito concreto antes da confirmação. Limite número de etapas, tempo de execução e contexto. Não permita que uma instrução recuperada altere política de acesso ou revele segredos do sistema.\n\nConteúdo recuperado deve ser tratado como dado, não como política. Separe fontes confiáveis de material enviado por usuários, preserve a proveniência e evite misturar instruções administrativas com documentos. Ainda assim, rotular conteúdo não elimina o risco; a proteção decisiva está em não conceder ao modelo autoridade direta para ultrapassar controles de servidor. Nunca insira credenciais, chaves ou dados sem necessidade no prompt oculto.\n\n### Operar, observar e responder\n\nMonitore uso por identidade, serviço e operação: volume, custo, recusas, erros, tentativas de acessar recursos proibidos, uso de ferramentas, latência e falhas de validação. Alertas devem permitir distinguir abuso de variação normal. Proteja os registros e preserve correlação entre solicitação, resposta e ação executada, sem reter conteúdo sensível além da necessidade definida. Teste cenários de injeção direta e indireta, vazamento de dados, abuso de ferramenta, SSRF e indisponibilidade antes de ampliar a exposição.\n\nPrepare um procedimento para suspender chamadas externas, revogar credenciais, bloquear uma ferramenta, reduzir permissões, desabilitar uma versão de prompt e notificar as equipes responsáveis. Em incidente, limite a propagação, preserve evidências úteis, identifique dados enviados e destinatários, avalie credenciais e registros expostos e só restabeleça o fluxo após corrigir e testar a causa. Contêineres ajudam a padronizar a implantação, mas a contenção depende também da rede, identidade, dados montados, permissões da ferramenta e credencial do provedor.\n\n### Como cai na prova\n\n- Um prompt de sistema ou filtro lexical não substitui limites determinísticos no servidor.\n- O modelo não deve decidir a própria autorização nem executar diretamente texto arbitrário.\n- Menor privilégio aplica-se tanto ao contêiner quanto às ferramentas e credenciais do agente.\n- Resposta a incidente deve incluir revogação de segredos e contenção do fluxo, não apenas reinício do contêiner."
+    }
+  ],
+  "summary": "Proteja a cadeia de contêineres desde a imagem e o registro até o host e o runtime: valide origem, atualize dependências, evite segredos embutidos, reduza privilégios, limite montagens e recursos e controle a rede. Em integrações com IA, mapeie dados enviados e retidos, minimize e remova identificadores desnecessários, proteja credenciais no backend e aplique autenticação e autorização a cada objeto. Limite taxa, tamanho, custo, tempo e destinos de rede; trate entradas de usuário, documentos recuperados e respostas do modelo como não confiáveis. Prompt injection não se resolve só por instruções: mantenha autorização e validação determinísticas, restrinja ferramentas, exija revisão para ações sensíveis e prepare monitoramento, revogação de chaves e suspensão da integração.",
+  "flashcards": [
+    {
+      "front": "O que namespaces oferecem em contêineres Linux?",
+      "back": "Isolam visões de recursos do sistema para processos, sem fornecer por si só kernel separado."
+    },
+    {
+      "front": "Qual função têm os cgroups?",
+      "back": "Contabilizar e limitar recursos consumidos por grupos de processos, como CPU e memória."
+    },
+    {
+      "front": "Tag e digest de imagem são equivalentes?",
+      "back": "Não. Uma tag pode mudar de alvo; o digest identifica conteúdo específico da imagem."
+    },
+    {
+      "front": "Por que um scanner não prova que a imagem é segura?",
+      "back": "Ele detecta principalmente vulnerabilidades conhecidas e não elimina falhas desconhecidas ou de configuração."
+    },
+    {
+      "front": "Onde armazenar credenciais para chamada de IA?",
+      "back": "Em mecanismo de segredos no backend ou runtime, com acesso mínimo e rotação, nunca na imagem ou cliente."
+    },
+    {
+      "front": "O que uma montagem do socket do runtime pode permitir?",
+      "back": "Controle de operações privilegiadas do runtime e possível acesso elevado ao host."
+    },
+    {
+      "front": "O que significa minimização de dados no prompt?",
+      "back": "Enviar somente os campos e trechos estritamente necessários para executar a tarefa."
+    },
+    {
+      "front": "Pseudonimização prova anonimização?",
+      "back": "Não. Dados auxiliares podem permitir reassociar o registro à pessoa."
+    },
+    {
+      "front": "Qual dado operacional registrar sem gravar o prompt completo?",
+      "back": "ID de requisição, horário, serviço, decisão, volume, latência e resultado técnico."
+    },
+    {
+      "front": "O que é autorização por objeto?",
+      "back": "Verificar se a identidade pode acessar aquele registro específico em cada operação."
+    },
+    {
+      "front": "Qual risco a SSRF representa numa integração?",
+      "back": "O backend pode ser induzido a enviar requisições a destinos internos ou não pretendidos."
+    },
+    {
+      "front": "Por que a chave do provedor fica no servidor?",
+      "back": "Código entregue ao cliente pode ser inspecionado, permitindo extrair e reutilizar a chave."
+    },
+    {
+      "front": "Como limitar custo de chamadas de modelo?",
+      "back": "Aplicar cotas, limites de tamanho e frequência, timeout, concorrência e orçamento por identidade."
+    },
+    {
+      "front": "O que é prompt injection indireta?",
+      "back": "Instrução maliciosa introduzida por documento, página ou conteúdo recuperado pelo sistema."
+    },
+    {
+      "front": "Como reduzir excesso de agência?",
+      "back": "Expor só ferramentas necessárias, com escopo mínimo, parâmetros validados e autorização no servidor."
+    },
+    {
+      "front": "Quando uma ação do agente pode exigir aprovação humana?",
+      "back": "Quando é sensível, externa, destrutiva, financeira ou divulga dados, conforme avaliação de risco."
+    },
+    {
+      "front": "TLS substitui validação de destino?",
+      "back": "Não. TLS protege o canal, mas a aplicação ainda deve restringir destinos e validar certificados."
+    },
+    {
+      "front": "O que fazer com credencial possivelmente exposta?",
+      "back": "Revogar ou rotacionar, analisar uso e registros, restringir permissões e corrigir a origem da exposição."
+    },
+    {
+      "front": "Qual proteção dá a raiz somente leitura?",
+      "back": "Impede gravação no sistema raiz do contêiner; volumes separados podem continuar graváveis."
+    },
+    {
+      "front": "O que significa tratar a resposta do modelo como não confiável?",
+      "back": "Validar formato e valores e nunca executá-la ou renderizá-la diretamente sem controles adequados."
+    }
+  ],
+  "tips": [
+    "Ao analisar um cenário, percorra imagem, registro, orquestrador, runtime, API e provedor: a falha pode estar em qualquer fronteira.",
+    "Diferencie controle preventivo de detecção: scanner alerta sobre achados, enquanto privilégio mínimo reduz impacto de execução.",
+    "Pergunte quais dados saem, para onde vão, por quanto tempo ficam e quem pode consultá-los.",
+    "Para SSRF, considere tanto validação de URL quanto bloqueio de tráfego de saída a destinos internos.",
+    "Se o modelo sugere uma ação, procure autorização independente no servidor antes de permitir a execução.",
+    "Em incidente com IA, pense em revogar credenciais, desligar ferramentas, preservar evidências e limitar o egress."
+  ],
+  "traps": [
+    "Confundir contêiner com máquina virtual e supor que cada processo tem kernel independente.",
+    "Tratar varredura de imagem como garantia de ausência de vulnerabilidades.",
+    "Supor que excluir o segredo numa camada posterior remove seu valor das camadas já construídas.",
+    "Acreditar que TLS autentica o usuário ou autoriza acesso a cada registro da API.",
+    "Confiar em documentos recuperados porque vieram de uma base corporativa; eles também podem conter instruções hostis.",
+    "Deixar o modelo escolher livremente URL, ferramenta, identidade ou permissão de execução."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais controles protegem uma imagem desde a construção até a implantação?",
+      "answer": "Base mantida, dependências atualizadas, varredura, revisão de origem, inventário, digest fixo e política de admissão."
+    },
+    {
+      "question": "Por que o socket do runtime é considerado sensível?",
+      "answer": "Quem o controla pode pedir ações privilegiadas que montam recursos do host e ampliam o impacto no nó."
+    },
+    {
+      "question": "Como reduzir exposição de dados numa chamada externa de IA?",
+      "answer": "Mapear fluxo, classificar dados, minimizar campos, remover identificadores desnecessários e verificar retenção e uso pelo fornecedor."
+    },
+    {
+      "question": "Como evitar acesso indevido ao histórico de outra pessoa?",
+      "answer": "Verificar no servidor a autorização para cada objeto solicitado; não confiar no identificador fornecido pelo cliente."
+    },
+    {
+      "question": "Quais controles reduzem SSRF numa busca feita pelo backend?",
+      "answer": "Lista de destinos permitidos, validação de esquema e hostname, bloqueio de endereços internos e restrição de saída de rede."
+    },
+    {
+      "question": "Como lidar com resposta de IA antes de executar uma ação?",
+      "answer": "Validar esquema e valores, verificar autorização de servidor, limitar ferramenta e pedir confirmação humana quando o risco exigir."
+    },
+    {
+      "question": "Por que logs integrais podem criar risco de privacidade?",
+      "answer": "Replicam prompts, documentos, tokens e dados pessoais, ampliando acesso e retenção de conteúdo sensível."
+    },
+    {
+      "question": "Quais ações iniciais cabem num incidente de credencial de provedor exposta?",
+      "answer": "Revogar a chave, limitar chamadas, examinar registros, avaliar dados acessados e corrigir armazenamento e permissões."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Isolamento incompleto do contêiner",
+      "summary": "O contêiner compartilha componentes do host e sua segurança depende de runtime, kernel, privilégios, mounts, rede e configuração; não é uma VM autônoma."
+    },
+    {
+      "key": "e2",
+      "title": "Segredo persistente em artefato",
+      "summary": "Credenciais gravadas durante build podem permanecer em camadas e histórico mesmo se forem removidas em outra etapa; devem ser injetadas em execução."
+    },
+    {
+      "key": "e3",
+      "title": "Envio e retenção sem governança",
+      "summary": "Prompts e contexto podem conter dados sensíveis e ser retidos em logs ou pelo fornecedor; é necessário mapear fluxo e minimizar conteúdo."
+    },
+    {
+      "key": "e4",
+      "title": "Autorização confundida com autenticação",
+      "summary": "Identificar um chamador não demonstra que ele pode ler determinado objeto; a autorização precisa ser verificada no servidor para cada recurso."
+    },
+    {
+      "key": "e5",
+      "title": "Agência excessiva do modelo",
+      "summary": "Saída textual não é ordem autorizada. Ferramentas precisam de permissões mínimas, parâmetros validados e decisão independente do backend."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um contêiner Linux convencional, o isolamento dos processos implica que cada contêiner execute seu próprio kernel, independente do host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Contêineres Linux convencionais compartilham o kernel do host; mecanismos como namespaces isolam visões e cgroups controlam recursos, mas não criam um kernel convidado por contêiner.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um digest fixado para a imagem identifica conteúdo específico e reduz o risco de uma tag mutável apontar para artefato diferente entre teste e produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A tag é um nome que pode ser atualizado para outro conteúdo, enquanto o digest corresponde ao artefato identificado. Fixar o digest ajuda a implantar o mesmo conteúdo que foi revisado e testado.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um scanner de vulnerabilidades não identifica falhas desconhecidas ou todas as configurações inseguras; seus achados precisam de avaliação e outros controles continuam necessários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A varredura é útil para localizar vulnerabilidades conhecidas em componentes, mas não certifica ausência de falhas. Revisão de origem, configuração, atualização e controle de execução continuam importantes.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Apagar um arquivo de senha numa camada posterior da imagem garante que o segredo deixou de existir nas camadas anteriores já construídas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Camadas anteriores podem continuar contendo o arquivo ou seu conteúdo. Credenciais não devem ser inseridas durante a construção; devem ser fornecidas em execução por mecanismo de segredos.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Limites de CPU e memória reduzem o risco de um único contêiner esgotar recursos do nó, mas não substituem controles de autorização sobre dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cgroups e limites ajudam na disponibilidade ao controlar consumo. Eles não decidem se o processo pode acessar um registro nem corrigem uma falha de autorização ou de confidencialidade.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dar a uma aplicação comum acesso ao socket de administração do runtime é uma concessão inofensiva, pois o contêiner continua isolado pelo seu namespace de processos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O socket pode permitir solicitar operações privilegiadas ao runtime, incluindo montagem de diretórios do host. O isolamento de processos não neutraliza esse canal de administração.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar o processo como usuário não privilegiado e remover capacidades desnecessárias reduz o impacto de uma falha da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A identidade não privilegiada e o conjunto mínimo de capabilities limitam operações que um processo comprometido pode tentar realizar, embora não dispensem atualização e outras medidas de isolamento.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma raiz do sistema de arquivos somente leitura impede qualquer gravação pela aplicação, inclusive em todos os volumes montados separadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A configuração torna a raiz somente leitura, mas volumes separados podem aceitar escrita se forem montados dessa forma. O acesso e as permissões de cada volume devem ser avaliados à parte.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de enviar dados a um serviço de IA, convém identificar campos e documentos necessários e remover conteúdo identificável que não contribua para a tarefa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A minimização atua antes da transmissão e reduz o conteúdo exposto ao serviço. O fluxo deve considerar dados do usuário, contexto recuperado, registros posteriores e condições de retenção.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Substituir o nome por um código aleatório torna necessariamente o registro anônimo, ainda que exista uma tabela interna que associe o código à pessoa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A tabela de correspondência permite reassociar o registro; isso é compatível com pseudonimização, não prova anonimização. Também podem existir dados auxiliares que restabeleçam a associação.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação de integração deve verificar se as entradas são retidas ou usadas pelo fornecedor para treinamento, em vez de presumir uma configuração com base no nome do produto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Retenção e uso para treinamento variam conforme o serviço, a configuração e as condições aplicáveis. Devem ser confirmados junto ao fornecedor e refletidos no fluxo e nas regras internas.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar integralmente cada prompt e resposta é sempre a forma mais segura de garantir auditabilidade, mesmo quando os textos incluem credenciais e dados pessoais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Logs integrais podem criar cópias adicionais de dados pessoais e segredos. Registre metadados operacionais necessários; se conteúdo for indispensável para diagnóstico, restrinja acesso e retenção e remova dados desnecessários.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num fluxo RAG, os documentos recuperados devem respeitar a autorização do usuário antes de serem adicionados ao contexto enviado ao modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Filtrar os documentos depois da geração é tarde: seu conteúdo já pode ter sido enviado ao modelo. A aplicação deve verificar permissões na recuperação e limitar o contexto à identidade que fez a solicitação.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separar ambiente de teste de produção permite evitar que dados pessoais reais sejam usados em testes sem necessidade funcional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ambientes separados ajudam a controlar acesso e configuração. Para teste, prefira dados sintéticos ou reduzidos quando suficientes, evitando replicar registros de produção por conveniência.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pseudonimizar um conjunto de dados reduz a associação direta, mas não impede necessariamente a reidentificação por combinação com informação auxiliar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um identificador substituto pode ser correlacionado com tabela ou atributos externos. Por isso a organização deve controlar acesso às chaves e avaliar dados auxiliares e contexto de uso.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o prompt já foi enviado ao provedor, removê-lo posteriormente dos logs locais desfaz a exposição ocorrida durante o processamento externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Apagar um registro local não desfaz a transmissão já realizada nem a retenção do outro lado. A prevenção depende de limitar o conteúdo antes do envio e entender o processamento e a exclusão oferecidos pelo serviço.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de API embutida no JavaScript entregue ao navegador pode ser extraída por quem inspeciona os recursos enviados ao cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Código e recursos do cliente ficam disponíveis para inspeção. A chamada ao serviço e a credencial devem permanecer num backend controlado, que autentica o usuário e aplica as regras de acesso.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TLS numa conexão com o serviço externo autentica o usuário final e comprova que ele está autorizado a consultar qualquer conversa existente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege a comunicação e ajuda a autenticar o servidor conforme certificados validados; autenticação do usuário e autorização para cada objeto são controles da aplicação separados.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Validar uma URL fornecida pelo usuário e restringir destinos de saída ajuda a reduzir SSRF em uma aplicação que busca conteúdo para montar contexto de IA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem validação, o backend pode ser induzido a consultar serviços internos ou metadados de nuvem. Lista de destinos permitidos, revalidação de redirecionamentos e egress restrito são defesas complementares.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aplicar cotas por identidade, tamanho máximo, timeout e limite de concorrência ajuda a conter custo excessivo e negação de serviço por chamadas a modelos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses limites controlam volume e duração de solicitações caras ou demoradas. Ainda é necessário autorizar operações, validar entradas e tratar falhas do fornecedor sem repetição ilimitada.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta em JSON produzida pelo modelo pode ser aceita e executada sem validação, pois o formato estruturado garante que os valores sejam seguros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. JSON define estrutura sintática, não autorização nem segurança semântica. Valide campos e valores contra esquema e política, e não execute comandos ou ações apenas porque vieram em formato estruturado.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na segurança de API, autenticação e autorização para ler um registro específico são a mesma decisão, dispensando checagem própria por objeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Autenticação estabelece a identidade; autorização verifica se essa identidade pode acessar uma função ou objeto concreto. A API deve fazer a checagem no servidor a cada acesso, sem confiar apenas no ID recebido.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta recebida de API de terceiro pode ser tratada como confiável sem validação, desde que o domínio pertença a um provedor conhecido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Terceiros podem falhar, ser comprometidos ou retornar conteúdo inesperado. Valide esquema, limites e autenticidade aplicável, e defina comportamento controlado para respostas inválidas ou indisponibilidade.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Prompt injection indireta pode chegar por uma página ou documento recuperado, mesmo quando a mensagem direta do usuário parece legítima.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Conteúdo externo processado pelo modelo pode conter instruções hostis. A aplicação deve tratar fontes recuperadas como dados não confiáveis e preservar autorização e limites fora do modelo.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução de sistema que manda o modelo ignorar conteúdo malicioso é uma barreira suficiente para permitir acesso irrestrito do agente a ferramentas e dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Instruções podem ser contrariadas ou interpretadas de modo imprevisto. Ferramentas e dados precisam de controles determinísticos, menor privilégio, validação e autorização aplicada pelo backend.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separar a proposta textual do modelo da decisão de autorização permite que regras determinísticas do servidor controlem a ação final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo pode sugerir uma operação, mas o backend verifica identidade, política, parâmetros e permissões antes de executá-la. Isso reduz o efeito de instruções maliciosas ou respostas incorretas.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um agente com ferramenta de consulta deve receber também credenciais administrativas de escrita para evitar futuras alterações na integração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ferramenta deve ter apenas permissões necessárias à tarefa. Conceder escrita administrativa amplia o impacto de injeção, erro do modelo ou comprometimento da credencial sem benefício para uma consulta.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma confirmação humana pode ser apropriada antes de uma ação irreversível, divulgação externa ou operação financeira proposta por um agente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A revisão humana acrescenta uma etapa de controle proporcional ao impacto da ação. Ela deve apresentar o efeito concreto e não substituir validações de autorização e parâmetros no sistema.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao detectar exposição da chave de um provedor, reiniciar apenas o contêiner resolve o incidente mesmo que a chave antiga continue válida e desconhecida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A chave precisa ser revogada ou rotacionada; reiniciar não invalida credenciais copiadas. Também é necessário examinar uso e registros e corrigir a causa do vazamento.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem reduz melhor a chance de executar uma imagem diferente da validada no pipeline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Implantar a tag latest e confiar que o registro preserva seu alvo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fixar o digest da imagem aprovada e validar sua origem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Renomear a imagem a cada publicação sem verificar seu conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar a imagem ao host por canal manual sem registrar a origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a autenticação do registro para simplificar a implantação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O digest identifica conteúdo específico e a verificação de origem confirma se ele veio do processo esperado. Uma tag mutável pode apontar para outro conteúdo, e copiar manualmente sem controle elimina rastreabilidade.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe encontrou uma chave do provedor dentro de uma imagem publicada. Qual ação trata melhor a exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar a linha do Dockerfile e continuar usando a imagem publicada, sem reconstruí-la.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revogar a chave, avaliar uso e reconstruir sem gravar o segredo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Marcar o registro como privado e conservar a chave em uso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mudar a tag da imagem sem alterar suas camadas internas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ocultar a variável no log e considerar o incidente encerrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A credencial deve ser invalidada porque pode ser extraída da imagem publicada; depois avaliam-se chamadas e impactos e reconstrói-se o artefato com injeção segura em execução. Tornar o registro privado não invalida cópias já obtidas.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um workload precisa gravar temporários, mas não deve alterar seus executáveis. Qual configuração é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar como root e permitir escrita em todos os diretórios do host, inclusive configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar raiz somente leitura e volume gravável restrito aos temporários.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ativar modo privilegiado para separar áreas graváveis e facilitar a operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Montar o socket do runtime no diretório temporário da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar limites de recursos para acomodar arquivos temporários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Raiz somente leitura protege os executáveis e um volume dedicado oferece escrita onde necessária. O volume deve ter permissões e capacidade limitadas; modo privilegiado, socket e escrita ampla aumentam desnecessariamente o risco.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem base contém biblioteca vulnerável usada pela aplicação. Qual fluxo de correção é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar a varredura e manter o artefato para evitar mudança de versão entre ambientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atualizar a dependência, reconstruir, testar e substituir o workload.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o alerta do relatório sem modificar a imagem executada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o limite de memória para compensar a vulnerabilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear a tag publicada sem reconstruir as camadas afetadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A correção deve entrar no artefato reconstruído e validado, que então substitui a versão vulnerável em execução. Ocultar o alerta ou renomear a tag não remove a biblioteca vulnerável da imagem.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão reduz o risco de um serviço comprometido usar uma montagem ampla para alcançar arquivos do host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Montar somente o caminho necessário, com acesso e modo estritos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar toda a raiz do host para simplificar recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar o workload como administrador para rastrear acessos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Habilitar todos os namespaces do host para diagnóstico contínuo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma tag flutuante para atualizar o mount automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reduzir a montagem ao caminho estritamente necessário limita a área que o processo pode alcançar. A raiz completa e namespaces compartilhados ampliam o impacto; identidade administrativa não substitui restrição de acesso.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer testar um resumo gerado por IA a partir de relatórios com dados pessoais. Qual preparação reduz exposição sem impedir a avaliação funcional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar todos os relatórios reais para medir a resposta mais fiel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar amostras sintéticas ou minimizadas suficientes para o teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Copiar os relatórios para uma conta pessoal do fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gravar os relatórios no prompt de sistema compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retirar nomes na tela, mas enviar os dados completos ao modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dados sintéticos ou minimizados permitem testar comportamento sem replicar registros identificáveis desnecessariamente. Ocultar nomes só na interface não ajuda se o backend ainda transmite o conteúdo integral.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao registrar chamadas de IA para monitorar custo e desempenho, qual escolha reduz cópias desnecessárias de conteúdo sensível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar prompts integrais em texto aberto para todos os operadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar metadados operacionais e restringir exceções de conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Incluir a chave da API no campo de correlação da requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar todos os registros e perder correlação entre chamadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar respostas completas para um canal de mensagens público.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados como ID, horário, latência, volume e resultado técnico apoiam observabilidade sem reter texto integral por padrão. Exceções devem ter necessidade, acesso e retenção definidos; tokens nunca devem ser registrados.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema RAG mistura documentos internos de departamentos com permissões distintas. Onde deve ocorrer a checagem de acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na recuperação, antes de inserir trechos no contexto enviado ao modelo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente na resposta final, depois de mostrar os trechos recuperados ao solicitante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No navegador, confiando no departamento escolhido pelo usuário para filtrar os resultados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No registro de imagens, usando a tag do contêiner como permissão de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Após a retenção do prompt pelo fornecedor, por meio de auditoria posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autorização deve filtrar documentos antes de compor o contexto, pois o conteúdo já é exposto ao modelo quando enviado. A resposta final ou a tag da imagem não controla o acesso ao documento recuperado.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fornecedor não documentou claramente sua retenção de prompts. Qual decisão operacional é mais adequada antes de incluir dados sigilosos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir retenção zero porque a chamada usa HTTPS e certificados válidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar condições, configurar retenção e limitar dados transmitidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Enviar os dados completos para descobrir o comportamento real do fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar a senha de acesso junto ao prompt para rastreio operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar apenas no nome comercial do modelo utilizado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A equipe deve confirmar condições de retenção e uso, verificar controles configuráveis e limitar conteúdo até que o fluxo seja compreendido. HTTPS protege o trânsito, mas não determina o armazenamento ou uso posterior pelo serviço.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint aceita o identificador de uma conversa como parâmetro e retorna seu conteúdo. Que proteção impede leitura cruzada entre usuários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar no servidor a permissão da identidade para aquela conversa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar TLS entre navegador e aplicação para cifrar os dados transmitidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tornar os identificadores sequenciais e fáceis de auditar pela equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocultar o campo de identificador na interface e remover seu rótulo visual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o limite de tokens do modelo para a resposta gerada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API deve verificar autorização para o objeto concreto em cada solicitação. TLS protege comunicação, e ocultar o campo ou usar IDs difíceis não substitui essa checagem no servidor.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação consulta URLs indicadas pelos usuários para obter arquivos que alimentam o modelo. Qual defesa reduz SSRF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir apenas destinos aprovados e bloquear faixas internas na saída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aceitar qualquer URL se ela começar com HTTPS e apresentar certificado válido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma chave de modelo mais longa na requisição externa ao fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação para que o usuário não repita pedidos de busca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar em redirecionamentos sem validar o destino final da navegação.",
+          "correct": false
+        }
+      ],
+      "explanation": "HTTPS não impede que um destino seja interno ou indevido. Lista permitida, validação do destino final e restrição de egress reduzem a possibilidade de o servidor acessar recursos internos por indução do usuário.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente tenta enviar solicitações enormes e simultâneas que elevam o custo do serviço. Qual combinação controla melhor o consumo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limite de tamanho, taxa por identidade, concorrência e orçamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar indiscriminadamente o número de tentativas automáticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar logs e permitir que chamadas não tenham timeout.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compartilhar uma credencial administrativa entre todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover a chave para o aplicativo cliente para reduzir latência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tamanho máximo, rate limit, controle de concorrência, orçamento e timeout restringem volume, custo e duração. Repetição automática sem limite e chave compartilhada aumentam a exposição e o consumo.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer permitir que o navegador chame diretamente o fornecedor de IA. Onde a credencial permanente deve permanecer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No backend, que autentica o usuário e encaminha a chamada autorizada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No código JavaScript minificado e distribuído ao navegador, com o nome ofuscado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No nome do modelo enviado como parâmetro de URL, sem outra autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Num campo oculto do formulário carregado no navegador durante a sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No comentário HTML removido da tela após o carregamento da página.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backend mantém a credencial fora do alcance direto do cliente e pode aplicar autenticação, autorização, cotas e registro. Minificação, campos ocultos e comentários não protegem um segredo entregue ao navegador.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço terceiro retorna um objeto com campos inesperados que depois são renderizados numa página interna. Qual prática reduz o risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar esquema e escapar conteúdo conforme o contexto de exibição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que conteúdo de terceiro não pode conter código ativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar qualquer campo que tenha sido escrito em JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar a resposta no log sem limite de tamanho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar autorização para evitar rejeição do objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Formato JSON não garante conteúdo seguro para HTML ou para outros contextos. Validar campos e valores e aplicar escape apropriado evita tratar resposta de terceiro como código ou estrutura confiável.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um agente recebe um documento recuperado que manda revelar suas instruções internas e enviar dados para um endereço externo. Qual controle é mais importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar o documento como dado e bloquear ações por política externa ao modelo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho do prompt de sistema e confiar nele sozinho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir envio externo se o documento tiver sido indexado antes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar o pedido e apagar o log ao terminar a tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dar ao agente acesso administrativo para explicar a recusa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conteúdo recuperado pode conter prompt injection indireta. A política de acesso e a autorização devem ser aplicadas fora do modelo; o agente não deve ter liberdade para divulgar instruções ou transmitir dados a destinos não aprovados.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo classifica um pedido como autorizado e sugere apagar registros. Como a aplicação deve decidir se executa a operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar identidade, política, objeto e parâmetros no backend.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar se a resposta vier em formato JSON válido e sem erros de sintaxe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aceitar a decisão porque o modelo recebeu o contexto completo da conversa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dar ao modelo a credencial administrativa para executar operações no banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar os registros de auditoria após a execução para poupar armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sugestão do modelo não constitui autorização. O servidor deve aplicar a política independente para identidade, recurso e parâmetros; para uma exclusão relevante, pode exigir confirmação humana e manter trilha apropriada.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um assistente pode consultar agenda e também enviar convites externos. Qual desenho limita consequências de uma sugestão induzida por prompt injection?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar leitura e envio, limitar escopo e confirmar convites antes de enviá-los.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar uma conta administrativa compartilhada entre os agentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que qualquer texto de documento defina destinatários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder acesso total e confiar na instrução inicial do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar validação para reduzir o tempo de resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar capacidades permite manter consulta sem conceder automaticamente envio. Escopo mínimo, destinatários validados e confirmação para ação externa reduzem impacto de uma instrução hostil ou erro de geração.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta do modelo inclui HTML que será mostrado a outros usuários. Que cuidado deve anteceder a renderização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escapar ou sanitizar conforme contexto e validar o formato esperado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exibir sem tratamento porque o modelo gera somente texto seguro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inserir a resposta diretamente num script de página.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder acesso de escrita ao modelo no servidor web.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retirar autenticação para facilitar a conferência visual.",
+          "correct": false
+        }
+      ],
+      "explanation": "A saída pode conter marcação ativa ou conteúdo inesperado. A aplicação deve validar e escapar segundo o contexto de exibição; não deve presumir que texto gerado é seguro para HTML.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A monitoração de um agente conectado a ferramentas deve permitir investigar ações sem coletar indiscriminadamente todo o conteúdo pessoal processado. Qual opção atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correlacionar identidade, ferramenta, decisão, horário e resultado com acesso controlado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gravar cada prompt integral em canal público da equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Omitir quem chamou a ferramenta para preservar simplicidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar todos os eventos logo após cada execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar apenas o nome do modelo, sem vínculo com ações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados correlacionados permitem auditoria de qual identidade acionou qual ferramenta e com que resultado. O acesso deve ser controlado e o conteúdo minimizado para não criar exposição adicional em registros.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço de IA apresenta comportamento suspeito e a chave pode estar comprometida. Qual sequência inicial é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suspender chamadas ou ferramenta, revogar a chave e preservar registros úteis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar o contêiner e manter a mesma chave em circulação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a taxa permitida para terminar tarefas pendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar registros e reabrir imediatamente o acesso externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dar mais permissões ao agente para localizar a causa sozinho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conter chamadas e revogar credenciais reduz uso continuado por terceiros; preservar registros permite investigar alcance e dados envolvidos. A retomada deve esperar correção e validação do fluxo comprometido.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática protege melhor o registro de imagens contra publicação de artefatos por uma conta comprometida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar papéis de publicação e leitura, com autenticação individual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar uma senha comum para toda a equipe de desenvolvimento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir publicação anônima para acelerar o pipeline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar a senha do registro dentro de cada imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar registros de acesso para evitar ruído operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Papéis separados e contas autenticadas restringem quem pode alterar artefatos e permitem rastrear ações. Uma credencial compartilhada ou publicação anônima dificulta revogação e aumenta o risco de adulteração.",
+      "section": "1. Contêineres: proteger o artefato e o ambiente de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração em produção precisa de credenciais diferentes das usadas por desenvolvedores. Qual configuração atende a esse princípio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identidade própria por ambiente, com escopo mínimo e rotação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma chave de administrador copiada em todos os ambientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma chave incluída no repositório para facilitar auditorias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma chave sem prazo nem responsável associado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mesma senha usada pelos operadores em suas contas pessoais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identidades separadas limitam o impacto de uma exposição e permitem revogar acesso por ambiente. Escopo mínimo e rotação também reduzem a duração e abrangência de uma credencial comprometida.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na interface, um usuário fornece um arquivo extenso, mas a tarefa exige apenas dois campos. Qual medida aplica minimização antes da chamada ao modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Extrair os campos necessários e enviar somente esses dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar o arquivo inteiro e ocultar o restante na resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar uma cópia integral no prompt de sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar o conteúdo completo e apagar o registro local depois.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Anexar todos os documentos da pasta para melhorar contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A minimização deve ocorrer antes da transmissão: extraem-se somente os campos necessários à operação. Ocultar ou apagar cópias locais depois não desfaz a exposição do arquivo enviado ao serviço.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API registra custo, latência e falhas de chamadas, mas não precisa guardar o texto integral do prompt para correlacionar requisições. Qual campo ajuda nessa correlação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um identificador de requisição não sensível e consistente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A senha do usuário anexada a cada evento de log.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O conteúdo integral do documento que originou a chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave secreta do provedor como nome da operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O endereço interno completo sem controle de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um identificador correlaciona eventos sem precisar replicar o conteúdo sensível. Credenciais e documentos não devem ser usados como campos de log; os próprios registros precisam de controle e retenção definidos.",
+      "section": "2. Dados, privacidade e fluxo para o serviço de IA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modelo devolve uma sugestão de SQL para consultar dados. Como evitar que a sugestão amplie o acesso além do usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar consultas parametrizadas e autorização no serviço de dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar a string diretamente com credencial administrativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confiar na instrução de sistema para bloquear tabelas sensíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover logs e não validar o resultado do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aceitar qualquer tabela desde que a saída seja JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "A saída é não confiável: consultas parametrizadas reduzem injeção e o serviço de dados deve impor permissões próprias. A instrução do modelo e o formato JSON não constituem barreira de autorização.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação repete automaticamente a chamada ao provedor após cada timeout. Que ajuste evita uma tempestade de chamadas durante uma indisponibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limitar tentativas e usar recuo, timeout e circuit breaker.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repetir em paralelo até uma resposta chegar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover limites de concorrência para esvaziar a fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o tamanho dos prompts em cada tentativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar toda autenticação enquanto o serviço falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tentativas limitadas com recuo e interrupção temporária reduzem sobrecarga adicional quando o provedor está indisponível. Repetição paralela e sem limite pode multiplicar custo e piorar a falha.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint antigo de IA continua acessível e usa uma política de autenticação mais fraca. Que ação de inventário reduz a superfície exposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Localizar versões e endpoints ativos e desativar os obsoletos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter o endpoint para que clientes desconhecidos não falhem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar a URL antiga em documentação sem restrições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação no endpoint novo para uniformizar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o inventário e confiar nas chamadas observadas hoje.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inventário atualizado identifica APIs esquecidas, versões antigas e pontos de depuração que podem ter controles inferiores. Endpoints sem necessidade devem ser retirados ou protegidos com política equivalente.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway precisa aceitar respostas do fornecedor em formato previsível. Qual defesa reduz risco de campos inesperados chegarem à lógica de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar tipo, tamanho e valores contra esquema esperado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Deserializar qualquer conteúdo e executar campos desconhecidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar limites para não rejeitar respostas grandes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar o nome do fornecedor como prova de integridade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aceitar qualquer estrutura que tenha sintaxe JSON válida.",
+          "correct": false
+        }
+      ],
+      "explanation": "JSON válido pode conter campos abusivos ou valores incompatíveis. Esquema, limites e validação semântica controlam o que a aplicação aceita antes de usar a resposta em outras operações.",
+      "section": "3. Interfaces e APIs de IA: validar, autorizar e limitar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório recuperado para o agente contém instrução para substituir o destinatário de uma transferência. Qual arquitetura reduz o impacto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar destinatário em regra externa e exigir aprovação antes do envio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permitir que qualquer texto recuperado altere a política de pagamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Entregar ao modelo a chave bancária administrativa permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar a validação porque o relatório veio de arquivo interno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o prompt de sistema como único bloqueio da transferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conteúdo interno também pode conter instruções acidentais ou maliciosas. Destinatário e autorização devem ser verificados por código externo ao modelo; uma transferência exige controle proporcional ao impacto, como aprovação humana.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um agente pode enviar e-mails, mas a tarefa atual só exige resumir mensagens. Como reduzir o excesso de agência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar a ferramenta de envio para esse fluxo de resumo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder permissão ampla e confiar na classificação do modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar a credencial de e-mail com todos os agentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir destinatários arbitrários vindos do conteúdo resumido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar a senha no prompt para que o agente a memorize.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ferramenta que não é necessária deve ficar indisponível para aquela tarefa. Reduzir permissões limita o impacto de prompt injection ou erro e mantém a capacidade de resumo sem capacidade de envio.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa investigar uso anômalo de ferramenta sem expor todos os prompts à equipe inteira. Que configuração é mais equilibrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar eventos mínimos e restringir acesso a conteúdo excepcional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar cada prompt integral a uma sala pública de suporte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar correlação e eliminar todos os eventos técnicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter cópias permanentes de todos os documentos usados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que qualquer operador exporte logs sem auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados suficientes para correlacionar ações ajudam a detectar abuso; conteúdo sensível deve ter acesso restrito e retenção justificada. Captura integral e acesso amplo criam risco de privacidade adicional.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma resposta maliciosa, o agente tentou acessar um serviço interno por ferramenta de busca. Qual defesa em profundidade é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bloquear egress interno e validar destinos permitidos na aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confiar na resposta futura do modelo para evitar repetição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dar ao contêiner acesso à rede do host para auditoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ampliar permissões da ferramenta para confirmar o serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar limites de saída durante o diagnóstico do incidente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restringir egress no ambiente de execução e validar destinos no backend reduz caminhos para acessar serviços internos, inclusive se o modelo for induzido a sugeri-los. A instrução do modelo não é controle confiável de rede.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de IA teve acesso indevido a documentos de um setor. Qual etapa deve preceder a retomada do fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Corrigir filtro de autorização, testar isolamento e revisar dados expostos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar o contêiner sem alterar a regra de recuperação dos documentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar retenção de prompts para todos os usuários e analisar depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar auditoria e restaurar acesso amplo imediatamente para evitar atrasos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar que um novo prompt de sistema previne o erro em acessos futuros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A causa de autorização precisa ser corrigida e validada com testes de isolamento antes de reabrir o fluxo. Também se identifica quais dados foram expostos e se credenciais ou registros precisam de contenção adicional.",
+      "section": "4. Prompt injection, ferramentas e resposta operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Application Container Security Guide (NIST SP 800-190)",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Riscos e recomendações para imagens, registros, orquestradores, contêineres e operação.",
+      "url": "https://csrc.nist.gov/pubs/sp/800/190/final",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP API Security Top 10 — API10:2023 Unsafe Consumption of APIs",
+      "publisher": "OWASP API Security Project",
+      "reference": "Riscos de APIs, autorização, SSRF, configuração, consumo de recursos e serviços integrados.",
+      "url": "https://api-security.owasp.org/editions/2023/en/0x11-t10/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Top 10 for LLM Applications 2025",
+      "publisher": "OWASP GenAI Security Project",
+      "reference": "Riscos de aplicações com LLM e controles no ciclo de desenvolvimento, implantação e operação.",
+      "url": "https://genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}
