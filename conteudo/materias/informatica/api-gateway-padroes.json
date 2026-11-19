@@ -21,65 +21,167 @@
   "chapters": [
     {
       "title": "1. O papel do API Gateway na arquitetura",
-      "markdown": "> **Termos explicados**\n> - **API** (*Application Programming Interface*, interface de programação de aplicações): o \"cardápio\" de operações que um sistema oferece a outros programas, em geral por HTTP.\n> - **Microsserviço**: pequeno serviço independente, com responsabilidade única, implantado separadamente dos demais.\n> - **Cliente**: quem consome a API: aplicativo de celular, página web, outro sistema.\n> - **Borda** (*edge*): a fronteira entre o mundo externo e a rede interna onde ficam os serviços.\n\n### O problema que o gateway resolve\nImagine um tribunal que dividiu seu sistema em vários microsserviços: um cuida de **processos**, outro de **partes**, outro de **documentos**, outro de **intimações**. Sem nada na frente, o aplicativo do advogado precisaria conhecer o endereço de cada serviço, autenticar-se em cada um, lidar com formatos diferentes e fazer várias chamadas pela internet para montar uma única tela. Cada serviço também teria de repetir, por conta própria, verificação de token, limite de acessos, registro de logs e tratamento de CORS.\n\nO **API Gateway** é a resposta a esse problema: um **ponto único de entrada** que fica na borda, recebe todas as requisições dos clientes e as encaminha ao serviço interno certo. Ele **esconde a estrutura interna** (os clientes não sabem quantos serviços existem nem onde estão) e **centraliza preocupações transversais** — aquelas que todo serviço teria de resolver igual.\n\n### O que normalmente fica no gateway\n- **Roteamento**: decidir para qual serviço vai cada requisição (por caminho, cabeçalho, método, host).\n- **Composição/agregação**: juntar respostas de vários serviços numa só.\n- **Autenticação** e verificação básica de autorização (por exemplo, validar um JWT).\n- **Rate limiting** e cotas por cliente.\n- **Cache** de respostas.\n- **Transformação** de protocolo, cabeçalhos ou formato.\n- **Terminação TLS** (*Transport Layer Security*): o HTTPS é decifrado no gateway.\n- **Observabilidade**: logs, métricas e rastreamento centralizados.\n\n### O que NÃO deve ficar no gateway\nRegra de negócio. O gateway decide **para onde** a requisição vai e **se ela pode entrar**, mas não deve decidir se um prazo processual venceu ou calcular custas. Quando a lógica de negócio migra para o gateway, ele vira um monólito disfarçado, difícil de mudar e que obriga todas as equipes a coordenarem alterações num só lugar. Também não dispensa a autorização fina dentro do serviço: o gateway pode saber que o usuário é um advogado autenticado, mas é o serviço de processos que sabe se *aquele* advogado pode ver *aquele* processo sigiloso.\n\n### Exemplo passo a passo\nAna, advogada, abre o app e pede os detalhes de um processo.\n1. O app envia `GET /api/processos/123` com um token no cabeçalho `Authorization`.\n2. O gateway termina o TLS, confere a assinatura e a validade do token e aplica o limite de requisições do cliente de Ana.\n3. Pela regra de rota, tudo que começa com `/api/processos` vai para o serviço de processos; o gateway remove o prefixo `/api` e repassa a chamada, acrescentando um identificador de correlação.\n4. O serviço de processos verifica se Ana pode ver o processo 123 e responde.\n5. O gateway registra a duração da chamada e devolve a resposta ao app.\n\nO app conheceu **um único endereço**. Se amanhã o serviço de processos mudar de servidor ou for dividido em dois, só a configuração de rota do gateway muda.\n\n### Vantagens e custos\n| Aspecto | Com gateway | Sem gateway (cliente chama cada serviço) |\n|---|---|---|\n| Endereços que o cliente conhece | Um | Um por serviço |\n| Autenticação, limites, logs | Centralizados | Repetidos em cada serviço |\n| Acoplamento do cliente à estrutura interna | Baixo | Alto |\n| Chamadas pela internet para montar uma tela | Podem ser reduzidas por agregação | Uma por serviço |\n| Novo componente para operar | Sim (latência extra, mais um ponto a proteger) | Não |\n\nO gateway acrescenta **um salto de rede** e é mais uma peça que precisa ser escalada e monitorada. Se ficar numa instância só, torna-se **ponto único de falha** — tema do capítulo 6.\n\n**Pegadinha:** a banca afirma que o API Gateway \"substitui a autorização nos microsserviços\" ou que \"deve concentrar as regras de negócio para simplificar os serviços\". Errado nos dois casos: ele centraliza preocupações transversais, mas a decisão sobre o recurso específico e a lógica do domínio continuam nos serviços.\n\n**Resumo para a prova**\n- API Gateway = ponto único de entrada na borda, entre clientes e serviços internos.\n- Esconde a topologia interna e centraliza preocupações transversais (roteamento, autenticação, limites, cache, TLS, logs).\n- Não deve conter regra de negócio nem eliminar a autorização fina do serviço.\n- Custo: latência adicional, mais um componente e risco de ponto único de falha se não houver redundância."
+      "markdown": "> **Termos explicados**\n> - **API** (*Application Programming Interface*, interface de programação de aplicações): o \"cardápio\" de operações que um sistema oferece a outros programas, em geral por HTTP.\n> - **Microsserviço**: pequeno serviço independente, com responsabilidade única, implantado separadamente dos demais.\n> - **Cliente**: quem consome a API: aplicativo de celular, página web, outro sistema.\n> - **Borda** (*edge*): a fronteira entre o mundo externo e a rede interna onde ficam os serviços.\n\n### O problema que o gateway resolve\nImagine um tribunal que dividiu seu sistema em vários microsserviços: um cuida de **processos**, outro de **partes**, outro de **documentos**, outro de **intimações**. Sem nada na frente, o aplicativo do advogado precisaria conhecer o endereço de cada serviço, autenticar-se em cada um, lidar com formatos diferentes e fazer várias chamadas pela internet para montar uma única tela. Cada serviço também teria de repetir, por conta própria, verificação de token, limite de acessos, registro de logs e tratamento de CORS.\n\nO **API Gateway** é a resposta a esse problema: um **ponto único de entrada** que fica na borda, recebe todas as requisições dos clientes e as encaminha ao serviço interno certo. Ele **esconde a estrutura interna** (os clientes não sabem quantos serviços existem nem onde estão) e **centraliza preocupações transversais** — aquelas que todo serviço teria de resolver igual.\n\n### O que normalmente fica no gateway\n- **Roteamento**: decidir para qual serviço vai cada requisição (por caminho, cabeçalho, método, host).\n- **Composição/agregação**: juntar respostas de vários serviços numa só.\n- **Autenticação** e verificação básica de autorização (por exemplo, validar um JWT).\n- **Rate limiting** e cotas por cliente.\n- **Cache** de respostas.\n- **Transformação** de protocolo, cabeçalhos ou formato.\n- **Terminação TLS** (*Transport Layer Security*): o HTTPS é decifrado no gateway.\n- **Observabilidade**: logs, métricas e rastreamento centralizados.\n\n### O que NÃO deve ficar no gateway\nRegra de negócio. O gateway decide **para onde** a requisição vai e **se ela pode entrar**, mas não deve decidir se um prazo processual venceu ou calcular custas. Quando a lógica de negócio migra para o gateway, ele vira um monólito disfarçado, difícil de mudar e que obriga todas as equipes a coordenarem alterações num só lugar. Também não dispensa a autorização fina dentro do serviço: o gateway pode saber que o usuário é um advogado autenticado, mas é o serviço de processos que sabe se *aquele* advogado pode ver *aquele* processo sigiloso.\n\n### Exemplo passo a passo\nAna, advogada, abre o app e pede os detalhes de um processo.\n1. O app envia `GET /api/processos/123` com um token no cabeçalho `Authorization`.\n2. O gateway termina o TLS, confere a assinatura e a validade do token e aplica o limite de requisições do cliente de Ana.\n3. Pela regra de rota, tudo que começa com `/api/processos` vai para o serviço de processos; o gateway remove o prefixo `/api` e repassa a chamada, acrescentando um identificador de correlação.\n4. O serviço de processos verifica se Ana pode ver o processo 123 e responde.\n5. O gateway registra a duração da chamada e devolve a resposta ao app.\n\nO app conheceu **um único endereço**. Se amanhã o serviço de processos mudar de servidor ou for dividido em dois, só a configuração de rota do gateway muda.\n\n### Vantagens e custos\n| Aspecto | Com gateway | Sem gateway (cliente chama cada serviço) |\n| --- | --- | --- |\n| Endereços que o cliente conhece | Um | Um por serviço |\n| Autenticação, limites, logs | Centralizados | Repetidos em cada serviço |\n| Acoplamento do cliente à estrutura interna | Baixo | Alto |\n| Chamadas pela internet para montar uma tela | Podem ser reduzidas por agregação | Uma por serviço |\n| Novo componente para operar | Sim (latência extra, mais um ponto a proteger) | Não |\n\nO gateway acrescenta **um salto de rede** e é mais uma peça que precisa ser escalada e monitorada. Se ficar numa instância só, torna-se **ponto único de falha** — tema do capítulo 6.\n\n**Pegadinha:** a banca afirma que o API Gateway \"substitui a autorização nos microsserviços\" ou que \"deve concentrar as regras de negócio para simplificar os serviços\". Errado nos dois casos: ele centraliza preocupações transversais, mas a decisão sobre o recurso específico e a lógica do domínio continuam nos serviços.\n\n**Resumo para a prova**\n- API Gateway = ponto único de entrada na borda, entre clientes e serviços internos.\n- Esconde a topologia interna e centraliza preocupações transversais (roteamento, autenticação, limites, cache, TLS, logs).\n- Não deve conter regra de negócio nem eliminar a autorização fina do serviço.\n- Custo: latência adicional, mais um componente e risco de ponto único de falha se não houver redundância."
     },
     {
       "title": "2. Roteamento, agregação e BFF",
-      "markdown": "> **Termos explicados**\n> - **Rota**: regra que liga um padrão de requisição (caminho, host, cabeçalho) a um destino interno.\n> - **Predicado**: condição que a requisição precisa satisfazer para casar com a rota.\n> - **Agregação** (ou composição): o gateway chama vários serviços e monta uma resposta única.\n> - **BFF** (*Backend for Frontend*, \"backend para o frontend\"): um gateway ou camada específica para cada tipo de cliente.\n> - **Service discovery** (descoberta de serviços): mecanismo pelo qual se descobre o endereço atual das instâncias de um serviço.\n\n### Roteamento: o trabalho básico\nO problema: os serviços internos mudam de endereço, ganham novas instâncias e versões, mas o cliente quer um endereço estável. O roteamento resolve isso traduzindo o endereço público para o destino interno. As regras costumam usar:\n- **Caminho**: `/api/processos/**` vai para o serviço de processos.\n- **Host**: `pje.exemplo.jus.br` para um conjunto de serviços, `api.exemplo.jus.br` para outro.\n- **Método e cabeçalhos**: por exemplo, uma versão nova liberada só para quem envia certo cabeçalho.\n- **Peso**: 90% do tráfego para a versão estável e 10% para a nova (implantação **canário**).\n\nNo **Spring Cloud Gateway**, cada rota é formada por um identificador, uma **URI de destino**, uma coleção de **predicados** e uma coleção de **filtros**; a rota casa quando o predicado agregado é verdadeiro. Os filtros alteram a requisição ou a resposta antes ou depois do envio (por exemplo, remover prefixo ou acrescentar cabeçalho).\n\nO destino pode ser fixo ou resolvido por **service discovery**: o gateway pergunta a um registro quais instâncias do serviço estão vivas e distribui as chamadas entre elas. O gateway **não elimina** a descoberta de serviços; ao contrário, costuma depender dela quando as instâncias nascem e morrem dinamicamente.\n\n### Agregação: menos idas e vindas pela rede\nUma tela de \"detalhe do processo\" pode precisar de dados do serviço de processos, de partes e de movimentações. Pela internet móvel, três chamadas separadas custam caro em latência. Com **agregação**, o cliente faz **uma** chamada ao gateway, e ele chama os três serviços pela rede interna (rápida), de preferência **em paralelo**, e devolve um JSON único.\n\nCuidado: a agregação deve **juntar dados**, não aplicar regra de negócio. E, se um dos serviços falhar, o gateway precisa decidir se devolve resposta parcial ou erro — o que exige timeouts bem definidos (capítulo 5).\n\n### BFF: um backend por tipo de cliente\nO problema: o app de celular quer respostas pequenas e poucas chamadas; o portal web quer telas ricas; um sistema parceiro quer dados brutos. Um gateway único, de tamanho único, tende a inchar com exceções para cada cliente e vira gargalo de coordenação entre equipes.\n\nO padrão **BFF**, popularizado por Sam Newman, propõe **um backend dedicado a cada experiência de usuário**: um BFF para o app móvel, outro para a web. Cada um é mantido, idealmente, pela **mesma equipe que faz o frontend** correspondente, que ajusta agregação e formato às necessidades daquela tela sem afetar os outros clientes.\n\n### Exemplo passo a passo\nO tribunal tem app e portal.\n1. O app chama `GET /mobile/processos/123/resumo` no **BFF móvel**.\n2. O BFF móvel chama processos e movimentações em paralelo e devolve só número, classe, última movimentação e próxima audiência.\n3. O portal chama `GET /web/processos/123` no **BFF web**, que agrega processos, partes, documentos e movimentações completas.\n4. A equipe do app muda o resumo sem tocar no BFF web; os microsserviços de domínio continuam os mesmos.\n\n### Comparação\n| Abordagem | Quando faz sentido | Risco |\n|---|---|---|\n| Gateway único genérico | Poucos tipos de cliente com necessidades parecidas | Inchar com exceções por cliente |\n| BFF (um por experiência) | Clientes muito diferentes (móvel x web x parceiro) | Duplicação de código entre BFFs |\n| Cliente chama serviços direto | Sistemas internos simples | Acoplamento e muitas chamadas |\n\nÉ comum combinar: um gateway de borda faz TLS, autenticação e limites, e atrás dele ficam os BFFs.\n\n**Pegadinha:** a banca diz que BFF é \"um único backend compartilhado por todos os frontends para evitar duplicação\". É o oposto: BFF é um backend **por** tipo de frontend, aceitando alguma duplicação em troca de autonomia e respostas sob medida.\n\n**Resumo para a prova**\n- Roteamento traduz endereço público em destino interno (caminho, host, cabeçalho, peso).\n- Spring Cloud Gateway: rota = id + URI de destino + predicados + filtros.\n- Gateway convive com service discovery; não o elimina.\n- Agregação reduz chamadas do cliente; deve ser feita em paralelo e com timeout.\n- BFF = um backend por experiência de cliente, mantido pela equipe do frontend."
+      "markdown": "> **Termos explicados**\n> - **Rota**: regra que liga um padrão de requisição (caminho, host, cabeçalho) a um destino interno.\n> - **Predicado**: condição que a requisição precisa satisfazer para casar com a rota.\n> - **Agregação** (ou composição): o gateway chama vários serviços e monta uma resposta única.\n> - **BFF** (*Backend for Frontend*, \"backend para o frontend\"): um gateway ou camada específica para cada tipo de cliente.\n> - **Service discovery** (descoberta de serviços): mecanismo pelo qual se descobre o endereço atual das instâncias de um serviço.\n\n### Roteamento: o trabalho básico\nO problema: os serviços internos mudam de endereço, ganham novas instâncias e versões, mas o cliente quer um endereço estável. O roteamento resolve isso traduzindo o endereço público para o destino interno. As regras costumam usar:\n- **Caminho**: `/api/processos/**` vai para o serviço de processos.\n- **Host**: `pje.exemplo.jus.br` para um conjunto de serviços, `api.exemplo.jus.br` para outro.\n- **Método e cabeçalhos**: por exemplo, uma versão nova liberada só para quem envia certo cabeçalho.\n- **Peso**: 90% do tráfego para a versão estável e 10% para a nova (implantação **canário**).\n\nNo **Spring Cloud Gateway**, cada rota é formada por um identificador, uma **URI de destino**, uma coleção de **predicados** e uma coleção de **filtros**; a rota casa quando o predicado agregado é verdadeiro. Os filtros alteram a requisição ou a resposta antes ou depois do envio (por exemplo, remover prefixo ou acrescentar cabeçalho).\n\nO destino pode ser fixo ou resolvido por **service discovery**: o gateway pergunta a um registro quais instâncias do serviço estão vivas e distribui as chamadas entre elas. O gateway **não elimina** a descoberta de serviços; ao contrário, costuma depender dela quando as instâncias nascem e morrem dinamicamente.\n\n### Agregação: menos idas e vindas pela rede\nUma tela de \"detalhe do processo\" pode precisar de dados do serviço de processos, de partes e de movimentações. Pela internet móvel, três chamadas separadas custam caro em latência. Com **agregação**, o cliente faz **uma** chamada ao gateway, e ele chama os três serviços pela rede interna (rápida), de preferência **em paralelo**, e devolve um JSON único.\n\nCuidado: a agregação deve **juntar dados**, não aplicar regra de negócio. E, se um dos serviços falhar, o gateway precisa decidir se devolve resposta parcial ou erro — o que exige timeouts bem definidos (capítulo 5).\n\n### BFF: um backend por tipo de cliente\nO problema: o app de celular quer respostas pequenas e poucas chamadas; o portal web quer telas ricas; um sistema parceiro quer dados brutos. Um gateway único, de tamanho único, tende a inchar com exceções para cada cliente e vira gargalo de coordenação entre equipes.\n\nO padrão **BFF**, popularizado por Sam Newman, propõe **um backend dedicado a cada experiência de usuário**: um BFF para o app móvel, outro para a web. Cada um é mantido, idealmente, pela **mesma equipe que faz o frontend** correspondente, que ajusta agregação e formato às necessidades daquela tela sem afetar os outros clientes.\n\n### Exemplo passo a passo\nO tribunal tem app e portal.\n1. O app chama `GET /mobile/processos/123/resumo` no **BFF móvel**.\n2. O BFF móvel chama processos e movimentações em paralelo e devolve só número, classe, última movimentação e próxima audiência.\n3. O portal chama `GET /web/processos/123` no **BFF web**, que agrega processos, partes, documentos e movimentações completas.\n4. A equipe do app muda o resumo sem tocar no BFF web; os microsserviços de domínio continuam os mesmos.\n\n### Comparação\n| Abordagem | Quando faz sentido | Risco |\n| --- | --- | --- |\n| Gateway único genérico | Poucos tipos de cliente com necessidades parecidas | Inchar com exceções por cliente |\n| BFF (um por experiência) | Clientes muito diferentes (móvel x web x parceiro) | Duplicação de código entre BFFs |\n| Cliente chama serviços direto | Sistemas internos simples | Acoplamento e muitas chamadas |\n\nÉ comum combinar: um gateway de borda faz TLS, autenticação e limites, e atrás dele ficam os BFFs.\n\n**Pegadinha:** a banca diz que BFF é \"um único backend compartilhado por todos os frontends para evitar duplicação\". É o oposto: BFF é um backend **por** tipo de frontend, aceitando alguma duplicação em troca de autonomia e respostas sob medida.\n\n**Resumo para a prova**\n- Roteamento traduz endereço público em destino interno (caminho, host, cabeçalho, peso).\n- Spring Cloud Gateway: rota = id + URI de destino + predicados + filtros.\n- Gateway convive com service discovery; não o elimina.\n- Agregação reduz chamadas do cliente; deve ser feita em paralelo e com timeout.\n- BFF = um backend por experiência de cliente, mantido pela equipe do frontend."
     },
     {
       "title": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
-      "markdown": "> **Termos explicados**\n> - **Autenticação**: provar quem é (\"sou a Ana\").\n> - **Autorização**: decidir o que pode fazer (\"Ana pode ler este processo?\").\n> - **JWT** (*JSON Web Token*, RFC 7519): token compacto com **claims** (afirmações como emissor, sujeito, expiração), normalmente **assinado**.\n> - **OAuth 2.0** (RFC 6749): framework de **autorização delegada**, em que um servidor de autorização emite **tokens de acesso** para clientes acessarem recursos.\n> - **OIDC** (*OpenID Connect*): camada de **autenticação** sobre o OAuth 2.0, que acrescenta o ID Token.\n> - **mTLS** (TLS mútuo): cliente e servidor apresentam certificados.\n\n### O problema\nSe cada microsserviço implementasse sozinho a validação de tokens, haveria código repetido, versões diferentes de bibliotecas e, mais cedo ou mais tarde, um serviço esquecido sem proteção. A borda é o lugar natural para barrar quem não deveria nem entrar.\n\n### Papéis no OAuth 2.0\n| Papel | Quem é no exemplo |\n|---|---|\n| Dono do recurso | Ana, a usuária |\n| Cliente | O app do advogado |\n| Servidor de autorização | O provedor de identidade do tribunal, que emite tokens |\n| Servidor de recursos | As APIs protegidas (o gateway age em nome delas na borda) |\n\nO OAuth 2.0 **não define o formato** do token de acesso; JWT é uma escolha muito comum, mas não obrigatória. Também não é, por si só, protocolo de autenticação: quem acrescenta a identidade do usuário de forma padronizada é o **OpenID Connect**.\n\n### O que o gateway verifica num JWT\n1. **Assinatura**, com a chave pública do emissor (frequentemente obtida de um endpoint JWKS — conjunto de chaves publicadas).\n2. **Emissor** (`iss`) e **audiência** (`aud`): o token foi emitido por quem confiamos e para esta API?\n3. **Expiração** (`exp`) e, se houver, \"não antes de\" (`nbf`).\n4. **Escopos** ou papéis exigidos pela rota (por exemplo, só `processos.escrita` pode fazer `POST`).\n\nAtenção: um JWT assinado (JWS) **não é cifrado**; o conteúdo é apenas codificado em Base64URL e qualquer um pode lê-lo. A assinatura garante **integridade e origem**, não sigilo. Por isso não se coloca segredo no token e ele sempre trafega por HTTPS.\n\n### Divisão de trabalho: borda x serviço\n- **Gateway**: autenticação (token válido?), checagens grossas (escopo exigido pela rota), bloqueio de anônimos, mTLS com parceiros, listas de IP, validação de tamanho e formato da requisição.\n- **Serviço**: autorização fina, por objeto — se Ana é advogada **daquele** processo. Isso depende de dados do domínio que o gateway não tem.\n\nConfiar cegamente que \"quem passou pelo gateway está autorizado\" cria a falha conhecida como autorização quebrada em nível de objeto, a primeira do OWASP API Security Top 10. Por isso fala-se em **defesa em profundidade**: o serviço também valida o token ou recebe a identidade por canal confiável (mTLS interno, cabeçalho assinado) e aplica suas regras.\n\n### Token relay e troca de tokens\nO gateway pode repassar o token ao serviço (**token relay**) ou trocar por um token interno com escopos menores. O gateway também deve **remover** cabeçalhos de identidade que venham do cliente, para que ninguém forje `X-User-Id` de fora.\n\n### Exemplo passo a passo\n1. Ana faz login no provedor de identidade pelo fluxo *authorization code* com PKCE (*Proof Key for Code Exchange*, proteção para clientes públicos como apps).\n2. O app recebe um token de acesso JWT válido por poucos minutos.\n3. Ana tenta protocolar uma petição: `POST /api/peticoes`.\n4. O gateway valida assinatura, `iss`, `aud`, `exp` e exige o escopo de escrita. Se faltar token, responde **401**; se o token é válido mas falta escopo, responde **403**.\n5. O serviço de petições confere se Ana atua naquele processo antes de aceitar.\n\n**Pegadinha:** \"o JWT protege a confidencialidade das claims porque é assinado\". Errado: assinatura dá integridade e autenticidade; sigilo exige cifragem (JWE) ou simplesmente não colocar dado sensível no token. Outra: 401 é falta ou invalidade de credencial; 403 é credencial válida sem permissão.\n\n**Resumo para a prova**\n- Gateway é bom lugar para autenticação e checagens grossas; autorização por objeto fica no serviço.\n- OAuth 2.0 = autorização delegada; OIDC = autenticação sobre OAuth 2.0; JWT = formato de token (RFC 7519).\n- Validar no JWT: assinatura, `iss`, `aud`, `exp`, escopos.\n- JWT assinado é legível por qualquer um; não é cifrado.\n- 401 = não autenticado; 403 = autenticado sem permissão."
+      "markdown": "> **Termos explicados**\n> - **Autenticação**: provar quem é (\"sou a Ana\").\n> - **Autorização**: decidir o que pode fazer (\"Ana pode ler este processo?\").\n> - **JWT** (*JSON Web Token*, RFC 7519): token compacto com **claims** (afirmações como emissor, sujeito, expiração), normalmente **assinado**.\n> - **OAuth 2.0** (RFC 6749): framework de **autorização delegada**, em que um servidor de autorização emite **tokens de acesso** para clientes acessarem recursos.\n> - **OIDC** (*OpenID Connect*): camada de **autenticação** sobre o OAuth 2.0, que acrescenta o ID Token.\n> - **mTLS** (TLS mútuo): cliente e servidor apresentam certificados.\n\n### O problema\nSe cada microsserviço implementasse sozinho a validação de tokens, haveria código repetido, versões diferentes de bibliotecas e, mais cedo ou mais tarde, um serviço esquecido sem proteção. A borda é o lugar natural para barrar quem não deveria nem entrar.\n\n### Papéis no OAuth 2.0\n| Papel | Quem é no exemplo |\n| --- | --- |\n| Dono do recurso | Ana, a usuária |\n| Cliente | O app do advogado |\n| Servidor de autorização | O provedor de identidade do tribunal, que emite tokens |\n| Servidor de recursos | As APIs protegidas (o gateway age em nome delas na borda) |\n\nO OAuth 2.0 **não define o formato** do token de acesso; JWT é uma escolha muito comum, mas não obrigatória. Também não é, por si só, protocolo de autenticação: quem acrescenta a identidade do usuário de forma padronizada é o **OpenID Connect**.\n\n### O que o gateway verifica num JWT\n1. **Assinatura**, com a chave pública do emissor (frequentemente obtida de um endpoint JWKS — conjunto de chaves publicadas).\n2. **Emissor** (`iss`) e **audiência** (`aud`): o token foi emitido por quem confiamos e para esta API?\n3. **Expiração** (`exp`) e, se houver, \"não antes de\" (`nbf`).\n4. **Escopos** ou papéis exigidos pela rota (por exemplo, só `processos.escrita` pode fazer `POST`).\n\nAtenção: um JWT assinado (JWS) **não é cifrado**; o conteúdo é apenas codificado em Base64URL e qualquer um pode lê-lo. A assinatura garante **integridade e origem**, não sigilo. Por isso não se coloca segredo no token e ele sempre trafega por HTTPS.\n\n### Divisão de trabalho: borda x serviço\n- **Gateway**: autenticação (token válido?), checagens grossas (escopo exigido pela rota), bloqueio de anônimos, mTLS com parceiros, listas de IP, validação de tamanho e formato da requisição.\n- **Serviço**: autorização fina, por objeto — se Ana é advogada **daquele** processo. Isso depende de dados do domínio que o gateway não tem.\n\nConfiar cegamente que \"quem passou pelo gateway está autorizado\" cria a falha conhecida como autorização quebrada em nível de objeto, a primeira do OWASP API Security Top 10. Por isso fala-se em **defesa em profundidade**: o serviço também valida o token ou recebe a identidade por canal confiável (mTLS interno, cabeçalho assinado) e aplica suas regras.\n\n### Token relay e troca de tokens\nO gateway pode repassar o token ao serviço (**token relay**) ou trocar por um token interno com escopos menores. O gateway também deve **remover** cabeçalhos de identidade que venham do cliente, para que ninguém forje `X-User-Id` de fora.\n\n### Exemplo passo a passo\n1. Ana faz login no provedor de identidade pelo fluxo *authorization code* com PKCE (*Proof Key for Code Exchange*, proteção para clientes públicos como apps).\n2. O app recebe um token de acesso JWT válido por poucos minutos.\n3. Ana tenta protocolar uma petição: `POST /api/peticoes`.\n4. O gateway valida assinatura, `iss`, `aud`, `exp` e exige o escopo de escrita. Se faltar token, responde **401**; se o token é válido mas falta escopo, responde **403**.\n5. O serviço de petições confere se Ana atua naquele processo antes de aceitar.\n\n**Pegadinha:** \"o JWT protege a confidencialidade das claims porque é assinado\". Errado: assinatura dá integridade e autenticidade; sigilo exige cifragem (JWE) ou simplesmente não colocar dado sensível no token. Outra: 401 é falta ou invalidade de credencial; 403 é credencial válida sem permissão.\n\n**Resumo para a prova**\n- Gateway é bom lugar para autenticação e checagens grossas; autorização por objeto fica no serviço.\n- OAuth 2.0 = autorização delegada; OIDC = autenticação sobre OAuth 2.0; JWT = formato de token (RFC 7519).\n- Validar no JWT: assinatura, `iss`, `aud`, `exp`, escopos.\n- JWT assinado é legível por qualquer um; não é cifrado.\n- 401 = não autenticado; 403 = autenticado sem permissão."
     },
     {
       "title": "4. Rate limiting, throttling, cache e transformação",
-      "markdown": "> **Termos explicados**\n> - **Rate limiting** (limitação de taxa): número máximo de requisições por intervalo de tempo (por exemplo, por segundo ou minuto) para um cliente, chave, IP ou rota.\n> - **Throttling** (estrangulamento): reduzir ou segurar o ritmo de atendimento quando o limite é atingido; muitos produtos usam o termo como sinônimo prático de limitar taxa.\n> - **Cota** (*quota*): volume total permitido num período longo (por dia, por mês), típico de planos de uso.\n> - **Token bucket** (balde de fichas): algoritmo que permite rajadas curtas até o tamanho do balde e uma taxa média sustentada.\n> - **TTL** (*time to live*): tempo de vida de um item no cache.\n\n### O problema\nUm sistema parceiro com defeito entra em laço e dispara milhares de consultas por segundo; um robô tenta adivinhar senhas; um cliente legítimo consome toda a capacidade e derruba o serviço para os outros. Sem controle na borda, o tráfego chega intacto aos serviços. O gateway protege a capacidade e garante uso justo.\n\n### Como funciona o limite\n- **Janela fixa**: conta requisições por minuto \"de relógio\"; simples, mas permite rajada dupla na virada da janela.\n- **Janela deslizante**: suaviza esse efeito.\n- **Token bucket**: o balde recebe fichas a uma taxa constante; cada requisição gasta uma; com o balde vazio, a requisição é recusada. Permite rajadas até a capacidade do balde.\n- **Leaky bucket** (balde furado): as requisições saem num ritmo constante, como água por um furo; o excesso espera numa fila ou é descartado.\n\nQuando o limite estoura, a resposta padrão é **HTTP 429 Too Many Requests** (definido na RFC 6585), opcionalmente com o cabeçalho **Retry-After** dizendo quando tentar de novo. Não confunda com **503 Service Unavailable**, que indica o servidor indisponível ou sobrecarregado de modo geral.\n\nCom várias instâncias do gateway, o contador precisa ser **compartilhado** (por exemplo, num Redis), ou cada instância contará sozinha e o limite efetivo será multiplicado. O **RequestRateLimiter** do Spring Cloud Gateway, na implementação com Redis, usa o algoritmo de token bucket, com taxa de reposição e capacidade de rajada configuráveis. No **NGINX**, a diretiva `limit_req` segue o método do balde furado. No **AWS API Gateway**, há limites de throttling e **planos de uso** com **chaves de API** e cotas por cliente.\n\n### Cache na borda\nSe a lista de classes processuais muda uma vez por mês, não faz sentido consultar o serviço a cada requisição. O gateway pode guardar respostas de `GET` por um TTL e devolvê-las direto, respeitando os cabeçalhos HTTP de cache (`Cache-Control`, `ETag`). Cuidados: **nunca** compartilhar em cache resposta personalizada de um usuário com outro (a chave do cache precisa considerar quem pede quando a resposta depende do usuário) e definir como invalidar quando o dado mudar.\n\n### Transformação\nO gateway pode adaptar a requisição ou a resposta sem mudar os serviços:\n- reescrever caminho (`/api/v1/processos` para `/processos`);\n- acrescentar, remover ou renomear cabeçalhos;\n- converter protocolo (cliente REST/JSON e serviço legado SOAP/XML, ou HTTP para gRPC);\n- validar o corpo contra um esquema (por exemplo, um contrato OpenAPI) e recusar requisições malformadas cedo;\n- comprimir respostas.\n\nTransformação demais, porém, transforma o gateway em lugar de regra de negócio. Mudar formato é aceitável; calcular valores do domínio não é.\n\n### Exemplo passo a passo\nO tribunal publica uma API de consulta pública.\n1. Cada parceiro recebe uma chave e um plano: 10 requisições por segundo e uma cota diária.\n2. Um parceiro com defeito manda 300 por segundo. O gateway atende 10 e responde **429** às demais, com `Retry-After`.\n3. As consultas à tabela de classes são servidas do cache por uma hora.\n4. Um sistema antigo só entende XML; o gateway converte a resposta JSON do serviço novo para esse parceiro.\n\n| Mecanismo | Pergunta que responde | Sinal típico |\n|---|---|---|\n| Rate limiting | Quantas por segundo/minuto? | 429 + Retry-After |\n| Cota | Quantas no dia/mês? | 429 ou erro de cota excedida |\n| Throttling | Como desacelerar o excesso? | Fila, atraso ou recusa |\n| Cache | Preciso mesmo chamar o serviço? | Resposta servida pelo gateway |\n\n**Pegadinha:** a banca troca o código: \"ao exceder o limite de taxa, o gateway deve responder 503\". O código específico é **429**. Outra: \"rate limiting em várias instâncias funciona sozinho\" — sem contador compartilhado, o limite real se multiplica pelo número de instâncias.\n\n**Resumo para a prova**\n- Rate limiting = por intervalo curto; cota = volume num período longo; throttling = desacelerar/segurar o excesso.\n- Token bucket permite rajadas; leaky bucket impõe ritmo constante.\n- Excesso: 429 Too Many Requests (RFC 6585) + Retry-After.\n- Cache na borda: TTL, cabeçalhos HTTP e cuidado com respostas personalizadas.\n- Transformação de formato e protocolo sim; regra de negócio não."
+      "markdown": "> **Termos explicados**\n> - **Rate limiting** (limitação de taxa): número máximo de requisições por intervalo de tempo (por exemplo, por segundo ou minuto) para um cliente, chave, IP ou rota.\n> - **Throttling** (estrangulamento): reduzir ou segurar o ritmo de atendimento quando o limite é atingido; muitos produtos usam o termo como sinônimo prático de limitar taxa.\n> - **Cota** (*quota*): volume total permitido num período longo (por dia, por mês), típico de planos de uso.\n> - **Token bucket** (balde de fichas): algoritmo que permite rajadas curtas até o tamanho do balde e uma taxa média sustentada.\n> - **TTL** (*time to live*): tempo de vida de um item no cache.\n\n### O problema\nUm sistema parceiro com defeito entra em laço e dispara milhares de consultas por segundo; um robô tenta adivinhar senhas; um cliente legítimo consome toda a capacidade e derruba o serviço para os outros. Sem controle na borda, o tráfego chega intacto aos serviços. O gateway protege a capacidade e garante uso justo.\n\n### Como funciona o limite\n- **Janela fixa**: conta requisições por minuto \"de relógio\"; simples, mas permite rajada dupla na virada da janela.\n- **Janela deslizante**: suaviza esse efeito.\n- **Token bucket**: o balde recebe fichas a uma taxa constante; cada requisição gasta uma; com o balde vazio, a requisição é recusada. Permite rajadas até a capacidade do balde.\n- **Leaky bucket** (balde furado): as requisições saem num ritmo constante, como água por um furo; o excesso espera numa fila ou é descartado.\n\nQuando o limite estoura, a resposta padrão é **HTTP 429 Too Many Requests** (definido na RFC 6585), opcionalmente com o cabeçalho **Retry-After** dizendo quando tentar de novo. Não confunda com **503 Service Unavailable**, que indica o servidor indisponível ou sobrecarregado de modo geral.\n\nCom várias instâncias do gateway, o contador precisa ser **compartilhado** (por exemplo, num Redis), ou cada instância contará sozinha e o limite efetivo será multiplicado. O **RequestRateLimiter** do Spring Cloud Gateway, na implementação com Redis, usa o algoritmo de token bucket, com taxa de reposição e capacidade de rajada configuráveis. No **NGINX**, a diretiva `limit_req` segue o método do balde furado. No **AWS API Gateway**, há limites de throttling e **planos de uso** com **chaves de API** e cotas por cliente.\n\n### Cache na borda\nSe a lista de classes processuais muda uma vez por mês, não faz sentido consultar o serviço a cada requisição. O gateway pode guardar respostas de `GET` por um TTL e devolvê-las direto, respeitando os cabeçalhos HTTP de cache (`Cache-Control`, `ETag`). Cuidados: **nunca** compartilhar em cache resposta personalizada de um usuário com outro (a chave do cache precisa considerar quem pede quando a resposta depende do usuário) e definir como invalidar quando o dado mudar.\n\n### Transformação\nO gateway pode adaptar a requisição ou a resposta sem mudar os serviços:\n- reescrever caminho (`/api/v1/processos` para `/processos`);\n- acrescentar, remover ou renomear cabeçalhos;\n- converter protocolo (cliente REST/JSON e serviço legado SOAP/XML, ou HTTP para gRPC);\n- validar o corpo contra um esquema (por exemplo, um contrato OpenAPI) e recusar requisições malformadas cedo;\n- comprimir respostas.\n\nTransformação demais, porém, transforma o gateway em lugar de regra de negócio. Mudar formato é aceitável; calcular valores do domínio não é.\n\n### Exemplo passo a passo\nO tribunal publica uma API de consulta pública.\n1. Cada parceiro recebe uma chave e um plano: 10 requisições por segundo e uma cota diária.\n2. Um parceiro com defeito manda 300 por segundo. O gateway atende 10 e responde **429** às demais, com `Retry-After`.\n3. As consultas à tabela de classes são servidas do cache por uma hora.\n4. Um sistema antigo só entende XML; o gateway converte a resposta JSON do serviço novo para esse parceiro.\n\n| Mecanismo | Pergunta que responde | Sinal típico |\n| --- | --- | --- |\n| Rate limiting | Quantas por segundo/minuto? | 429 + Retry-After |\n| Cota | Quantas no dia/mês? | 429 ou erro de cota excedida |\n| Throttling | Como desacelerar o excesso? | Fila, atraso ou recusa |\n| Cache | Preciso mesmo chamar o serviço? | Resposta servida pelo gateway |\n\n**Pegadinha:** a banca troca o código: \"ao exceder o limite de taxa, o gateway deve responder 503\". O código específico é **429**. Outra: \"rate limiting em várias instâncias funciona sozinho\" — sem contador compartilhado, o limite real se multiplica pelo número de instâncias.\n\n**Resumo para a prova**\n- Rate limiting = por intervalo curto; cota = volume num período longo; throttling = desacelerar/segurar o excesso.\n- Token bucket permite rajadas; leaky bucket impõe ritmo constante.\n- Excesso: 429 Too Many Requests (RFC 6585) + Retry-After.\n- Cache na borda: TTL, cabeçalhos HTTP e cuidado com respostas personalizadas.\n- Transformação de formato e protocolo sim; regra de negócio não."
     },
     {
       "title": "5. Resiliência e observabilidade: timeouts, retries e circuit breaker",
-      "markdown": "> **Termos explicados**\n> - **Timeout**: tempo máximo de espera por uma resposta; esgotado, desiste-se.\n> - **Retry**: nova tentativa automática após falha.\n> - **Backoff exponencial**: aumentar o intervalo entre tentativas (1 s, 2 s, 4 s...), em geral com **jitter** (variação aleatória).\n> - **Idempotente**: operação que, repetida, produz o mesmo efeito de executá-la uma vez (como `GET`, `PUT` e `DELETE` na semântica HTTP).\n> - **Circuit breaker** (disjuntor): componente que interrompe chamadas a um destino que vem falhando.\n> - **Fallback**: resposta alternativa quando a chamada principal não é possível.\n\n### O problema: falha em cascata\nO serviço de documentos fica lento: responde em 30 segundos em vez de 200 ms. Sem timeout, cada requisição prende uma conexão e uma fatia de memória no gateway. Em pouco tempo, o gateway esgota seus recursos e passa a falhar também para processos e intimações, que estavam saudáveis. Uma lentidão local virou **queda geral**. A resiliência no gateway serve para **isolar** a falha.\n\n### Timeouts\nToda chamada a um serviço precisa de limite de tempo de conexão e de resposta. Quando o tempo acaba, o gateway responde **504 Gateway Timeout**. Se o destino devolveu algo inválido ou a conexão falhou, o código usual é **502 Bad Gateway**. A regra prática: o timeout do gateway deve ser coerente com os dos serviços — não adianta o gateway esperar 60 s se o cliente desiste em 10 s.\n\n### Retries com cuidado\nRepetir pode resolver falhas passageiras, mas:\n- só é seguro, em regra, para operações **idempotentes**; repetir um `POST` de protocolo pode gerar duas petições (a menos que se use uma chave de idempotência);\n- deve ter **limite de tentativas** e **backoff com jitter**, senão milhares de clientes repetem ao mesmo tempo e agravam a sobrecarga (\"tempestade de retries\").\n\n### Circuit breaker: os três estados\nO padrão, descrito por Michael Nygard e difundido por Martin Fowler, funciona como o disjuntor de casa:\n| Estado | O que acontece |\n|---|---|\n| **Fechado** | Chamadas passam normalmente; as falhas são contadas. |\n| **Aberto** | Atingido o limite de falhas, as chamadas são recusadas **imediatamente**, sem tocar o serviço, por um tempo. |\n| **Semiaberto** | Passado o tempo, algumas chamadas de teste passam; se derem certo, o circuito fecha; se falharem, volta a abrir. |\n\nO ganho é duplo: o cliente recebe resposta rápida (erro ou fallback) em vez de esperar, e o serviço doente ganha **fôlego para se recuperar**. No Spring Cloud Gateway, há o filtro **CircuitBreaker**, que usa a implementação Spring Cloud CircuitBreaker (por exemplo, com Resilience4J) e permite indicar uma URI de fallback; há também filtro de **Retry**.\n\nOutro padrão útil é o **bulkhead** (antepara, como as divisórias do casco de um navio): reservar recursos separados por destino, para que um serviço lento não consuma tudo.\n\n### Observabilidade\nComo toda chamada externa passa pelo gateway, ele é o melhor lugar para enxergar o sistema:\n- **Logs** de acesso: quem chamou, qual rota, código de status, tempo.\n- **Métricas**: taxa de requisições, taxa de erros, latência (percentis como p95 e p99), rejeições por limite, estado dos circuitos.\n- **Rastreamento distribuído**: o gateway cria ou propaga um identificador de rastreamento (por exemplo, o cabeçalho `traceparent` do padrão W3C Trace Context, usado pelo OpenTelemetry) para seguir a requisição por todos os serviços.\n- **ID de correlação** devolvido ao cliente, para o suporte localizar a chamada nos logs.\n\n### Exemplo passo a passo\n1. O serviço de documentos começa a responder devagar.\n2. O gateway corta cada chamada em 2 s e responde 504; as métricas mostram a latência subindo.\n3. Depois de muitas falhas seguidas, o circuito para documentos **abre**: novas chamadas recebem resposta imediata de fallback (\"documentos temporariamente indisponíveis\").\n4. Processos e intimações seguem normais.\n5. Passado o intervalo, o circuito fica **semiaberto**, deixa passar algumas chamadas, elas funcionam, e ele **fecha**.\n6. A equipe encontra a causa seguindo o `traceparent` até a consulta lenta ao banco.\n\n**Pegadinha:** \"no estado aberto o circuit breaker envia todas as chamadas ao serviço para testar sua recuperação\". Errado: aberto é **recusar sem chamar**; o teste com algumas chamadas é o **semiaberto**. Outra: retry indiscriminado de `POST` não é \"resiliência\", é risco de duplicidade.\n\n**Resumo para a prova**\n- Timeout em toda chamada; 504 = tempo esgotado no upstream; 502 = resposta inválida do upstream.\n- Retry só com limite, backoff e jitter, e preferencialmente em operações idempotentes.\n- Circuit breaker: fechado (passa), aberto (recusa rápido), semiaberto (testa).\n- Bulkhead isola recursos por destino.\n- Gateway concentra logs, métricas e início/propagação do rastreamento distribuído."
+      "markdown": "> **Termos explicados**\n> - **Timeout**: tempo máximo de espera por uma resposta; esgotado, desiste-se.\n> - **Retry**: nova tentativa automática após falha.\n> - **Backoff exponencial**: aumentar o intervalo entre tentativas (1 s, 2 s, 4 s...), em geral com **jitter** (variação aleatória).\n> - **Idempotente**: operação que, repetida, produz o mesmo efeito de executá-la uma vez (como `GET`, `PUT` e `DELETE` na semântica HTTP).\n> - **Circuit breaker** (disjuntor): componente que interrompe chamadas a um destino que vem falhando.\n> - **Fallback**: resposta alternativa quando a chamada principal não é possível.\n\n### O problema: falha em cascata\nO serviço de documentos fica lento: responde em 30 segundos em vez de 200 ms. Sem timeout, cada requisição prende uma conexão e uma fatia de memória no gateway. Em pouco tempo, o gateway esgota seus recursos e passa a falhar também para processos e intimações, que estavam saudáveis. Uma lentidão local virou **queda geral**. A resiliência no gateway serve para **isolar** a falha.\n\n### Timeouts\nToda chamada a um serviço precisa de limite de tempo de conexão e de resposta. Quando o tempo acaba, o gateway responde **504 Gateway Timeout**. Se o destino devolveu algo inválido ou a conexão falhou, o código usual é **502 Bad Gateway**. A regra prática: o timeout do gateway deve ser coerente com os dos serviços — não adianta o gateway esperar 60 s se o cliente desiste em 10 s.\n\n### Retries com cuidado\nRepetir pode resolver falhas passageiras, mas:\n- só é seguro, em regra, para operações **idempotentes**; repetir um `POST` de protocolo pode gerar duas petições (a menos que se use uma chave de idempotência);\n- deve ter **limite de tentativas** e **backoff com jitter**, senão milhares de clientes repetem ao mesmo tempo e agravam a sobrecarga (\"tempestade de retries\").\n\n### Circuit breaker: os três estados\nO padrão, descrito por Michael Nygard e difundido por Martin Fowler, funciona como o disjuntor de casa:\n| Estado | O que acontece |\n| --- | --- |\n| **Fechado** | Chamadas passam normalmente; as falhas são contadas. |\n| **Aberto** | Atingido o limite de falhas, as chamadas são recusadas **imediatamente**, sem tocar o serviço, por um tempo. |\n| **Semiaberto** | Passado o tempo, algumas chamadas de teste passam; se derem certo, o circuito fecha; se falharem, volta a abrir. |\n\nO ganho é duplo: o cliente recebe resposta rápida (erro ou fallback) em vez de esperar, e o serviço doente ganha **fôlego para se recuperar**. No Spring Cloud Gateway, há o filtro **CircuitBreaker**, que usa a implementação Spring Cloud CircuitBreaker (por exemplo, com Resilience4J) e permite indicar uma URI de fallback; há também filtro de **Retry**.\n\nOutro padrão útil é o **bulkhead** (antepara, como as divisórias do casco de um navio): reservar recursos separados por destino, para que um serviço lento não consuma tudo.\n\n### Observabilidade\nComo toda chamada externa passa pelo gateway, ele é o melhor lugar para enxergar o sistema:\n- **Logs** de acesso: quem chamou, qual rota, código de status, tempo.\n- **Métricas**: taxa de requisições, taxa de erros, latência (percentis como p95 e p99), rejeições por limite, estado dos circuitos.\n- **Rastreamento distribuído**: o gateway cria ou propaga um identificador de rastreamento (por exemplo, o cabeçalho `traceparent` do padrão W3C Trace Context, usado pelo OpenTelemetry) para seguir a requisição por todos os serviços.\n- **ID de correlação** devolvido ao cliente, para o suporte localizar a chamada nos logs.\n\n### Exemplo passo a passo\n1. O serviço de documentos começa a responder devagar.\n2. O gateway corta cada chamada em 2 s e responde 504; as métricas mostram a latência subindo.\n3. Depois de muitas falhas seguidas, o circuito para documentos **abre**: novas chamadas recebem resposta imediata de fallback (\"documentos temporariamente indisponíveis\").\n4. Processos e intimações seguem normais.\n5. Passado o intervalo, o circuito fica **semiaberto**, deixa passar algumas chamadas, elas funcionam, e ele **fecha**.\n6. A equipe encontra a causa seguindo o `traceparent` até a consulta lenta ao banco.\n\n**Pegadinha:** \"no estado aberto o circuit breaker envia todas as chamadas ao serviço para testar sua recuperação\". Errado: aberto é **recusar sem chamar**; o teste com algumas chamadas é o **semiaberto**. Outra: retry indiscriminado de `POST` não é \"resiliência\", é risco de duplicidade.\n\n**Resumo para a prova**\n- Timeout em toda chamada; 504 = tempo esgotado no upstream; 502 = resposta inválida do upstream.\n- Retry só com limite, backoff e jitter, e preferencialmente em operações idempotentes.\n- Circuit breaker: fechado (passa), aberto (recusa rápido), semiaberto (testa).\n- Bulkhead isola recursos por destino.\n- Gateway concentra logs, métricas e início/propagação do rastreamento distribuído."
     },
     {
       "title": "6. Gateway, proxy reverso, balanceador e service mesh; ponto único de falha e ferramentas",
-      "markdown": "> **Termos explicados**\n> - **Proxy reverso**: servidor que recebe requisições em nome dos servidores internos e as repassa a eles.\n> - **Balanceador de carga**: distribui requisições entre várias instâncias de um mesmo serviço (camada 4 — TCP/UDP — ou camada 7 — HTTP).\n> - **Service mesh** (malha de serviços): infraestrutura que controla a comunicação **entre** serviços, geralmente com um proxy **sidecar** (acompanhante) ao lado de cada instância.\n> - **Tráfego norte-sul**: entre clientes externos e o sistema. **Tráfego leste-oeste**: entre serviços internos.\n> - **SPOF** (*single point of failure*): ponto único de falha, componente cuja queda derruba tudo.\n\n### Por que tantos nomes parecidos\nTodos ficam \"no caminho\" das requisições, e um mesmo produto pode desempenhar vários papéis (o NGINX é servidor web, proxy reverso, balanceador e base de gateways). A prova costuma cobrar **o foco de cada um**.\n\n| Componente | Foco principal | Tráfego típico | Exemplos |\n|---|---|---|---|\n| Proxy reverso | Receber em nome do servidor, TLS, repasse | Norte-sul | NGINX, Apache HTTP Server |\n| Balanceador de carga | Distribuir carga entre instâncias iguais, health checks | Norte-sul e interno | HAProxy, balanceadores de nuvem |\n| API Gateway | Gestão de **APIs**: rotas por API, autenticação, limites por cliente, chaves, transformação, agregação | Norte-sul | Spring Cloud Gateway, Kong, AWS API Gateway |\n| Service mesh | Comunicação serviço a serviço: mTLS interno, retries, métricas, políticas | Leste-oeste | Istio, Linkerd (com proxies como Envoy) |\n\nResumo da diferença: o **proxy reverso** é o mecanismo; o **balanceador** escolhe **qual instância**; o **API Gateway** é um proxy reverso **especializado em APIs**, consciente de clientes, credenciais e contratos; o **service mesh** cuida da conversa **interna** entre serviços. Gateway e mesh **se complementam**: o gateway na porta, a malha nos corredores.\n\n### O gateway como ponto único de falha\nSe tudo entra pelo gateway, uma única instância dele é exatamente o SPOF que a arquitetura de microsserviços queria evitar. Como evitar:\n1. **Várias instâncias** do gateway, sem estado local (*stateless*), atrás de um balanceador ou de DNS com mais de um destino.\n2. Instâncias em **zonas de disponibilidade** diferentes.\n3. **Escala automática** conforme a carga.\n4. Estado compartilhado (contadores de limite, sessões) fora da instância, num armazenamento replicado.\n5. **Health checks** para retirar instâncias doentes.\n6. Configuração versionada e implantação gradual, para que uma regra errada não derrube tudo de uma vez.\n7. Serviços gerenciados de nuvem, em que o provedor cuida da redundância da camada.\n\nO gateway também pode virar **gargalo organizacional** quando todas as equipes dependem de um time central para cada mudança de rota; BFFs e configuração descentralizada reduzem isso.\n\n### Ferramentas que a banca cita\n- **Spring Cloud Gateway**: projeto do ecossistema Spring para construir gateways em Java; sua versão clássica roda sobre Spring WebFlux e Project Reactor (modelo **reativo**, não bloqueante) e há também variante sobre Spring Web MVC. Trabalha com rotas, predicados e filtros. Sucedeu, no ecossistema Spring, o uso do Netflix Zuul.\n- **Kong**: gateway de código aberto construído sobre NGINX e OpenResty, estendido por **plugins** (autenticação por chave ou JWT, rate limiting, logs, transformação).\n- **NGINX**: servidor web e proxy reverso de alto desempenho; com `proxy_pass`, blocos `upstream`, `limit_req` e `proxy_cache` faz papel de gateway simples.\n- **AWS API Gateway**: serviço **gerenciado** da Amazon para criar e publicar APIs REST, HTTP e WebSocket, com autorizadores (por exemplo, integrados ao Cognito ou a funções Lambda), chaves de API, planos de uso, throttling e cache.\n\n### Exemplo passo a passo\n1. O tribunal coloca duas instâncias do Spring Cloud Gateway em zonas diferentes, atrás do balanceador de nuvem.\n2. Os contadores de rate limiting ficam num Redis replicado.\n3. Uma instância trava; o health check falha e o balanceador para de enviar tráfego a ela; a outra assume.\n4. Entre os microsserviços, um service mesh aplica mTLS e coleta métricas leste-oeste.\n\n**Pegadinha:** \"API Gateway e service mesh são concorrentes; adotar um torna o outro desnecessário\". Errado: atuam em tráfegos diferentes (norte-sul x leste-oeste) e costumam coexistir. Outra: \"por ser ponto único de entrada, o gateway é necessariamente ponto único de falha\" — entrada lógica única não significa instância única.\n\n**Resumo para a prova**\n- Proxy reverso = repasse em nome do servidor; balanceador = escolhe instância; API Gateway = proxy especializado em APIs; service mesh = tráfego interno com sidecars.\n- Gateway: norte-sul; mesh: leste-oeste; são complementares.\n- Evitar SPOF: várias instâncias stateless, zonas distintas, escala automática, health checks, estado compartilhado externo.\n- Spring Cloud Gateway (rotas, predicados, filtros), Kong (plugins sobre NGINX/OpenResty), NGINX (proxy reverso), AWS API Gateway (gerenciado)."
+      "markdown": "> **Termos explicados**\n> - **Proxy reverso**: servidor que recebe requisições em nome dos servidores internos e as repassa a eles.\n> - **Balanceador de carga**: distribui requisições entre várias instâncias de um mesmo serviço (camada 4 — TCP/UDP — ou camada 7 — HTTP).\n> - **Service mesh** (malha de serviços): infraestrutura que controla a comunicação **entre** serviços, geralmente com um proxy **sidecar** (acompanhante) ao lado de cada instância.\n> - **Tráfego norte-sul**: entre clientes externos e o sistema. **Tráfego leste-oeste**: entre serviços internos.\n> - **SPOF** (*single point of failure*): ponto único de falha, componente cuja queda derruba tudo.\n\n### Por que tantos nomes parecidos\nTodos ficam \"no caminho\" das requisições, e um mesmo produto pode desempenhar vários papéis (o NGINX é servidor web, proxy reverso, balanceador e base de gateways). A prova costuma cobrar **o foco de cada um**.\n\n| Componente | Foco principal | Tráfego típico | Exemplos |\n| --- | --- | --- | --- |\n| Proxy reverso | Receber em nome do servidor, TLS, repasse | Norte-sul | NGINX, Apache HTTP Server |\n| Balanceador de carga | Distribuir carga entre instâncias iguais, health checks | Norte-sul e interno | HAProxy, balanceadores de nuvem |\n| API Gateway | Gestão de **APIs**: rotas por API, autenticação, limites por cliente, chaves, transformação, agregação | Norte-sul | Spring Cloud Gateway, Kong, AWS API Gateway |\n| Service mesh | Comunicação serviço a serviço: mTLS interno, retries, métricas, políticas | Leste-oeste | Istio, Linkerd (com proxies como Envoy) |\n\nResumo da diferença: o **proxy reverso** é o mecanismo; o **balanceador** escolhe **qual instância**; o **API Gateway** é um proxy reverso **especializado em APIs**, consciente de clientes, credenciais e contratos; o **service mesh** cuida da conversa **interna** entre serviços. Gateway e mesh **se complementam**: o gateway na porta, a malha nos corredores.\n\n### O gateway como ponto único de falha\nSe tudo entra pelo gateway, uma única instância dele é exatamente o SPOF que a arquitetura de microsserviços queria evitar. Como evitar:\n1. **Várias instâncias** do gateway, sem estado local (*stateless*), atrás de um balanceador ou de DNS com mais de um destino.\n2. Instâncias em **zonas de disponibilidade** diferentes.\n3. **Escala automática** conforme a carga.\n4. Estado compartilhado (contadores de limite, sessões) fora da instância, num armazenamento replicado.\n5. **Health checks** para retirar instâncias doentes.\n6. Configuração versionada e implantação gradual, para que uma regra errada não derrube tudo de uma vez.\n7. Serviços gerenciados de nuvem, em que o provedor cuida da redundância da camada.\n\nO gateway também pode virar **gargalo organizacional** quando todas as equipes dependem de um time central para cada mudança de rota; BFFs e configuração descentralizada reduzem isso.\n\n### Ferramentas que a banca cita\n- **Spring Cloud Gateway**: projeto do ecossistema Spring para construir gateways em Java; sua versão clássica roda sobre Spring WebFlux e Project Reactor (modelo **reativo**, não bloqueante) e há também variante sobre Spring Web MVC. Trabalha com rotas, predicados e filtros. Sucedeu, no ecossistema Spring, o uso do Netflix Zuul.\n- **Kong**: gateway de código aberto construído sobre NGINX e OpenResty, estendido por **plugins** (autenticação por chave ou JWT, rate limiting, logs, transformação).\n- **NGINX**: servidor web e proxy reverso de alto desempenho; com `proxy_pass`, blocos `upstream`, `limit_req` e `proxy_cache` faz papel de gateway simples.\n- **AWS API Gateway**: serviço **gerenciado** da Amazon para criar e publicar APIs REST, HTTP e WebSocket, com autorizadores (por exemplo, integrados ao Cognito ou a funções Lambda), chaves de API, planos de uso, throttling e cache.\n\n### Exemplo passo a passo\n1. O tribunal coloca duas instâncias do Spring Cloud Gateway em zonas diferentes, atrás do balanceador de nuvem.\n2. Os contadores de rate limiting ficam num Redis replicado.\n3. Uma instância trava; o health check falha e o balanceador para de enviar tráfego a ela; a outra assume.\n4. Entre os microsserviços, um service mesh aplica mTLS e coleta métricas leste-oeste.\n\n**Pegadinha:** \"API Gateway e service mesh são concorrentes; adotar um torna o outro desnecessário\". Errado: atuam em tráfegos diferentes (norte-sul x leste-oeste) e costumam coexistir. Outra: \"por ser ponto único de entrada, o gateway é necessariamente ponto único de falha\" — entrada lógica única não significa instância única.\n\n**Resumo para a prova**\n- Proxy reverso = repasse em nome do servidor; balanceador = escolhe instância; API Gateway = proxy especializado em APIs; service mesh = tráfego interno com sidecars.\n- Gateway: norte-sul; mesh: leste-oeste; são complementares.\n- Evitar SPOF: várias instâncias stateless, zonas distintas, escala automática, health checks, estado compartilhado externo.\n- Spring Cloud Gateway (rotas, predicados, filtros), Kong (plugins sobre NGINX/OpenResty), NGINX (proxy reverso), AWS API Gateway (gerenciado)."
     }
   ],
   "summary": "## API Gateway em uma página\nO API Gateway é o ponto único de entrada na borda: recebe as requisições dos clientes, esconde a estrutura interna e encaminha cada chamada ao serviço certo, centralizando preocupações transversais. Roteamento por caminho, host, cabeçalho ou peso; agregação de respostas para reduzir chamadas do cliente; BFF como um backend por tipo de cliente, mantido pela equipe do frontend. Na segurança, valida tokens (assinatura, emissor, audiência, expiração, escopos de JWT emitidos via OAuth 2.0/OIDC), devolvendo 401 sem credencial válida e 403 sem permissão, mas a autorização por objeto continua no serviço. Rate limiting por intervalo curto, cotas por período longo e throttling; excesso gera 429 com Retry-After; token bucket admite rajadas e leaky bucket impõe ritmo constante; contador compartilhado entre instâncias. Cache com TTL e cuidado com respostas personalizadas; transformação de formato e protocolo, sem regra de negócio. Resiliência: timeout (504), resposta inválida do upstream (502), retry limitado com backoff em operações idempotentes, circuit breaker fechado/aberto/semiaberto e bulkhead. Observabilidade: logs, métricas, rastreamento com propagação de contexto. Proxy reverso repassa, balanceador escolhe instância, gateway gerencia APIs no tráfego norte-sul e service mesh cuida do leste-oeste. Para não ser ponto único de falha: várias instâncias sem estado, zonas diferentes, health checks e escala automática. Exemplos: Spring Cloud Gateway, Kong, NGINX e AWS API Gateway.",
   "flashcards": [
-    { "front": "O que é um API Gateway?", "back": "Ponto único de entrada na borda que recebe as requisições dos clientes e as encaminha aos serviços internos, centralizando preocupações transversais." },
-    { "front": "Cite quatro preocupações transversais que costumam ficar no gateway.", "back": "Roteamento, autenticação, rate limiting e observabilidade (também cache, TLS e transformação)." },
-    { "front": "Regra de negócio deve ficar no gateway?", "back": "Não. O gateway decide para onde vai e se pode entrar; a lógica do domínio fica nos serviços." },
-    { "front": "O gateway elimina a autorização dentro do microsserviço?", "back": "Não. A autorização fina, por objeto, depende de dados do domínio e continua no serviço (defesa em profundidade)." },
-    { "front": "Quais critérios uma rota pode usar?", "back": "Caminho, host, método, cabeçalhos, parâmetros e peso (para implantação canário)." },
-    { "front": "Como é formada uma rota no Spring Cloud Gateway?", "back": "Identificador, URI de destino, coleção de predicados e coleção de filtros." },
-    { "front": "O gateway dispensa service discovery?", "back": "Não. Com instâncias dinâmicas, ele costuma consultar o registro de serviços para achar destinos vivos." },
-    { "front": "O que é agregação no gateway?", "back": "Chamar vários serviços (de preferência em paralelo) e devolver ao cliente uma resposta única." },
-    { "front": "O que significa BFF?", "back": "Backend for Frontend: um backend dedicado a cada tipo de cliente ou experiência (móvel, web), mantido pela equipe do frontend." },
-    { "front": "Autenticação x autorização", "back": "Autenticação prova quem é; autorização decide o que pode fazer." },
-    { "front": "OAuth 2.0 é protocolo de autenticação?", "back": "Não por si só; é framework de autorização delegada (RFC 6749). A autenticação padronizada vem do OpenID Connect." },
-    { "front": "Qual RFC define o JWT?", "back": "RFC 7519." },
-    { "front": "Que claims o gateway confere num JWT?", "back": "Assinatura, emissor (iss), audiência (aud), expiração (exp) e escopos/papéis exigidos." },
-    { "front": "JWT assinado é sigiloso?", "back": "Não. É só codificado em Base64URL; a assinatura garante integridade e origem. Sigilo exige JWE ou não pôr dado sensível." },
-    { "front": "401 x 403", "back": "401: falta ou invalidade de credencial. 403: credencial válida, mas sem permissão." },
-    { "front": "Por que o gateway deve remover cabeçalhos de identidade vindos do cliente?", "back": "Para impedir que alguém forje, de fora, cabeçalhos como X-User-Id que os serviços confiam." },
-    { "front": "Rate limiting x cota", "back": "Rate limiting limita por intervalo curto (segundo/minuto); cota limita o volume num período longo (dia/mês)." },
-    { "front": "Código HTTP para limite de taxa excedido", "back": "429 Too Many Requests (RFC 6585), opcionalmente com Retry-After." },
-    { "front": "Token bucket x leaky bucket", "back": "Token bucket admite rajadas até a capacidade do balde; leaky bucket faz as requisições saírem em ritmo constante." },
-    { "front": "Qual algoritmo usa o RequestRateLimiter com Redis do Spring Cloud Gateway?", "back": "Token bucket, com taxa de reposição e capacidade de rajada configuráveis." },
-    { "front": "Por que o contador de limite precisa ser compartilhado?", "back": "Com várias instâncias contando sozinhas, o limite efetivo se multiplica pelo número de instâncias." },
-    { "front": "Cuidado principal do cache no gateway", "back": "Não entregar a um usuário resposta personalizada de outro; definir TTL e invalidação." },
-    { "front": "Exemplos de transformação no gateway", "back": "Reescrita de caminho, cabeçalhos, conversão JSON/XML ou HTTP/gRPC, validação contra esquema, compressão." },
-    { "front": "502 x 504", "back": "502 Bad Gateway: resposta inválida ou falha de conexão com o upstream. 504 Gateway Timeout: o upstream não respondeu a tempo." },
-    { "front": "Quando retry é seguro?", "back": "Em regra, em operações idempotentes, com limite de tentativas e backoff exponencial com jitter." },
-    { "front": "Estados do circuit breaker", "back": "Fechado (passa e conta falhas), aberto (recusa rápido sem chamar), semiaberto (deixa passar chamadas de teste)." },
-    { "front": "O que é bulkhead?", "back": "Isolar recursos (conexões, threads) por destino, para que um serviço lento não esgote tudo." },
-    { "front": "Três pilares de observabilidade no gateway", "back": "Logs, métricas e rastreamento distribuído (com propagação de contexto, como o traceparent do W3C Trace Context)." },
-    { "front": "Norte-sul x leste-oeste", "back": "Norte-sul: clientes externos ↔ sistema (gateway). Leste-oeste: serviço ↔ serviço (service mesh)." },
-    { "front": "Gateway x balanceador de carga", "back": "Balanceador escolhe qual instância atende; gateway gerencia APIs (rotas, credenciais, limites por cliente, transformação)." },
-    { "front": "Como evitar que o gateway seja ponto único de falha?", "back": "Várias instâncias sem estado, em zonas diferentes, atrás de balanceador, com health checks, escala automática e estado compartilhado externo." },
-    { "front": "Sobre o que o Kong é construído?", "back": "Sobre NGINX e OpenResty, estendido por plugins." },
-    { "front": "Modelo de execução clássico do Spring Cloud Gateway", "back": "Reativo e não bloqueante, sobre Spring WebFlux e Project Reactor (há também variante sobre Spring Web MVC)." },
-    { "front": "O que é o AWS API Gateway?", "back": "Serviço gerenciado da Amazon para publicar APIs REST, HTTP e WebSocket, com autorizadores, chaves, planos de uso, throttling e cache." }
+    {
+      "front": "O que é um API Gateway?",
+      "back": "Ponto único de entrada na borda que recebe as requisições dos clientes e as encaminha aos serviços internos, centralizando preocupações transversais."
+    },
+    {
+      "front": "Cite quatro preocupações transversais que costumam ficar no gateway.",
+      "back": "Roteamento, autenticação, rate limiting e observabilidade (também cache, TLS e transformação)."
+    },
+    {
+      "front": "Regra de negócio deve ficar no gateway?",
+      "back": "Não. O gateway decide para onde vai e se pode entrar; a lógica do domínio fica nos serviços."
+    },
+    {
+      "front": "O gateway elimina a autorização dentro do microsserviço?",
+      "back": "Não. A autorização fina, por objeto, depende de dados do domínio e continua no serviço (defesa em profundidade)."
+    },
+    {
+      "front": "Quais critérios uma rota pode usar?",
+      "back": "Caminho, host, método, cabeçalhos, parâmetros e peso (para implantação canário)."
+    },
+    {
+      "front": "Como é formada uma rota no Spring Cloud Gateway?",
+      "back": "Identificador, URI de destino, coleção de predicados e coleção de filtros."
+    },
+    {
+      "front": "O gateway dispensa service discovery?",
+      "back": "Não. Com instâncias dinâmicas, ele costuma consultar o registro de serviços para achar destinos vivos."
+    },
+    {
+      "front": "O que é agregação no gateway?",
+      "back": "Chamar vários serviços (de preferência em paralelo) e devolver ao cliente uma resposta única."
+    },
+    {
+      "front": "O que significa BFF?",
+      "back": "Backend for Frontend: um backend dedicado a cada tipo de cliente ou experiência (móvel, web), mantido pela equipe do frontend."
+    },
+    {
+      "front": "Autenticação x autorização",
+      "back": "Autenticação prova quem é; autorização decide o que pode fazer."
+    },
+    {
+      "front": "OAuth 2.0 é protocolo de autenticação?",
+      "back": "Não por si só; é framework de autorização delegada (RFC 6749). A autenticação padronizada vem do OpenID Connect."
+    },
+    {
+      "front": "Qual RFC define o JWT?",
+      "back": "RFC 7519."
+    },
+    {
+      "front": "Que claims o gateway confere num JWT?",
+      "back": "Assinatura, emissor (iss), audiência (aud), expiração (exp) e escopos/papéis exigidos."
+    },
+    {
+      "front": "JWT assinado é sigiloso?",
+      "back": "Não. É só codificado em Base64URL; a assinatura garante integridade e origem. Sigilo exige JWE ou não pôr dado sensível."
+    },
+    {
+      "front": "401 x 403",
+      "back": "401: falta ou invalidade de credencial. 403: credencial válida, mas sem permissão."
+    },
+    {
+      "front": "Por que o gateway deve remover cabeçalhos de identidade vindos do cliente?",
+      "back": "Para impedir que alguém forje, de fora, cabeçalhos como X-User-Id que os serviços confiam."
+    },
+    {
+      "front": "Rate limiting x cota",
+      "back": "Rate limiting limita por intervalo curto (segundo/minuto); cota limita o volume num período longo (dia/mês)."
+    },
+    {
+      "front": "Código HTTP para limite de taxa excedido",
+      "back": "429 Too Many Requests (RFC 6585), opcionalmente com Retry-After."
+    },
+    {
+      "front": "Token bucket x leaky bucket",
+      "back": "Token bucket admite rajadas até a capacidade do balde; leaky bucket faz as requisições saírem em ritmo constante."
+    },
+    {
+      "front": "Qual algoritmo usa o RequestRateLimiter com Redis do Spring Cloud Gateway?",
+      "back": "Token bucket, com taxa de reposição e capacidade de rajada configuráveis."
+    },
+    {
+      "front": "Por que o contador de limite precisa ser compartilhado?",
+      "back": "Com várias instâncias contando sozinhas, o limite efetivo se multiplica pelo número de instâncias."
+    },
+    {
+      "front": "Cuidado principal do cache no gateway",
+      "back": "Não entregar a um usuário resposta personalizada de outro; definir TTL e invalidação."
+    },
+    {
+      "front": "Exemplos de transformação no gateway",
+      "back": "Reescrita de caminho, cabeçalhos, conversão JSON/XML ou HTTP/gRPC, validação contra esquema, compressão."
+    },
+    {
+      "front": "502 x 504",
+      "back": "502 Bad Gateway: resposta inválida ou falha de conexão com o upstream. 504 Gateway Timeout: o upstream não respondeu a tempo."
+    },
+    {
+      "front": "Quando retry é seguro?",
+      "back": "Em regra, em operações idempotentes, com limite de tentativas e backoff exponencial com jitter."
+    },
+    {
+      "front": "Estados do circuit breaker",
+      "back": "Fechado (passa e conta falhas), aberto (recusa rápido sem chamar), semiaberto (deixa passar chamadas de teste)."
+    },
+    {
+      "front": "O que é bulkhead?",
+      "back": "Isolar recursos (conexões, threads) por destino, para que um serviço lento não esgote tudo."
+    },
+    {
+      "front": "Três pilares de observabilidade no gateway",
+      "back": "Logs, métricas e rastreamento distribuído (com propagação de contexto, como o traceparent do W3C Trace Context)."
+    },
+    {
+      "front": "Norte-sul x leste-oeste",
+      "back": "Norte-sul: clientes externos ↔ sistema (gateway). Leste-oeste: serviço ↔ serviço (service mesh)."
+    },
+    {
+      "front": "Gateway x balanceador de carga",
+      "back": "Balanceador escolhe qual instância atende; gateway gerencia APIs (rotas, credenciais, limites por cliente, transformação)."
+    },
+    {
+      "front": "Como evitar que o gateway seja ponto único de falha?",
+      "back": "Várias instâncias sem estado, em zonas diferentes, atrás de balanceador, com health checks, escala automática e estado compartilhado externo."
+    },
+    {
+      "front": "Sobre o que o Kong é construído?",
+      "back": "Sobre NGINX e OpenResty, estendido por plugins."
+    },
+    {
+      "front": "Modelo de execução clássico do Spring Cloud Gateway",
+      "back": "Reativo e não bloqueante, sobre Spring WebFlux e Project Reactor (há também variante sobre Spring Web MVC)."
+    },
+    {
+      "front": "O que é o AWS API Gateway?",
+      "back": "Serviço gerenciado da Amazon para publicar APIs REST, HTTP e WebSocket, com autorizadores, chaves, planos de uso, throttling e cache."
+    }
   ],
   "tips": [
     "Associe o gateway a \"porta de entrada\" e preocupações transversais; se a frase colocar regra de negócio nele, desconfie.",
@@ -102,576 +204,1517 @@
     "A prova afirma que retry automático é sempre seguro: repetir operação não idempotente pode duplicar efeitos."
   ],
   "activeRecall": [
-    { "question": "Que problema o API Gateway resolve numa arquitetura de microsserviços?", "answer": "Evita que o cliente conheça e chame cada serviço, repetindo autenticação, limites e logs; oferece um ponto de entrada que esconde a estrutura interna e centraliza preocupações transversais." },
-    { "question": "Por que regra de negócio não deve ficar no gateway?", "answer": "Porque ele vira um monólito disfarçado, acoplando todas as equipes num só componente e dificultando mudanças." },
-    { "question": "Como a agregação reduz latência para o app móvel?", "answer": "O app faz uma chamada pela internet; o gateway chama os serviços pela rede interna, em paralelo, e devolve resposta única." },
-    { "question": "Qual a ideia central do BFF e quem o mantém?", "answer": "Um backend dedicado a cada tipo de cliente, ajustado às suas telas, mantido de preferência pela equipe do frontend correspondente." },
-    { "question": "Que verificações o gateway faz num JWT de acesso?", "answer": "Assinatura com a chave do emissor, emissor, audiência, expiração e escopos exigidos pela rota." },
-    { "question": "Qual a diferença entre 401 e 403 no gateway?", "answer": "401 quando não há credencial válida; 403 quando a credencial é válida, mas não dá permissão para a operação." },
-    { "question": "Por que o rate limiting precisa de contador compartilhado com várias instâncias?", "answer": "Sem ele, cada instância conta sozinha e o limite real se multiplica pelo número de instâncias." },
-    { "question": "Qual o principal risco do cache de respostas no gateway?", "answer": "Servir a um usuário resposta personalizada de outro; a chave de cache deve considerar o usuário quando a resposta depende dele." },
-    { "question": "Descreva os três estados do circuit breaker.", "answer": "Fechado: chamadas passam e falhas são contadas. Aberto: chamadas recusadas de imediato. Semiaberto: algumas chamadas de teste decidem se volta a fechar ou abrir." },
-    { "question": "Por que retries precisam de backoff com jitter?", "answer": "Para não sincronizar milhares de novas tentativas ao mesmo tempo e agravar a sobrecarga do serviço." },
-    { "question": "Qual a diferença de foco entre API Gateway e service mesh?", "answer": "Gateway: tráfego norte-sul, gestão de APIs expostas a clientes. Mesh: tráfego leste-oeste entre serviços, com sidecars, mTLS interno e políticas." },
-    { "question": "Como evitar que o gateway seja ponto único de falha?", "answer": "Rodar várias instâncias sem estado em zonas diferentes, atrás de balanceador, com health checks, escala automática e estado compartilhado externo." }
+    {
+      "question": "Que problema o API Gateway resolve numa arquitetura de microsserviços?",
+      "answer": "Evita que o cliente conheça e chame cada serviço, repetindo autenticação, limites e logs; oferece um ponto de entrada que esconde a estrutura interna e centraliza preocupações transversais."
+    },
+    {
+      "question": "Por que regra de negócio não deve ficar no gateway?",
+      "answer": "Porque ele vira um monólito disfarçado, acoplando todas as equipes num só componente e dificultando mudanças."
+    },
+    {
+      "question": "Como a agregação reduz latência para o app móvel?",
+      "answer": "O app faz uma chamada pela internet; o gateway chama os serviços pela rede interna, em paralelo, e devolve resposta única."
+    },
+    {
+      "question": "Qual a ideia central do BFF e quem o mantém?",
+      "answer": "Um backend dedicado a cada tipo de cliente, ajustado às suas telas, mantido de preferência pela equipe do frontend correspondente."
+    },
+    {
+      "question": "Que verificações o gateway faz num JWT de acesso?",
+      "answer": "Assinatura com a chave do emissor, emissor, audiência, expiração e escopos exigidos pela rota."
+    },
+    {
+      "question": "Qual a diferença entre 401 e 403 no gateway?",
+      "answer": "401 quando não há credencial válida; 403 quando a credencial é válida, mas não dá permissão para a operação."
+    },
+    {
+      "question": "Por que o rate limiting precisa de contador compartilhado com várias instâncias?",
+      "answer": "Sem ele, cada instância conta sozinha e o limite real se multiplica pelo número de instâncias."
+    },
+    {
+      "question": "Qual o principal risco do cache de respostas no gateway?",
+      "answer": "Servir a um usuário resposta personalizada de outro; a chave de cache deve considerar o usuário quando a resposta depende dele."
+    },
+    {
+      "question": "Descreva os três estados do circuit breaker.",
+      "answer": "Fechado: chamadas passam e falhas são contadas. Aberto: chamadas recusadas de imediato. Semiaberto: algumas chamadas de teste decidem se volta a fechar ou abrir."
+    },
+    {
+      "question": "Por que retries precisam de backoff com jitter?",
+      "answer": "Para não sincronizar milhares de novas tentativas ao mesmo tempo e agravar a sobrecarga do serviço."
+    },
+    {
+      "question": "Qual a diferença de foco entre API Gateway e service mesh?",
+      "answer": "Gateway: tráfego norte-sul, gestão de APIs expostas a clientes. Mesh: tráfego leste-oeste entre serviços, com sidecars, mTLS interno e políticas."
+    },
+    {
+      "question": "Como evitar que o gateway seja ponto único de falha?",
+      "answer": "Rodar várias instâncias sem estado em zonas diferentes, atrás de balanceador, com health checks, escala automática e estado compartilhado externo."
+    }
   ],
   "errorConcepts": [
-    { "key": "e1", "title": "Pôr no gateway o que é do serviço", "summary": "O gateway centraliza preocupações transversais, mas não deve conter regra de negócio nem substituir a autorização por objeto feita no serviço." },
-    { "key": "e2", "title": "Confundir BFF, agregação e roteamento", "summary": "Roteamento encaminha; agregação junta respostas; BFF é um backend por tipo de cliente, não um backend único compartilhado." },
-    { "key": "e3", "title": "Errar conceitos de JWT, OAuth e códigos HTTP de segurança", "summary": "JWT assinado não é cifrado; OAuth 2.0 é autorização delegada e OIDC acrescenta autenticação; 401 é credencial ausente/inválida e 403 é falta de permissão." },
-    { "key": "e4", "title": "Misturar rate limiting, cota, throttling e cache", "summary": "Limite por intervalo curto gera 429; cota é volume em período longo; token bucket admite rajadas; cache exige TTL e cuidado com respostas personalizadas." },
-    { "key": "e5", "title": "Inverter estados e regras de resiliência", "summary": "Circuit breaker aberto recusa sem chamar e semiaberto testa; retry só com limite, backoff e idempotência; 504 é timeout e 502 resposta inválida." },
-    { "key": "e6", "title": "Confundir gateway com proxy, balanceador e service mesh", "summary": "Proxy repassa, balanceador escolhe instância, gateway gerencia APIs no norte-sul e mesh trata o leste-oeste; ponto de entrada único não exige instância única." }
+    {
+      "key": "e1",
+      "title": "Pôr no gateway o que é do serviço",
+      "summary": "O gateway centraliza preocupações transversais, mas não deve conter regra de negócio nem substituir a autorização por objeto feita no serviço."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir BFF, agregação e roteamento",
+      "summary": "Roteamento encaminha; agregação junta respostas; BFF é um backend por tipo de cliente, não um backend único compartilhado."
+    },
+    {
+      "key": "e3",
+      "title": "Errar conceitos de JWT, OAuth e códigos HTTP de segurança",
+      "summary": "JWT assinado não é cifrado; OAuth 2.0 é autorização delegada e OIDC acrescenta autenticação; 401 é credencial ausente/inválida e 403 é falta de permissão."
+    },
+    {
+      "key": "e4",
+      "title": "Misturar rate limiting, cota, throttling e cache",
+      "summary": "Limite por intervalo curto gera 429; cota é volume em período longo; token bucket admite rajadas; cache exige TTL e cuidado com respostas personalizadas."
+    },
+    {
+      "key": "e5",
+      "title": "Inverter estados e regras de resiliência",
+      "summary": "Circuit breaker aberto recusa sem chamar e semiaberto testa; retry só com limite, backoff e idempotência; 504 é timeout e 502 resposta inválida."
+    },
+    {
+      "key": "e6",
+      "title": "Confundir gateway com proxy, balanceador e service mesh",
+      "summary": "Proxy repassa, balanceador escolhe instância, gateway gerencia APIs no norte-sul e mesh trata o leste-oeste; ponto de entrada único não exige instância única."
+    }
   ],
   "questions": [
     {
       "statement": "Em arquitetura de microsserviços, o API Gateway atua como ponto de entrada para os clientes externos, ocultando deles a localização e a quantidade de serviços internos e centralizando preocupações transversais, como autenticação e limitação de requisições.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. Essa é a definição do padrão: o cliente conhece um único endereço na borda, e o gateway encaminha cada chamada ao serviço adequado. Como todo serviço precisaria repetir autenticação, limites e logs, essas tarefas transversais ficam concentradas no gateway.",
       "section": "1. O papel do API Gateway na arquitetura",
       "errorConceptKey": "e1",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Para simplificar os microsserviços, recomenda-se transferir para o API Gateway as regras de negócio comuns a vários deles, como o cálculo de prazos processuais, de modo que os serviços se limitem a persistir dados.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. O gateway deve tratar de roteamento e preocupações transversais, não de lógica do domínio. Concentrar regras de negócio nele cria um monólito disfarçado, que acopla todas as equipes e exige coordenação para cada mudança, anulando a independência dos microsserviços.",
       "section": "1. O papel do API Gateway na arquitetura",
       "errorConceptKey": "e1",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Depois que o gateway valida o token de acesso de um usuário autenticado, o microsserviço de processos pode dispensar qualquer verificação sobre se aquele usuário tem direito a consultar o processo sigiloso solicitado, pois a borda já autorizou a chamada.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. O gateway sabe que o token é válido e pode exigir escopos gerais, mas não conhece a relação entre o usuário e cada processo. A autorização em nível de objeto fica no serviço; omiti-la gera a falha de autorização quebrada por objeto, a primeira do OWASP API Security Top 10.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e1",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "A adoção de um API Gateway acrescenta um salto de rede ao caminho das requisições e um novo componente que precisa ser escalado e monitorado, custos que devem ser ponderados frente às vantagens da centralização.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. Toda requisição passa a atravessar mais um intermediário, o que soma alguma latência, e o gateway vira peça crítica que exige capacidade, redundância e monitoração próprias. São custos reais do padrão, compensados pela centralização de segurança, limites e roteamento.",
       "section": "1. O papel do API Gateway na arquitetura",
       "errorConceptKey": "e6",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "No Spring Cloud Gateway, uma rota é composta, entre outros elementos, por um identificador, uma URI de destino, predicados que determinam se a requisição casa com a rota e filtros que podem alterar a requisição ou a resposta.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. A documentação do Spring Cloud Gateway define a rota como bloco básico, formado por ID, URI de destino, coleção de predicados e coleção de filtros. A rota é usada quando o predicado agregado é verdadeiro, e os filtros atuam antes ou depois do envio ao destino.",
       "section": "2. Roteamento, agregação e BFF",
       "errorConceptKey": "e2",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "A instalação de um API Gateway elimina a necessidade de mecanismo de descoberta de serviços, mesmo em ambientes em que instâncias são criadas e destruídas dinamicamente, porque as rotas do gateway já contêm os endereços definitivos de cada instância.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. Em ambientes dinâmicos, os endereços das instâncias mudam o tempo todo; o gateway costuma consultar um registro de serviços para saber quais instâncias estão vivas e distribuir as chamadas. Ele convive com a descoberta de serviços e depende dela, em vez de substituí-la.",
       "section": "2. Roteamento, agregação e BFF",
       "errorConceptKey": "e2",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O padrão Backend for Frontend (BFF) recomenda um único backend compartilhado por todos os tipos de cliente, de modo a evitar a duplicação de código entre aplicativo móvel e portal web.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. O BFF propõe o contrário: um backend dedicado a cada experiência de usuário, ajustado às necessidades daquele cliente e mantido, de preferência, pela equipe do frontend correspondente. Aceita-se alguma duplicação em troca de autonomia e respostas sob medida.",
       "section": "2. Roteamento, agregação e BFF",
       "errorConceptKey": "e2",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Ao agregar dados de vários microsserviços para montar uma única resposta, o gateway reduz o número de chamadas feitas pelo cliente pela internet, sendo recomendável que as chamadas internas independentes sejam feitas em paralelo e com limite de tempo.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. O cliente faz uma chamada só, e o gateway conversa com os serviços pela rede interna, mais rápida. Chamadas em paralelo evitam que a latência total seja a soma das latências, e o timeout impede que um serviço lento prenda a resposta agregada indefinidamente.",
       "section": "2. Roteamento, agregação e BFF",
       "errorConceptKey": "e2",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Por ser assinado digitalmente, um JWT no formato JWS garante a confidencialidade das claims nele contidas, de modo que dados pessoais sensíveis podem ser incluídos no token sem risco de leitura por terceiros.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. O conteúdo de um JWT assinado é apenas codificado em Base64URL e pode ser lido por qualquer um que obtenha o token. A assinatura assegura integridade e origem, não sigilo; confidencialidade exigiria cifragem (JWE), e a boa prática é não colocar dado sensível nas claims.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e3",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O OAuth 2.0 é um framework de autorização delegada, e o OpenID Connect é uma camada construída sobre ele que acrescenta a autenticação do usuário de forma padronizada, por meio do ID Token.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. O OAuth 2.0, da RFC 6749, trata de conceder a um cliente acesso limitado a recursos por meio de tokens. Ele não define, por si, como provar a identidade do usuário; essa lacuna é preenchida pelo OpenID Connect, que introduz o ID Token sobre o mesmo fluxo.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e3",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Quando um cliente apresenta ao gateway um token válido, mas sem o escopo exigido pela rota para gravar dados, a resposta adequada é o código HTTP 403, e não o 401.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. O 401 indica que falta credencial ou que ela é inválida, isto é, o cliente não está autenticado. No caso descrito, a identidade foi comprovada, mas a permissão não basta para a operação, situação típica do 403 Forbidden.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e3",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "É boa prática que o API Gateway descarte cabeçalhos de identidade, como X-User-Id, enviados pelo cliente externo antes de encaminhar a requisição, para impedir que um atacante forje a identidade em que os serviços internos confiam.",
       "format": "TRUE_FALSE",
       "difficulty": "DIFICIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. Se os serviços internos confiam em cabeçalhos de identidade inseridos pelo gateway, um cliente mal-intencionado poderia enviá-los já preenchidos. O gateway deve removê-los na entrada e só acrescentar os valores que ele mesmo extraiu do token validado.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e3",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Ao detectar que um cliente excedeu o limite de requisições permitido por intervalo de tempo, o gateway deve responder com o código HTTP 503 Service Unavailable, que é o código especificamente definido para esse caso.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. O código próprio para excesso de requisições de um cliente é o 429 Too Many Requests, definido na RFC 6585, que pode vir acompanhado do cabeçalho Retry-After. O 503 indica indisponibilidade ou sobrecarga geral do servidor, não a violação de limite por um cliente específico.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "No algoritmo token bucket, fichas são acrescentadas ao balde a uma taxa constante e cada requisição consome uma ficha, o que permite atender rajadas curtas até a capacidade do balde, mantendo uma taxa média sustentada.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. Enquanto houver fichas acumuladas, várias requisições seguidas são atendidas, o que caracteriza a tolerância a rajadas. Quando o balde se esvazia, as requisições passam a ser recusadas até a reposição, e a taxa de reposição define o ritmo médio permitido.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Em um gateway implantado com quatro instâncias atrás de um balanceador, se cada instância mantiver em memória local o próprio contador de rate limiting, o limite configurado de 10 requisições por segundo por cliente tende a ser aplicado de forma efetiva e exata.",
       "format": "TRUE_FALSE",
       "difficulty": "DIFICIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. Cada instância vê só parte do tráfego e conta sozinha; o cliente pode chegar a cerca de quatro vezes o limite antes de ser barrado. Para um limite global coerente, o contador precisa ficar num armazenamento compartilhado, como faz o RequestRateLimiter do Spring Cloud Gateway com Redis.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O cache de respostas no gateway pode armazenar, sob uma chave formada apenas pela URL, a resposta de um endpoint que devolve os dados pessoais do usuário autenticado, sem risco de exposição indevida, já que todos os usuários acessam a mesma URL.",
       "format": "TRUE_FALSE",
       "difficulty": "DIFICIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. Justamente porque a URL é a mesma para todos, uma chave baseada só nela faria o segundo usuário receber os dados do primeiro. Resposta personalizada não deve ir para cache compartilhado ou exige chave que inclua a identidade de quem pede, além de respeitar os cabeçalhos de controle de cache.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "No padrão circuit breaker, enquanto o circuito está aberto, as chamadas ao serviço com falha são recusadas de imediato, sem que o destino seja acionado, até que, transcorrido um intervalo, o circuito passe ao estado semiaberto para testar a recuperação.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. Aberto significa cortar o fluxo: o cliente recebe erro ou fallback rapidamente e o serviço doente ganha fôlego. Só no semiaberto algumas chamadas de teste são liberadas; o sucesso delas fecha o circuito e a falha o reabre.",
       "section": "5. Resiliência e observabilidade: timeouts, retries e circuit breaker",
       "errorConceptKey": "e5",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Como medida de resiliência, o gateway deve repetir automaticamente, sem limite e sem intervalo, qualquer requisição que falhe, inclusive operações POST de protocolo de petição, pois a repetição imediata maximiza a chance de sucesso.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. Repetições sem limite e sem espera sobrecarregam ainda mais o serviço com problema. Além disso, repetir operação não idempotente, como um POST de protocolo, pode gerar duas petições. Retry seguro tem número máximo de tentativas, backoff com jitter e, em regra, só para operações idempotentes ou com chave de idempotência.",
       "section": "5. Resiliência e observabilidade: timeouts, retries e circuit breaker",
       "errorConceptKey": "e5",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "API Gateway e service mesh são soluções concorrentes para o mesmo problema, de modo que a adoção de uma malha de serviços com proxies sidecar torna dispensável o gateway na borda do sistema.",
       "format": "TRUE_FALSE",
       "difficulty": "MEDIA",
-      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
       "explanation": "Errado. O gateway trata do tráfego norte-sul, entre clientes externos e o sistema, com foco em gestão das APIs expostas. A malha cuida do tráfego leste-oeste, entre serviços, com mTLS interno e políticas aplicadas por sidecars. Os dois atuam em pontos distintos e costumam coexistir.",
       "section": "6. Gateway, proxy reverso, balanceador e service mesh; ponto único de falha e ferramentas",
       "errorConceptKey": "e6",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Embora seja ponto lógico único de entrada, o API Gateway pode ser implantado em várias instâncias sem estado, distribuídas em zonas de disponibilidade diferentes e atrás de um balanceador com verificação de saúde, o que evita que ele se torne ponto único de falha.",
       "format": "TRUE_FALSE",
       "difficulty": "FACIL",
-      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
       "explanation": "Certo. Entrada única é uma ideia lógica, não exige uma só máquina. Com instâncias redundantes e sem estado local, o balanceador retira as doentes pelos health checks e as demais continuam atendendo, de modo que a queda de uma instância não derruba o acesso.",
       "section": "6. Gateway, proxy reverso, balanceador e service mesh; ponto único de falha e ferramentas",
       "errorConceptKey": "e6",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Um tribunal dividiu seu sistema em microsserviços de processos, partes, documentos e intimações, e hoje o aplicativo dos advogados precisa conhecer o endereço de cada um e se autenticar separadamente em todos. Qual medida resolve diretamente esse acoplamento?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "FACIL",
       "options": [
-        { "key": "A", "text": "Reunir de novo todos os serviços num único sistema monolítico.", "correct": false },
-        { "key": "B", "text": "Criar uma fila de mensagens para que o aplicativo publique eventos.", "correct": false },
-        { "key": "C", "text": "Colocar um API Gateway como ponto único de entrada na borda.", "correct": true },
-        { "key": "D", "text": "Distribuir ao aplicativo uma lista atualizada dos endereços dos serviços.", "correct": false },
-        { "key": "E", "text": "Replicar o banco de dados de cada serviço no aparelho do usuário.", "correct": false }
+        {
+          "key": "A",
+          "text": "Reunir de novo todos os serviços num único sistema monolítico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma fila de mensagens para que o aplicativo publique eventos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar um API Gateway como ponto único de entrada na borda.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Distribuir ao aplicativo uma lista atualizada dos endereços dos serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicar o banco de dados de cada serviço no aparelho do usuário.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito C. O gateway dá ao aplicativo um único endereço e centraliza a autenticação, escondendo quantos serviços existem e onde estão. Voltar ao monólito desfaz a arquitetura em vez de resolver o acesso; a fila serve à comunicação assíncrona, não à entrada de clientes; distribuir endereços mantém o acoplamento; replicar bancos no aparelho é inviável e inseguro.",
       "section": "1. O papel do API Gateway na arquitetura",
       "errorConceptKey": "e1",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Uma equipe discute o que colocar no API Gateway da nova plataforma. Qual das funções abaixo é a menos adequada para ficar no gateway?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "FACIL",
       "options": [
-        { "key": "A", "text": "Validar a assinatura e a expiração dos tokens de acesso recebidos.", "correct": false },
-        { "key": "B", "text": "Limitar o número de requisições por segundo de cada chave de API.", "correct": false },
-        { "key": "C", "text": "Registrar logs de acesso com rota, código de status e duração.", "correct": false },
-        { "key": "D", "text": "Calcular as custas de cada processo pela tabela vigente.", "correct": true },
-        { "key": "E", "text": "Encaminhar as chamadas de /api/processos ao serviço de processos.", "correct": false }
+        {
+          "key": "A",
+          "text": "Validar a assinatura e a expiração dos tokens de acesso recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Limitar o número de requisições por segundo de cada chave de API.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar logs de acesso com rota, código de status e duração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Calcular as custas de cada processo pela tabela vigente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Encaminhar as chamadas de /api/processos ao serviço de processos.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito D. Cálculo de custas é regra de negócio e pertence ao serviço do domínio; levá-lo ao gateway o transformaria em monólito disfarçado. Validar tokens, limitar taxa, registrar acessos e rotear por caminho são exatamente as preocupações transversais que o padrão recomenda centralizar na borda.",
       "section": "1. O papel do API Gateway na arquitetura",
       "errorConceptKey": "e1",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O app de celular de um órgão precisa de respostas enxutas, enquanto o portal web exibe telas ricas com muitos dados, e as duas equipes vivem bloqueadas por exceções num gateway compartilhado. Qual padrão melhor atende ao caso?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Backend for Frontend, um backend por tipo de cliente.", "correct": true },
-        { "key": "B", "text": "Service mesh, com proxies sidecar ao lado de cada aplicativo cliente.", "correct": false },
-        { "key": "C", "text": "Balanceador de carga em camada 4 distribuindo os dois clientes.", "correct": false },
-        { "key": "D", "text": "Gateway único com todas as variações de resposta numa só rota.", "correct": false },
-        { "key": "E", "text": "Acesso direto dos clientes ao banco de dados de cada serviço.", "correct": false }
+        {
+          "key": "A",
+          "text": "Backend for Frontend, um backend por tipo de cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Service mesh, com proxies sidecar ao lado de cada aplicativo cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Balanceador de carga em camada 4 distribuindo os dois clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway único com todas as variações de resposta numa só rota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acesso direto dos clientes ao banco de dados de cada serviço.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito A. O BFF cria um backend por experiência de usuário, cada um ajustado às suas telas e mantido pela equipe do frontend correspondente, o que remove o gargalo de coordenação. A malha trata tráfego entre serviços; o balanceador de camada 4 só distribui conexões; concentrar variações numa rota agrava o problema; acesso direto ao banco quebra o encapsulamento dos serviços.",
       "section": "2. Roteamento, agregação e BFF",
       "errorConceptKey": "e2",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Para liberar uma versão nova do serviço de intimações, a equipe quer enviar 10% do tráfego à versão nova e 90% à estável, observando os erros antes de ampliar. Qual recurso do gateway viabiliza diretamente essa estratégia?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Cache de respostas com tempo de vida reduzido para a versão nova.", "correct": false },
-        { "key": "B", "text": "Circuit breaker configurado para abrir após o primeiro erro.", "correct": false },
-        { "key": "C", "text": "Transformação de respostas de JSON para XML na versão estável.", "correct": false },
-        { "key": "D", "text": "Rate limiting por cliente com cota diária da versão nova.", "correct": false },
-        { "key": "E", "text": "Roteamento ponderado, dividindo o tráfego por peso.", "correct": true }
+        {
+          "key": "A",
+          "text": "Cache de respostas com tempo de vida reduzido para a versão nova.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Circuit breaker configurado para abrir após o primeiro erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transformação de respostas de JSON para XML na versão estável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rate limiting por cliente com cota diária da versão nova.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Roteamento ponderado, dividindo o tráfego por peso.",
+          "correct": true
+        }
       ],
       "explanation": "Gabarito E. A implantação canário depende de dividir o tráfego por percentuais, o que se faz com rotas ponderadas. Cache apenas guarda respostas; circuit breaker protege contra falhas, não reparte tráfego; conversão de formato não escolhe destino; limite de taxa controla volume por cliente, sem dirigir uma fração das chamadas à versão nova.",
       "section": "2. Roteamento, agregação e BFF",
       "errorConceptKey": "e2",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "A tela de detalhe do processo no aplicativo faz três chamadas sucessivas pela rede móvel (processo, partes, movimentações) e demora a abrir. Qual mudança no gateway reduz essa demora de forma mais direta?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Aumentar o timeout das três rotas para que nenhuma chamada seja cortada.", "correct": false },
-        { "key": "B", "text": "Agregar as três consultas, chamando os serviços em paralelo na rede interna.", "correct": true },
-        { "key": "C", "text": "Exigir autenticação mútua por certificado em cada uma das três chamadas.", "correct": false },
-        { "key": "D", "text": "Aplicar limite de taxa mais rigoroso ao aplicativo para aliviar os serviços.", "correct": false },
-        { "key": "E", "text": "Converter as três respostas para XML antes de devolvê-las ao aplicativo.", "correct": false }
+        {
+          "key": "A",
+          "text": "Aumentar o timeout das três rotas para que nenhuma chamada seja cortada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agregar as três consultas, chamando os serviços em paralelo na rede interna.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Exigir autenticação mútua por certificado em cada uma das três chamadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar limite de taxa mais rigoroso ao aplicativo para aliviar os serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter as três respostas para XML antes de devolvê-las ao aplicativo.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito B. Com agregação, o aplicativo faz uma única chamada pela internet e o gateway busca os três dados em paralelo pela rede interna, muito mais rápida. Timeout maior só prolonga a espera; mTLS acrescenta segurança, não velocidade; limite de taxa mais rigoroso pode até piorar a experiência; XML tende a deixar a resposta maior.",
       "section": "2. Roteamento, agregação e BFF",
       "errorConceptKey": "e2",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O gateway recebe um JWT de acesso no cabeçalho Authorization. Qual conjunto de verificações ele deve fazer para aceitar o token?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Decodificar o Base64URL e aceitar se o campo de usuário estiver preenchido.", "correct": false },
-        { "key": "B", "text": "Conferir só a expiração, já que a assinatura é verificada pelo navegador.", "correct": false },
-        { "key": "C", "text": "Validar assinatura, emissor, audiência, expiração e escopos exigidos pela rota.", "correct": true },
-        { "key": "D", "text": "Consultar a senha do usuário no diretório a cada requisição recebida.", "correct": false },
-        { "key": "E", "text": "Aceitar qualquer token cujo cabeçalho indique o algoritmo de assinatura.", "correct": false }
+        {
+          "key": "A",
+          "text": "Decodificar o Base64URL e aceitar se o campo de usuário estiver preenchido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir só a expiração, já que a assinatura é verificada pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar assinatura, emissor, audiência, expiração e escopos exigidos pela rota.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Consultar a senha do usuário no diretório a cada requisição recebida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aceitar qualquer token cujo cabeçalho indique o algoritmo de assinatura.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito C. A assinatura prova que o token veio do emissor confiável e não foi alterado; emissor e audiência garantem que foi emitido por quem se espera e para esta API; a expiração limita o uso; os escopos dizem se a operação é permitida. Ler o conteúdo sem validar assinatura aceita tokens forjados, o navegador não valida o token pela API, a senha não circula nesse fluxo e o cabeçalho do token é controlado por quem o envia.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e3",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "No fluxo OAuth 2.0 em que o aplicativo do advogado obtém token para chamar as APIs do tribunal, qual papel é desempenhado pelo provedor de identidade que emite os tokens de acesso?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "FACIL",
       "options": [
-        { "key": "A", "text": "Servidor de recursos.", "correct": false },
-        { "key": "B", "text": "Dono do recurso protegido.", "correct": false },
-        { "key": "C", "text": "Cliente confidencial.", "correct": false },
-        { "key": "D", "text": "Servidor de autorização.", "correct": true },
-        { "key": "E", "text": "Agente de usuário.", "correct": false }
+        {
+          "key": "A",
+          "text": "Servidor de recursos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dono do recurso protegido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cliente confidencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Servidor de autorização.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Agente de usuário.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito D. Na RFC 6749, quem emite tokens de acesso depois de autenticar o dono do recurso e obter sua autorização é o servidor de autorização. As APIs protegidas são o servidor de recursos; o advogado é o dono do recurso; o aplicativo é o cliente; agente de usuário é o navegador ou programa por onde o usuário interage.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e3",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Um auditor encontrou uma API em que o gateway valida o token, mas o serviço devolve qualquer processo cujo número seja informado, mesmo que o usuário não atue nele. Qual diagnóstico e correção são adequados?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "DIFICIL",
       "options": [
-        { "key": "A", "text": "Falta autorização por objeto; o serviço deve conferir o vínculo.", "correct": true },
-        { "key": "B", "text": "Falta cifragem do token; basta trocar o JWT assinado por um JWT cifrado.", "correct": false },
-        { "key": "C", "text": "Falta limite de taxa; basta reduzir as requisições por segundo do usuário.", "correct": false },
-        { "key": "D", "text": "Falta cache; basta armazenar as respostas por usuário no gateway.", "correct": false },
-        { "key": "E", "text": "Falta TLS; basta exigir HTTPS entre o aplicativo e o gateway.", "correct": false }
+        {
+          "key": "A",
+          "text": "Falta autorização por objeto; o serviço deve conferir o vínculo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Falta cifragem do token; basta trocar o JWT assinado por um JWT cifrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falta limite de taxa; basta reduzir as requisições por segundo do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Falta cache; basta armazenar as respostas por usuário no gateway.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Falta TLS; basta exigir HTTPS entre o aplicativo e o gateway.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito A. O problema é de autorização em nível de objeto: autenticar o usuário não basta, é preciso conferir se ele pode acessar aquele recurso, e isso depende de dados que só o serviço possui. Cifrar o token, limitar taxa, guardar cache ou exigir HTTPS não impedem que um usuário autenticado leia processo alheio trocando o número na URL.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e1",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Um aplicativo móvel, que não consegue guardar segredo de cliente com segurança, deve obter tokens OAuth 2.0 para chamar a API por meio do gateway. Qual fluxo é o mais indicado pelas boas práticas atuais?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "DIFICIL",
       "options": [
-        { "key": "A", "text": "Fluxo implícito, com o token devolvido diretamente na URL de retorno.", "correct": false },
-        { "key": "B", "text": "Fluxo de senha, com o app recebendo e repassando usuário e senha.", "correct": false },
-        { "key": "C", "text": "Credenciais do cliente, com segredo embutido no pacote do aplicativo.", "correct": false },
-        { "key": "D", "text": "Envio do login e senha em cada chamada, em autenticação básica.", "correct": false },
-        { "key": "E", "text": "Authorization code com PKCE, que protege a troca do código pelo token.", "correct": true }
+        {
+          "key": "A",
+          "text": "Fluxo implícito, com o token devolvido diretamente na URL de retorno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fluxo de senha, com o app recebendo e repassando usuário e senha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Credenciais do cliente, com segredo embutido no pacote do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Envio do login e senha em cada chamada, em autenticação básica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Authorization code com PKCE, que protege a troca do código pelo token.",
+          "correct": true
+        }
       ],
       "explanation": "Gabarito E. Para clientes públicos, como apps, o authorization code com PKCE impede que um código interceptado seja trocado por token por outra aplicação. O fluxo implícito expõe o token na URL e caiu em desuso; o fluxo de senha entrega a credencial ao app; um segredo embutido no pacote pode ser extraído; mandar senha a cada chamada dispensa tokens e amplia a exposição.",
       "section": "3. Segurança na borda: autenticação, autorização, JWT e OAuth 2.0",
       "errorConceptKey": "e3",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Um parceiro com defeito passa a disparar centenas de consultas por segundo à API pública do tribunal, acima do limite do seu plano. Qual resposta HTTP o gateway deve devolver às requisições excedentes?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "FACIL",
       "options": [
-        { "key": "A", "text": "401 Unauthorized, indicando credencial ausente.", "correct": false },
-        { "key": "B", "text": "429 Too Many Requests, podendo informar Retry-After.", "correct": true },
-        { "key": "C", "text": "404 Not Found, indicando recurso inexistente.", "correct": false },
-        { "key": "D", "text": "504 Gateway Timeout, indicando demora do serviço.", "correct": false },
-        { "key": "E", "text": "301 Moved Permanently, indicando novo endereço.", "correct": false }
+        {
+          "key": "A",
+          "text": "401 Unauthorized, indicando credencial ausente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "429 Too Many Requests, podendo informar Retry-After.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "404 Not Found, indicando recurso inexistente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "504 Gateway Timeout, indicando demora do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "301 Moved Permanently, indicando novo endereço.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito B. A RFC 6585 criou o 429 para o cliente que enviou requisições demais num intervalo, e o Retry-After pode dizer quando voltar. O parceiro está autenticado, o recurso existe, o serviço não demorou e o endereço não mudou, de modo que 401, 404, 504 e 301 descreveriam situações diferentes da violação de limite.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Considere os mecanismos de controle de tráfego de um gateway. Qual associação entre mecanismo e função está correta?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Cota: limita o número de requisições por segundo, sem considerar períodos longos.", "correct": false },
-        { "key": "B", "text": "Token bucket: obriga ritmo de saída perfeitamente constante, sem admitir rajadas.", "correct": false },
-        { "key": "C", "text": "Leaky bucket: escoa as requisições em ritmo constante, retendo o excesso.", "correct": true },
-        { "key": "D", "text": "Rate limiting: mede apenas o volume mensal consumido por cada plano de uso.", "correct": false },
-        { "key": "E", "text": "Cache: impede que um cliente ultrapasse o limite contratado de chamadas.", "correct": false }
+        {
+          "key": "A",
+          "text": "Cota: limita o número de requisições por segundo, sem considerar períodos longos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Token bucket: obriga ritmo de saída perfeitamente constante, sem admitir rajadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Leaky bucket: escoa as requisições em ritmo constante, retendo o excesso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Rate limiting: mede apenas o volume mensal consumido por cada plano de uso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache: impede que um cliente ultrapasse o limite contratado de chamadas.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito C. O balde furado deixa as requisições saírem como água por um furo, em ritmo fixo; o que excede espera ou é descartado, método seguido pela diretiva limit_req do NGINX. Cota mede volume de período longo; o token bucket é justamente o que admite rajadas; rate limiting trata de intervalos curtos; cache reduz chamadas ao serviço, mas não aplica limite contratual.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Um sistema legado de um parceiro só aceita XML, mas o novo serviço de consulta responde em JSON, e o órgão não quer alterar nenhum dos dois. Qual capacidade do gateway resolve o caso sem violar a separação de responsabilidades?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Circuit breaker com fallback em XML para todas as chamadas do parceiro.", "correct": false },
-        { "key": "B", "text": "Agregação de dados de vários serviços numa resposta única em JSON.", "correct": false },
-        { "key": "C", "text": "Implementar no gateway as regras de cálculo exigidas pelo parceiro.", "correct": false },
-        { "key": "D", "text": "Transformação de formato da resposta de JSON para XML na rota do parceiro.", "correct": true },
-        { "key": "E", "text": "Balanceamento de carga entre instâncias que falam XML e JSON.", "correct": false }
+        {
+          "key": "A",
+          "text": "Circuit breaker com fallback em XML para todas as chamadas do parceiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agregação de dados de vários serviços numa resposta única em JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Implementar no gateway as regras de cálculo exigidas pelo parceiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformação de formato da resposta de JSON para XML na rota do parceiro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Balanceamento de carga entre instâncias que falam XML e JSON.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito D. Converter formato ou protocolo na borda é transformação, função legítima do gateway que mantém serviço e parceiro intactos. O fallback serve para falhas, não para adaptar formato; a agregação continuaria em JSON; levar regras de cálculo ao gateway mistura negócio com borda; não há instâncias em XML para balancear.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "A consulta à tabela de classes processuais muda raramente, mas recebe milhares de requisições por minuto pelo gateway. Qual configuração de cache é a mais adequada?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "DIFICIL",
       "options": [
-        { "key": "A", "text": "Cache de GET com tempo de vida, respeitando os cabeçalhos HTTP.", "correct": true },
-        { "key": "B", "text": "Guardar também as respostas de POST, para não reenviar petições repetidas.", "correct": false },
-        { "key": "C", "text": "Guardar a tabela sem prazo de expiração nem forma de invalidação.", "correct": false },
-        { "key": "D", "text": "Desativar o cache, pois todo dado vindo de serviço deve ser sempre recalculado.", "correct": false },
-        { "key": "E", "text": "Guardar no cache os tokens de acesso dos usuários junto com a tabela.", "correct": false }
+        {
+          "key": "A",
+          "text": "Cache de GET com tempo de vida, respeitando os cabeçalhos HTTP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar também as respostas de POST, para não reenviar petições repetidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar a tabela sem prazo de expiração nem forma de invalidação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o cache, pois todo dado vindo de serviço deve ser sempre recalculado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar no cache os tokens de acesso dos usuários junto com a tabela.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito A. Dado público e estável é o caso ideal para cache de GET com TTL e uso de Cache-Control e ETag. POST altera estado e não deve ser servido de cache; sem expiração nem invalidação, a tabela ficaria desatualizada para sempre; desligar o cache desperdiça capacidade; tokens de usuários não têm relação com a resposta e expô-los seria falha grave.",
       "section": "4. Rate limiting, throttling, cache e transformação",
       "errorConceptKey": "e4",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O serviço de documentos passou a responder em 30 segundos, e o gateway, sem limite de espera, esgotou conexões e começou a falhar também nas rotas de processos e intimações. Que conjunto de medidas ataca essa falha em cascata?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "DIFICIL",
       "options": [
-        { "key": "A", "text": "Retirar o cache e aumentar o limite de taxa de todos os clientes.", "correct": false },
-        { "key": "B", "text": "Trocar o JWT por cookies de sessão e repetir cada chamada lenta várias vezes.", "correct": false },
-        { "key": "C", "text": "Aumentar o timeout para 120 segundos e unificar o pool de conexões.", "correct": false },
-        { "key": "D", "text": "Mover a lógica de documentos para dentro do gateway para eliminar a chamada.", "correct": false },
-        { "key": "E", "text": "Timeout por rota, circuit breaker e isolamento por destino.", "correct": true }
+        {
+          "key": "A",
+          "text": "Retirar o cache e aumentar o limite de taxa de todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o JWT por cookies de sessão e repetir cada chamada lenta várias vezes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o timeout para 120 segundos e unificar o pool de conexões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover a lógica de documentos para dentro do gateway para eliminar a chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Timeout por rota, circuit breaker e isolamento por destino.",
+          "correct": true
+        }
       ],
       "explanation": "Gabarito E. O timeout libera recursos rapidamente, o circuit breaker passa a recusar chamadas ao serviço doente e o bulkhead impede que um destino lento consuma as conexões dos outros. Mexer em cache e limites não trata a lentidão; repetir chamadas agrava a carga; timeout maior e pool único pioram o esgotamento; pôr lógica de negócio no gateway contraria o padrão.",
       "section": "5. Resiliência e observabilidade: timeouts, retries e circuit breaker",
       "errorConceptKey": "e5",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "No padrão circuit breaker, qual é o comportamento do estado semiaberto?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Todas as chamadas passam normalmente enquanto as falhas são contadas.", "correct": false },
-        { "key": "B", "text": "Algumas chamadas de teste passam; o sucesso fecha o circuito e a falha o reabre.", "correct": true },
-        { "key": "C", "text": "Todas as chamadas são recusadas imediatamente, sem acionar o serviço.", "correct": false },
-        { "key": "D", "text": "As chamadas são redirecionadas permanentemente para outro serviço.", "correct": false },
-        { "key": "E", "text": "O gateway reinicia o serviço com falha antes de liberar qualquer chamada.", "correct": false }
+        {
+          "key": "A",
+          "text": "Todas as chamadas passam normalmente enquanto as falhas são contadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Algumas chamadas de teste passam; o sucesso fecha o circuito e a falha o reabre.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todas as chamadas são recusadas imediatamente, sem acionar o serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As chamadas são redirecionadas permanentemente para outro serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gateway reinicia o serviço com falha antes de liberar qualquer chamada.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito B. O semiaberto é a fase de prova: depois do intervalo de espera, um número limitado de chamadas é liberado, e o resultado delas define se o circuito fecha de novo ou volta a abrir. Passar tudo contando falhas descreve o fechado; recusar tudo, o aberto; redirecionar ou reiniciar serviços não faz parte do padrão.",
       "section": "5. Resiliência e observabilidade: timeouts, retries e circuit breaker",
       "errorConceptKey": "e5",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O gateway encaminhou uma requisição ao serviço de intimações, que não respondeu dentro do prazo configurado. Qual código HTTP o gateway tipicamente devolve ao cliente?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "FACIL",
       "options": [
-        { "key": "A", "text": "502 Bad Gateway.", "correct": false },
-        { "key": "B", "text": "429 Too Many Requests.", "correct": false },
-        { "key": "C", "text": "504 Gateway Timeout.", "correct": true },
-        { "key": "D", "text": "403 Forbidden.", "correct": false },
-        { "key": "E", "text": "201 Created.", "correct": false }
+        {
+          "key": "A",
+          "text": "502 Bad Gateway.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "429 Too Many Requests.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "504 Gateway Timeout.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "403 Forbidden.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "201 Created.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito C. O 504 é usado quando o intermediário não recebe resposta a tempo do servidor a que repassou a chamada. O 502 indica resposta inválida ou falha de conexão com esse servidor; o 429 trata de excesso de requisições do cliente; o 403 é falta de permissão; o 201 sinaliza criação bem-sucedida.",
       "section": "5. Resiliência e observabilidade: timeouts, retries e circuit breaker",
       "errorConceptKey": "e5",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "A equipe de suporte não consegue seguir, nos logs dos vários serviços, o caminho de uma requisição lenta que entrou pelo gateway. Qual prática resolve esse problema?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Aumentar o tamanho máximo dos arquivos de log de cada serviço.", "correct": false },
-        { "key": "B", "text": "Desligar os logs no gateway para que só os serviços registrem.", "correct": false },
-        { "key": "C", "text": "Ativar cache das respostas lentas para reduzir as consultas.", "correct": false },
-        { "key": "D", "text": "Propagar um identificador de rastreamento a todos os serviços.", "correct": true },
-        { "key": "E", "text": "Aplicar limite de taxa mais rígido às rotas com maior latência.", "correct": false }
+        {
+          "key": "A",
+          "text": "Aumentar o tamanho máximo dos arquivos de log de cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar os logs no gateway para que só os serviços registrem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar cache das respostas lentas para reduzir as consultas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Propagar um identificador de rastreamento a todos os serviços.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aplicar limite de taxa mais rígido às rotas com maior latência.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito D. Rastreamento distribuído depende de um identificador comum, como o traceparent do W3C Trace Context usado pelo OpenTelemetry, criado na entrada e propagado a cada salto. Logs maiores não ligam os registros entre si; tirar os logs do gateway perde justamente o ponto de entrada; cache e limite de taxa não ajudam a localizar a causa da lentidão.",
       "section": "5. Resiliência e observabilidade: timeouts, retries e circuit breaker",
       "errorConceptKey": "e5",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Assinale a associação correta entre componente de infraestrutura e seu foco principal.",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
-        { "key": "A", "text": "Service mesh: gerencia chaves de API e planos de uso dos clientes externos.", "correct": false },
-        { "key": "B", "text": "Balanceador de carga: valida escopos OAuth e transforma o formato das respostas.", "correct": false },
-        { "key": "C", "text": "API Gateway: comunicação leste-oeste entre serviços, por sidecar em cada instância.", "correct": false },
-        { "key": "D", "text": "Proxy reverso: executa as regras de negócio dos serviços que protege.", "correct": false },
-        { "key": "E", "text": "API Gateway: gestão das APIs expostas a clientes externos, no tráfego norte-sul.", "correct": true }
+        {
+          "key": "A",
+          "text": "Service mesh: gerencia chaves de API e planos de uso dos clientes externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Balanceador de carga: valida escopos OAuth e transforma o formato das respostas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "API Gateway: comunicação leste-oeste entre serviços, por sidecar em cada instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proxy reverso: executa as regras de negócio dos serviços que protege.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "API Gateway: gestão das APIs expostas a clientes externos, no tráfego norte-sul.",
+          "correct": true
+        }
       ],
       "explanation": "Gabarito E. O gateway é um proxy reverso especializado em APIs: rotas, credenciais, limites por cliente e transformação para quem vem de fora. Chaves e planos de uso são coisa de gateway, não da malha; validar escopos e transformar respostas excede o papel do balanceador, que escolhe instâncias; sidecar e leste-oeste caracterizam a malha; nenhum proxy deve executar regra de negócio.",
       "section": "6. Gateway, proxy reverso, balanceador e service mesh; ponto único de falha e ferramentas",
       "errorConceptKey": "e6",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "O gateway de um tribunal roda numa única máquina, e uma pane nela deixou todos os sistemas inacessíveis. Qual arquitetura evita que isso se repita?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "DIFICIL",
       "options": [
-        { "key": "A", "text": "Trocar a máquina por outra mais potente, mantendo uma só instância.", "correct": false },
-        { "key": "B", "text": "Várias instâncias sem estado em zonas distintas, atrás de balanceador com health check.", "correct": true },
-        { "key": "C", "text": "Remover o gateway e publicar cada microsserviço diretamente na internet.", "correct": false },
-        { "key": "D", "text": "Manter uma instância e guardar nela, em memória, os contadores e sessões.", "correct": false },
-        { "key": "E", "text": "Fazer cópia de segurança diária da configuração do gateway.", "correct": false }
+        {
+          "key": "A",
+          "text": "Trocar a máquina por outra mais potente, mantendo uma só instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Várias instâncias sem estado em zonas distintas, atrás de balanceador com health check.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover o gateway e publicar cada microsserviço diretamente na internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter uma instância e guardar nela, em memória, os contadores e sessões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fazer cópia de segurança diária da configuração do gateway.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito B. Redundância de instâncias sem estado, distribuídas em zonas diferentes, com o balanceador retirando as doentes, elimina o ponto único de falha. Máquina mais forte continua sendo uma só; expor cada serviço perde a centralização e espalha riscos; estado em memória local prende o tráfego a uma instância; backup de configuração ajuda a restaurar, mas não mantém o serviço no ar durante a pane.",
       "section": "6. Gateway, proxy reverso, balanceador e service mesh; ponto único de falha e ferramentas",
       "errorConceptKey": "e6",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Sobre ferramentas usadas como API Gateway, assinale a afirmação correta.",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "DIFICIL",
       "options": [
-        { "key": "A", "text": "O Kong é construído sobre NGINX e OpenResty e é estendido por plugins.", "correct": true },
-        { "key": "B", "text": "O AWS API Gateway exige que o próprio cliente instale e mantenha os servidores do gateway.", "correct": false },
-        { "key": "C", "text": "O Spring Cloud Gateway só funciona com o modelo bloqueante de uma thread por requisição.", "correct": false },
-        { "key": "D", "text": "O NGINX não pode atuar como proxy reverso, servindo apenas arquivos estáticos.", "correct": false },
-        { "key": "E", "text": "O Spring Cloud Gateway dispensa rotas, pois descobre sozinho o que encaminhar.", "correct": false }
+        {
+          "key": "A",
+          "text": "O Kong é construído sobre NGINX e OpenResty e é estendido por plugins.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O AWS API Gateway exige que o próprio cliente instale e mantenha os servidores do gateway.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Spring Cloud Gateway só funciona com o modelo bloqueante de uma thread por requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O NGINX não pode atuar como proxy reverso, servindo apenas arquivos estáticos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Spring Cloud Gateway dispensa rotas, pois descobre sozinho o que encaminhar.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito A. O Kong roda sobre NGINX e OpenResty, e funções como autenticação, limite de taxa e logs entram por plugins. O AWS API Gateway é serviço gerenciado pela Amazon; o Spring Cloud Gateway nasceu sobre WebFlux e Reactor, modelo reativo não bloqueante; o NGINX é amplamente usado como proxy reverso com proxy_pass; e o Spring Cloud Gateway trabalha justamente com rotas, predicados e filtros.",
       "section": "6. Gateway, proxy reverso, balanceador e service mesh; ponto único de falha e ferramentas",
       "errorConceptKey": "e6",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     },
     {
       "statement": "Uma plataforma usa API Gateway na borda e quer, adicionalmente, cifrar com TLS mútuo e medir todas as chamadas entre seus microsserviços internos sem alterar o código deles. Qual solução atende a esse objetivo adicional?",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "DIFICIL",
       "options": [
-        { "key": "A", "text": "Criar um BFF para cada microsserviço interno.", "correct": false },
-        { "key": "B", "text": "Ativar cache de respostas no gateway de borda.", "correct": false },
-        { "key": "C", "text": "Adotar service mesh com proxies sidecar.", "correct": true },
-        { "key": "D", "text": "Aumentar o limite de taxa das rotas internas.", "correct": false },
-        { "key": "E", "text": "Trocar o gateway por um balanceador de camada 4.", "correct": false }
+        {
+          "key": "A",
+          "text": "Criar um BFF para cada microsserviço interno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar cache de respostas no gateway de borda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adotar service mesh com proxies sidecar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o limite de taxa das rotas internas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o gateway por um balanceador de camada 4.",
+          "correct": false
+        }
       ],
       "explanation": "Gabarito C. O tráfego entre serviços é leste-oeste, terreno da malha de serviços: os sidecars interceptam as chamadas, aplicam mTLS e coletam métricas sem mudar o código das aplicações, complementando o gateway. BFF atende tipos de cliente externo; cache e limite de taxa no gateway não alcançam a conversa interna; um balanceador de camada 4 não oferece essas políticas e ainda perderia as funções de borda.",
       "section": "6. Gateway, proxy reverso, balanceador e service mesh; ponto único de falha e ferramentas",
       "errorConceptKey": "e6",
-      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
     }
   ],
   "sources": [
-    { "kind": "OFICIAL", "title": "Spring Cloud Gateway — Reference Documentation", "publisher": "Spring (VMware Tanzu)", "reference": "Glossário (rota, predicado, filtro), RequestRateLimiter, CircuitBreaker e Retry", "url": "https://docs.spring.io/spring-cloud-gateway/reference/", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "RFC 6749 — The OAuth 2.0 Authorization Framework", "publisher": "IETF", "reference": "Papéis e fluxos de concessão", "url": "https://www.rfc-editor.org/rfc/rfc6749", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "RFC 7519 — JSON Web Token (JWT)", "publisher": "IETF", "reference": "Claims iss, aud, exp, nbf", "url": "https://www.rfc-editor.org/rfc/rfc7519", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "RFC 6585 — Additional HTTP Status Codes", "publisher": "IETF", "reference": "429 Too Many Requests", "url": "https://www.rfc-editor.org/rfc/rfc6585", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "RFC 9110 — HTTP Semantics", "publisher": "IETF", "reference": "Códigos 401, 403, 502, 503, 504; métodos idempotentes; Retry-After", "url": "https://www.rfc-editor.org/rfc/rfc9110", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "Amazon API Gateway Developer Guide", "publisher": "Amazon Web Services", "reference": "APIs REST, HTTP e WebSocket; throttling, planos de uso, cache e autorizadores", "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/welcome.html", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "Kong Gateway Documentation", "publisher": "Kong Inc.", "reference": "Arquitetura e plugins", "url": "https://docs.konghq.com/gateway/latest/", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "NGINX — ngx_http_limit_req_module e ngx_http_proxy_module", "publisher": "NGINX", "reference": "limit_req (leaky bucket), proxy_pass, proxy_cache", "url": "https://nginx.org/en/docs/http/ngx_http_limit_req_module.html", "accessedAt": "2026-11-18" },
-    { "kind": "COMPLEMENTAR", "title": "Pattern: API Gateway / Backends for Frontends", "publisher": "microservices.io (Chris Richardson)", "reference": "Padrões API Gateway e BFF", "url": "https://microservices.io/patterns/apigateway.html", "accessedAt": "2026-11-18" },
-    { "kind": "COMPLEMENTAR", "title": "CircuitBreaker", "publisher": "Martin Fowler", "reference": "Estados fechado, aberto e semiaberto", "url": "https://martinfowler.com/bliki/CircuitBreaker.html", "accessedAt": "2026-11-18" },
-    { "kind": "OFICIAL", "title": "OWASP API Security Top 10 — 2023", "publisher": "OWASP Foundation", "reference": "API1: Broken Object Level Authorization", "url": "https://owasp.org/API-Security/editions/2023/en/0x11-t10/", "accessedAt": "2026-11-18" }
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Gateway — Reference Documentation",
+      "publisher": "Spring (VMware Tanzu)",
+      "reference": "Glossário (rota, predicado, filtro), RequestRateLimiter, CircuitBreaker e Retry",
+      "url": "https://docs.spring.io/spring-cloud-gateway/reference/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6749 — The OAuth 2.0 Authorization Framework",
+      "publisher": "IETF",
+      "reference": "Papéis e fluxos de concessão",
+      "url": "https://www.rfc-editor.org/rfc/rfc6749",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7519 — JSON Web Token (JWT)",
+      "publisher": "IETF",
+      "reference": "Claims iss, aud, exp, nbf",
+      "url": "https://www.rfc-editor.org/rfc/rfc7519",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6585 — Additional HTTP Status Codes",
+      "publisher": "IETF",
+      "reference": "429 Too Many Requests",
+      "url": "https://www.rfc-editor.org/rfc/rfc6585",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9110 — HTTP Semantics",
+      "publisher": "IETF",
+      "reference": "Códigos 401, 403, 502, 503, 504; métodos idempotentes; Retry-After",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon API Gateway Developer Guide",
+      "publisher": "Amazon Web Services",
+      "reference": "APIs REST, HTTP e WebSocket; throttling, planos de uso, cache e autorizadores",
+      "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/welcome.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Kong Gateway Documentation",
+      "publisher": "Kong Inc.",
+      "reference": "Arquitetura e plugins",
+      "url": "https://docs.konghq.com/gateway/latest/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NGINX — ngx_http_limit_req_module e ngx_http_proxy_module",
+      "publisher": "NGINX",
+      "reference": "limit_req (leaky bucket), proxy_pass, proxy_cache",
+      "url": "https://nginx.org/en/docs/http/ngx_http_limit_req_module.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Pattern: API Gateway / Backends for Frontends",
+      "publisher": "microservices.io (Chris Richardson)",
+      "reference": "Padrões API Gateway e BFF",
+      "url": "https://microservices.io/patterns/apigateway.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "CircuitBreaker",
+      "publisher": "Martin Fowler",
+      "reference": "Estados fechado, aberto e semiaberto",
+      "url": "https://martinfowler.com/bliki/CircuitBreaker.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP API Security Top 10 — 2023",
+      "publisher": "OWASP Foundation",
+      "reference": "API1: Broken Object Level Authorization",
+      "url": "https://owasp.org/API-Security/editions/2023/en/0x11-t10/",
+      "accessedAt": "2026-11-18"
+    }
   ]
 }
