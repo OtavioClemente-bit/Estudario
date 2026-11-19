@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Estudário – fila automática do Gemini
 // @namespace    estudario
-// @version      1.15
+// @version      1.16
 // @updateURL    http://127.0.0.1:8788/estudario-gemini.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-gemini.user.js
-// @description  Envia os pedidos da fila do Estudário ao Gemini (modo Argon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
+// @description  Envia os pedidos da fila do Estudário ao Gemini (modelo Neon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
 // @match        https://gemini.google.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -18,7 +18,9 @@
 (function () {
   "use strict";
   const SERV = "http://127.0.0.1:8788";
-  const MODELO = "Argon";
+  // 19/11: o Gemini tirou o Argon do seletor; o mais forte liberado é "Análise mais profunda" (4 Neon).
+  const MODELOS = ["Neon", "Análise mais profunda", "Argon"];
+  const ehModelo = (t) => MODELOS.some((m) => (t || "").includes(m));
   const POR_CICLO = 10;
   const PAUSA = () => (2 + Math.random()) * 60_000; // 2 a 3 min entre um pedido e o próximo
   const PREFIXO = `Você é autor de questões inéditas de concurso público no Brasil, no estilo exato da banca pedida. Responda SOMENTE com UM bloco de código \`\`\`json contendo um objeto JSON válido e completo, sem nenhum texto antes ou depois do bloco.
@@ -88,9 +90,10 @@ PEDIDO:
     seletor().click();
     await w(1200);
     // Modelo (Argon)
-    const modelo = itens().find((e) => e.innerText.includes(MODELO));
+    const modelo = itens().find((e) => ehModelo(e.innerText));
     if (!modelo) { fechar(); return false; }
-    if (!modelo.classList.contains("selected")) { modelo.click(); await w(1500); seletor().click(); await w(1200); }
+    const marcado = modelo.classList.contains("selected") || modelo.getAttribute("aria-checked") === "true";
+    if (!marcado) { modelo.click(); await w(1500); seletor().click(); await w(1200); }
     // Nível de raciocínio: Médio (o Alto levava 20 a 40 min por resposta)
     const nivel = itens().find((e) => /Nível de raciocínio/.test(e.innerText));
     if (nivel) {
@@ -101,7 +104,8 @@ PEDIDO:
     } else fechar();
     await w(500);
     fechar();
-    return (seletor()?.getAttribute("aria-label") || "").includes(MODELO);
+    const rotulo = (seletor()?.getAttribute("aria-label") || "") + " " + (seletor()?.innerText || "");
+    return ehModelo(rotulo) || !/Auto/.test(rotulo);
   }
 
   // ---------------------------------------------------------------- envio + leitura
@@ -190,7 +194,7 @@ PEDIDO:
       }
       if (!(await garantirModelo())) {
         set("proximo", Date.now() + 10 * 60_000);
-        atualizar(`não consegui o ${MODELO} com raciocínio Médio; tento em 10 min`);
+        atualizar(`não consegui o modelo Neon; tento em 10 min`);
         return;
       }
       const pedido = fila[0];
